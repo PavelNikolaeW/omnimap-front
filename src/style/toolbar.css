@@ -1,0 +1,218 @@
+/* Кнопка открытия панели в углу */
+.corner-wrapper {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+}
+
+.corner-button {
+    padding: 10px 15px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    transition: background-color 0.3s, transform 0.3s;
+}
+
+/* Информационное окно о активной кнопке */
+.active-button-info {
+    padding: 5px 10px;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: #fff;
+    border-radius: 4px;
+    font-size: 0.9em;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    transition: opacity 0.3s ease;
+    opacity: 1;
+}
+
+/* Скрытие информационного окна */
+.active-button-info.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.modeIndicator {
+    position: fixed;
+    top: 10px;
+    right: 100px;
+    z-index: 1000;
+}
+
+.corner-button:hover {
+    background-color: #45a049;
+    transform: scale(1.05);
+}
+
+/* Стили для панели управления */
+.control-panel {
+    display: none; /* Скрываем по умолчанию */
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #ffffff;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    z-index: 1001;
+    width: 90%;
+    max-width: 700px;
+    overflow-y: auto;
+    max-height: 90vh;
+}
+
+/* Активация панели */
+.control-panel.active {
+    display: block;
+}
+
+/* Кнопка закрытия */
+.close-button {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: transparent;
+    border: none;
+    font-size: 1.5em;
+    cursor: pointer;
+    color: #333;
+    transition: color 0.3s;
+}
+
+.close-button:hover {
+    color: #ff0000;
+}
+
+/* Секции панели */
+.toolbar-section {
+    margin-bottom: 25px;
+}
+
+.toolbar-section h3 {
+    margin-bottom: 10px;
+    font-size: 1.1em;
+    color: #555;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 5px;
+}
+
+/* Кнопки панели */
+.toolbar-button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 5px 10px;
+    margin-bottom: 10px;
+    background-color: #f9f9f9;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s, border-color 0.3s, transform 0.2s;
+    font-size: 1em;
+    color: #333;
+}
+
+.toolbar-button:last-child {
+    margin-bottom: 0;
+}
+
+.toolbar-button:hover {
+    background-color: #e8f4ff;
+    border-color: #4CAF50;
+    transform: translateY(-2px);
+}
+
+.toolbar-button::after {
+    content: attr(data-hotkey);
+    margin-left: auto;
+    background-color: #d0d0d0;
+    color: #fff;
+    padding: 3px 6px;
+    border-radius: 4px;
+    font-size: 0.8em;
+}
+
+/* Активная кнопка */
+.active-button {
+    background-color: #c0c0ff;
+    border-color: #62628c;
+    outline: 2px solid #62628c;
+}
+
+/* Медиа-запросы для адаптивности */
+@media (max-width: 600px) {
+    .control-panel {
+        padding: 20px;
+    }
+
+    .toolbar-section h3 {
+        font-size: 1em;
+    }
+
+    .toolbar-button {
+        padding: 10px 15px;
+        font-size: 0.9em;
+    }
+
+    .toolbar-button::after {
+        font-size: 0.7em;
+    }
+
+    .corner-button {
+        padding: 8px 12px;
+        font-size: 0.9em;
+    }
+}
+
+
+.control-panel {
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    opacity: 0;
+    transform: translate(-50%, -60%);
+}
+
+.control-panel.active {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+}
+
+
+
+.toolbar-color-list {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.toolbar-color-list li {
+    margin: 0;
+}
+
+.color-button {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.color-button:hover {
+    transform: scale(1.1);
+}
+
+.color-button:focus {
+    outline: 2px solid #000;
+}

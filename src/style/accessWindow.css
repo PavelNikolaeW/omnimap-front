@@ -1,0 +1,58 @@
+.access-window {
+    position: fixed; /* Изменено на fixed */
+    width: 300px;
+    padding: 20px;
+    background-color: #f9f9f9;
+    border: 1px solid #ccc;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
+.access-window h3 {
+    margin-top: 0;
+}
+
+.access-window label {
+    display: block;
+    margin: 10px 0 5px;
+}
+
+.access-window input[type="text"] {
+    width: 100%;
+    padding: 5px;
+    box-sizing: border-box;
+}
+
+.access-window select {
+    width: 100%;
+    padding: 5px;
+    box-sizing: border-box;
+}
+
+.access-window button {
+    margin-top: 10px;
+    padding: 5px 10px;
+}
+
+.user-list {
+    margin-top: 15px;
+    max-height: 150px;
+    overflow-y: auto;
+    border-top: 1px solid #ddd;
+    padding-top: 10px;
+}
+
+.user-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+}
+
+.loading {
+    text-align: center;
+    font-style: italic;
+    color: #555;
+}
