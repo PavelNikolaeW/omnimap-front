@@ -89,15 +89,15 @@ class BlockCreator {
 
         const element = document.createElement('div');
         const content = document.createElement('div')
-        const iframe = document.getElementById(`iframe${block.id}`)
+        const iframe = document.createElement(`iframe`)
 
         this._setBlockGrid(block, parentBlock)
-        iframeElement.src = block.data.iframe.src
+        iframe.src = block.data.iframe.src
         block.data.iframe?.atributes?.foreach((attr) => {iframeElement.setAttribute(attr.name, attr.value)})
 
         content.classList.add('defaultContent', ...block.contentPosition)
         element.classList.add('iframe', 'block')
-        content.appendChild(iframeElement)
+        content.appendChild(iframe)
         element.appendChild(content)
         element.id = block.id
         this.iframes.set(block.id, element)
@@ -126,6 +126,7 @@ class BlockCreator {
         contentElement.classList.add('defaultContent');
         contentElement.setAttribute('defaultContent', block.title)
         const content = block.data.text ?  `<contentBlock><p>${block.data?.text}</p></contentBlock>` : ''
+        // const content = `<contentBlock><p>${block.size.layout}</p></contentBlock>`
         contentElement.innerHTML =  title + content
 
         block.data.contentAttributes?.forEach(attr => contentElement.setAttribute(attr.name, attr.value))

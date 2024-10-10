@@ -14,21 +14,21 @@ class GridClassManager {
             "l-sq": GridClassManager.l_sq,
             "xl-sq": GridClassManager.l_sq,
             "xxl-sq": GridClassManager.l_sq,
-            "xxxs-w": GridClassManager.s_w,
-            "xxs-w": GridClassManager.s_w,
+            "xxxs-w": GridClassManager.xxxs_w,
+            "xxs-w": GridClassManager.xxxs_w,
             "xs-w": GridClassManager.s_w,
             "s-w": GridClassManager.s_w,
             "m-w": GridClassManager.l_sq,
             "l-w": GridClassManager.l_sq,
             "xl-w": GridClassManager.l_sq,
-            "xxl-w": GridClassManager.l_sq,
+            "xxl-w": GridClassManager.xxl_w,
             "xxxs-h": GridClassManager.xxxs_h,
             "xxs-h": GridClassManager.xxs_h,
-            "xs-h": GridClassManager.xs_h,
-            "s-h": GridClassManager.s_h,
-            "m-h": GridClassManager.m_h,
-            "l-h": GridClassManager.l_h,
-            "xl-h": GridClassManager.xl_h,
+            "xs-h": GridClassManager.xxl_h,
+            "s-h": GridClassManager.xxl_h,
+            "m-h": GridClassManager.xxl_h,
+            "l-h": GridClassManager.xxl_h,
+            "xl-h": GridClassManager.xxl_h,
             "xxl-h": GridClassManager.xxl_h,
             'table': GridClassManager.table,
         }
@@ -55,7 +55,7 @@ class GridClassManager {
             height: Number((parentHeight - content - padding - gapRow) / totalRows * childRows)
         }
 
-        block.size = getElementSizeClass(null, calculatedSize);
+        block.size = getElementSizeClass(null, calculatedSize); // todo если размеры кастомные нужно использовать дефолтный класс размера так как теряется адаптивность
         if (block.data?.customLayout && block.data.customLayout !== 'default') {
             block.size.layout = block.data.customLayout
         }
@@ -78,6 +78,18 @@ class GridClassManager {
     }
 
     static l_sq(block) {
+        let row, col;
+        if (block.children.length === 3) [row, col] = [2, 2]
+        else [row, col] = GridClassManager._calculateBlocksLayout(block.children.length) // без учета контента
+
+        return [
+            GridClassManager._setBlockGrid(block, row, col),
+            GridClassManager._setContentPosition(block, row, col),
+            GridClassManager._setChildrenPosition(block, row, col),
+        ]
+    }
+
+    static xxl_w(block) {
         let [row, col] = GridClassManager._calculateBlocksLayout(block.children.length) // без учета контента
         return [
             GridClassManager._setBlockGrid(block, row, col),
@@ -86,7 +98,7 @@ class GridClassManager {
         ]
     }
 
-    static s_w(block) {
+    static xxxs_w(block) {
         const col = block.children.length
         const children_position = {row: 2, col: col}
 
@@ -102,6 +114,63 @@ class GridClassManager {
             children_position
         ]
     }
+
+
+    static s_w(block) {
+        const totalChildren = block.children.length;
+        const children_position = {row: 2, col: totalChildren};
+
+        let rowCounter = 2;
+        let colCounter = 1;
+
+        // Если дочерних элементов больше 5, расставляем в 2 ряда
+        if (totalChildren > 4) {
+            const maxCols = Math.ceil(totalChildren / 2); // Количество колонок в каждом ряду
+            for (let i = 0; i < totalChildren; i++) {
+                // Если это последний элемент и общее количество нечетное
+                if (i === totalChildren - 1 && totalChildren % 2 !== 0) {
+                    // Последний элемент занимает две колонки
+                    children_position[block.data.childOrder[i]] = [
+                        `grid-column_${colCounter}__${colCounter + 2}`,  // Растягиваем на две колонки
+                        `grid-row_${rowCounter}`   // Оставляем в текущем ряду
+                    ];
+                } else {
+                    children_position[block.data.childOrder[i]] = [
+                        `grid-column_${colCounter}`,  // Позиция по колонке
+                        `grid-row_${rowCounter}`      // Позиция по ряду
+                    ];
+                }
+
+                colCounter++; // Переходим к следующей колонке
+                if (colCounter > maxCols) {
+                    colCounter = 1;  // Сбрасываем колонку на 1
+                    rowCounter++;    // Переходим на следующий ряд
+                }
+            }
+
+            return [
+                GridClassManager._setBlockGrid(block, 2, maxCols),  // Устанавливаем 2 ряда
+                GridClassManager._setContentPosition(block, 2, maxCols), // Для содержимого
+                children_position
+            ];
+
+        } else {
+            // Если элементов 5 или меньше, расставляем в один ряд
+            for (let i = 0; i < totalChildren; i++) {
+                children_position[block.data.childOrder[i]] = [
+                    `grid-column_${i + 1}`,  // Одна колонка для каждого
+                    `grid_row_2`             // В одной строке
+                ];
+            }
+
+            return [
+                GridClassManager._setBlockGrid(block, 1, totalChildren),  // 1 ряд, n колонок
+                GridClassManager._setContentPosition(block, 1, totalChildren), // Для содержимого
+                children_position
+            ];
+        }
+    }
+
 
     static m_w() {
 
@@ -150,8 +219,62 @@ class GridClassManager {
     }
 
     static xxl_h(block) {
-        return GridClassManager.xxs_h(block)
+        const totalChildren = block.data.childOrder.length;
+        const children_position = {row: totalChildren + 1, col: 1};
+
+        let rowCounter = 2;
+        let colCounter = 1;
+
+        // Если дочерних элементов больше 5, расставляем в 2 колонки
+        if (totalChildren > 4) {
+            const row = Math.ceil(totalChildren / 2); // Количество строк для 2 колонок
+            children_position.row = row + 1;
+
+            for (let i = 0; i < totalChildren; i++) {
+                // Проверяем, не последний ли это блок и нечетное ли общее количество
+                if (i === totalChildren - 1 && totalChildren % 2 !== 0) {
+                    // Последний блок при нечетном количестве занимает две колонки
+                    children_position[block.data.childOrder[i]] = [
+                        `grid-column_1__3`,  // Растягиваем на две колонки
+                        `grid-row_${rowCounter}`   // Строка для последнего элемента
+                    ];
+                } else {
+                    children_position[block.data.childOrder[i]] = [
+                        `grid-column_${colCounter}`,  // Колонка 1 или 2
+                        `grid-row_${rowCounter}`     // Строка
+                    ];
+
+                    // Чередуем колонки (1 -> 2), сбрасываем на 1 после второй колонки
+                    colCounter++;
+                    if (colCounter > 2) {
+                        colCounter = 1;
+                        rowCounter++; // Переход на новую строку после каждой второй колонки
+                    }
+                }
+            }
+
+            return [
+                GridClassManager._setBlockGrid(block, row, 2),  // Устанавливаем 2 колонки
+                GridClassManager._setContentPosition(block, row, 2), // Для содержимого
+                children_position
+            ];
+        } else {
+            // Расставляем в одну колонку, если дочерних элементов 5 или меньше
+            for (let i = 0; i < totalChildren; i++) {
+                children_position[block.data.childOrder[i]] = [
+                    `grid-column_1`,             // Одна колонка
+                    `grid-row_${rowCounter++}`   // Каждому элементу своя строка
+                ];
+            }
+
+            return [
+                GridClassManager._setBlockGrid(block, totalChildren, 1),  // 1 колонка
+                GridClassManager._setContentPosition(block, totalChildren, 1), // Для содержимого
+                children_position
+            ];
+        }
     }
+
 
     static table(block) {
         const gridSize = Math.ceil(Math.sqrt(block.children.length))
@@ -258,7 +381,6 @@ class GridClassManager {
      * @returns {Array} Массив, содержащий размеры для ряда и столбца.
      */
     static _calculateBlocksLayout(number) {
-        if (number === 3) return [2, 2]
         let [row, col] = findNearestRoots(number);
         if (row * col === number) {
             return [row, col];

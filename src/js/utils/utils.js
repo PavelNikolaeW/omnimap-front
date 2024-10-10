@@ -20,7 +20,7 @@ export function getElementSizeClass(element, size) {
     const aspectRatio = Math.abs(width) / Math.abs(height);
     let layout = 'unknown'
 
-    if (aspectRatio >= 0.8 && aspectRatio <= 1.2) { // квадраты
+    if (aspectRatio >= 0.8 && aspectRatio <= 1.3) { // квадраты
         if (width <= 100) layout = "xxs-sq";
         else if (width <= 200) layout = "xs-sq";
         else if (width <= 300) layout = "s-sq";
@@ -29,7 +29,7 @@ export function getElementSizeClass(element, size) {
         else if (width <= 600) layout = "xl-sq";
         else layout = "xxl-sq";
     }
-    if (aspectRatio > 1.2) { // широкие элементы
+    if (aspectRatio > 1.3) { // широкие элементы
         if (height <= 60) layout = "xxxs-w";
         else if (height <= 100) layout = "xxs-w";
         else if (height <= 200) layout = "xs-w";

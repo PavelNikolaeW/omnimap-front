@@ -308,7 +308,8 @@ export class ControllerBlock extends BaseController {
 // обработка клика по блоку в зависимости от активированного мода
     clickHandler(e) {
         const el = this.findParentWithAttribute(e.target);
-        if (!el) return;
+        const selection = window.getSelection()
+        if (!el || selection && selection.toString().length > 0) return;
 
         const targetElement = el.parentElement.hasAttribute('blockLink') ? el.parentElement : el;
         const actionMethod = this.clickMode;

@@ -119,3 +119,12 @@ iframe {
 .clickable-label {
     cursor: pointer;
 }
+
+.table {
+    font-weight: bold;
+    gap: 7px;
+    padding: 7px;
+    font-size: 12px;
+    text-align: left;
+    writing-mode: horizontal-tb;
+}

@@ -253,7 +253,7 @@ export class LocalStateManager {
         const block = this.blocks.get(id);
         const title = block.title;
 
-        if (currentScreen.screenName === title) {
+        if (currentScreen.blockId === block.id) {
             if (this.path.length === 1) return;
             this.path.pop();
         } else {

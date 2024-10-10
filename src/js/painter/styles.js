@@ -14,7 +14,7 @@ export const styleConfig = {
     },
     xs: {
         sq: { padding: 6, gap: 4, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
-        w:  { padding: 6, gap: 4, fontSize: '14px', fontWeight: 'normal', textAlign: 'center', writingMode: 'horizontal-tb' },
+        w:  { padding: 6, gap: 4, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
         h:  { padding: 6, gap: 4, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' }
     },
     s: {
@@ -65,6 +65,7 @@ function generateStyles(config) {
             `;
         });
     });
+            console.log(styles)
 
     return styles;
 }
