@@ -70,7 +70,7 @@ export class Painter {
             const {block, depth, parentBlock, parentElement} = queue.dequeue();
 
             if (
-                (parentBlock.size.width < 60 || parentBlock.size.height < 60) &&
+                (parentBlock?.size?.width < 60 || parentBlock?.size?.height < 60) &&
                 parentBlock.data?.view !== 'link' ||
                 depth > maxDepth
             ) continue;

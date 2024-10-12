@@ -51,7 +51,6 @@ class CSSConverter {
         this.appliedStyles = new Set();
 
         window.addEventListener('ApplyClass', (e) => {
-            console.log(e.detail.style)
             this.generateStylesheet(e.detail.style)
             this.applyCssClasses()
         })

@@ -46,6 +46,13 @@ class GridClassManager {
     }
 
     calcBlockSize(block, parentBlock) {
+        if (!parentBlock.size) {
+            parentBlock.size = {
+                width: 1000,
+                height: 1000,
+                layout: 'xxxs-w'
+            }
+        }
         const {width: parentWidth, height: parentHeight, layout: parentLayout} = parentBlock.size;
         const [totalRows, totalCols] = this._calcParentGrid(parentBlock.grid);
         const [childRows, childCols] = this._calcChildGrid(parentBlock.childrenPositions[block.id]);

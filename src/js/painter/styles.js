@@ -65,8 +65,6 @@ function generateStyles(config) {
             `;
         });
     });
-            console.log(styles)
-
     return styles;
 }
 
