@@ -50,7 +50,9 @@ export class Painter {
         }], 512, false);
 
         this.rootContainer.textContent = ''
+        this.removeIframePositions()
         this._render(queue, blocks, this.config);
+        this.setIframePositions()
 
         if (blockCreator.emptyBlocks.length) {
             dispatch('LoadEmptyBlocks', {emptyBlocks: [...blockCreator.emptyBlocks]})
@@ -98,6 +100,32 @@ export class Painter {
             });
         }
         fragments.appendInParent()
+    }
+
+    setIframePositions() {
+        blockCreator.iframes.forEach((id) => {
+            const blockEl = document.getElementById(id);
+            const iframe = document.getElementById(`iframe${id}`);
+
+            if (blockEl && iframe) {
+                // Получаем размеры и положение блока
+                const blockRect = blockEl.getBoundingClientRect();
+
+                iframe.style.top = `${blockRect.top + window.scrollY + 10}px`;
+                iframe.style.left = `${blockRect.left + window.scrollX + 10}px`;
+                iframe.style.width = `${blockRect.width - 20}px`;
+                iframe.style.height = `${blockRect.height - 20}px`;
+            }
+        });
+    }
+
+    removeIframePositions() {
+        blockCreator.iframes.forEach((id) => {
+            const iframe = document.getElementById(`iframe${id}`);
+            iframe.style.top = `-5000px`;
+            iframe.style.left = `-5000px`;
+        })
+        blockCreator.iframes.clear()
     }
 }
 

@@ -5,6 +5,8 @@ import '../style/auth.css';
 import '../style/registration.css';
 import '../style/accessWindow.css';
 import '../style/searchWindow.css';
+import 'easymde/dist/easymde.min.css';
+import '@fortawesome/fontawesome-free/css/all.min.css';
 
 import {auth} from "./auth/auth";
 import {dispatch} from "./utils/utils";

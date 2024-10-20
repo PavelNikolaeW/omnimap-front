@@ -3,6 +3,8 @@ import {BlockEditor} from "./blockEditor";
 import BaseController from './baseController';
 import {ArrowManager} from "./arrowManager";
 import createAccessWindow from "./editAccessWindow";
+import {EditorText} from "./setupEditor";
+import {validURL} from "../utils/functions";
 
 
 // проблема с определение размера в блоках с кастомно определенным положением
@@ -15,6 +17,7 @@ export class ControllerBlock extends BaseController {
         this.blockEditor = new BlockEditor(idRootContainer)
         this.jsPlumbInstance = jsPlumbInstance
         this.connectionManager = new ArrowManager(jsPlumbInstance)
+        this.textEditor = new EditorText()
 
         this.dragableElement = null;
         this.isMoveInit = false;
@@ -77,6 +80,8 @@ export class ControllerBlock extends BaseController {
         });
 
         document.addEventListener('keydown', (e) => {
+            let handlerName = 'handleBtnColor'
+            const code = e.code;
             // Проверка, нажаты ли модификаторные клавиши
             if (e.metaKey || e.altKey || e.ctrlKey || e.shiftKey) {
                 return;
@@ -86,17 +91,16 @@ export class ControllerBlock extends BaseController {
             if (!document.hasFocus()) {
                 return;
             }
+
+            if (code === 'Escape') {
+                this.handleEscape()
+            }
+
             // Проверка, что фокус не на INPUT или TEXTAREA
             if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
                 return;
             }
 
-            let handlerName = 'handleBtnColor'
-            const code = e.code;
-
-            if (code === 'Escape') {
-                this.handleEscape()
-            }
             const button = document.querySelector(`button[data-hotkey="${code}"]`);
             if (button) {
                 e.preventDefault();
@@ -111,6 +115,8 @@ export class ControllerBlock extends BaseController {
     }
 
     handleEscape() {
+        console.log('escape')
+        this.textEditor.closeEditor()
         this.removeListenerArrowBlock()
         this.blockEditor.closeEditWindow()
         this.closeEditAccessWindow()
@@ -307,15 +313,21 @@ export class ControllerBlock extends BaseController {
 
 // обработка клика по блоку в зависимости от активированного мода
     clickHandler(e) {
-        const el = this.findParentWithAttribute(e.target);
-        const selection = window.getSelection()
-        if (!el || selection && selection.toString().length > 0) return;
+        const target = e.target
+        if (target.tagName === 'A') {
+            e.preventDefault();
+            window.open(target.href, '_blank')
+        } else {
+            const el = this.findParentWithAttribute(target);
+            const selection = window.getSelection()
+            if (!el || selection && selection.toString().length > 0) return;
 
-        const targetElement = el.parentElement.hasAttribute('blockLink') ? el.parentElement : el;
-        const actionMethod = this.clickMode;
+            const targetElement = el.parentElement.hasAttribute('blockLink') ? el.parentElement : el;
+            const actionMethod = this.clickMode;
 
-        if (typeof this[actionMethod] === 'function') {
-            this[actionMethod](targetElement);
+            if (typeof this[actionMethod] === 'function') {
+                this[actionMethod](targetElement);
+            }
         }
     }
 
@@ -342,7 +354,6 @@ export class ControllerBlock extends BaseController {
             elements.forEach(el => {
                 if (el.parentElement.id !== 'rootContainer') {
                     el.addEventListener('click', this.drawArrowHandlerBound);
-
                 }
             });
         }
@@ -395,7 +406,10 @@ export class ControllerBlock extends BaseController {
     createBlock(blockElement) {
         const title = prompt('Введите название блока');
 
-        if (title !== null) dispatch('CreateBlock', {parent: blockElement, title});
+        if (title !== null) {
+            if (validURL(title)) dispatch('IframeCreate', {parentId: blockElement.id, src: title})
+            else dispatch('CreateBlock', {parentId: blockElement.id, title});
+        }
         this.handleMode('openMode')
 
     }
@@ -511,12 +525,8 @@ export class ControllerBlock extends BaseController {
             blockElement = blockElement.children[0]
             id = blockElement.id.split('*')[1]
         }
-        const oldText = blockElement.querySelector('contentBlock')?.innerText
-
-        const text = prompt('Введите текст блока', oldText ?? '')
-        if (text !== null) dispatch('TextUpdate', {blockId: id, text})
+        this.textEditor.initEditor(blockElement.querySelector('contentBlock'), id)
         this.handleMode('openBlock')
-
     }
 
     titleBlock(blockElement) {
@@ -527,7 +537,14 @@ export class ControllerBlock extends BaseController {
         }
         const oldText = blockElement.querySelector('titleBlock')?.innerText
         const title = prompt('Введите название блока', oldText ?? '')
-        if (title !== null) dispatch('TitleUpdate', {blockId: id, title})
+
+        if (title !== null) {
+            if (validURL(title)) {
+                dispatch('SetIframe', {blockId: id, src: title})
+            } else {
+                dispatch('TitleUpdate', {blockId: id, title})
+            }
+        }
         this.handleMode('openBlock')
     }
 

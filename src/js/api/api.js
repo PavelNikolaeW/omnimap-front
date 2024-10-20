@@ -10,7 +10,9 @@ class Api {
 
 
         this.api = axios.create({
-            baseURL: 'http://79.174.92.75/api/v1/',
+            // baseURL: 'http://79.174.92.75/api/v1/',
+            // baseURL: 'http://omnimap.ru/api/v1/',
+            baseURL: 'http://localhost:8000/api/v1/',
             timeout: 5000,
             headers: {
                 'Content-Type': 'application/json'
@@ -103,8 +105,8 @@ class Api {
         delete this.api.defaults.headers.common['Authorization'];
     }
 
-    async createBlock(parentId, title = '') {
-        return await this.api.post(`new-block/${parentId}/`, {title})
+    async createBlock(parentId, title = '', data = {}) {
+        return await this.api.post(`new-block/${parentId}/`, {title, data})
     }
 
     async getRootBlock() {

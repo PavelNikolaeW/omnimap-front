@@ -42,10 +42,21 @@ export function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+export function validURL(str) {
+    try {
+        new URL(str);
+        return true;
+    } catch (err) {
+        console.log(err)
+        return false;
+    }
+}
+
 export default {
     findLCM,
     findNearestRoots,
     sleep,
+    validURL
 }
 
 

@@ -103,6 +103,9 @@ export class LocalStateManager {
         window.addEventListener('CreateBlock', (e) => {
             this.createBlock(e.detail);
         });
+        window.addEventListener('IframeCreate', (e) => {
+            this.iframeCreate(e.detail);
+        });
 
         window.addEventListener('DeleteBlock', (e) => {
             this.removeBlock(e.detail);
@@ -137,6 +140,9 @@ export class LocalStateManager {
 
         window.addEventListener('SetHueBlock', async (e) => {
             this.hueUpdate(e.detail);
+        });
+        window.addEventListener('SetIframe', async (e) => {
+            this.SetIframe(e.detail);
         });
 
         window.addEventListener('resize', () => this.onResize());
@@ -273,9 +279,9 @@ export class LocalStateManager {
         await localforage.setItem(`Path_${this.currentUser}`, this.path);
     }
 
-    async createBlock({parent, title}) {
+    async createBlock({parentId, title}) {
         try {
-            const response = await api.createBlock(parent.id, title);
+            const response = await api.createBlock(parentId, title);
             if (response.status === 201) {
                 const newBlocks = response.data;
                 for (const block of newBlocks) {
@@ -286,6 +292,26 @@ export class LocalStateManager {
         } catch (err) {
             console.error(err);
         }
+    }
+
+    iframeCreate({parentId, src}) {
+        api.createBlock(parentId, '', {
+            view: 'iframe',
+            attributes: [
+                {name: 'sandbox', value: 'allow-scripts allow-same-origin allow-forms'},
+                {name: 'src', value: src}
+            ]
+        }).then(async (res) => {
+            if (res.status === 201) {
+                const newBlocks = res.data;
+                for (const block of newBlocks) {
+                    await this.saveBlock(block);
+                }
+                dispatch('ShowBlocks');
+            }
+        }).catch((err) => {
+            console.error(err)
+        })
     }
 
     async removeBlock({removeId, parentId}) {
@@ -407,6 +433,27 @@ export class LocalStateManager {
         } catch (err) {
             console.error(err);
         }
+    }
+
+
+    SetIframe({blockId, src}) {
+        api.updateBlock(blockId, {
+            data: {
+                view: 'iframe',
+                text: '',
+                attributes: [
+                    {name: 'sandbox', value: 'allow-scripts allow-same-origin allow-forms'},
+                    {name: 'src', value: src}
+                ],
+            }
+        }).then((res) => {
+            if (res.status === 200) {
+                const updatedBlock = res.data;
+                this.saveBlock(updatedBlock);
+                dispatch('ShowBlocks');
+            }
+        })
+
     }
 
     async hueUpdate({blockId, hue}) {

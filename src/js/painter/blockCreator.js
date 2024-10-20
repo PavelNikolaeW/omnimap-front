@@ -1,20 +1,23 @@
 import gridClassManager from "./gridClassManager";
 import cssConverter from "./cssConverter";
 import CalcColor from "./calcBlockColor"
-import {auth} from'./views/auth'
-import {registration} from'./views/registration'
+import {auth} from './views/auth'
+import {registration} from './views/registration'
 
 
 const viewRenderers = {
-  'auth': auth,
-  'registration': registration ,
+    'auth': auth,
+    'registration': registration,
 };
+
 class BlockCreator {
     constructor() {
         this.arrows = new Set()
         this.colorist = new CalcColor()
-        this.iframes = new Map()
+        this.iframes = new Set()
+        this.AllIframes = new Set()
         this.emptyBlocks = []
+        this.iframeConteiner = document.getElementById('container-iframe')
     }
 
     createElement(block, parentBlock, screen, depth) {
@@ -23,6 +26,7 @@ class BlockCreator {
         if (block.data?.connections) this.arrows.add({connections: block.data?.connections, layout: block.size.layout})
         return element
     }
+
     _createElement(block, parentBlock, screen, depth) {
         const view = block.data?.view
         block.data?.arrows?.forEach((arrow) => {
@@ -60,7 +64,6 @@ class BlockCreator {
 
         block.contentEl = this.createContent(element, block)
         block.color = this.colorist.calculateColor(element, block, [...parentBlock.color])
-        // block.element = element
         return element
     }
 
@@ -81,26 +84,31 @@ class BlockCreator {
         block.grid = grid
         block.contentEl = null
         block.color = [...parentBlock.color]
-        // block.element = element
         return element
     }
+
     createIframe(block, parentBlock) {
-        if (document.getElementById(`iframe${block.id}`)) return
+        if (!this.AllIframes.has(`iframe${block.id}`)) {
+            const iframeElement = document.createElement(`iframe`,)
+            iframeElement.id = `iframe${block.id}`
+            iframeElement.style.position = 'absolute'
+            iframeElement.setAttribute('block', '')
+            block.data.attributes?.forEach((attr) => {
+                iframeElement.setAttribute(attr.name, attr.value)
+            })
+            document.body.appendChild(iframeElement)
+            this.AllIframes.add(`iframe${block.id}`)
+            console.log(this.AllIframes)
+        }
+        this.iframes.add(block.id)
 
         const element = document.createElement('div');
-        const content = document.createElement('div')
-        const iframe = document.createElement(`iframe`)
-
         this._setBlockGrid(block, parentBlock)
-        iframe.src = block.data.iframe.src
-        block.data.iframe?.atributes?.foreach((attr) => {iframeElement.setAttribute(attr.name, attr.value)})
 
-        content.classList.add('defaultContent', ...block.contentPosition)
         element.classList.add('iframe', 'block')
-        content.appendChild(iframe)
-        element.appendChild(content)
         element.id = block.id
-        this.iframes.set(block.id, element)
+        element.setAttribute('block', '')
+        block.color = this.colorist.calculateColor(element, block, [...parentBlock.color])
         return element
     }
 
@@ -120,14 +128,13 @@ class BlockCreator {
         }
 
         const contentElement = document.createElement('div');
-        let title =  `<titleBlock><b>${block.title}</b></titleBlock>`
+        let title = `<titleBlock><b>${block.title}</b></titleBlock>`
         if (block.data.titleIsVisible === false) title = ''
 
         contentElement.classList.add('defaultContent');
         contentElement.setAttribute('defaultContent', block.title)
-        const content = block.data.text ?  `<contentBlock><p>${block.data?.text}</p></contentBlock>` : ''
-        // const content = `<contentBlock><p>${block.size.layout}</p></contentBlock>`
-        contentElement.innerHTML =  title + content
+        const content = block.data.text ? `<contentBlock><p>${block.data?.text}</p></contentBlock>` : '<contentBlock></contentBlock>'
+        contentElement.innerHTML = title + content
 
         block.data.contentAttributes?.forEach(attr => contentElement.setAttribute(attr.name, attr.value))
         block.data.layoutAttributes?.[block.size.layout].forEach(attr => contentElement.setAttribute(attr.name, attr.value))
@@ -166,7 +173,7 @@ class BlockCreator {
             block.childrenPositions = customGrid.childrenPositions
             block.grid = customGrid.grid
             block.contentPosition = customGrid.contentPosition
-            block.size = {width: 1000, height:1000, layout: 'xxl-sq'}
+            block.size = {width: 1000, height: 1000, layout: 'xxl-sq'}
         } else {
             let [grid, contentPosition, childrenPositions] = gridClassManager.manager(block, parentBlock)
 
