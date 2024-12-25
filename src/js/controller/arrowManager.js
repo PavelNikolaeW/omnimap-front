@@ -141,6 +141,7 @@ export class ArrowManager {
      */
     loadConnections({arrows}) {
         this.instance.reset();
+
         function isElementFullyVisible(el) {
             if (!el) return false
             const rect = el.getBoundingClientRect();
@@ -192,14 +193,14 @@ export class ArrowManager {
                 stroke: '#456',
                 strokeWidth: 1,
                 outlineStroke: 'transparent',
-                outlineWidth: 10
+                outlineWidth: 10,
             }
         }
         return {
             stroke: '#516077',
             strokeWidth: 2,
             outlineStroke: 'transparent',
-            outlineWidth: 10
+            outlineWidth: 10,
         }
     }
 

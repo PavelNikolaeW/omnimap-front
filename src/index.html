@@ -44,14 +44,17 @@
             ↗️ Перенести блок (M)
         </button>
 
-        <!--        <button class="toolbar-button" id="editAccessBlock" data-hotkey="KeyP">-->
-        <!--            🗑️ Редактировать права блока (P)-->
-        <!--        </button>-->
+        <button class="toolbar-button" id="editAccessBlock" data-hotkey="KeyP">
+            🗑️ Редактировать права блока (P)
+        </button>
 
     </div>
 
     <div class="toolbar-section">
         <h3>Копирование/Вставка</h3>
+        <button class="toolbar-button" id="copyIdBlock" data-hotkey="KeyI">
+            📋 Копировать ID блока (i)
+        </button>
         <button class="toolbar-button" id="copyBlock" data-hotkey="KeyC">
             📋 Копировать (C)
         </button>
@@ -199,6 +202,11 @@
         <textarea id="editor-textarea"></textarea>
     </div>
 </div>
+<div id="error-popup" class="hidden">
+    <span id="error-message"></span>
+</div>
+
+<div class="breadcrumb" id="breadcrumb"></div>
 
 
 </body>

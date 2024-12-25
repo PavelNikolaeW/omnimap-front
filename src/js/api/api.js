@@ -5,14 +5,10 @@ import {dispatch} from "../utils/utils";
 class Api {
     constructor() {
         // Настройка базового URL и создание экземпляра axios
-        this.isLoading = false;
         this.errorMessage = '';
-
-
         this.api = axios.create({
-            // baseURL: 'http://79.174.92.75/api/v1/',
             // baseURL: 'http://omnimap.ru/api/v1/',
-            baseURL: 'http://localhost:8000/api/v1/',
+            baseURL: 'http://127.0.0.1:8000/api/v1/',
             timeout: 5000,
             headers: {
                 'Content-Type': 'application/json'
@@ -21,6 +17,7 @@ class Api {
 
         // Добавление интерцептора запроса для вставки JWT в заголовки
         this.api.interceptors.request.use(config => {
+            this.setLoading(true)
             const token = Cookies.get('access');
             if (token) {
                 config.headers['Authorization'] = `Bearer ${token}`;
@@ -31,8 +28,13 @@ class Api {
         });
 
         // Добавление интерцептора ответа для обработки истечения токена
-        this.api.interceptors.response.use(response => response, async error => {
+        this.api.interceptors.response.use(response => {
+            this.setLoading(false)
+            return response
+        }, async error => {
             const originalRequest = error.config;
+            this.setLoading(false)
+
             if (error.response.status === 401 && !originalRequest._retry) {
                 originalRequest._retry = true;
                 try {
@@ -44,8 +46,14 @@ class Api {
                     return Promise.reject(refreshError);
                 }
             }
+            if (error.response.status >= 400) {
+                dispatch("ShowError", error)
+            }
             return Promise.reject(error);
         });
+    }
+    setLoading(value) {
+        dispatch('SetLoading', value);
     }
 
     // Метод для обновления токена
@@ -136,7 +144,6 @@ class Api {
     }
 
     updateBlock(id, data) {
-        console.log(data)
         return this.api.post(`edit-block/${id}/`, data)
     }
 
@@ -163,7 +170,7 @@ class Api {
 
 }
 
-const api = new Api()
+const api = new Api('http://0.0.0.0:7999')
 
 export default api
 

@@ -128,3 +128,77 @@ iframe {
     text-align: left;
     writing-mode: horizontal-tb;
 }
+
+.loading-cursor {
+    cursor: wait;
+}
+
+
+#error-popup {
+    position: fixed;
+    bottom: 40px;
+    right: 40px;
+    background-color: #f44336; /* Красный цвет для ошибок */
+    color: white;
+    padding: 30px;
+    border-radius: 5px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    font-size: 30px;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 1s ease, transform 1s ease;
+}
+
+#error-popup.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+#error-popup.hidden {
+    transform: translateY(20px);
+}
+
+.breadcrumb-container {
+    position: fixed;
+    display: flex;
+    flex-direction: row;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: #ffffff;
+    border-top: 1px solid #ccc;
+    z-index: 9999;
+    padding: 10px;
+    box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.breadcrumb {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    font-size: 16px; /* Размер текста */
+}
+
+.breadcrumb-item {
+    margin-right: 8px;
+    color: #333; /* Цвет текста */
+}
+
+.breadcrumb-item div {
+    text-decoration: none;
+    color: #007bff; /* Цвет ссылок */
+}
+
+.breadcrumb-item div:hover {
+    text-decoration: underline;
+}
+
+
+.no-select {
+    user-select: none; /* Современные браузеры */
+    -webkit-user-select: none; /* Safari */
+    -moz-user-select: none; /* Firefox */
+    -ms-user-select: none; /* IE10+ */
+}

@@ -52,11 +52,23 @@ export function validURL(str) {
     }
 }
 
+export function truncate(str, maxLen) {
+    if (str.length <= maxLen) return str
+    return str.slice(0, maxLen) + "."
+}
+
+const uuidv6Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-6[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export function isValidUUIDv6(str) {
+  return uuidv6Regex.test(str);
+}
+
 export default {
     findLCM,
     findNearestRoots,
     sleep,
-    validURL
+    validURL,
+    truncate,
+    isValidUUIDv6
 }
 
 

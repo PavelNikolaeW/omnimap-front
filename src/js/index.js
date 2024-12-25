@@ -8,7 +8,6 @@ import '../style/searchWindow.css';
 import 'easymde/dist/easymde.min.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 
-import {auth} from "./auth/auth";
 import {dispatch} from "./utils/utils";
 import {LocalStateManager} from "./stateLocal/localStateManager";
 import {ControllerBlock} from "./controller/controller";
@@ -16,6 +15,7 @@ import {addedSizeStyles} from "./painter/styles";
 import {jsPlumb} from "jsplumb";
 import localforage from "localforage";
 import api from "./api/api";
+import {SincManager} from "./sincManager/sincManager";
 
 // что нужно доделать перед переходом к беку
 // 1 редактор размеров и расположения блоков
@@ -39,7 +39,6 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
 
 document.addEventListener('DOMContentLoaded', async () => {
     await initApp()
-    initSynchronisationBlocks()
 })
 
 async function checkAuth() {
@@ -75,37 +74,12 @@ async function initApp() {
     addedSizeStyles()
     const localState = new LocalStateManager(jsPlumbInstance)
     const controller = new ControllerBlock(jsPlumbInstance);
+    const sincManager = new SincManager()
 
     const isAuth = await checkAuth()
 
     if (isAuth) {
-        console.log('drawBlocks')
         dispatch('ShowBlocks')
     }
 
 }
-
-/**
- * Инициализация управления синхронизацией блоков.
- */
-function initSynchronisationBlocks() {
-
-}
-
-function logElementSizes(element) {
-    if (!element) return;
-
-    // Получаем размеры самого элемента
-    const rect = element.getBoundingClientRect();
-    console.log(element, `Размеры: Ширина - ${rect.width}px, Высота - ${rect.height}px`);
-
-    // Рекурсивно проходим по всем дочерним элементам
-    Array.from(element.children).forEach(child => {
-        if (child.hasAttribute('block')) logElementSizes(child);
-    });
-}
-
-// setTimeout(() => {
-//     logElementSizes(document.getElementById('rootContainer'))
-// }, 500)
-

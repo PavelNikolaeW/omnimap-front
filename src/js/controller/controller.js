@@ -3,8 +3,9 @@ import {BlockEditor} from "./blockEditor";
 import BaseController from './baseController';
 import {ArrowManager} from "./arrowManager";
 import createAccessWindow from "./editAccessWindow";
-import {EditorText} from "./setupEditor";
+import {EditorText} from "./textEditor";
 import {validURL} from "../utils/functions";
+import {SelectionManager} from "./SelectionManager";
 
 
 // проблема с определение размера в блоках с кастомно определенным положением
@@ -22,6 +23,8 @@ export class ControllerBlock extends BaseController {
         this.dragableElement = null;
         this.isMoveInit = false;
 
+        this.selectionManager = new SelectionManager()
+        this.selectedText = ''
 
         this.bindHandlers()
         this.initializeEventListeners();
@@ -57,7 +60,6 @@ export class ControllerBlock extends BaseController {
             }
             if (Object.values(newParams).length > 1) {
                 const data = {}
-                console.log(element, data)
                 if (newParams.hue) {
                     data.color = [newParams.hue, 0, 0, 0]
                 }
@@ -81,6 +83,7 @@ export class ControllerBlock extends BaseController {
 
         document.addEventListener('keydown', (e) => {
             let handlerName = 'handleBtnColor'
+
             const code = e.code;
             // Проверка, нажаты ли модификаторные клавиши
             if (e.metaKey || e.altKey || e.ctrlKey || e.shiftKey) {
@@ -100,7 +103,6 @@ export class ControllerBlock extends BaseController {
             if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
                 return;
             }
-
             const button = document.querySelector(`button[data-hotkey="${code}"]`);
             if (button) {
                 e.preventDefault();
@@ -115,7 +117,6 @@ export class ControllerBlock extends BaseController {
     }
 
     handleEscape() {
-        console.log('escape')
         this.textEditor.closeEditor()
         this.removeListenerArrowBlock()
         this.blockEditor.closeEditWindow()
@@ -320,14 +321,21 @@ export class ControllerBlock extends BaseController {
         } else {
             const el = this.findParentWithAttribute(target);
             const selection = window.getSelection()
-            if (!el || selection && selection.toString().length > 0) return;
+            if (!el || selection && (selection.toString().trim().length > 0 || this.selectedText.length > 0)) {
+                this.selectedText = selection.toString().trim()
+                return
+            }
+
 
             const targetElement = el.parentElement.hasAttribute('blockLink') ? el.parentElement : el;
             const actionMethod = this.clickMode;
 
             if (typeof this[actionMethod] === 'function') {
                 this[actionMethod](targetElement);
+                // отключаем возможность выделять на вермя что бы можно было быстро открыть следующий блоок
+                this.selectionManager.disableSelection(300)
             }
+            e.preventDefault()
         }
     }
 
@@ -426,7 +434,9 @@ export class ControllerBlock extends BaseController {
     }
 
     activeEdit() {
-        if (this.activeElement) this.blockEditor.openEditWindow(this.activeElement);
+        if (this.activeElement && this.activeElement.parentElement.hasAttribute('blockLink')) {
+            this.blockEditor.openEditWindow(this.activeElement.parentElement)
+        } else if (this.activeElement) this.blockEditor.openEditWindow(this.activeElement);
     }
 
     copyBlock(blockElement) {
@@ -499,6 +509,8 @@ export class ControllerBlock extends BaseController {
             alert("Нельзя удалять корневой элемент. Вернитесь на блок выше.")
             return
         }
+        document.onkeydown = null;
+        document.onkeypress = null;
         if (confirm(`Вы уверены, что хотите удалить блок ${blockElement.id} у родителя ${parent.id}`)) {
             dispatch('DeleteBlock', {removeId: blockElement.id, parentId: parent.id});
             this.clearActiveBlocks(this.selectedBlocks);

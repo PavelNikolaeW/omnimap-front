@@ -46,9 +46,12 @@ export class BlockEditor {
     }
 
     clickHandle(e) {
-        const targetBlock = this.findParentWithAttribute(e.target);
+
+        const targetBlock = this.findParentWithAttribute(e.target)
         if (targetBlock && targetBlock !== this.currentBlock) {
-            dispatch("SetControlHandlers");
+            console.log(targetBlock.parentElement)
+            if (targetBlock.parentElement.hasAttribute('blocklink') && targetBlock.parentElement !== this.currentBlock)
+                dispatch("SetControlHandlers");
         }
     }
 
@@ -184,7 +187,7 @@ export class BlockEditor {
         directions.forEach(dir => {
             const button = this.createElement('button', 'arrow-button', dir, {
                 'data-direction': dir,
-                type: 'button', // Предотвращаем отправку формы
+                type: 'button',
             });
             button.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -192,6 +195,17 @@ export class BlockEditor {
             });
             buttonsContainer.appendChild(button);
         });
+
+        if (!window.arrowKeyListener)
+            this.ArrowListener = (event) => {
+                const arrowKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+
+                if (arrowKeys.includes(event.key)) {
+                    this.moveBlock(element, event.key);
+                }
+            }
+            window.addEventListener('keydown', this.ArrowListener);
+            window.arrowKeyListener = this.ArrowListener;
 
         inputsContainer.appendChild(buttonsContainer);
         windowEl.appendChild(inputsContainer);
@@ -317,9 +331,11 @@ export class BlockEditor {
             document.body.removeChild(this.editWindowEl);
             this.editWindowEl = null;
         }
-        if (Object.values(this.newParams).length > 1 || Object.values(this.newParams.parent).length)
+        if (this.currentBlock && (Object.values(this.newParams).length > 1 || Object.values(this.newParams.parent).length))
             dispatch('UpdateBlockParams', {element: this.currentBlock, newParams: this.newParams})
         this.removeHandlers();
+        window.removeEventListener('keydown', window.arrowKeyListener);
+        delete window.arrowKeyListener
     }
 
     makeDraggable(element, handle) {
@@ -412,27 +428,31 @@ export class BlockEditor {
     moveBlock(element, direction) {
         const blockInfo = this.getBlockGridInfo(element);
         let {colStart, colEnd, rowStart, rowEnd} = blockInfo;
-
+        console.log(direction)
         switch (direction) {
             case '↑':
+            case'ArrowUp':
                 if (rowStart > 1) {
                     rowStart -= 1;
                     rowEnd -= 1;
                 }
                 break;
             case '↓':
+            case'ArrowDown':
                 if (rowEnd < MAX_ROWS) {
                     rowStart += 1;
                     rowEnd += 1;
                 }
                 break;
             case '←':
+            case 'ArrowLeft':
                 if (colStart > 1) {
                     colStart -= 1;
                     colEnd -= 1;
                 }
                 break;
             case '→':
+            case 'ArrowRight':
                 if (colEnd < MAX_COLUMNS) {
                     colStart += 1;
                     colEnd += 1;

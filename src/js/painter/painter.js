@@ -29,10 +29,10 @@ export class Painter {
             maxDepth: 40,
         }
         this.jsPlumbInstance = jsPlumbInstance
-        this._render = measurePerformance('_render', this._render)
+        this.render = measurePerformance('render', this.render)
     }
 
-    render(blocks, {screenName, color = [], blockId}) {
+    render(blocks, {color = [], blockId}) {
         const block = blocks.get(blockId)
         const queue = new Queue([{
             block: block,
@@ -40,9 +40,10 @@ export class Painter {
             parentBlock: {
                 'id': this.rootContainer.id,
                 'grid': ["grid-template-columns_1fr", "grid-template-rows_1fr"],
+                'gridSize': {row: 0, col: 0},
                 'contentEl': null,
                 'children': [block.id],
-                'childrenPositions': {[block.id]: ['grid-column_1', 'grid-row_1'], row: 0, col: 0},
+                'childrenPositions': {[block.id]: ['grid-column_1', 'grid-row_1']},
                 'size': getElementSizeClass(this.rootContainer),
                 'color': [...color]
             },
@@ -67,8 +68,10 @@ export class Painter {
         const fragments = new Map();
         let render_fragment = null
         let step = 0
+        let count = 0
 
         while (!queue.isEmpty()) {
+            count++
             const {block, depth, parentBlock, parentElement} = queue.dequeue();
 
             if (
@@ -100,6 +103,7 @@ export class Painter {
             });
         }
         fragments.appendInParent()
+        console.log(count)
     }
 
     setIframePositions() {

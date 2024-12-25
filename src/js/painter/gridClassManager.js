@@ -55,8 +55,9 @@ class GridClassManager {
         }
         const {width: parentWidth, height: parentHeight, layout: parentLayout} = parentBlock.size;
         const [totalRows, totalCols] = this._calcParentGrid(parentBlock.grid);
+        // console.log(parentBlock, block.id, parentBlock.childrenPositions[block.id])
         const [childRows, childCols] = this._calcChildGrid(parentBlock.childrenPositions[block.id]);
-        const {padding, gapCol, gapRow, content} = this._styleCorrection(parentBlock);
+        const {padding, gapCol, gapRow, content} = this._styleCorrection(parentBlock, totalRows, totalCols);
         const calculatedSize = {
             width: Number((parentWidth - padding - gapCol) / totalCols * childCols),
             height: Number((parentHeight - content - padding - gapRow) / totalRows * childRows)
@@ -449,15 +450,15 @@ class GridClassManager {
         return [row, col];
     }
 
-    _styleCorrection(parentBlock) {
+    _styleCorrection(parentBlock, row, col) {
         const layout = parentBlock.size.layout
         const [size, form] = layout.split('-')
         const style = styleConfig[size][form ?? 'table']
         const padding = style.padding
         const gap = style.gap
         const orientation = style.writingMode
-        const gapColCorrection = parentBlock.childrenPositions.col > 1 ? gap * (parentBlock.childrenPositions.col - 1) : 0
-        const gapRowCorrection = parentBlock.childrenPositions.row > 1 ? gap * (parentBlock.childrenPositions.row - 1) : 0
+        const gapColCorrection = col > 1 ? gap * (col - 1) : 0
+        const gapRowCorrection = row > 1 ? gap * (row - 1) : 0
         if (!parentBlock.contentHeight) {
             parentBlock.contentHeight = parentBlock.contentEl ? parentBlock.contentEl.clientHeight : 0;
             parentBlock.contentEl = undefined

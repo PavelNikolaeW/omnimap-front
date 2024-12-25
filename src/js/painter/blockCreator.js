@@ -17,7 +17,6 @@ class BlockCreator {
         this.iframes = new Set()
         this.AllIframes = new Set()
         this.emptyBlocks = []
-        this.iframeConteiner = document.getElementById('container-iframe')
     }
 
     createElement(block, parentBlock, screen, depth) {
@@ -59,8 +58,9 @@ class BlockCreator {
         this._setAttributes(element, block)
         this._applyStyles(element, ['block', block.size.layout, ...(block.grid), ...(parentBlock.childrenPositions[block.id]), ...customClasses])
 
-        element.setAttribute('width', `${block.size.width}`)
-        element.setAttribute('height', `${block.size.height}`)
+        // для отладки
+        // element.setAttribute('width', `${block.size.width}`)
+        // element.setAttribute('height', `${block.size.height}`)
 
         block.contentEl = this.createContent(element, block)
         block.color = this.colorist.calculateColor(element, block, [...parentBlock.color])
@@ -98,7 +98,6 @@ class BlockCreator {
             })
             document.body.appendChild(iframeElement)
             this.AllIframes.add(`iframe${block.id}`)
-            console.log(this.AllIframes)
         }
         this.iframes.add(block.id)
 
@@ -109,6 +108,7 @@ class BlockCreator {
         element.id = block.id
         element.setAttribute('block', '')
         block.color = this.colorist.calculateColor(element, block, [...parentBlock.color])
+        this._applyStyles(element, ['block', block.size.layout, ...(block.grid), ...(parentBlock.childrenPositions[block.id])])
         return element
     }
 

@@ -34,7 +34,6 @@ export class EditorText {
         const sanitizedHtml = this.sanitizeContent(this.editor.options.previewRender(htmlWithLineBreaks));
 
         dispatch("TextUpdate", {blockId: this.blockId, text: sanitizedHtml})
-        this.contentEl.innerHTML = sanitizedHtml;
 
         this.editor.toTextArea();
         this.editor = null;

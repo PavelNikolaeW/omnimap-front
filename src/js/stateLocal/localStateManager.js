@@ -2,6 +2,8 @@ import localforage from "localforage";
 import {dispatch, printTimer, resetTimer} from "../utils/utils";
 import {Painter} from "../painter/painter";
 import api from "../api/api";
+import LZString from 'lz-string'
+import {truncate} from '../utils/functions'
 
 // Проверка поддержки IndexedDB и конфигурация localforage
 if (!localforage.supports(localforage.INDEXEDDB)) {
@@ -51,6 +53,7 @@ export class LocalStateManager {
         this.jsPlumbInstance = jsPlumbInstance;
         this.painter = new Painter(jsPlumbInstance);
         this.blockRepository = null;
+        this.blocksVisibleOthers = new Set()
 
         // Initialize event handlers
         this.registerEventHandlers();
@@ -144,8 +147,30 @@ export class LocalStateManager {
         window.addEventListener('SetIframe', async (e) => {
             this.SetIframe(e.detail);
         });
+        window.addEventListener('ShowedBlocks', async () => {
+            this.paintPath()
+        });
 
         window.addEventListener('resize', () => this.onResize());
+        window.addEventListener('ShowError', (e) => {
+            const errorPopup = document.getElementById("error-popup");
+            const errorMessage = document.getElementById("error-message");
+
+            if (e.detail.response?.data?.error) errorMessage.textContent = e.detail.response.data.error;
+            else errorMessage.textContent = e.detail.message
+
+            errorPopup.classList.remove("hidden");
+            errorPopup.classList.add("visible");
+
+            setTimeout(() => {
+                errorPopup.classList.remove("visible");
+                errorPopup.classList.add("hidden");
+            }, 3000);
+        });
+        window.addEventListener('SetLoading', (e) => {
+            if (e.detail) document.body.classList.add('loading-cursor');
+            else document.body.classList.remove('loading-cursor');
+        })
     }
 
     moveBlock({block_id, old_parent_id, new_parent_id, before}) {
@@ -234,6 +259,7 @@ export class LocalStateManager {
 
         blocks.forEach((block) => {
             this.blocks.set(block.id, block)
+            if (block.can_be_edited_by_others) this.blocksVisibleOthers.add({id: block.id, updated_at: block.updated_at})
         })
     }
 
@@ -245,16 +271,14 @@ export class LocalStateManager {
         }
         this.path = await localforage.getItem(`Path_${this.currentUser}`) || [];
         const screenObj = this.path.at(-1);
-
-        // Load blocks for the current screen
-        // await this.loadBlocksForScreen(screenObj);
         this.painter.render(this.blocks, screenObj);
-
-        dispatch('ShowedBlocks');
+        dispatch('ShowedBlocks',);
+        dispatch('SubscribeUpdates', {blocks: this.blocksVisibleOthers})
+        this.blocksVisibleOthers.clear()
     }
 
     // Block manipulation methods
-    async openBlock({id, parentHsl, isIframe}) {
+    openBlock({id, parentHsl, isIframe}) {
         const currentScreen = this.path.at(-1);
         const block = this.blocks.get(id);
         const title = block.title;
@@ -263,20 +287,15 @@ export class LocalStateManager {
             if (this.path.length === 1) return;
             this.path.pop();
         } else {
-            this.path.push({screenName: title, color: parentHsl, blockId: id});
+            this.path.push({screenName: truncate(title, 10), color: parentHsl, blockId: id});
         }
 
         if (!isIframe) {
-            // await this.loadBlocksForScreen(this.path.at(-1));
             this.painter.render(this.blocks, this.path.at(-1));
         } else {
             // Handle iframe logic if necessary
         }
-        await this.savePath();
-    }
-
-    async savePath() {
-        await localforage.setItem(`Path_${this.currentUser}`, this.path);
+        localforage.setItem(`Path_${this.currentUser}`, this.path).then(() => dispatch('ShowedBlocks'))
     }
 
     async createBlock({parentId, title}) {
@@ -284,6 +303,7 @@ export class LocalStateManager {
             const response = await api.createBlock(parentId, title);
             if (response.status === 201) {
                 const newBlocks = response.data;
+                console.log(newBlocks)
                 for (const block of newBlocks) {
                     await this.saveBlock(block);
                 }
@@ -326,22 +346,27 @@ export class LocalStateManager {
         }
     }
 
-    async pasteBlock({dest, src}) {
-        try {
-            const response = await api.pasteBlock({dest, src});
-            if (response.status === 200) {
-                const newBlocks = response.data;
-                for (const block of newBlocks) {
-                    await this.saveBlock(block);
+    async pasteBlock(data) {
+        console.log(data)
+        if (data.src.length > 0) {
+            try {
+                const response = await api.pasteBlock(data);
+                if (response.status === 200) {
+                    const newBlocks = response.data;
+                    console.log(newBlocks)
+                    for (const block of Object.values(newBlocks)) {
+                        await this.saveBlock(block);
+                    }
+                    dispatch('ShowBlocks');
                 }
-                dispatch('ShowBlocks');
+            } catch (err) {
+                console.error(err);
             }
-        } catch (err) {
-            console.error(err);
         }
     }
 
     async pasteLinkBlock(data) {
+        console.log(data)
         try {
             const response = await api.pasteLinkBlock(data);
             if (response.status === 200) {
@@ -364,12 +389,18 @@ export class LocalStateManager {
                 customGrid.childrenPositions = block.childrenPositions;
             } else {
                 const {id, childPosition} = customGrid.childrenPositions;
+
+                console.log(
+                    id,
+                    childPosition,
+                    block.childrenPositions
+                )
+
                 block.childrenPositions[id] = childPosition;
                 customGrid.childrenPositions = block.childrenPositions;
             }
             if (!customGrid.grid) customGrid.grid = block.grid;
             if (!customGrid.contentPosition) customGrid.contentPosition = block.contentPosition;
-
             const response = await api.updateBlock(blockId, {data: {customGrid}});
             if (response.status === 200) {
                 const updatedBlock = response.data;
@@ -473,7 +504,6 @@ export class LocalStateManager {
     async addConnectionBlock({sourceId, targetId, arrowType, label}) {
         try {
             const sourceBlock = this.blocks.get(sourceId);
-            console.log(sourceBlock)
             if (!sourceBlock.data.connections) sourceBlock.data.connections = [];
             sourceBlock.data.connections.push({sourceId, targetId, arrowType, label});
 
@@ -514,4 +544,43 @@ export class LocalStateManager {
             }, 100);
         }
     }
+
+    paintPath() {
+        localforage.getItem(`Path_${this.currentUser}`).then((path) => {
+            document.getElementById('breadcrumb').innerHTML = generateBreadcrumbs(path);
+        })
+    }
+}
+
+
+function generateBreadcrumbs(items) {
+    // Проверяем, что передан непустой массив
+    if (!items || !Array.isArray(items) || items.length === 0) {
+        return '';
+    }
+
+    // Создаем контейнер для хлебных крошек
+    const container = document.createElement('nav');
+    container.setAttribute('aria-label', 'breadcrumb');
+    container.classList.add('breadcrumb-container');
+
+    // Создаем список
+    const list = document.createElement('ol');
+    list.classList.add('breadcrumb');
+
+    // Перебираем каждый объект
+    items.forEach((item, index) => {
+        const listItem = document.createElement('li');
+        listItem.classList.add('breadcrumb-item');
+        const link = document.createElement('div');
+        link.elementId = item.id;
+        link.textContent = item.screenName;
+        listItem.appendChild(link)
+        list.appendChild(listItem);
+    });
+
+    container.appendChild(list);
+
+    // Возвращаем HTML-код
+    return container.outerHTML;
 }

@@ -2,6 +2,7 @@
 import {dispatch} from "../utils/utils";
 import api from "../api/api";
 import {SearchWindow} from "./searchWindow";
+import {isValidUUIDv6} from "../utils/functions";
 
 class BaseController {
     constructor(jsPlumbInstance) {
@@ -15,7 +16,7 @@ class BaseController {
         this.indicator.innerText = 'open'
         this.searchWindow = new SearchWindow()
 
-         this.closeSearchWindow = document.getElementById('closeSearchModal')
+        this.closeSearchWindow = document.getElementById('closeSearchModal')
 
         this.handleMode = this.handleMode.bind(this);
 
@@ -115,6 +116,12 @@ class BaseController {
         this.handleMode('editAccessBlock', el)
     }
 
+    handleCopyIdBlock(el) {
+        if (this.activeElement) {
+            navigator.clipboard.writeText(this.activeElement.id)
+        }
+    }
+
     handleTitleBlock(el) {
         if (this.activeElement) {
             this.titleBlock(this.activeElement)
@@ -165,25 +172,33 @@ class BaseController {
     }
 
     handlePasteBlock(el) {
-        if (this.activeElement !== null && (this.selectedBlocks.size || this.copies.size)) {
-            this.pasteBlock(this.activeElement);
-            this.handleMode('openBlock', null);
-        } else if (this.activeElement === null && (this.selectedBlocks.size || this.copies.size)) {
-            this.handleMode('pasteBlock', el);
-        } else {
-            console.log('Нечего вставлять');
-        }
+        navigator.clipboard.readText().then((clipText) => {
+            if (this.activeElement !== null && (this.selectedBlocks.size || this.copies.size)) {
+                this.pasteBlock(this.activeElement);
+                this.handleMode('openBlock', null);
+            } else if (this.activeElement === null && (this.selectedBlocks.size || this.copies.size)) {
+                this.handleMode('pasteBlock', el);
+            } else if (this.activeElement !== null && isValidUUIDv6(clipText)) {
+                dispatch('PasteBlock', {dest: this.activeElement.id, src: [clipText]})
+            } else {
+                console.log('Нечего вставлять');
+            }
+        })
     }
 
     handlePasteLinkBlock(el) {
-        if (this.activeElement !== null && (this.selectedBlocks.size || this.copies.size)) {
-            this.pasteLinkBlock(this.activeElement);
-            this.handleMode('openBlock', null);
-        } else if (this.activeElement === null) {
-            this.handleMode('pasteLinkBlock', el);
-        } else {
-            console.log('Нечего вставлять');
-        }
+        navigator.clipboard.readText().then((clipText) => {
+            if (this.activeElement !== null && (this.selectedBlocks.size || this.copies.size)) {
+                this.pasteLinkBlock(this.activeElement);
+                this.handleMode('openBlock', null);
+            } else if (this.activeElement === null) {
+                this.handleMode('pasteLinkBlock', el);
+            } else if (this.activeElement !== null && isValidUUIDv6(clipText)) {
+                dispatch('PasteLinkBlock', {dest: this.activeElement.id, src: [clipText]})
+            } else {
+                console.log('Нечего вставлять');
+            }
+        })
     }
 
     handleDeleteBlock(el) {
