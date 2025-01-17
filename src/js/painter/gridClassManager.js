@@ -227,7 +227,7 @@ class GridClassManager {
     }
 
     static xxl_h(block) {
-        const totalChildren = block.data.childOrder.length;
+        const totalChildren = block.data.childOrder?.length || 0;
         const children_position = {row: totalChildren + 1, col: 1};
 
         let rowCounter = 2;
@@ -423,7 +423,7 @@ class GridClassManager {
 
     _calcChildGrid(rowCols) {
         let row = 1, col = 1; // Инициализируем с 1 как дефолтное значение
-        rowCols.forEach(item => {
+        rowCols?.forEach(item => {
             const [type, ...positions] = item.split('_');
 
             // Проверка на span

@@ -1,4 +1,5 @@
 import Cookies from "js-cookie";
+import {dispatch} from "../utils/utils";
 
 export class UpdateServiceWebSocket {
     /**
@@ -14,10 +15,14 @@ export class UpdateServiceWebSocket {
             open: [],
             message: [],
             error: [],
-            close: []
+            close: [],
         };
-        this.reconnectInterval = 20000; // Интервал попыток переподключения в мс
+        this.reconnectInterval = 2000; // Интервал попыток переподключения в мс
         this.shouldReconnect = true;
+        window.addEventListener('Login', () => {
+            this.disconnect()
+            this.connect()
+        })
     }
 
     /**
@@ -26,7 +31,6 @@ export class UpdateServiceWebSocket {
     connect() {
         const jwtToken = Cookies.get('access');
         this.ws = new WebSocket(`${this.url}?token=${encodeURIComponent(jwtToken)}`);
-
         this.ws.onopen = () => {
             console.log('WebSocket подключен');
             this.isConnected = true;
@@ -35,11 +39,13 @@ export class UpdateServiceWebSocket {
 
         this.ws.onmessage = (event) => {
             const message = JSON.parse(event.data);
-            console.log(message)
-            if (message.type === 'update') {
-                this.eventListeners.message.forEach(callback => callback(message.data));
+            if (message.type === 'block_updates') {
+                dispatch('WebSocUpdateBlock', message.updates)
+            } else if (message.type === 'block_update') {
+                dispatch('WebSocUpdateBlock', [message.data])
+            } else if (message.type === 'block_update_access') {
+                dispatch('WebSocUpdateBlockAccess', message.data)
             }
-            // Другие типы сообщений можно обрабатывать здесь
         };
 
         this.ws.onerror = (error) => {
@@ -65,14 +71,14 @@ export class UpdateServiceWebSocket {
      * UUID передаются в виде массива.
      * @param {Array<{string:string}>} blocks - Массив UUID и даты последнего обновления.
      */
-    subscribe(blocks) {
+    getUpdates(blocks) {
         if (this.isConnected) {
             this.sendMessage({
-                action: 'subscribe',
+                action: 'get_updates',
                 blocks
             });
         } else {
-            console.error('Not connection no subscribe')
+            console.error('WebSocket error')
         }
     }
 

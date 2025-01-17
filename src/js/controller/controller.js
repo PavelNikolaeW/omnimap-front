@@ -251,7 +251,7 @@ export class ControllerBlock extends BaseController {
         const elements = document.querySelectorAll('[block]');
 
         elements.forEach((el) => {
-            if (el.parentNode.id !== 'container-blocks'
+            if (el.parentNode.id !== 'rootContainer'
                 && !el.hasAttribute('blockCustomGrid')
                 && !el.parentNode.hasAttribute('blockCustomGrid')
             ) {
@@ -260,6 +260,7 @@ export class ControllerBlock extends BaseController {
                     e.stopPropagation();
                     e.preventDefault();
                     this._addMoveElements(elements, el)
+                    if (el.parentNode.hasAttribute('blockLink')) el = el.parentNode
                     this.dragableElement = el;
                 });
 
@@ -300,7 +301,8 @@ export class ControllerBlock extends BaseController {
     }
 
     editAccessBlock(blockElement) {
-        createAccessWindow(blockElement)
+        if (blockElement.hasAttribute('blockLink')) createAccessWindow(blockElement.children[0])
+        else createAccessWindow(blockElement)
     }
 
 
@@ -413,10 +415,11 @@ export class ControllerBlock extends BaseController {
 
     createBlock(blockElement) {
         const title = prompt('Введите название блока');
-
+        const blockId = blockElement.id.indexOf('*') != -1 ? blockElement.id.split('*')[1] : blockElement.id
+        console.log(blockId)
         if (title !== null) {
-            if (validURL(title)) dispatch('IframeCreate', {parentId: blockElement.id, src: title})
-            else dispatch('CreateBlock', {parentId: blockElement.id, title});
+            if (validURL(title)) dispatch('IframeCreate', {parentId: blockId, src: title})
+            else dispatch('CreateBlock', {parentId: blockId, title});
         }
         this.handleMode('openMode')
 
@@ -457,7 +460,7 @@ export class ControllerBlock extends BaseController {
         this.copies = new Set()
         if (this.selectedBlocks.size) {
             this.selectedBlocks.forEach((el) => {
-                if (el.parentElement.id === 'container-blocks') {
+                if (el.parentElement.id === 'rootContainer') {
                     alert("Нельзя удалять корневой элемент. Вернитесь на блок выше.")
                     return
                 }
@@ -503,16 +506,26 @@ export class ControllerBlock extends BaseController {
         this.handleMode('openBlock', null);
     }
 
+    deleteTreeBlock(blockElement) {
+        let blockId = blockElement.id
+        if (blockId.includes('*'))
+            blockId = blockId.split('*')[1]
+        if (blockElement) dispatch('DeleteTreeBlock', {blockId: blockId})
+    }
+
     deleteBlock(blockElement) {
         const parent = blockElement.parentElement
-        if (parent.id === 'container-blocks') {
+        if (parent.id === 'rootContainer') {
             alert("Нельзя удалять корневой элемент. Вернитесь на блок выше.")
             return
         }
         document.onkeydown = null;
         document.onkeypress = null;
-        if (confirm(`Вы уверены, что хотите удалить блок ${blockElement.id} у родителя ${parent.id}`)) {
-            dispatch('DeleteBlock', {removeId: blockElement.id, parentId: parent.id});
+        let parentId = parent.id
+        if (confirm(`Вы уверены, что хотите удалить блок ${blockElement.id} у родителя ${parentId}`)) {
+            if (parentId.includes('*')) parentId = parentId.split('*')[1]
+            console.log(parentId)
+            dispatch('DeleteBlock', {removeId: blockElement.id, parentId: parentId});
             this.clearActiveBlocks(this.selectedBlocks);
             this.handleMode('openBlock', null);
         } else {
@@ -594,4 +607,24 @@ export class ControllerBlock extends BaseController {
     }
 }
 
+    // Функция для переключения состояния выпадающего меню
+    document.addEventListener('click', function (event) {
+        // Если клик по элементу с классом dropdown-toggle
+        if (event.target.closest('.dropdown-toggle')) {
+            // Находим ближайший контейнер выпадающего меню
+            const colorDropdown = event.target.closest('.color-dropdown');
+            // Переключаем класс active у него
+            colorDropdown.classList.toggle('active');
 
+            // Предотвращаем дальнейшую обработку клика, чтобы не закрыть меню сразу
+            event.stopPropagation();
+        } else {
+            // При клике вне любого dropdown, закрываем все открытые выпадающие меню
+            document.querySelectorAll('.color-dropdown.active').forEach(dropdown => {
+                // Если клик произошёл вне текущего dropdown
+                if (!dropdown.contains(event.target)) {
+                    dropdown.classList.remove('active');
+                }
+            });
+        }
+    });

@@ -2,7 +2,7 @@
 import {dispatch} from "../utils/utils";
 import api from "../api/api";
 import {SearchWindow} from "./searchWindow";
-import {isValidUUIDv6} from "../utils/functions";
+import {isValidUUID} from "../utils/functions";
 
 class BaseController {
     constructor(jsPlumbInstance) {
@@ -20,8 +20,8 @@ class BaseController {
 
         this.handleMode = this.handleMode.bind(this);
 
-        document.getElementById('openToolbar').addEventListener('click', this.handleOpenToolbar.bind(this));
-        document.getElementById('closeToolbar').addEventListener('click', this.handleOpenToolbar.bind(this));
+        // document.getElementById('openToolbar').addEventListener('click', this.handleOpenToolbar.bind(this));
+        // document.getElementById('closeToolbar').addEventListener('click', this.handleOpenToolbar.bind(this));
 
 
         this.closeSearchWindow.addEventListener('click', () => {
@@ -34,11 +34,6 @@ class BaseController {
     closeToolbar() {
         document.getElementById('control-panel').classList.remove('active');
         this.isOpenedToolbar = false
-    }
-
-    openToolbar() {
-        document.getElementById('control-panel').classList.add('active');
-        this.isOpenedToolbar = true
     }
 
     handleMode(mode, el = null) {
@@ -64,7 +59,6 @@ class BaseController {
         }
         this.indicator.innerText = this.clickMode.replace('Block', '')
 
-        this.handleOpenToolbar()
         this.closeEditAccessWindow()
 
         document.getElementById('control-panel').classList.remove('active');
@@ -80,10 +74,12 @@ class BaseController {
         }
     }
 
-
-    handleOpenToolbar() {
-        if (this.isOpenedToolbar) this.closeToolbar()
-        else this.openToolbar()
+    handleToggleSidebarBtn() {
+        const sidebar = document.getElementById('sidebar');
+        localStorage.setItem('sidebarIsHidden', sidebar.classList.toggle('hidden'))
+    }
+    handleResetState() {
+        dispatch('ResetState')
     }
 
     handleExit() {
@@ -150,7 +146,7 @@ class BaseController {
     handleCreateBlock(el) {
         if (this.activeElement) {
             if (this.activeElement.hasAttribute('blockLink')) {
-                this.createBlock(document.getElementById(this.activeElement.getAttribute('blockLink')))
+                this.createBlock(this.activeElement.children[0])
             } else this.createBlock(this.activeElement)
         } else this.handleMode('createBlock', el);
     }
@@ -178,7 +174,7 @@ class BaseController {
                 this.handleMode('openBlock', null);
             } else if (this.activeElement === null && (this.selectedBlocks.size || this.copies.size)) {
                 this.handleMode('pasteBlock', el);
-            } else if (this.activeElement !== null && isValidUUIDv6(clipText)) {
+            } else if (this.activeElement !== null && isValidUUID(clipText)) {
                 dispatch('PasteBlock', {dest: this.activeElement.id, src: [clipText]})
             } else {
                 console.log('Нечего вставлять');
@@ -188,17 +184,28 @@ class BaseController {
 
     handlePasteLinkBlock(el) {
         navigator.clipboard.readText().then((clipText) => {
+            console.log(clipText, this.activeElement)
             if (this.activeElement !== null && (this.selectedBlocks.size || this.copies.size)) {
                 this.pasteLinkBlock(this.activeElement);
                 this.handleMode('openBlock', null);
             } else if (this.activeElement === null) {
                 this.handleMode('pasteLinkBlock', el);
-            } else if (this.activeElement !== null && isValidUUIDv6(clipText)) {
+            } else if (this.activeElement !== null && isValidUUID(clipText)) {
                 dispatch('PasteLinkBlock', {dest: this.activeElement.id, src: [clipText]})
             } else {
                 console.log('Нечего вставлять');
             }
         })
+    }
+
+    handleDeleteTreeBlock(el) {
+        if (this.activeElement) {
+            this.deleteTreeBlock(this.activeElement);
+            this.handleMode('openBlock', null);
+        } else {
+            this.handleMode('deleteTreeBlock', el);
+        }
+
     }
 
     handleDeleteBlock(el) {
@@ -208,7 +215,6 @@ class BaseController {
         } else {
             this.handleMode('deleteBlock', el);
         }
-
     }
 
     handleDeleteArrowBlock(el) {

@@ -16,7 +16,7 @@ class BlockCreator {
         this.colorist = new CalcColor()
         this.iframes = new Set()
         this.AllIframes = new Set()
-        this.emptyBlocks = []
+        this.emptyBlocks = new Set()
     }
 
     createElement(block, parentBlock, screen, depth) {
@@ -51,7 +51,6 @@ class BlockCreator {
         const customClasses = block.data?.customClasses ? block.data.customClasses : []
 
         this._setBlockGrid(block, parentBlock)
-
         element.id = parentBlock.data?.view === 'link' ? `${parentBlock.id}*${block.id}` : block.id;
         if (block.data.customGrid && Object.keys(block.data.customGrid).length) element.setAttribute('blockCustomGrid', '')
 
@@ -114,11 +113,12 @@ class BlockCreator {
 
     createEmpty(block, parentBlock, screen, depth) {
         const element = document.createElement('div')
+
         gridClassManager.calcBlockSize(block, parentBlock)
         this._applyStyles(element, ['block-empty'])
         element.id = block.id;
         element.setAttribute('emptyBlock', '')
-        this.emptyBlocks.push(block.id)
+        this.emptyBlocks.add(block.id)
         return element
     }
 

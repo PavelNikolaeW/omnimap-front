@@ -29,7 +29,7 @@ export class Painter {
             maxDepth: 40,
         }
         this.jsPlumbInstance = jsPlumbInstance
-        this.render = measurePerformance('render', this.render)
+        // this.render = measurePerformance('render', this.render)
     }
 
     render(blocks, {color = [], blockId}) {
@@ -55,9 +55,9 @@ export class Painter {
         this._render(queue, blocks, this.config);
         this.setIframePositions()
 
-        if (blockCreator.emptyBlocks.length) {
+        if (blockCreator.emptyBlocks.size) {
             dispatch('LoadEmptyBlocks', {emptyBlocks: [...blockCreator.emptyBlocks]})
-            blockCreator.emptyBlocks = []
+            blockCreator.emptyBlocks.clear()
         } else {
             dispatch('DrawArrows', {'arrows': blockCreator.arrows})
             blockCreator.arrows.clear()
@@ -68,10 +68,8 @@ export class Painter {
         const fragments = new Map();
         let render_fragment = null
         let step = 0
-        let count = 0
 
         while (!queue.isEmpty()) {
-            count++
             const {block, depth, parentBlock, parentElement} = queue.dequeue();
 
             if (
@@ -93,7 +91,7 @@ export class Painter {
             const element = blockCreator.createElement(block, parentBlock, screen, depth);
             render_fragment.appendChild(element);
 
-            block.data.childOrder.forEach(childId => {
+            block.data.childOrder?.forEach(childId => {
                 queue.enqueue({
                     block: blocks.getBlockOrEmpty(childId),
                     depth: depth + 1,
@@ -103,7 +101,6 @@ export class Painter {
             });
         }
         fragments.appendInParent()
-        console.log(count)
     }
 
     setIframePositions() {

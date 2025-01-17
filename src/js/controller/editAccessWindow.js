@@ -1,60 +1,156 @@
 // js/accessWindow.js
-import api from '../api/api.js';
+import api, {pollTaskStatus} from '../api/api.js';
 
 /**
- * Функция для создания окна редактирования прав доступа рядом с заданным элементом
- * @param {HTMLElement} targetElement - DOM элемент, рядом с которым будет создано окно
+ * Создаёт окно редактирования прав доступа рядом с заданным элементом
+ * @param {HTMLElement} targetElement - DOM-элемент, рядом с которым будет создано окно
  */
 export default function createAccessWindow(targetElement) {
-    // Проверяем, существует ли уже окно, и удаляем его, чтобы избежать дубликатов
-    const existingWindow = document.querySelector('.access-window');
-    if (existingWindow) {
-        existingWindow.remove();
-    }
+    removeExistingAccessWindow();
 
-    // Получаем шаблон из основного HTML
     const template = document.getElementById('access-window-template');
     if (!template) {
         console.error('Шаблон окна доступа не найден');
         return;
     }
 
-    // Клонируем содержимое шаблона
     const accessWindow = template.content.firstElementChild.cloneNode(true);
-
-    // Устанавливаем заголовок окна
-    const blockTitle = targetElement.querySelector('titleblock b');
-    const title = accessWindow.querySelector('#access-window-title');
-    title.textContent = `Редактирование прав доступа для ${blockTitle?.textContent ?? targetElement.id}`;
-
-    // Добавляем окно в документ
     document.body.appendChild(accessWindow);
 
-    // Функция для позиционирования окна
-    function positionWindow() {
+    // =======================
+    // 1. Инициализация UI
+    // =======================
+    const {
+        blockId,
+        loadingIndicator,
+        content,
+        publicCheckbox,
+        accessSelect,
+        userInput,
+        confirmButton,
+        userList,
+        closeButton
+    } = initializeUI(accessWindow, targetElement);
+
+    // =======================
+    // 2. Установка позиционирования
+    // =======================
+    positionAccessWindow(accessWindow, targetElement);
+
+    // Следим за изменениями размера/прокрутки, чтобы окно не "уезжало"
+    window.addEventListener('resize', () => positionAccessWindow(accessWindow, targetElement));
+    window.addEventListener('scroll', () => positionAccessWindow(accessWindow, targetElement));
+
+    // =======================
+    // 3. Состояние загрузки (первичное)
+    // =======================
+    showLoading(loadingIndicator, content);
+
+    // =======================
+    // 4. Навешиваем обработчики
+    // =======================
+    // - Закрыть окно
+    closeButton.addEventListener('click', () => accessWindow.remove());
+
+    // - Публичный доступ: управление полями
+    publicCheckbox.addEventListener('change', () => toggleAccessFields(publicCheckbox, userInput, accessSelect));
+
+    // - Подтвердить изменения прав
+    confirmButton.addEventListener('click', async () => {
+        await onConfirmButtonClick({
+            blockId,
+            publicCheckbox,
+            userInput,
+            accessSelect,
+            loadingIndicator,
+            content,
+            userList
+        });
+    });
+
+    // =======================
+    // 5. Загрузка списка прав доступа
+    // =======================
+    fetchUserListAndRender(blockId, { loadingIndicator, content, publicCheckbox, accessSelect, userInput, userList });
+
+    /**
+     * Удаляет уже существующее окно, чтобы избежать дубликатов
+     */
+    function removeExistingAccessWindow() {
+        const existingWindow = document.querySelector('.access-window');
+        if (existingWindow) {
+            existingWindow.remove();
+        }
+    }
+
+    /**
+     * Инициализация UI-переменных и установка заголовка окна
+     */
+    function initializeUI(accessWindow, targetElement) {
+        // Заголовок окна
+        const blockTitle = targetElement.querySelector('titleblock b');
+        const titleElement = accessWindow.querySelector('#access-window-title');
+
+        const blockId = targetElement.id.includes('*')
+            ? targetElement.id.split('*')[1]
+            : targetElement.id;
+
+        titleElement.textContent = `Редактирование прав доступа для ${blockTitle?.textContent ?? blockId}`;
+
+        // Ссылки на элементы интерфейса
+        const loadingIndicator = accessWindow.querySelector('.loading');
+        const content = accessWindow.querySelector('.content');
+        const publicCheckbox = accessWindow.querySelector('#public-checkbox');
+        const accessSelect = accessWindow.querySelector('#access-level');
+        const userInput = accessWindow.querySelector('#username-input');
+        const confirmButton = accessWindow.querySelector('#confirm-button');
+        const userList = accessWindow.querySelector('#user-list');
+        const closeButton = accessWindow.querySelector('.close-button');
+
+        return {
+            blockId,
+            loadingIndicator,
+            content,
+            publicCheckbox,
+            accessSelect,
+            userInput,
+            confirmButton,
+            userList,
+            closeButton
+        };
+    }
+
+    /**
+     * Позиционирует окно рядом с targetElement
+     */
+    function positionAccessWindow(accessWindow, targetElement) {
         const rect = targetElement.getBoundingClientRect();
         const windowWidth = accessWindow.offsetWidth;
         const windowHeight = accessWindow.offsetHeight;
-        const scrollOffset = windowElementScrollOffset();
+        const scrollOffset = {
+            top: window.pageYOffset || document.documentElement.scrollTop,
+            left: window.pageXOffset || document.documentElement.scrollLeft
+        };
+
         let top = rect.top + scrollOffset.top;
         let left = rect.right + 10 + scrollOffset.left;
 
-        // Проверяем, чтобы окно не выходило за правую границу
+        // Проверка выхода за правую границу
         if (left + windowWidth > scrollOffset.left + window.innerWidth) {
             left = rect.left - windowWidth - 10 + scrollOffset.left;
         }
 
-        // Проверяем, чтобы окно не выходило за нижнюю границу
+        // Проверка выхода за нижнюю границу
         if (top + windowHeight > scrollOffset.top + window.innerHeight) {
             top = scrollOffset.top + window.innerHeight - windowHeight - 10;
         }
 
-        // Проверяем, чтобы окно не выходило за верхнюю границу
+        // Проверка выхода за верхнюю границу
         if (top < scrollOffset.top) {
             top = scrollOffset.top + 10;
         }
 
-        // Проверяем, чтобы окно не выходило за левую границу
+        // Проверка выхода за левую границу
         if (left < scrollOffset.left) {
             left = rect.left + scrollOffset.left;
         }
@@ -63,32 +159,41 @@ export default function createAccessWindow(targetElement) {
         accessWindow.style.left = `${left}px`;
     }
 
-    // Получаем текущие смещения скролла
-    function windowElementScrollOffset() {
-        return {
-            top: window.pageYOffset || document.documentElement.scrollTop,
-            left: window.pageXOffset || document.documentElement.scrollLeft
-        };
+    /**
+     * Показывает индикатор загрузки и скрывает контент
+     */
+    function showLoading(loadingIndicator, content) {
+        loadingIndicator.style.display = 'block';
+        content.style.display = 'none';
     }
 
-    // Обработчики для обеспечения постоянной видимости окна
-    window.addEventListener('resize', positionWindow);
-    window.addEventListener('scroll', positionWindow);
-    // Initial positioning
-    positionWindow();
+    /**
+     * Скрывает индикатор загрузки и показывает контент
+     */
+    function hideLoading(loadingIndicator, content) {
+        loadingIndicator.style.display = 'none';
+        content.style.display = 'block';
+    }
 
-    // Скрываем индикатор загрузки и показываем контент
-    const loadingIndicator = accessWindow.querySelector('.loading');
-    const content = accessWindow.querySelector('.content');
-    loadingIndicator.style.display = 'block';
-    content.style.display = 'none';
+    /**
+     * Запрашивает список пользователей с доступом и отображает его
+     */
+    function fetchUserListAndRender(blockId, uiRefs) {
+        const { loadingIndicator, content, publicCheckbox, accessSelect, userInput, userList } = uiRefs;
 
-    // Функция для получения списка пользователей с доступом
-    function fetchUserList() {
-        api.getAccessList(targetElement.id)
+        api.getAccessList(blockId)
             .then(res => {
                 if (res.status === 200) {
-                    populateUserList(res.data);
+                    const data = res.data;
+                    // Отображаем интерфейс
+                    hideLoading(loadingIndicator, content);
+                    // Устанавливаем состояние "публичный доступ" и состояние полей
+                    publicCheckbox.checked = data.access_type === 'public';
+                    accessSelect.value = 'read'; // По умолчанию
+                    toggleAccessFields(publicCheckbox, userInput, accessSelect);
+
+                    // Заполняем список пользователей
+                    renderUserList(data, userList);
                 } else {
                     throw new Error('Не удалось получить список доступа');
                 }
@@ -99,154 +204,154 @@ export default function createAccessWindow(targetElement) {
             });
     }
 
-    // Функция для заполнения списка пользователей
-    function populateUserList(data) {
-        // Удаляем индикатор загрузки и показываем контент
-        loadingIndicator.style.display = 'none';
-        content.style.display = 'block';
-
-        // Устанавливаем состояние публичного доступа
-        const publicCheckbox = accessWindow.querySelector('#public-checkbox');
-        publicCheckbox.checked = data.access_type === 'public';
-
-        // Устанавливаем значения по умолчанию
-        const accessSelect = accessWindow.querySelector('#access-level');
-        accessSelect.value = 'read'; // По умолчанию
-
-        // Управляем состоянием полей ввода в зависимости от публичного доступа
-        const userInput = accessWindow.querySelector('#username-input');
-        const confirmButton = accessWindow.querySelector('#confirm-button');
-        const userList = accessWindow.querySelector('#user-list');
-
-        // Инициализируем состояние полей
-        toggleAccessFields(publicCheckbox.checked);
-
-        // Обработчик для чекбокса публичного доступа
-        publicCheckbox.addEventListener('change', () => {
-            toggleAccessFields(publicCheckbox.checked);
-        });
-
-        function toggleAccessFields(isPublic) {
-            userInput.disabled = isPublic;
-            accessSelect.disabled = isPublic;
-        }
-
-        // Обработчик для кнопки "Подтвердить"
-        confirmButton.addEventListener('click', async () => {
-            const isPublic = publicCheckbox.checked;
-            const username = userInput.value.trim();
-            const accessLevel = accessSelect.value;
-
-            // Подготовка данных для отправки
-            const payload = {
-                access_type: isPublic ? 'public' : 'private',
-                visible_for: isPublic ? null : username || null,
-                editable_for: isPublic ? null : (accessLevel === 'edit' ? username : null)
-            };
-
-            // Валидация
-            if (!isPublic && !username) {
-                alert('Пожалуйста, введите имя пользователя или сделайте доступ публичным.');
-                return;
-            }
-
-            try {
-                const response = await api.updateAccess(targetElement.id, payload);
-                if (response.status === 200) {
-                    const result = response.data;
-                    // Обновляем список пользователей
-                    populateUserListContent(result);
-                    // Очищаем поля ввода
-                    if (!isPublic) {
-                        userInput.value = '';
-                    }
-                    // Можно оставить окно открытым или закрыть, как нужно
-                    // accessWindow.remove();
-                } else {
-                    throw new Error('Не удалось обновить права доступа');
-                }
-            } catch (error) {
-                console.error('Ошибка при обновлении прав доступа:', error);
-                alert('Произошла ошибка при обновлении прав доступа.');
-            }
-        });
-
-        // Заполнение списка пользователей
-        populateUserListContent(data);
+    /**
+     * Функция управления состоянием полей при переключении публичного доступа
+     */
+    function toggleAccessFields(publicCheckbox, userInput, accessSelect) {
+        const isPublic = publicCheckbox.checked;
+        userInput.disabled = isPublic;
+        accessSelect.disabled = isPublic;
     }
 
-    // Функция для заполнения списка пользователей на основе данных
-    function populateUserListContent(data) {
-        const userList = accessWindow.querySelector('#user-list');
-        userList.innerHTML = ''; // Очищаем текущий список
+    /**
+     * Заполняет список пользователей (userList) на основе полученных данных
+     */
+    function renderUserList(data, userListElement) {
+        userListElement.innerHTML = ''; // Очищаем текущий список
 
-        // Отображаем пользователей, которым виден элемент
-        data.visible_to_users.forEach(username => {
+        data.forEach(({ username, permission }) => {
             const userItem = document.createElement('div');
             userItem.classList.add('user-item');
 
-            const userName = document.createElement('span');
-            userName.textContent = `${username} (Чтение)`;
+            const userNameSpan = document.createElement('span');
+            userNameSpan.textContent = `${username} (${permission})`;
 
-            const removeButton = document.createElement('button');
-            removeButton.textContent = 'Удалить';
-            removeButton.addEventListener('click', () => removeUserAccess({
-                username,
-                'data': {remove_vision_for: username}
-            }));
+            userItem.appendChild(userNameSpan);
 
-            userItem.appendChild(userName);
-            userItem.appendChild(removeButton);
-            userList.appendChild(userItem);
-        });
+            // Кнопка "Запретить"
+            if (permission !== 'deny') {
+                const removeButton = document.createElement('button');
+                removeButton.textContent = 'Запретить';
+                removeButton.addEventListener('click', () => {
+                    removeUserAccess(username);
+                });
+                userItem.appendChild(removeButton);
+            }
 
-        // Отображаем пользователей, которые могут редактировать элемент
-        data.editable_by_users.forEach(username => {
-            const userItem = document.createElement('div');
-            userItem.classList.add('user-item');
-
-            const userName = document.createElement('span');
-            userName.textContent = `${username} (Редактирование)`;
-
-            const removeButton = document.createElement('button');
-            removeButton.textContent = 'Удалить';
-            removeButton.addEventListener('click', () => removeUserAccess({
-                username,
-                'data': {remove_edit_for: username}
-            }));
-
-            userItem.appendChild(userName);
-            userItem.appendChild(removeButton);
-            userList.appendChild(userItem);
+            userListElement.appendChild(userItem);
         });
     }
 
-    // Функция для удаления доступа пользователя
-    async function removeUserAccess(params) {
-        if (!confirm(`Вы уверены, что хотите удалить доступ пользователя "${params.username}"?`)) {
+    /**
+     * Удаляет доступ пользователю
+     */
+    async function removeUserAccess(targetUser) {
+        if (!confirm(`Вы уверены, что хотите запретить доступ пользователя "${targetUser}"?`)) {
             return;
         }
 
+        // Включаем индикатор, чтобы пользователь видел, что идёт работа
+        showLoading(loadingIndicator, content);
+
         try {
-            const response = await api.removeAccess(targetElement.id, {'data': params.data});
-            if (response.status === 200) {
-                console.log(response.data);
-                populateUserListContent(response.data); // Обновляем список пользователей
+            const response = await api.updateAccess(blockId, {
+                'target_username': targetUser,
+                'permission_type': 'deny'
+            });
+
+            if (response.status === 202) {
+                // Ожидаем завершения задачи
+                await handleTask(response.data.task_id);
             } else {
-                throw new Error('Не удалось удалить доступ');
+                throw new Error('Не удалось обновить права доступа');
             }
         } catch (error) {
-            console.error('Ошибка при удалении доступа:', error);
-            alert('Произошла ошибка при удалении доступа.');
+            console.error('Ошибка при обновлении прав доступа:', error);
+            alert('Произошла ошибка при обновлении прав доступа.');
+        } finally {
+            // После операции всегда загружаем свежие данные
+            fetchUserListAndRender(blockId, {
+                loadingIndicator,
+                content,
+                publicCheckbox,
+                accessSelect,
+                userInput,
+                userList
+            });
         }
     }
 
-    // Обработчик для кнопки закрытия
-    const closeButton = accessWindow.querySelector('.close-button');
-    closeButton.addEventListener('click', () => {
-        accessWindow.remove();
-    });
+    /**
+     * Обработчик нажатия на кнопку "Подтвердить" (добавление/изменение прав)
+     */
+    async function onConfirmButtonClick({
+        blockId,
+        publicCheckbox,
+        userInput,
+        accessSelect,
+        loadingIndicator,
+        content,
+        userList
+    }) {
+        const isPublic = publicCheckbox.checked;
+        const username = userInput.value.trim();
+        const accessLevel = accessSelect.value;
 
-    // Инициализируем получение списка пользователей
-    fetchUserList();
+        // Если доступ не публичный, нужно ввести имя пользователя
+        if (!isPublic && !username) {
+            alert('Пожалуйста, введите имя пользователя.');
+            return;
+        }
+
+        // Отображаем индикатор, что идёт работа
+        showLoading(loadingIndicator, content);
+
+        try {
+            // Если ставим "public", то отправляем подходящие данные
+            const response = await api.updateAccess(blockId, {
+                'target_username': isPublic ? '' : username,
+                'permission_type': isPublic ? 'public' : accessLevel
+            });
+
+            if (response.status === 202) {
+                // Ждём окончания задачи
+                await handleTask(response.data.task_id);
+
+                // Если задача прошла успешно, очищаем поле ввода
+                if (!isPublic) {
+                    userInput.value = '';
+                }
+            } else {
+                throw new Error('Не удалось обновить права доступа');
+            }
+        } catch (error) {
+            console.error('Ошибка при обновлении прав доступа:', error);
+            alert('Произошла ошибка при обновлении прав доступа.');
+        } finally {
+            // В любом случае, после выполнения операции — перезагружаем список
+            fetchUserListAndRender(blockId, {
+                loadingIndicator,
+                content,
+                publicCheckbox,
+                accessSelect,
+                userInput,
+                userList
+            });
+        }
+    }
+
+    /**
+     * Опрашивает статус задачи и отображает результат (успех/ошибка)
+     */
+    async function handleTask(taskId) {
+    try {
+        // Если успех — просто идём дальше
+        await pollTaskStatus(taskId);
+        alert('Операция успешно завершена!');
+    } catch (error) {
+        // Если что-то пошло не так — выдаём ошибку
+        console.error('Ошибка при опросе статуса задачи:', error);
+        alert('Ошибка при выполнении операции: ' + error.message);
+    }
+}
 }

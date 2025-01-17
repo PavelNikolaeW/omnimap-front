@@ -52,6 +52,7 @@ class Api {
             return Promise.reject(error);
         });
     }
+
     setLoading(value) {
         dispatch('SetLoading', value);
     }
@@ -117,21 +118,38 @@ class Api {
         return await this.api.post(`new-block/${parentId}/`, {title, data})
     }
 
-    async getRootBlock() {
-        const blocks = await this.api.get('/root-block/')
-        return new Map(Object.entries(blocks.data))
+    async getTreeBlocks() {
+        const response = await this.api.get('/load-trees/')
+        const data = response.data
+        const treeIds = Object.keys(data);
+        const blocks = new Map();
+
+        // Сливаем все деревья
+        treeIds.forEach(treeId => {
+            const tree = data[treeId];
+            if (typeof tree === 'object' && tree !== null) {
+                Object.entries(tree).forEach(([key, value]) => {
+                    blocks.set(key, value);
+                });
+            }
+        });
+        return {treeIds, blocks}
     }
 
-    removeBlock(data) {
-        return this.api.delete(`/remove-block/`, {data})
+    removeBlock({removeId, parentId}) {
+        return this.api.delete(`/delete-child/${parentId}/${removeId}/`, )
+    }
+    removeTree(blockId) {
+        return this.api.delete(`/delete-tree/${blockId}/`)
     }
 
     pasteBlock(data) {
         return this.api.post('copy-block/', data)
     }
 
-    pasteLinkBlock(data) {
-        return this.api.post('create-link-block/', data)
+    pasteLinkBlock({dest, src}) {
+        console.log({dest, src})
+        return this.api.post(`create-link-block/${dest}/${src[0]}/`)
     }
 
     loadEmpty(block_ids) {
@@ -155,17 +173,17 @@ class Api {
         return this.api.post(`access/${blockId}/`, data)
     }
 
-    removeAccess(blockId, data) {
-        return this.api.delete(`access/${blockId}/`, data)
-    }
 
-    moveBlock(blockId, data) {
-        console.log(data)
-        return this.api.post(`move-block/${blockId}/`, data)
+    moveBlock(blockId, {old_parent_id, new_parent_id, childOrder}) {
+        return this.api.post(`move-block/${old_parent_id}/${new_parent_id}/${blockId}/`, {childOrder})
     }
 
     searchBlock(query, isPublic = false) {
         return this.api.get(`search-block/?q=${query}&include_public=${isPublic}`)
+    }
+
+    checkStatusTask(task_id) {
+        return this.api.get(`tasks/${task_id}/`)
     }
 
 }
@@ -176,3 +194,36 @@ export default api
 
 
 
+
+/**
+ * Функция для проверки статуса задачи
+ * @param {string} taskId - ID задачи
+ * @param {number} interval - Интервал опроса (в мс)
+ * @param {number} timeout - Максимальное время ожидания (в мс)
+ * @returns {Promise<object>} - Результат выполнения задачи или ошибка при истечении времени
+ */
+export async function pollTaskStatus(taskId, interval = 1000, timeout = 60000) {
+    const startTime = Date.now();
+
+    return new Promise((resolve, reject) => {
+        const checkStatus = async () => {
+            try {
+                const response = await api.checkStatusTask(taskId);
+                if (response.data.status === 'SUCCESS') {
+                    resolve();
+                } else if (response.data.status === 'ERROR') {
+                    reject(new Error('Task finished with error status'));
+                } else if (Date.now() - startTime >= timeout) {
+                    reject(new Error('Task status polling timed out'));
+                } else {
+                    // Если статус ещё в процессе, ждем
+                    setTimeout(checkStatus, interval);
+                }
+            } catch (error) {
+                reject(new Error(`Failed to check task status: ${error.message}`));
+            }
+        };
+
+        checkStatus();
+    });
+}

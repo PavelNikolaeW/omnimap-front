@@ -1,50 +1,35 @@
 import {UpdateServiceWebSocket} from "./webSocket";
+import {dispatch} from "../utils/utils";
+import localforage from "localforage";
 
 export class SincManager {
     constructor() {
         const wsUrl = 'ws://localhost:7999/ws';
         this.subscribed = new Set()
+        this.toSend = []
 
         this.webSocket = new UpdateServiceWebSocket(wsUrl);
+        this.webSocket.eventListeners.open.push(this.online.bind(this))
         this.webSocket.connect()
-        this.addEventWebSocketListeners(this.webSocket)
-        this.initListeners()
     }
 
-    initListeners() {
-        window.addEventListener('SubscribeUpdates', (e) => {
-            const blocks = e.detail.blocks
-            const toSend = []
-            blocks.forEach((block) => {
-                if (!this.subscribed.has(block.id)) {
-                    this.subscribed.add(block.id)
-                    toSend.push(block)
-                }
+    async online() {
+        const username = await localforage.getItem('currentUser')
+        if (username) {
+            const keys = await localforage.keys();
+            const pattern = new RegExp(`^Block_.*_${username}$`);
+            const blockKeys = keys.filter((key) => pattern.test(key));
+            const blockPromises = blockKeys.map((key) => localforage.getItem(key));
+            const blocks = await Promise.all(blockPromises);
+
+            const toSend = new Array(blocks.length)
+            blocks.forEach((block, i) => {
+                toSend[i] = {id: block.id, updated_at: Math.floor(new Date(block.updated_at).getTime() / 1000)}
             })
-                if (this.webSocket.isConnected) {
-                    if (toSend.length) {
-                        this.webSocket.subscribe(toSend)
-                    }
-                }
-        })
-    }
 
-    addEventWebSocketListeners(updateService) {
-        // Добавляем обработчики событий
-        updateService.addEventListener('open', () => {
-            console.log('Подключение открыто');
-        });
-
-        updateService.addEventListener('message', (data) => {
-            console.log('Получены обновления:', data);
-        });
-
-        updateService.addEventListener('error', (error) => {
-            console.error('Ошибка WebSocket:', error);
-        });
-
-        updateService.addEventListener('close', (event) => {
-            console.log('Подключение закрыто:', event);
-        });
+            if (toSend.length) {
+                this.webSocket.getUpdates(toSend);
+            }
+        }
     }
 }

@@ -5,146 +5,162 @@
     <title>omniMap</title>
 </head>
 <body>
-<div class="corner-wrapper">
-    <div class="active-button-info" id="active-button-info"></div>
-    <button id="openToolbar" class="corner-button" data-hotkey="KeyO">Панель управления (O)</button>
-</div>
-<div class="control-panel" id="control-panel">
-    <button id="closeToolbar" class="close-button">✖</button>
-    <div class="toolbar-section">
-        <h3>Поиск</h3>
-        <button class="toolbar-button" id="searchBlock" data-hotkey="KeyF">
-            🔍 Окно поиска (F)
-        </button>
+<!--<div class="corner-wrapper">-->
+<!---->
+<!--    <button id="openToolbar" class="corner-button" data-hotkey="KeyO">Панель управления (O)</button>-->
+<!--</div>-->
+
+<main class="layout">
+    <div class="top-navigation-wrapper">
+        <div class="top-navigation">
+            <div class="active-button-info" id="active-button-info">open</div>
+            <div class="tree-navigation" id="tree-navigation"></div>
+        </div>
     </div>
+    <div class="content-wrapper">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-content" id="control-panel">
+                <button class="toolbar-button" id="searchBlock" data-hotkey="KeyF" data-text-sidebar="🔍"
+                        title="🔍 Окно поиска (F)">
+                </button>
+                <button class="toolbar-button" id="createBlock" data-hotkey="KeyN" data-text-sidebar="🆕"
+                        title="🆕 Создать блок (N)">
+                </button>
+                <button class="toolbar-button" id="textBlock" data-hotkey="KeyW" data-text-sidebar="📝"
+                        title="📝 Написать в блок (W)">
+                </button>
 
-    <div class="toolbar-section">
-        <h3>Создание</h3>
-        <button class="toolbar-button" id="createBlock" data-hotkey="KeyN">
-            🆕 Создать блок (N)
-        </button>
-        <button class="toolbar-button" id="textBlock" data-hotkey="KeyW">
-            📝 Написать в блок (W)
-        </button>
-        <button class="toolbar-button" id="titleBlock" data-hotkey="KeyT">
-            🏷️ Название блока (T)
-        </button>
+                <button class="toolbar-button" id="titleBlock" data-hotkey="KeyT" data-text-sidebar="🏷️"
+                        title="🏷️ Название блока (T)">
+                </button>
+
+                <button class="toolbar-button" id="editBlock" data-hotkey="KeyE" data-text-sidebar="✏️"
+                        title="✏️ Редактировать блок (E)">
+                </button>
+
+                <button class="toolbar-button" id="deleteBlock" data-hotkey="KeyD" data-text-sidebar="🗑️"
+                        title="🗑️ Удалить блок (D)">
+                </button>
+                <button class="toolbar-button" id="deleteTreeBlock" data-hotkey="KeyU" data-text-sidebar="🗑️"
+                        title="🗑️ Удалить дерево (U)">
+                </button>
+
+                <button class="toolbar-button" id="moveBlock" data-hotkey="KeyM" data-text-sidebar="↔️"
+                        title="↔️ Переместить блок (M)">
+                </button>
+
+                <button class="toolbar-button" id="editAccessBlock" data-hotkey="KeyP" data-text-sidebar="🔐"
+                        title="🔐 Редактировать права блока (P)">
+                    🔐 Редактировать права блока (P)
+                </button>
+
+                <button class="toolbar-button" id="copyIdBlock" data-hotkey="KeyC" data-text-sidebar="📋"
+                        title="📋 Копировать ID блока (C)">
+                </button>
+
+                <button class="toolbar-button" id="pasteBlock" data-hotkey="KeyV" data-text-sidebar="📥"
+                        title="📥 Вставить (V)">
+                </button>
+
+                <button class="toolbar-button" id="pasteLinkBlock" data-hotkey="KeyL" data-text-sidebar="🔗"
+                        title="🔗 Вставить блок как ссылку (L)">
+                </button>
+
+                <button class="toolbar-button" id="arrowBlock" data-hotkey="KeyA" data-text-sidebar="🔃"
+                        title="🔃 Соединить (A)">
+                </button>
+
+                <button class="toolbar-button" id="deleteArrowBlock" data-hotkey="KeyK" data-text-sidebar="➖"
+                        title="➖ Удалить связь (K)">
+                </button>
+                <button class="toolbar-button reset-state" id="resetState" value="default_color" data-hotkey="KeyR"
+                        data-text-sidebar="🔄" title="🔄 Сброс локального состояния">
+                </button>
+
+                <button class="toolbar-button reset-color" value="default_color" data-hotkey="Digit0"
+                        data-text-sidebar="♻️" title="♻️ Сброс цвета">
+                </button>
+                <div class="color-dropdown">
+                    <button class="dropdown-toggle" data-text-sidebar="🎨">🎨</button>
+                    <ul class="toolbar-color-list">
+                        <li>
+                            <button class="color-button" value="0" data-hotkey="Digit1"
+                                    style="background-color: hsl(0, 80%, 90%);">
+                                1
+                            </button>
+                        </li>
+                        <li>
+                            <button class="color-button" value="30" data-hotkey="Digit2"
+                                    style="background-color: hsl(30, 80%, 90%);">
+                                2
+                            </button>
+                        </li>
+                        <li>
+                            <button class="color-button" value="60" data-hotkey="Digit3"
+                                    style="background-color: hsl(60, 80%, 90%);">
+                                3
+                            </button>
+                        </li>
+                        <li>
+                            <button class="color-button" value="120" data-hotkey="Digit4"
+                                    style="background-color: hsl(120, 80%, 90%);">
+                                4
+                            </button>
+                        </li>
+                        <li>
+                            <button class="color-button" value="180" data-hotkey="Digit5"
+                                    style="background-color: hsl(180, 80%, 90%);">
+                                5
+                            </button>
+                        </li>
+                        <li>
+                            <button class="color-button" value="240" data-hotkey="Digit6"
+                                    style="background-color: hsl(240, 80%, 90%);">
+                                6
+                            </button>
+                        </li>
+                        <li>
+                            <button class="color-button" value="270" data-hotkey="Digit7"
+                                    style="background-color: hsl(270, 80%, 90%);">
+                                7
+                            </button>
+                        </li>
+                        <li>
+                            <button class="color-button" value="300" data-hotkey="Digit8"
+                                    style="background-color: hsl(300, 80%, 90%);">
+                                8
+                            </button>
+                        </li>
+                        <li>
+                            <button class="color-button" value="330" data-hotkey="Digit9"
+                                    style="background-color: hsl(330, 80%, 90%);">
+                                9
+                            </button>
+                        </li>
+                        <li>
+                            <button class="toolbar-button reset-color" value="default_color" data-hotkey="Digit0"
+                                    data-text-sidebar="♻️">
+                                сброс цвета
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+                <button class="toolbar-button" id="exit" data-text-sidebar="🚪">
+                    🚪 Выход
+                </button>
+                <button class="toolbar-button" id="toggleSidebarBtn" title="Скрыть (Q)" data-text-sidebar="❌"
+                        title="Скрыть меню" data-hotkey="KeyQ"></button>
+                <button class="toolbar-button" id="toggleRightSidebarBtn" title="Скрыть (Q)" data-text-sidebar="❎"
+                        title="Скрыть правое меню" data-hotkey="KeyE"></button>
+            </div>
+        </aside>
+        <div class="container-blocks" id="rootContainer">
+            <!-- Содержимое основного блока -->
+        </div>
     </div>
-
-    <div class="toolbar-section">
-        <h3>Редактирование</h3>
-        <button class="toolbar-button" id="editBlock" data-hotkey="KeyE">
-            ✏️ Редактировать блок (E)
-        </button>
-        <button class="toolbar-button" id="deleteBlock" data-hotkey="KeyD">
-            🗑️ Удалить блок (D)
-        </button>
-
-        <button class="toolbar-button" id="moveBlock" data-hotkey="KeyM">
-            ↗️ Перенести блок (M)
-        </button>
-
-        <button class="toolbar-button" id="editAccessBlock" data-hotkey="KeyP">
-            🗑️ Редактировать права блока (P)
-        </button>
-
-    </div>
-
-    <div class="toolbar-section">
-        <h3>Копирование/Вставка</h3>
-        <button class="toolbar-button" id="copyIdBlock" data-hotkey="KeyI">
-            📋 Копировать ID блока (i)
-        </button>
-        <button class="toolbar-button" id="copyBlock" data-hotkey="KeyC">
-            📋 Копировать (C)
-        </button>
-        <button class="toolbar-button" id="cutBlock" data-hotkey="KeyX">
-            ✂️ Вырезать (X)
-        </button>
-        <button class="toolbar-button" id="pasteBlock" data-hotkey="KeyV">
-            📥 Вставить (V)
-        </button>
-        <button class="toolbar-button" id="pasteLinkBlock" data-hotkey="KeyL">
-            🔗 Вставить блок как ссылку (L)
-        </button>
-        <button class="toolbar-button" id="selectBlock" data-hotkey="KeyS">
-            🎯 Выделение (S)
-        </button>
-    </div>
-
-    <div class="toolbar-section">
-        <h3>Связи</h3>
-        <button class="toolbar-button" id="arrowBlock" data-hotkey="KeyA">
-            🔗 Соединить (A)
-        </button>
-        <button class="toolbar-button" id="deleteArrowBlock" data-hotkey="KeyK">
-            ➖ Удалить связь (K)
-        </button>
-    </div>
-    <div class="toolbar-section">
-        <h3>Цвета</h3>
-        <ul class="toolbar-color-list">
-            <li>
-                <button class="color-button" value="0" data-hotkey="Digit1" style="background-color: hsl(0, 80%, 90%);">
-                    1
-                </button>
-            </li>
-            <li>
-                <button class="color-button" value="30" data-hotkey="Digit2"
-                        style="background-color: hsl(30, 80%, 90%);">2
-                </button>
-            </li>
-            <li>
-                <button class="color-button" value="60" data-hotkey="Digit3"
-                        style="background-color: hsl(60, 80%, 90%);">3
-                </button>
-            </li>
-            <li>
-                <button class="color-button" value="120" data-hotkey="Digit4"
-                        style="background-color: hsl(120, 80%, 90%);">4
-                </button>
-            </li>
-            <li>
-                <button class="color-button" value="180" data-hotkey="Digit5"
-                        style="background-color: hsl(180, 80%, 90%);">5
-                </button>
-            </li>
-            <li>
-                <button class="color-button" value="240" data-hotkey="Digit6"
-                        style="background-color: hsl(240, 80%, 90%);">6
-                </button>
-            </li>
-            <li>
-                <button class="color-button" value="270" data-hotkey="Digit7"
-                        style="background-color: hsl(270, 80%, 90%);">7
-                </button>
-            </li>
-            <li>
-                <button class="color-button" value="300" data-hotkey="Digit8"
-                        style="background-color: hsl(300, 80%, 90%);">8
-                </button>
-            </li>
-            <li>
-                <button class="color-button" value="330" data-hotkey="Digit9"
-                        style="background-color: hsl(330, 80%, 90%);">9
-                </button>
-            </li>
-            <li>
-                <button class="toolbar-button" value="default_color" data-hotkey="Digit0">сброс цвета
-                </button>
-            </li>
-        </ul>
-    </div>
-
-    <div class="toolbar-section">
-        <h3>Прочее</h3>
-        <button class="toolbar-button" id="exit">
-            🚪 Выход
-        </button>
-    </div>
-</div>
-</div>
-<div class="container-blocks" id="rootContainer"></div>
+    <nav class="breadcrumb-nav" id="breadcrumb">
+    </nav>
+</main>
 
 <template id="access-window-template">
     <div class="access-window">
@@ -163,8 +179,11 @@
 
             <label for="access-level">Уровень доступа:</label>
             <select id="access-level">
-                <option value="read">Только чтение</option>
+                <option value="deny">Запретить</option>
+                <option value="view">Только чтение</option>
                 <option value="edit">Чтение и редактирование</option>
+                <option value="edit_ac">Чтение и редактирование прав</option>
+                <option value="delete">Удаление</option>
             </select>
 
             <button id="confirm-button">Подтвердить</button>
@@ -206,8 +225,10 @@
     <span id="error-message"></span>
 </div>
 
-<div class="breadcrumb" id="breadcrumb"></div>
+<script>
+    // Получаем ссылки на элементы
 
+</script>
 
 </body>
 </html>

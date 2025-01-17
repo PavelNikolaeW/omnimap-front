@@ -82,4 +82,16 @@ async function initApp() {
         dispatch('ShowBlocks')
     }
 
+    setInterface()
+}
+
+function setInterface() {
+    const isHiddenSidebar = localStorage.getItem('sidebarIsHidden')
+    const isHiddenRightSideBar = localStorage.getItem('rightSideBarIsHidden')
+    if (isHiddenSidebar === 'true') {
+        document.getElementById('sidebar').classList.add('hidden')
+    }
+    if (isHiddenRightSideBar === 'true') {
+        document.getElementById('rightSidebar').classList.add('hidden')
+    }
 }

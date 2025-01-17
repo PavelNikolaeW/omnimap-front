@@ -57,10 +57,12 @@ export function truncate(str, maxLen) {
     return str.slice(0, maxLen) + "."
 }
 
-const uuidv6Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-6[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-export function isValidUUIDv6(str) {
-  return uuidv6Regex.test(str);
+export function isValidUUID(uuid) {
+  // Регулярное выражение для проверки валидности UUID
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
 }
+
 
 export default {
     findLCM,
@@ -68,7 +70,7 @@ export default {
     sleep,
     validURL,
     truncate,
-    isValidUUIDv6
+    isValidUUID,
 }
 
 
