@@ -249,7 +249,7 @@ export class LocalStateManager {
 
     removeChildrenBlocks(block) {
         const removesIds =
-        removesIds.forEach(id => this.removeBlock(id))
+            removesIds.forEach(id => this.removeBlock(id))
     }
 
     webSocUpdateBlock(newBlocks) {
@@ -664,11 +664,24 @@ export class LocalStateManager {
         }
     }
 
-    async addConnectionBlock({sourceId, targetId, arrowType, label}) {
+    async addConnectionBlock({sourceId, targetId, connector, label}) {
         try {
             const sourceBlock = this.blocks.get(sourceId);
             if (!sourceBlock.data.connections) sourceBlock.data.connections = [];
-            sourceBlock.data.connections.push({sourceId, targetId, arrowType, label});
+
+            // Проверяем, существует ли уже соединение с такими же sourceId и targetId
+            const existingConnection = sourceBlock.data.connections.find(
+                connection => connection.sourceId === sourceId && connection.targetId === targetId
+            );
+
+            if (existingConnection) {
+                // Если соединение существует, обновляем его свойства
+                existingConnection.connector = connector;
+                existingConnection.label = label;
+            } else {
+                // Если соединение не найдено, добавляем новое
+                sourceBlock.data.connections.push({sourceId, targetId, connector, label});
+            }
 
             const response = await api.updateBlock(sourceId, {data: sourceBlock.data});
             if (response.status === 200) {
@@ -682,6 +695,7 @@ export class LocalStateManager {
     }
 
     async removeConnectionBlock({sourceId, targetId}) {
+        console.log(sourceId, targetId)
         try {
             const sourceBlock = this.blocks.get(sourceId);
             sourceBlock.data.connections = sourceBlock.data.connections.filter((el) => el.targetId !== targetId);

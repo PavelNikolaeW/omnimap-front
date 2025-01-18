@@ -12,7 +12,7 @@ import {dispatch} from "./utils/utils";
 import {LocalStateManager} from "./stateLocal/localStateManager";
 import {ControllerBlock} from "./controller/controller";
 import {addedSizeStyles} from "./painter/styles";
-import {jsPlumb} from "jsplumb";
+import {newInstance, EVENT_CONNECTION_CLICK} from "@jsplumb/browser-ui";
 import localforage from "localforage";
 import api from "./api/api";
 import {SincManager} from "./sincManager/sincManager";
@@ -59,18 +59,15 @@ async function checkAuth() {
  * Генерируем событие ShowBlocks
  */
 async function initApp() {
-    const jsPlumbInstance = jsPlumb.getInstance({
-        Connector: 'Straight',
-        Endpoint: 'Dot',
-        Anchor: 'Continuous',
-        PaintStyle: {stroke: '#456', strokeWidth: 2},
-        EndpointStyle: {fill: '#456', radius: 2},
+    const container = document.getElementById('rootContainer')
+    const jsPlumbInstance = newInstance({
+        container: container,
+        connector: {type: "Straight"},
+        endpoint: {type: "Dot"},
+        paintStyle: {stroke: "#456", strokeWidth: 2},
+        endpointStyle: {fill: "#456", radius: 2},
     });
 
-    jsPlumbInstance.ready(() => {
-        jsPlumbInstance.setContainer(document.body);
-        // Дополнительная инициализация, если необходимо
-    });
     addedSizeStyles()
     const localState = new LocalStateManager(jsPlumbInstance)
     const controller = new ControllerBlock(jsPlumbInstance);
@@ -95,3 +92,18 @@ function setInterface() {
         document.getElementById('rightSidebar').classList.add('hidden')
     }
 }
+
+
+console.log(EVENT_CONNECTION_CLICK)
+const instance = newInstance({
+  container: document.getElementById("sidebar")
+});
+
+instance.bind(EVENT_CONNECTION_CLICK, (info, e) => {
+  console.log("connection clicked!", info);
+});
+
+const d1 = document.getElementById("searchBlock");
+const d2 = document.getElementById("textBlock");
+
+instance.connect({ source: d1, target: d2 });

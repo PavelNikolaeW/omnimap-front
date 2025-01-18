@@ -2,7 +2,6 @@ import {Queue} from "../utils/queue";
 import blockCreator from "./blockCreator";
 import cssConverter from "./cssConverter";
 import {dispatch, getElementSizeClass, measurePerformance, printTimer, resetTimer} from "../utils/utils"
-import {jsPlumb} from "jsplumb";
 
 Map.prototype.appendInParent = function () {
     const elementsToDelete = [];
