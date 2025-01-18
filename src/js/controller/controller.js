@@ -305,7 +305,14 @@ export class ControllerBlock extends BaseController {
         else createAccessWindow(blockElement)
     }
 
-
+    urlLinkBlock(blockElement) {
+        let id = blockElement.id
+        if (blockElement.parentNode.hasAttribute('blockLink')) {
+            id = blockElement.id.split('*')[1]
+        }
+        dispatch("CreateLink", {id})
+        this.handleMode('openBlock', null)
+    }
     _getRelevantElements(target) {
         const element = this.findParentWithAttribute(target);
         if (!element) return {};

@@ -183,6 +183,17 @@ export class LocalStateManager {
         window.addEventListener('ResetState', async (e) => {
             await this.resetState()
         })
+        window.addEventListener('CreateLink', async (e) => {
+            console.log(e.detail)
+            const id = e.detail.id
+            api.createUrlLink(id, ).then(res => {
+                if (res.status === 200 ) {
+                    const block = res.data
+                    this.saveBlock(block)
+                    this.showBlocks()
+                }
+            })
+        })
         this.treeNavigation.addEventListener('click', async (e) => {
             const idBtn = e.target.id;
             if (idBtn.startsWith('treeBtn_')) {

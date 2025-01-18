@@ -173,6 +173,10 @@ class Api {
         return this.api.post(`access/${blockId}/`, data)
     }
 
+    createUrlLink(blockId, slug) {
+        return this.api.post(`create-url/${blockId}/`, {slug})
+    }
+
 
     moveBlock(blockId, {old_parent_id, new_parent_id, childOrder}) {
         return this.api.post(`move-block/${old_parent_id}/${new_parent_id}/${blockId}/`, {childOrder})

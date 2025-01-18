@@ -207,6 +207,15 @@ class BaseController {
         }
 
     }
+    handleUrlLinkBlock(e) {
+        if (this.activeElement) {
+            this.urlLinkBlock(this.activeElement)
+            this.handleMode('openBlock', null)
+        } else {
+            this.handleMode('urlLinkBlock', e)
+        }
+    }
+
 
     handleDeleteBlock(el) {
         if (this.activeElement) {
