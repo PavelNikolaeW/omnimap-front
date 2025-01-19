@@ -322,7 +322,6 @@
 }
 
 
-
 /* Верхняя навигационная панель */
 .top-navigation-wrapper {
     background-color: #f8f9fa;
@@ -370,6 +369,7 @@
 .tree-button:active {
     background-color: #004494;
 }
+
 .tree-button.selected {
     background-color: #28a745;
     color: white;
@@ -388,11 +388,11 @@
     .tree-navigation {
         gap: 10px;
     }
+
     .top-navigation {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 5px 10px;
-    box-sizing: border-box;
-}
+        display: flex;
+        align-items: center;
+        padding: 5px 10px;
+        box-sizing: border-box;
+    }
 }

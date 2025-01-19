@@ -84,26 +84,31 @@ async function initApp() {
 
 function setInterface() {
     const isHiddenSidebar = localStorage.getItem('sidebarIsHidden')
-    const isHiddenRightSideBar = localStorage.getItem('rightSideBarIsHidden')
+    const istopSidebarHidden = localStorage.getItem('topSidebarHidden')
+    const sidebar = document.getElementById('sidebar')
+    const topSidebar =  document.getElementById('topSidebar')
     if (isHiddenSidebar === 'true') {
-        document.getElementById('sidebar').classList.add('hidden')
+        sidebar.classList.add('hidden')
     }
-    if (isHiddenRightSideBar === 'true') {
-        document.getElementById('rightSidebar').classList.add('hidden')
+    if (istopSidebarHidden === 'true') {
+        topSidebar.classList.add('hidden')
+    }
+    if (window.location.search.includes('path/')) {
+        sidebar.classList.add('hidden')
+        topSidebar.classList.add('hidden')
     }
 }
 
 
-console.log(EVENT_CONNECTION_CLICK)
 const instance = newInstance({
-  container: document.getElementById("sidebar")
+    container: document.getElementById("sidebar")
 });
 
 instance.bind(EVENT_CONNECTION_CLICK, (info, e) => {
-  console.log("connection clicked!", info);
+    console.log("connection clicked!", info);
 });
 
 const d1 = document.getElementById("searchBlock");
 const d2 = document.getElementById("textBlock");
 
-instance.connect({ source: d1, target: d2 });
+instance.connect({source: d1, target: d2});

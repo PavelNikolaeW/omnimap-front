@@ -5,6 +5,7 @@ import api from "../api/api";
 import LZString from 'lz-string'
 import {truncate} from '../utils/functions'
 import {Queue} from "../utils/queue";
+import {log} from "@jsplumb/browser-ui";
 
 // Проверка поддержки IndexedDB и конфигурация localforage
 if (!localforage.supports(localforage.INDEXEDDB)) {
@@ -184,15 +185,16 @@ export class LocalStateManager {
             await this.resetState()
         })
         window.addEventListener('CreateLink', async (e) => {
-            console.log(e.detail)
-            const id = e.detail.id
-            api.createUrlLink(id, ).then(res => {
-                if (res.status === 200 ) {
-                    const block = res.data
-                    this.saveBlock(block)
-                    this.showBlocks()
-                }
-            })
+            if (confirm('Блок и все его дочерние блоки станут доступными для тех у кого есть ссылка или id блоков')) {
+                const id = e.detail.id
+                api.createUrlLink(id,).then(res => {
+                    if (res.status === 200) {
+                        const block = res.data
+                        this.saveBlock(block)
+                        this.showBlocks()
+                    }
+                })
+            }
         })
         this.treeNavigation.addEventListener('click', async (e) => {
             const idBtn = e.target.id;
@@ -347,8 +349,9 @@ export class LocalStateManager {
 
 
     async saveBlock(block) {
+        console.log(block)
         this.blocks.set(block.id, block)
-        this.blockRepository.saveBlock(block);
+        await this.blockRepository.saveBlock(block);
     }
 
     async removeBlock(blockId) {
@@ -434,16 +437,50 @@ export class LocalStateManager {
     }
 
 
+    async initShowLink(linkSlug) {
+        let treeId = await localforage.getItem(`linkSlugTreeId${this.currentUser}:${linkSlug}`)
+        if (!treeId) {
+            const res = await api.loadBlockUrl(linkSlug)
+
+            if (res.status === 200 && res.data) {
+                const blocks =  Object.values(res.data)
+                const block = blocks[0]
+                const color = block.data?.color && block.data.color !== 'default_color' ? block.data.color : [];
+                await localforage.setItem(`linkSlugTreeId${this.currentUser}:${linkSlug}`, block.id)
+                console.log(`Path_${block.id}${this.currentUser}`)
+                await localforage.setItem(`Path_${block.id}${this.currentUser}`, [
+                    {screenName: truncate(block.title, 10), color: color, blockId: block.id}
+                ])
+                for (let i = 0; i < blocks.length; i++) {
+                    const block = blocks[i]
+                    await this.saveBlock(block)
+                }
+                return block.id
+            }
+        } else {
+            return treeId
+        }
+    }
+
     async showBlocks() {
         this.currentUser = await localforage.getItem('currentUser') || 'anonim';
-        this.currentTree = await localforage.getItem('currentTree');
         this.blockRepository = new BlockRepository(this.currentUser);
+
+        if (window.location.search.includes('path')) {
+            this.currentTree = await this.initShowLink(window.location.search.split('path/')[1])
+        } else {
+            this.currentTree = await localforage.getItem('currentTree');
+        }
+        console.log(this.currentTree)
+        console.log(this.blocks)
 
         if (!this.blocks || this.blocks.size === 0) {
             await this.getAllBlocksForUser(this.currentUser);
         }
         this.path = await localforage.getItem(`Path_${this.currentTree}${this.currentUser}`) || [];
+        console.log(`Path_${this.currentTree}${this.currentUser}`)
         let screenObj = this.path.at(-1);
+        console.log(screenObj)
         if (!screenObj) {
             const block = this.blocks.get(this.currentTree)
             screenObj = {

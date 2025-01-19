@@ -47,7 +47,6 @@ export function validURL(str) {
         new URL(str);
         return true;
     } catch (err) {
-        console.log(err)
         return false;
     }
 }

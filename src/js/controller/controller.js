@@ -83,6 +83,7 @@ export class ControllerBlock extends BaseController {
 
         document.addEventListener('keydown', (e) => {
             let handlerName = 'handleBtnColor'
+            if (window.location.search.includes('path/')) return;
 
             const code = e.code;
             // Проверка, нажаты ли модификаторные клавиши
@@ -423,7 +424,6 @@ export class ControllerBlock extends BaseController {
     createBlock(blockElement) {
         const title = prompt('Введите название блока');
         const blockId = blockElement.id.indexOf('*') != -1 ? blockElement.id.split('*')[1] : blockElement.id
-        console.log(blockId)
         if (title !== null) {
             if (validURL(title)) dispatch('IframeCreate', {parentId: blockId, src: title})
             else dispatch('CreateBlock', {parentId: blockId, title});

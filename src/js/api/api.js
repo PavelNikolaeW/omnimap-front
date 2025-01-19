@@ -177,6 +177,10 @@ class Api {
         return this.api.post(`create-url/${blockId}/`, {slug})
     }
 
+    loadBlockUrl(slug) {
+        return this.api.get(`block/${slug}/`)
+    }
+
 
     moveBlock(blockId, {old_parent_id, new_parent_id, childOrder}) {
         return this.api.post(`move-block/${old_parent_id}/${new_parent_id}/${blockId}/`, {childOrder})
