@@ -3,7 +3,7 @@ const common = require('./webpack.common.js');
 
 module.exports = merge(common, {
     mode: 'development',
-    devtool: 'eval-cheap-module-source-map', // Быстрее для разработки
+    devtool: 'cheap-module-source-map',
     devServer: {
         static: './dist',
         hot: true,

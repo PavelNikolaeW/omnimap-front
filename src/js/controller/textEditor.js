@@ -2,16 +2,19 @@ import EasyMDE from "easymde";
 import DOMPurify from 'dompurify';
 import TurndownService from "turndown";
 import {dispatch} from "../utils/utils";
+import hotkeys from "hotkeys-js";
 
 export class EditorText {
     constructor() {
         this.editorEl = document.getElementById('editor-popup');
         this.mdeElement = document.getElementById('editor-textarea');
         this.turndownService = new TurndownService();
+
         this.contentEl = null;
         this.editor = null;
     }
 
+    // todo сделать конвертацию в html и обратно + вставку кода
     // Метод для очистки содержимого
     sanitizeContent(html) {
         return DOMPurify.sanitize(html, {
@@ -24,7 +27,7 @@ export class EditorText {
         });
     }
 
-    closeEditor() {
+    closeEditor(isUpdateText = true) {
         if (!this.editor) return;
 
         const markdownText = this.editor.value();
@@ -33,7 +36,8 @@ export class EditorText {
         const htmlWithLineBreaks = cleanedMarkdown.replace(/\n/g, '<br>');
         const sanitizedHtml = this.sanitizeContent(this.editor.options.previewRender(htmlWithLineBreaks));
 
-        dispatch("TextUpdate", {blockId: this.blockId, text: sanitizedHtml})
+        if (isUpdateText)
+            dispatch("TextUpdate", {blockId: this.blockId, text: sanitizedHtml})
 
         this.editor.toTextArea();
         this.editor = null;
@@ -68,7 +72,16 @@ export class EditorText {
             ],
             forceSync: true, // Обеспечивает синхронизацию содержимого с textarea
         });
-
+        const wrapper = this.editor.codemirror.getWrapperElement();
+        wrapper.addEventListener('keydown', (e) => {
+            if (e.shiftKey && e.key === 'Enter') {
+                hotkeys.trigger('shift+enter')
+            } else if (e.key === 'Enter') {
+                hotkeys.trigger('enter')
+            } else if (event.key === 'Escape') {
+                hotkeys.trigger('esc')
+            }
+        })
         this.editor.codemirror.on('focus', this._setCursorToEnd);
         setTimeout(() => {
             this.editor.codemirror.focus();

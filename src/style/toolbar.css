@@ -1,30 +1,3 @@
-/* ====== Стили для кнопок в углу и информационного окна ====== */
-.corner-wrapper {
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.corner-button {
-    padding: 10px 15px;
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 50px;
-    cursor: pointer;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
-    transition: background-color 0.3s, transform 0.3s;
-}
-
-.corner-button:hover {
-    background-color: #45a049;
-    transform: scale(1.05);
-}
-
 .active-button-info {
     padding: 5px 10px;
     margin-right: 15px;
@@ -42,181 +15,77 @@
     pointer-events: none;
 }
 
-.modeIndicator {
-    position: fixed;
-    top: 10px;
-    right: 100px;
-    z-index: 1000;
-}
-
-/* ====== Стили для панели управления (исходный вид) ====== */
-.control-panel {
-    display: none; /* скрыта по умолчанию */
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -60%);
-    background-color: #ffffff;
-    padding: 30px;
-    border-radius: 10px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-    z-index: 1001;
-    width: 90%;
-    max-width: 700px;
-    overflow-y: auto;
-    max-height: 90vh;
-    transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-.control-panel.active {
-    display: block;
-    opacity: 1;
-    transform: translate(-50%, -50%);
-}
-
-.close-button {
-    position: absolute;
-    top: 15px;
-    right: 15px;
-    background: transparent;
-    border: none;
-    font-size: 1.5em;
-    cursor: pointer;
-    color: #333;
-    transition: color 0.3s;
-}
-
-.close-button:hover {
-    color: #ff0000;
-}
-
 .toolbar-section {
     margin-bottom: 25px;
 }
 
-.toolbar-section h3 {
-    margin-bottom: 10px;
-    font-size: 1.1em;
-    color: #555;
-    border-bottom: 1px solid #ddd;
-    padding-bottom: 5px;
-}
-
-.toolbar-button {
+.sidebar-button {
     display: flex;
     align-items: center;
-    gap: 10px;
-    width: 100%;
-    padding: 5px 10px;
-    margin-bottom: 10px;
+    justify-content: center;
+    width: 50px;
+    height: 40px;
     background-color: #f9f9f9;
     border: 2px solid #e0e0e0;
     border-radius: 8px;
     cursor: pointer;
-    justify-content: flex-end;
     transition: background-color 0.3s, border-color 0.3s, transform 0.2s;
-    font-size: 1em;
     color: #333;
 }
 
-.toolbar-button:last-child {
+.sidebar-button:last-child {
     margin-bottom: 0;
 }
 
-.toolbar-button:hover {
+button:focus {
+    outline: none;
+}
+
+/* Сайдбар */
+.sidebar {
+    max-width: 60px;
+    padding: 0 4px;
+    background-color: #e9ecef;
+    border-right: 1px solid #ccc;
+    transition: width 0.3s ease;
+    overflow: auto;
+}
+
+
+/* Контейнер для кнопок с вертикальной прокруткой */
+.sidebar-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    box-sizing: border-box;
+}
+
+.sidebar-button:hover {
     background-color: #e8f4ff;
     border-color: #4CAF50;
     transform: translateY(-2px);
 }
 
-.toolbar-button::after {
-    content: attr(data-hotkey);
-    margin-left: auto;
-    background-color: #d0d0d0;
-    color: #fff;
-    padding: 3px 6px;
-    border-radius: 4px;
-    font-size: 0.8em;
-}
-
 .active-button {
-    background-color: #c0c0ff;
-    border-color: #62628c;
-    outline: 2px solid #62628c;
+    border-color: #007bff;
+    outline: 2px solid #3939de;
 }
 
-/* ====== Цветовая группа ====== */
-.toolbar-color-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
+
+.text-danger {
+    color: #b23c3c;
 }
 
-.toolbar-color-list li {
-    margin: 0;
-}
 
-.color-button {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    border: none;
-    cursor: pointer;
-    transition: transform 0.2s ease;
-}
-
-.color-button:hover {
-    transform: scale(1.1);
-}
-
-.color-button:focus {
-    outline: 2px solid #000;
-}
-
-/* ====== Выпадающее меню для цвета ====== */
-.color-dropdown {
-    position: relative;
-    display: inline-block;
-}
-
-.dropdown-toggle {
-    padding: 8px 12px;
-    cursor: pointer;
-    font-size: 1em;
-    background: #ddd;
-    border: none;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* Скрываем список по умолчанию */
-.color-dropdown .toolbar-color-list {
-    display: none;
-    position: absolute;
-    top: 110%;
-    left: 0;
-    background: #fff;
-    border: 1px solid #ccc;
-    padding: 8px;
-    border-radius: 4px;
-    z-index: 100;
-}
-
-/* Показываем список при активном состоянии */
-.color-dropdown.active .toolbar-color-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-}
-
-/* ====== Адаптив для устройств с max-width: 600px ====== */
 @media (max-width: 600px) {
+    .sidebar-button{
+        width: 40px;
+        height: 35px;
+        padding: 8px 8px;
+    }
     .control-panel {
         padding: 20px;
     }
@@ -225,117 +94,14 @@
         font-size: 1em;
     }
 
-    .toolbar-button {
-        padding: 10px 15px;
-        font-size: 0.9em;
+    .sidebar {
+        max-width: 40px;
     }
-
-    .toolbar-button::after {
-        font-size: 0.7em;
-    }
-
-    .corner-button {
-        padding: 8px 12px;
-        font-size: 0.9em;
-    }
-}
-
-/* ====== Режим боковой панели (transfer в sidebar) ====== */
-/* Здесь мы не изменяем внешний вид исходной панели (control-panel) –
-   а переносим (или копируем) ее кнопки в блок .sidebar-content */
-.sidebar {
-    width: 60px; /* Фиксированная ширина бокового меню */
-    background-color: #e9ecef;
-    border-right: 1px solid #ccc;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    box-sizing: border-box;
-    overflow: auto;
-}
-
-/* В боковой панели (sidebar-content) мы меняем поведение dropdown */
-.sidebar .color-dropdown {
-    /* убираем абсолютное позиционирование для dropdown внутри боковой панели,
-       чтобы список раскрывался в потоке и смещал элементы вниз */
-    position: static;
-    width: 100%;
-    align-items: center;
-}
-
-/* В боковом меню для каждого элемента вместо полного текста отображается data-text-sidebar */
-.sidebar-content .toolbar-button,
-.sidebar-content h3,
-.sidebar-content .close-button,
-.sidebar-content .transfer-button,
-.sidebar-content .dropdown-toggle {
-    text-indent: -9999px;
-    overflow: hidden;
-    white-space: nowrap;
-    height: 40px;
-    width: 40px;
-    padding: 0;
-    margin: 0 auto;
-    display: flex;
-}
-
-.sidebar-content [data-text-sidebar]::after {
-    content: attr(data-text-sidebar);
-    text-indent: 0;
-    display: block;
-    text-align: center;
-    font-size: 24px;
-    line-height: 40px;
-}
-
-.sidebar .color-dropdown .dropdown-toggle {
-    /* Сохраняем размеры и оформление, как в боковом режиме */
-    padding: 0;
-    width: 40px;
-    height: 40px;
-    margin: 0 auto;
-}
-
-/* По умолчанию скрываем список, но он будет занимать место при активном состоянии */
-.sidebar .color-dropdown .toolbar-color-list {
-    display: none;
-    position: static;
-    width: 100%;
-    /* Дополнительное оформление для элементов списка (при необходимости) */
-    flex-direction: column;
-    gap: 5px;
-    margin-top: 5px;
-    border: none;
-    box-shadow: none;
-    background: transparent;
-    padding: 0;
-}
-
-/* При активном состоянии — список раскрывается в потоке */
-.sidebar .color-dropdown.active .toolbar-color-list {
-    display: flex;
-}
-
-.sidebar.hidden {
-    transform: translateX(-100%);
-    transition: transform 0.7s ease;
-}
-
-
-/* Верхняя навигационная панель */
-.top-navigation-wrapper {
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #ddd;
-    transition: height 0.3s ease, transform 0.3s ease;
-}
-
-.top-navigation-wrapper.hidden {
-    transform: scaleY(0);
-    height: 0;
-    overflow: hidden;
 }
 
 .top-navigation {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #ddd;
     overflow: scroll;
     display: flex;
     align-items: center;
@@ -372,7 +138,6 @@
 
 .tree-button.selected {
     background-color: #28a745;
-    color: white;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
     transform: scale(1.1);
     border: 2px solid #218838;
@@ -380,7 +145,7 @@
 
 
 /* Адаптивные стили */
-@media (max-width: 768px) {
+@media (max-width: 600px) {
     .tree-button {
         font-size: 12px;
     }
@@ -391,8 +156,15 @@
 
     .top-navigation {
         display: flex;
-        align-items: center;
         padding: 5px 10px;
         box-sizing: border-box;
     }
+
+    .active-button-info {
+        padding: 5px 10px;
+        margin-right: 10px;
+        font-size: 0.7em;
+    }
 }
+
+

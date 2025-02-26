@@ -169,12 +169,45 @@ class Api {
         return this.api.get(`access/${blockId}/`)
     }
 
+    getGroups() {
+        return this.api.get(`groups/`)
+    }
+
+    createGroup(data) {
+        return this.api.post('groups/create/', data)
+    }
+
+    deleteGroup(groupId) {
+        return this.api.delete(`groups/${groupId}/delete/`)
+    }
+
+    addUserToGroup(groupId, data) {
+        return this.api.post(`groups/${groupId}/add_member/`, data)
+    }
+    removeUserGroup(groupId, username){
+        return this.api.delete(`groups/${groupId}/remove_member/${username}`)
+    }
+
+    getGroupMembers(groupId) {
+        return this.api.get(`groups/${groupId}/members/`)
+    }
+
     updateAccess(blockId, data) {
         return this.api.post(`access/${blockId}/`, data)
     }
 
     createUrlLink(blockId, slug) {
         return this.api.post(`create-url/${blockId}/`, {slug})
+    }
+    checkUrl(slug) {
+        return this.api.get(`check-url/${slug}`)
+    }
+    getUrls(blockId) {
+        return this.api.get(`get-urls/${blockId}`)
+    }
+    deleteUrl(slug, block_id) {
+        console.log(slug, block_id)
+        return this.api.delete(`delete-url/${block_id}/${slug}/`)
     }
 
     loadBlockUrl(slug) {

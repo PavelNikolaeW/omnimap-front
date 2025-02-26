@@ -1,12 +1,16 @@
+import 'easymde/dist/easymde.min.css';
+import '@fortawesome/fontawesome-free/css/all.min.css';
 import '../style/index.css';
 import '../style/toolbar.css';
 import '../style/controls.css';
 import '../style/auth.css';
-import '../style/registration.css';
 import '../style/accessWindow.css';
 import '../style/searchWindow.css';
-import 'easymde/dist/easymde.min.css';
-import '@fortawesome/fontawesome-free/css/all.min.css';
+import '../style/popup.css';
+import '../style/hotKeyPopup.css';
+import '../style/urlPopup.css';
+import '../style/accessPopup.css';
+
 
 import {dispatch} from "./utils/utils";
 import {LocalStateManager} from "./stateLocal/localStateManager";
@@ -16,7 +20,10 @@ import {newInstance, EVENT_CONNECTION_CLICK} from "@jsplumb/browser-ui";
 import localforage from "localforage";
 import api from "./api/api";
 import {SincManager} from "./sincManager/sincManager";
+import {CommandManager} from "./controller/comandManager";
+import {uiManager, UIManager} from "./controller/uiManager";
 
+console.log(location.search.slice(1, ))
 // что нужно доделать перед переходом к беку
 // 1 редактор размеров и расположения блоков
 // 2 текстовый редактор
@@ -59,19 +66,15 @@ async function checkAuth() {
  * Генерируем событие ShowBlocks
  */
 async function initApp() {
-    const container = document.getElementById('rootContainer')
-    const jsPlumbInstance = newInstance({
-        container: container,
-        connector: {type: "Straight"},
-        endpoint: {type: "Dot"},
-        paintStyle: {stroke: "#456", strokeWidth: 2},
-        endpointStyle: {fill: "#456", radius: 2},
-    });
-
     addedSizeStyles()
-    const localState = new LocalStateManager(jsPlumbInstance)
-    const controller = new ControllerBlock(jsPlumbInstance);
+    const localState = new LocalStateManager()
+    // const controller = new ControllerBlock(jsPlumbInstance);
     const sincManager = new SincManager()
+
+
+    const hotkeysMap = await localforage.getItem('hotkeysMap')
+    const commandManager = new CommandManager(
+        'rootContainer', 'breadcrumb', 'tree-navigation', hotkeysMap ?? {})
 
     const isAuth = await checkAuth()
 
@@ -98,17 +101,3 @@ function setInterface() {
         topSidebar.classList.add('hidden')
     }
 }
-
-
-const instance = newInstance({
-    container: document.getElementById("sidebar")
-});
-
-instance.bind(EVENT_CONNECTION_CLICK, (info, e) => {
-    console.log("connection clicked!", info);
-});
-
-const d1 = document.getElementById("searchBlock");
-const d2 = document.getElementById("textBlock");
-
-instance.connect({source: d1, target: d2});

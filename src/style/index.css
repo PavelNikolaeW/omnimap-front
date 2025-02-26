@@ -28,126 +28,63 @@ h1, h2, h3, h4, h5, h6 {
     margin: 0;
     padding: 0;
 }
+
 /* Основной контейнер страницы */
 .layout {
-  display: flex;
-  flex-direction: column;
-  height: 100vh; /* Высота занимает весь экран */
-  margin: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100vh; /* Высота занимает весь экран */
+    margin: 0;
 }
 
 /* Обёртка для sidebar и основного содержимого */
 .content-wrapper {
-  display: flex;
-  flex: 1; /* Занимает оставшееся пространство */
-  overflow: hidden;
+    display: flex;
+    flex: 1; /* Занимает оставшееся пространство */
+    overflow: hidden;
 }
 
-/* Сайдбар */
-.sidebar {
-  width: 60px; /* Ширина панели по умолчанию */
-  background-color: #e9ecef;
-  border-right: 1px solid #ccc;
-  display: flex;
-  flex-direction: column;
-  transition: width 0.3s ease;
-}
 
-/* Кнопка для скрытия/открытия сайдбара */
-.toggle-sidebar {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 18px;
-  padding: 10px;
-}
-
-/* Контейнер для кнопок с вертикальной прокруткой */
-.sidebar-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 0;
-  box-sizing: border-box;
-}
-
-/* Кнопки на панели */
-.sidebar-btn {
-  width: 40px;
-  height: 40px;
-  background-color: #007bff;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-/* Если панель скрыта – задаём нулевую ширину */
-.content-wrapper.sidebar-hidden .sidebar {
-  width: 0;
-  overflow: hidden;
-}
-
-/* При скрытой панели основной блок занимает всё место */
-.content-wrapper.sidebar-hidden .container-blocks {
-  flex: 1;
-}
 
 /* Основное содержимое */
 .container-blocks {
-  flex: 1;
-  overflow: auto;
-  box-sizing: border-box;
+    flex: 1;
+    overflow: auto;
+    box-sizing: border-box;
 }
 
 /* Стили для хлебных крошек */
 .breadcrumb-nav {
-  height: auto;
-  background-color: #f8f9fa;
-  box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
-  white-space: nowrap;
-  overflow-x: auto;
-  overflow-y: hidden;
-  border-top: 1px solid #ddd;
-  padding: 8px 16px;
-  box-sizing: border-box;
+    height: auto;
+    background-color: #f8f9fa;
+    box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+    white-space: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-top: 1px solid #ddd;
+    padding: 8px 16px;
+    box-sizing: border-box;
 }
 
 .breadcrumb-nav ul {
-  display: flex;
-  gap: 8px;
-  padding: 0;
-  margin: 0;
-  list-style: none;
+    display: flex;
+    gap: 8px;
+    padding: 0;
+    margin: 0;
+    list-style: none;
 }
 
 .breadcrumb-nav li {
-  font-size: 14px;
-  color: #333;
-}
-
-/* Скрывать хлебные крошки на малых экранах */
-@media (max-width: 768px) {
-  .breadcrumb-nav {
-    display: none;
-  }
-}
-
-.cp-button {
-    border: 2px solid #aaa;
-    background-color: #f0f0f0;
+    font-size: 14px;
     color: #333;
-    font-size: 12px;
-    cursor: pointer;
-    transition: background-color 0.3s, transform 0.1s;
-    outline: none;
 }
 
-.cp-button:hover {
-    background-color: #b0aeae;
+@media (max-width: 600px) {
+    .breadcrumb-nav {
+        padding: 6px 12px;
+    }
 }
+
 
 .cp-button__active {
     background-color: #8d8d8d;
@@ -182,7 +119,10 @@ h1, h2, h3, h4, h5, h6 {
 
 .block-link-active {
     outline: 2px dashed #343434;
-    /*border: 0*/
+}
+
+.block-link-selected {
+    outline: 2px solid #bb8fd5;
 }
 
 .block-empty {
@@ -202,18 +142,11 @@ h1, h2, h3, h4, h5, h6 {
     outline: 2px solid #bb8fd5;
 }
 
-.block-highlighted {
-    opacity: 0.5;
-}
 
 iframe {
     width: 100%;
     height: 100%;
     border: none;
-}
-
-.clickable-label {
-    cursor: pointer;
 }
 
 .table {
@@ -260,4 +193,23 @@ iframe {
     -webkit-user-select: none; /* Safari */
     -moz-user-select: none; /* Firefox */
     -ms-user-select: none; /* IE10+ */
+}
+
+
+.before-block {
+    width: 15px;
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.2);
+    opacity: 0.5;
+    transition: all 0.2s ease-in-out;
+    border-radius: 4px;
+    pointer-events: auto;
+    border: 1px dashed rgba(0, 0, 0, 0.5);
+}
+
+.before-block-hover {
+    opacity: 1;
+    background-color: rgba(0, 150, 255, 0.4);
+    border: 1px solid rgba(0, 150, 255, 0.8);
+    box-shadow: 0 0 5px rgba(0, 150, 255, 0.8);
 }

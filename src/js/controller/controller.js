@@ -1,7 +1,6 @@
 import {dispatch} from "../utils/utils";
 import {BlockEditor} from "./blockEditor";
 import BaseController from './baseController';
-import {ArrowManager} from "./arrowManager";
 import createAccessWindow from "./editAccessWindow";
 import {EditorText} from "./textEditor";
 import {validURL} from "../utils/functions";
@@ -207,7 +206,6 @@ export class ControllerBlock extends BaseController {
                 if (el.parentNode.hasAttribute('blockLink')) el = el.parentNode
 
                 const invisibleElement = document.createElement('div');
-
                 invisibleElement.setAttribute('block_id', el.id)
                 invisibleElement.setAttribute('parent_id', el.parentNode.id)
                 invisibleElement.style.width = '15px';
@@ -429,7 +427,6 @@ export class ControllerBlock extends BaseController {
             else dispatch('CreateBlock', {parentId: blockId, title});
         }
         this.handleMode('openMode')
-
     }
 
     editBlock(blockElement) {

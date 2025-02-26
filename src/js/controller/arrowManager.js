@@ -1,7 +1,7 @@
 import {dispatch} from "../utils/utils";
-import {EVENT_CONNECTION_CLICK, log} from "@jsplumb/browser-ui";
+import {EVENT_CONNECTION_CLICK, newInstance} from "@jsplumb/browser-ui";
 
-export class ArrowManager {
+class ArrowManager {
     constructor(jsPlumbInstance) {
         // todo сделать выбор типа соединения
         // Инициализация jsPlumb
@@ -37,7 +37,7 @@ export class ArrowManager {
      */
     subscribeToGlobalEvents() {
         window.addEventListener('setRemoveArrow', (event) => {
-            this.removeArrow = event.detail.remove;
+            this.removeArrow = true
         });
 
         window.addEventListener('DrawArrows', (e) => {
@@ -51,6 +51,8 @@ export class ArrowManager {
      */
     bindConnectionClickHandler() {
         this.instance.bind(EVENT_CONNECTION_CLICK, (info, originalEvent) => {
+            originalEvent.stopPropagation()
+            originalEvent.preventDefault()
             if (this.removeArrow) {
                 this.deleteConnection(info);
             } else {
@@ -128,28 +130,19 @@ export class ArrowManager {
         this.instance.deleteConnection(connection);
     }
 
-    /**
-     * Инициирует процесс создания соединения, запоминая ID источника.
-     * @param {string} sourceElementId - ID элемента-источника.
-     */
-    startConnectionFromElement(sourceElementId) {
-        this.isCreatingConnection = true;
-        this.sourceElementId = sourceElementId;
-    }
 
     /**
      * Завершает создание соединения к целевому элементу.
-     * @param {string} targetElementId - ID элемента-цели.
+     * @param {string} sourceId - ID элемента-источника.
+     * @param {string} targetId - ID элемента-цели.
      */
-    completeConnectionToElement(targetElementId) {
+    completeConnectionToElement(sourceId, targetId) {
         if (
-            this.isCreatingConnection &&
-            this.sourceElementId &&
-            targetElementId !== this.sourceElementId
+            sourceId && targetId && sourceId !== targetId
         ) {
             const connection = this.instance.connect({
-                source: this.sourceElementId,
-                target: targetElementId,
+                source: sourceId,
+                target: targetId,
                 anchors: ["AutoDefault", "AutoDefault"],
                 connector: this.currnetConnector,
                 paintStyle: {stroke: "#456", strokeWidth: 2},
@@ -165,9 +158,7 @@ export class ArrowManager {
                 ],
             });
 
-            this.saveConnection(this.sourceElementId, targetElementId, this.currnetConnector, "");
-            this.isCreatingConnection = false;
-            this.sourceElementId = null;
+            this.saveConnection(sourceId, targetId, this.currnetConnector, "");
         }
     }
 
@@ -304,3 +295,14 @@ export class ArrowManager {
         };
     }
 }
+
+const container = document.getElementById('rootContainer')
+export const jsPlumbInstance = newInstance({
+    container: container,
+    connector: {type: "Straight"},
+    endpoint: {type: "Dot"},
+    paintStyle: {stroke: "#456", strokeWidth: 2},
+    endpointStyle: {fill: "#456", radius: 2},
+});
+
+export const arrowManager = new ArrowManager(jsPlumbInstance)

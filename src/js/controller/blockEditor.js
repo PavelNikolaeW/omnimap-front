@@ -191,7 +191,7 @@ export class BlockEditor {
             });
             button.addEventListener('click', (e) => {
                 e.preventDefault();
-                this.moveBlock(element, dir);
+                this.CutBlock(element, dir);
             });
             buttonsContainer.appendChild(button);
         });

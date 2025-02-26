@@ -390,6 +390,8 @@ class GridClassManager {
      */
     static _calculateBlocksLayout(number) {
         let [row, col] = findNearestRoots(number);
+        // row = row * 2
+        // col = col * 2
         if (row * col === number) {
             return [row, col];
         }

@@ -13,7 +13,7 @@ class BaseController {
         this.currentActiveButton = null;
 
         this.indicator = document.getElementById('active-button-info')
-        this.indicator.innerText = 'open'
+        this.indicator.innerText = 'openBlock'
         this.searchWindow = new SearchWindow()
 
         this.closeSearchWindow = document.getElementById('closeSearchModal')

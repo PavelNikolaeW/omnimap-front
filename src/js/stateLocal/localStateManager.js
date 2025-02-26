@@ -6,6 +6,7 @@ import LZString from 'lz-string'
 import {truncate} from '../utils/functions'
 import {Queue} from "../utils/queue";
 import {log} from "@jsplumb/browser-ui";
+import {jsPlumbInstance} from "../controller/arrowManager";
 
 // Проверка поддержки IndexedDB и конфигурация localforage
 if (!localforage.supports(localforage.INDEXEDDB)) {
@@ -47,7 +48,7 @@ class BlockRepository {
 
 
 export class LocalStateManager {
-    constructor(jsPlumbInstance) {
+    constructor() {
         this.rootContainer = document.getElementById('rootContainer');
         this.currentUser = null;
         this.path = [];
@@ -179,6 +180,7 @@ export class LocalStateManager {
             this.webSocUpdateBlock(e.detail)
         })
         window.addEventListener('WebSocUpdateBlockAccess', async (e) => {
+            console.log(JSON.stringify(e.detail))
             await this.WebSocUpdateBlockAccess(e.detail)
         })
         window.addEventListener('ResetState', async (e) => {
@@ -233,6 +235,7 @@ export class LocalStateManager {
                 if (res.data.parent) {
                     await this.saveBlock(res.data.parent)
                 }
+                console.log(res.data.parent)
                 this.getAllChildIds(blockId).forEach((id) => {
                     console.log(id)
                     this.blockRepository.deleteBlock(id);
@@ -244,29 +247,38 @@ export class LocalStateManager {
 
     }
 
-    async WebSocUpdateBlockAccess(data) {
-        const newBlock = {
-            id: data.id,
-            updated_at: new Date(data.updated_at * 1000).toISOString(),
-            title: data.title,
-            data: JSON.parse(data.data),
-            children: JSON.parse(data.children)
+
+    async WebSocUpdateBlockAccess(message) {
+        // if (message.permission === 'deny') {
+        //     this.removeChildrenBlocks(message.block_uuids)
+        // }
+        const start_block_ids = message.start_block_ids
+        const newBlocks = new Array(start_block_ids.length)
+
+        for (let i = 0; i < start_block_ids.length; i++) {
+            const block = start_block_ids[i]
+            const newBlock = {
+                id: block.id,
+                updated_at: new Date(block.updated_at * 1000).toISOString(),
+                title: block.title,
+                data: JSON.parse(block.data),
+                children: JSON.parse(block.children)
+            }
+
+            await this.saveBlock(newBlock)
+            newBlocks[i] = newBlock
         }
-        if (data.updated_at === 946684801) {
-            //     права забрали, удаляем дочерние блоки
-            this.removeChildrenBlocks(this.blocks.get(data.id))
-        }
-        await this.saveBlock(newBlock)
-        this.updateScreen([newBlock])
+        this.updateScreen(newBlocks)
     }
 
-    removeChildrenBlocks(block) {
-        const removesIds =
-            removesIds.forEach(id => this.removeBlock(id))
+    removeChildrenBlocks(uuids) {
+        uuids.forEach(id => {
+            console.log(`Block_${id}_${this.currentUser}`)
+            localforage.removeItem(`Block_${id}_${this.currentUser}`)
+        })
     }
 
     webSocUpdateBlock(newBlocks) {
-        console.log(newBlocks)
         if (newBlocks.length) {
             newBlocks.forEach((block) => {
                 this.saveBlock({
@@ -287,7 +299,7 @@ export class LocalStateManager {
             const element = document.getElementById(id)
             if (element || document.querySelector(`[blocklink="${id}"]`)) {
                 this.showBlocks()
-                return null
+                break
             }
         }
     }
@@ -305,27 +317,27 @@ export class LocalStateManager {
 
     moveBlock({block_id, old_parent_id, new_parent_id, before}) {
         if (block_id === new_parent_id) return
+        const parent = this.blocks.get(new_parent_id)
+        console.log(parent.data.childOrder, before)
 
-        function insertBefore(list, item, before) {
-            const newList = list.slice();
-            const itemIndex = newList.indexOf(item);
-
-            if (itemIndex !== -1) {
-                newList.splice(itemIndex, 1);
-            }
-            const beforeIndex = newList.indexOf(before);
-
-            if (beforeIndex !== -1) {
-                newList.splice(beforeIndex, 0, item);
+        function reorderList(ids, id, idBefore) {
+            // Удаляем id из списка, если он уже есть
+            const filteredIds = ids.filter(item => item !== id);
+            // Находим индекс idBefore
+            const index = filteredIds.indexOf(idBefore);
+            if (index !== -1) {
+                // Вставляем id перед idBefore
+                filteredIds.splice(index, 0, id);
             } else {
-                newList.push(item);
+                // Если idBefore нет, добавляем id в конец
+                filteredIds.push(id);
             }
 
-            return newList;
+            return filteredIds;
         }
 
-        const parent = this.blocks.get(new_parent_id)
-        const newOrder = insertBefore(parent.data.childOrder, block_id, before)
+        const newOrder = reorderList(parent.data.childOrder, block_id, before)
+        console.log(newOrder, before)
         api.moveBlock(block_id, {new_parent_id, old_parent_id, childOrder: newOrder})
             .then((res) => {
                 if (res.status === 200) {
@@ -412,6 +424,7 @@ export class LocalStateManager {
     createTreeButton(tree, block, currentTree) {
         const treeBtn = document.createElement('button');
         treeBtn.classList.add('tree-button');
+        treeBtn.setAttribute('blockId', block.id)
         if (tree === currentTree) treeBtn.classList.add('selected');
         treeBtn.id = `treeBtn_${tree}`;
         treeBtn.setAttribute('title', block?.title || 'Нет названия');
@@ -443,11 +456,10 @@ export class LocalStateManager {
             const res = await api.loadBlockUrl(linkSlug)
 
             if (res.status === 200 && res.data) {
-                const blocks =  Object.values(res.data)
+                const blocks = Object.values(res.data)
                 const block = blocks[0]
                 const color = block.data?.color && block.data.color !== 'default_color' ? block.data.color : [];
                 await localforage.setItem(`linkSlugTreeId${this.currentUser}:${linkSlug}`, block.id)
-                console.log(`Path_${block.id}${this.currentUser}`)
                 await localforage.setItem(`Path_${block.id}${this.currentUser}`, [
                     {screenName: truncate(block.title, 10), color: color, blockId: block.id}
                 ])
@@ -456,6 +468,9 @@ export class LocalStateManager {
                     await this.saveBlock(block)
                 }
                 return block.id
+            }
+            if (res.status === 404) {
+                console.error('Url не найден')
             }
         } else {
             return treeId
@@ -466,21 +481,17 @@ export class LocalStateManager {
         this.currentUser = await localforage.getItem('currentUser') || 'anonim';
         this.blockRepository = new BlockRepository(this.currentUser);
 
-        if (window.location.search.includes('path')) {
-            this.currentTree = await this.initShowLink(window.location.search.split('path/')[1])
+        if (window.location.search) {
+            this.currentTree = await this.initShowLink(window.location.search.slice(1,))
         } else {
             this.currentTree = await localforage.getItem('currentTree');
         }
-        console.log(this.currentTree)
-        console.log(this.blocks)
 
         if (!this.blocks || this.blocks.size === 0) {
             await this.getAllBlocksForUser(this.currentUser);
         }
         this.path = await localforage.getItem(`Path_${this.currentTree}${this.currentUser}`) || [];
-        console.log(`Path_${this.currentTree}${this.currentUser}`)
         let screenObj = this.path.at(-1);
-        console.log(screenObj)
         if (!screenObj) {
             const block = this.blocks.get(this.currentTree)
             screenObj = {

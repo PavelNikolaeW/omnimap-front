@@ -71,7 +71,7 @@ export default function createAccessWindow(targetElement) {
     // =======================
     // 5. Загрузка списка прав доступа
     // =======================
-    fetchUserListAndRender(blockId, { loadingIndicator, content, publicCheckbox, accessSelect, userInput, userList });
+    fetchUserListAndRender(blockId, {loadingIndicator, content, publicCheckbox, accessSelect, userInput, userList});
 
     /**
      * Удаляет уже существующее окно, чтобы избежать дубликатов
@@ -179,7 +179,7 @@ export default function createAccessWindow(targetElement) {
      * Запрашивает список пользователей с доступом и отображает его
      */
     function fetchUserListAndRender(blockId, uiRefs) {
-        const { loadingIndicator, content, publicCheckbox, accessSelect, userInput, userList } = uiRefs;
+        const {loadingIndicator, content, publicCheckbox, accessSelect, userInput, userList} = uiRefs;
 
         api.getAccessList(blockId)
             .then(res => {
@@ -219,7 +219,7 @@ export default function createAccessWindow(targetElement) {
     function renderUserList(data, userListElement) {
         userListElement.innerHTML = ''; // Очищаем текущий список
 
-        data.forEach(({ username, permission }) => {
+        data.forEach(({username, permission}) => {
             const userItem = document.createElement('div');
             userItem.classList.add('user-item');
 
@@ -285,14 +285,14 @@ export default function createAccessWindow(targetElement) {
      * Обработчик нажатия на кнопку "Подтвердить" (добавление/изменение прав)
      */
     async function onConfirmButtonClick({
-        blockId,
-        publicCheckbox,
-        userInput,
-        accessSelect,
-        loadingIndicator,
-        content,
-        userList
-    }) {
+                                            blockId,
+                                            publicCheckbox,
+                                            userInput,
+                                            accessSelect,
+                                            loadingIndicator,
+                                            content,
+                                            userList
+                                        }) {
         const isPublic = publicCheckbox.checked;
         const username = userInput.value.trim();
         const accessLevel = accessSelect.value;
@@ -344,14 +344,14 @@ export default function createAccessWindow(targetElement) {
      * Опрашивает статус задачи и отображает результат (успех/ошибка)
      */
     async function handleTask(taskId) {
-    try {
-        // Если успех — просто идём дальше
-        await pollTaskStatus(taskId);
-        alert('Операция успешно завершена!');
-    } catch (error) {
-        // Если что-то пошло не так — выдаём ошибку
-        console.error('Ошибка при опросе статуса задачи:', error);
-        alert('Ошибка при выполнении операции: ' + error.message);
+        try {
+            // Если успех — просто идём дальше
+            await pollTaskStatus(taskId);
+            alert('Операция успешно завершена!');
+        } catch (error) {
+            // Если что-то пошло не так — выдаём ошибку
+            console.error('Ошибка при опросе статуса задачи:', error);
+            alert('Ошибка при выполнении операции: ' + error.message);
+        }
     }
-}
 }

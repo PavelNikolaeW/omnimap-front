@@ -44,7 +44,7 @@ export class UpdateServiceWebSocket {
             } else if (message.type === 'block_update') {
                 dispatch('WebSocUpdateBlock', [message.data])
             } else if (message.type === 'block_update_access') {
-                dispatch('WebSocUpdateBlockAccess', message.data)
+                dispatch('WebSocUpdateBlockAccess', message)
             }
         };
 

@@ -57,7 +57,7 @@ class BlockCreator {
         this._setAttributes(element, block)
         this._applyStyles(element, ['block', block.size.layout, ...(block.grid), ...(parentBlock.childrenPositions[block.id]), ...customClasses])
 
-        // для отладки
+        // для отладки размеров
         // element.setAttribute('width', `${block.size.width}`)
         // element.setAttribute('height', `${block.size.height}`)
 

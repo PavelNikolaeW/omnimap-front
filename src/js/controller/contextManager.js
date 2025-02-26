@@ -1,0 +1,253 @@
+import {log} from "@jsplumb/browser-ui";
+
+export class ContextManager {
+    // отвечает за текущий контекст
+    // 1 какой блок выделен или ссылка
+    // 2 какой режим включен
+    // 3 какая команда будет использоваться при клике
+
+    constructor(rootContainer, breadcrumb, treeNavigation) {
+        this.mode = 'normal'
+        this.blockElement = undefined
+        this.blockLinkElement = undefined
+        this.activeBtnElem = undefined
+        this.event = undefined
+        this.cmdId = 'openBlock'
+        this.activeBtnIndicator = document.getElementById('active-button-info')
+        this.blockId = undefined
+        this.blockLinkId = undefined
+        this.popup = undefined
+        this.cut = undefined
+
+        this.rootContainer = rootContainer
+        this.breadcrumb = breadcrumb
+        this.treeNavigation = treeNavigation
+        this.editor = document.getElementById('editor-popup')
+        this.init()
+
+    }
+
+    init() {
+        this.bindHandlers()
+        window.addEventListener('ShowedBlocks', () => {
+            this.rootContainer.addEventListener('mouseover', this.mouseOverBlockHandlerBound);
+            this.rootContainer.addEventListener('mouseout', this.mouseOutBlockHandlerBound);
+
+            this.treeNavigation.addEventListener('mouseover', this.mouseOverTreeHandlerBound)
+            this.treeNavigation.addEventListener('mouseout', this.mouseOutTreeHandlerBound)
+
+            this.breadcrumb.addEventListener('mouseover', this.mouseOverBreadcrumbHandlerBound);
+            this.breadcrumb.addEventListener('mouseout', this.mouseOutBreadcrumbHandlerBound)
+
+        });
+    }
+
+    bindHandlers() {
+        this.mouseOverBlockHandlerBound = this.mouseOverBlockHandler.bind(this)
+        this.mouseOutBlockHandlerBound = this.mouseOutBlockHandler.bind(this)
+
+        this.mouseOverTreeHandlerBound = this.mouseOverTreeHandler.bind(this)
+        this.mouseOutTreeHandlerBound = this.mouseOutTreeHandler.bind(this)
+
+        this.mouseOverBreadcrumbHandlerBound = this.mouseOverBreadcrumbHandler.bind(this)
+        this.mouseOutBreadcrumbHandlerBound = this.mouseOutBreadcrumbHandler.bind(this)
+    }
+
+    mouseOverBlockHandler(event) {
+        event.preventDefault();
+        const {element, link} = this.getRelevantElements(event.target);
+        if (!element) return;
+        this.removeActiveClass()
+        this.blockElement = element
+        this.blockLinkElement = link
+        this.blockLinkId = link && link.id
+        this.addActiveClass()
+        if (this.mode === 'cutBlock') {
+            const target = link || element
+            if (target.id !== this.cut.block_id) {
+                if (!this.beforeBlockElement) this.createBeforeBlockElement(target)
+                if (link) this.cut['new_parent_id'] = link.getAttribute('blocklink')
+                else this.cut['new_parent_id'] = element.id
+            }
+        }
+    }
+
+    mouseOutBlockHandler(event) {
+        const relatedTarget = event.relatedTarget
+        const relatedId = relatedTarget?.getAttribute('block_id')
+        if (this.mode === 'cutBlock' &&
+            relatedTarget &&
+            this.blockElement &&
+            relatedId === this.blockElement.id ||
+            this.blockLinkElement &&
+            relatedId === this.blockLinkElement.id) {
+            return
+        }
+        this.removeActiveClass()
+        this.blockElement = undefined
+        this.blockLinkElement = undefined
+        this.blockLinkId = undefined
+        if (this.mode === 'cutBlock') {
+            if (this.beforeBlockElement) {
+                this.beforeBlockElement.remove()
+                this.beforeBlockElement = undefined
+            }
+        }
+    }
+
+    mouseOverTreeHandler(event) {
+        event.preventDefault();
+        if (event.target.hasAttribute('blockid')) {
+            this.blockId = event.target.getAttribute('blockid')
+        }
+        if (this.mode === 'cutBlock') {
+            this.cut['new_parent_id'] = this.blockId
+        }
+    }
+
+    mouseOutTreeHandler(event) {
+        event.preventDefault();
+        this.allowExecute = false
+        this.blockId = undefined
+        if (this.mode === 'cutBlock') {
+            this.cut['new_parent_id'] = this.blockId
+        }
+    }
+
+    mouseOverBreadcrumbHandler(event) {
+        event.preventDefault();
+        if (event.target.hasAttribute('blockid')) {
+            this.blockId = event.target.getAttribute('blockid')
+        }
+        if (this.mode === 'cutBlock') {
+            this.cut['new_parent_id'] = this.blockId
+        }
+    }
+
+    mouseOutBreadcrumbHandler(event) {
+        event.preventDefault();
+        this.blockId = undefined
+        if (this.mode === 'cutBlock') {
+            this.cut['new_parent_id'] = this.blockId
+        }
+    }
+
+
+    getRelevantElements(target) {
+        const element = this.findParentWithAttribute(target);
+        let link = undefined
+        if (!element) return {};
+        if (element.parentElement.hasAttribute('blocklink')) {
+            link = element.parentElement
+        }
+        return {element, link};
+    }
+
+    findParentWithAttribute(el, attributeName = 'block') {
+        while (el && el !== document.documentElement) {
+            if (el.hasAttribute(attributeName)) {
+                return el;
+            }
+            el = el.parentElement;
+        }
+        return null;
+    }
+
+    setCmd(cmd) {
+        if (typeof cmd !== "string") {
+            this.cmdId = cmd.id
+            this.toggleActiveButton(cmd.id)
+            this.activeBtnIndicator.innerText = cmd.id
+            if (cmd.btnExec) {
+                cmd.btnExec(this)
+            }
+        } else {
+            this.cmdId = cmd
+            this.toggleActiveButton(cmd)
+            this.activeBtnIndicator.innerText = cmd
+        }
+    }
+
+    toggleActiveButton(cmd) {
+        if (this.activeBtnElem && this.activeBtnElem.id !== cmd) {
+            this.activeBtnElem.classList.remove('active-button')
+        }
+        const elem = document.getElementById(cmd)
+        if (elem) {
+            elem.classList.add('active-button')
+            this.activeBtnElem = elem
+        }
+    }
+
+    setEvent(event) {
+        this.event = event
+    }
+
+    getCmd() {
+        return this.cmdId
+    }
+
+    addActiveClass() {
+        if (this.blockLinkElement) {
+            this.blockLinkElement.classList.add('block-link-active')
+        } else {
+            this.blockElement.classList.add('block-active')
+        }
+    }
+
+    removeActiveClass() {
+        if (this.blockLinkElement) {
+            this.blockLinkElement.classList.remove('block-link-active')
+        }
+        if (this.blockElement) {
+            this.blockElement.classList.remove('block-active')
+        }
+    }
+
+    submitPopup() {
+        if (this.popup) {
+            this.popup.handleSubmit()
+            this.popup = undefined
+        }
+    }
+
+    closePopups() {
+        if (this.popup) {
+            this.popup.handleCancel()
+            this.popup = undefined
+        }
+    }
+
+    createBeforeBlockElement(blockElement) {
+        const beforeBlockElement = document.createElement('div');
+        beforeBlockElement.setAttribute('block_id', blockElement.id);
+        beforeBlockElement.classList.add('before-block');
+
+        // Устанавливаем позицию относительно родительского элемента
+        beforeBlockElement.style.height = `${blockElement.offsetHeight + 20}px`;
+        beforeBlockElement.style.left = `${blockElement.offsetLeft - 10}px`;
+        beforeBlockElement.style.top = `${blockElement.offsetTop - 10}px`;
+
+        blockElement.parentNode.insertBefore(beforeBlockElement, blockElement);
+        this.beforeBlockElement = beforeBlockElement;
+
+        // Наведение мыши
+        beforeBlockElement.addEventListener('mouseover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            beforeBlockElement.classList.add('before-block-hover');
+            this.cut['new_parent_id'] = blockElement.parentElement.id
+            this.cut['before'] = blockElement.id;
+        });
+
+        // Уход мыши
+        beforeBlockElement.addEventListener('mouseout', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            beforeBlockElement.classList.remove('before-block-hover');
+            this.cut['before'] = undefined;
+            this.cut['new_parent_id'] = undefined;
+        });
+    }
+
+}

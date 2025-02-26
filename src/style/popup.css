@@ -1,0 +1,88 @@
+/* Оверлей модального окна */
+.popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+}
+
+/* Контейнер самого попапа */
+.popup-container {
+    position: fixed;
+    z-index: 1001;
+    background-color: #fff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.26);
+    border-radius: 5px;
+    padding: 10px;
+    box-sizing: border-box;
+    /* Центрирование по умолчанию; JS-позиционирование может корректировать положение */
+    /*left: 50%;*/
+    /*top: 50%;*/
+    /*transform: translate(-50%, -50%);*/
+}
+
+/* Заголовок попапа */
+.popup-title {
+    font-weight: bold;
+    margin-bottom: 10px;
+    cursor: move; /* Если попап перетаскиваемый */
+}
+
+/* Область для основного контента */
+.popup-content {
+    overflow-y: auto;
+    /* При необходимости можно задать максимальную высоту */
+    max-height: calc(100vh - 150px);
+}
+
+/* Контейнер для формы с инпутами */
+.popup-form {
+    margin-bottom: 15px;
+}
+
+/* Контейнер для одного поля формы */
+.popup-form-field {
+    margin-bottom: 10px;
+}
+
+/* Лейбл для инпута */
+.popup-form-label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+/* Контейнер для кнопок попапа */
+.popup-buttons {
+    text-align: right;
+    margin-top: 15px;
+}
+
+/* Кнопка подтверждения */
+.popup-button-submit {
+    margin-right: 5px;
+    padding: 5px 10px;
+    border: none;
+    background-color: #4caf50;
+    color: #fff;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+/* Кнопка отмены */
+.popup-button-cancel {
+    padding: 5px 10px;
+    border: none;
+    background-color: #f44336;
+    color: #fff;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+/* Дополнительные стили для кнопок при наведении */
+.popup-button-submit:hover,
+.popup-button-cancel:hover {
+    opacity: 0.9;
+}
