@@ -2,11 +2,11 @@ import localforage from "localforage";
 import {dispatch, printTimer, resetTimer} from "../utils/utils";
 import {Painter} from "../painter/painter";
 import api from "../api/api";
-import LZString from 'lz-string'
+
 import {truncate} from '../utils/functions'
 import {Queue} from "../utils/queue";
-import {log} from "@jsplumb/browser-ui";
 import {jsPlumbInstance} from "../controller/arrowManager";
+import {log} from "@jsplumb/browser-ui";
 
 // Проверка поддержки IndexedDB и конфигурация localforage
 if (!localforage.supports(localforage.INDEXEDDB)) {
@@ -54,7 +54,7 @@ export class LocalStateManager {
         this.path = [];
         this.blocks = new Map();
         this.jsPlumbInstance = jsPlumbInstance;
-        this.painter = new Painter(jsPlumbInstance);
+        this.painter = new Painter();
         this.blockRepository = null;
         this.treeNavigation = document.getElementById('tree-navigation');
 
@@ -120,6 +120,7 @@ export class LocalStateManager {
 
         window.addEventListener('Login', async (e) => {
             const treeBlocks = await api.getTreeBlocks();
+            console.log(treeBlocks)
             await this.initUser(treeBlocks, e.detail.user);
             dispatch('ShowBlocks');
         });
@@ -180,7 +181,6 @@ export class LocalStateManager {
             this.webSocUpdateBlock(e.detail)
         })
         window.addEventListener('WebSocUpdateBlockAccess', async (e) => {
-            console.log(JSON.stringify(e.detail))
             await this.WebSocUpdateBlockAccess(e.detail)
         })
         window.addEventListener('ResetState', async (e) => {
@@ -235,9 +235,7 @@ export class LocalStateManager {
                 if (res.data.parent) {
                     await this.saveBlock(res.data.parent)
                 }
-                console.log(res.data.parent)
                 this.getAllChildIds(blockId).forEach((id) => {
-                    console.log(id)
                     this.blockRepository.deleteBlock(id);
                     this.blocks.delete(id);
                 })
@@ -269,13 +267,6 @@ export class LocalStateManager {
             newBlocks[i] = newBlock
         }
         this.updateScreen(newBlocks)
-    }
-
-    removeChildrenBlocks(uuids) {
-        uuids.forEach(id => {
-            console.log(`Block_${id}_${this.currentUser}`)
-            localforage.removeItem(`Block_${id}_${this.currentUser}`)
-        })
     }
 
     webSocUpdateBlock(newBlocks) {
@@ -318,7 +309,6 @@ export class LocalStateManager {
     moveBlock({block_id, old_parent_id, new_parent_id, before}) {
         if (block_id === new_parent_id) return
         const parent = this.blocks.get(new_parent_id)
-        console.log(parent.data.childOrder, before)
 
         function reorderList(ids, id, idBefore) {
             // Удаляем id из списка, если он уже есть
@@ -337,7 +327,6 @@ export class LocalStateManager {
         }
 
         const newOrder = reorderList(parent.data.childOrder, block_id, before)
-        console.log(newOrder, before)
         api.moveBlock(block_id, {new_parent_id, old_parent_id, childOrder: newOrder})
             .then((res) => {
                 if (res.status === 200) {
@@ -361,7 +350,6 @@ export class LocalStateManager {
 
 
     async saveBlock(block) {
-        console.log(block)
         this.blocks.set(block.id, block)
         await this.blockRepository.saveBlock(block);
     }
@@ -397,7 +385,9 @@ export class LocalStateManager {
         // Initialize path with the root block
         for (let i = 0; i < treeIds.length; i++) {
             const tree = treeIds[i]
+            console.log(treeIds[i])
             const rootBlock = blocks.get(tree);
+            console.log(rootBlock)
             const color = rootBlock.data?.color && rootBlock.data.color !== 'default_color' ? rootBlock.data.color : [];
             const titleBlock = rootBlock.title;
 
@@ -490,10 +480,12 @@ export class LocalStateManager {
         if (!this.blocks || this.blocks.size === 0) {
             await this.getAllBlocksForUser(this.currentUser);
         }
+
         this.path = await localforage.getItem(`Path_${this.currentTree}${this.currentUser}`) || [];
         let screenObj = this.path.at(-1);
         if (!screenObj) {
             const block = this.blocks.get(this.currentTree)
+            console.log(this.currentTree)
             screenObj = {
                 screenName: truncate(block.title, 10),
                 color: block.data?.color && block.data.color !== 'default_color' ? block.data.color : [],
@@ -754,7 +746,6 @@ export class LocalStateManager {
     }
 
     async removeConnectionBlock({sourceId, targetId}) {
-        console.log(sourceId, targetId)
         try {
             const sourceBlock = this.blocks.get(sourceId);
             sourceBlock.data.connections = sourceBlock.data.connections.filter((el) => el.targetId !== targetId);

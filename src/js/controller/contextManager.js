@@ -94,7 +94,11 @@ export class ContextManager {
             }
         }
     }
-
+    getActiveElement() {
+        if (this.blockLinkElement) return this.blockLinkElement
+        if (this.blockElement) return this.blockElement
+        return this.rootContainer.children[0]
+    }
     mouseOverTreeHandler(event) {
         event.preventDefault();
         if (event.target.hasAttribute('blockid')) {

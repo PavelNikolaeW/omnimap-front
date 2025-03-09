@@ -6,51 +6,59 @@ export function dispatch(name, data = {}) {
     window.dispatchEvent(event);
 }
 
-export function getElementSizeClass(element, size) {
-    let width, height
-
+let WINDOW_WIDTH = window.innerWidth
+let WINDOW_HEIGHT = window.innerHeight
+window.addEventListener('resize', () => {
+    WINDOW_WIDTH = window.innerWidth
+    WINDOW_HEIGHT = window.innerHeight
+    // console.log( {width: WINDOW_WIDTH, height: WINDOW_HEIGHT})
+});
+export function getElementSizeClass(element, size, screen = {width: WINDOW_WIDTH, height: WINDOW_HEIGHT}) {
+    let width, height;
     if (element) {
-        width = element.offsetWidth
-        height = element.offsetHeight
+        width = element.offsetWidth;
+        height = element.offsetHeight;
     } else {
-        width = size.width
-        height = size.height
+        width = size.width;
+        height = size.height;
     }
 
-    const aspectRatio = Math.abs(width) / Math.abs(height);
-    let layout = 'unknown'
+    // Рассчитываем площадь экрана и элемента
+    const screenArea = screen.width * screen.height;
+    const elementArea = width * height;
+    const areaRatio = elementArea / screenArea;
 
-    if (aspectRatio >= 0.8 && aspectRatio <= 1.3) { // квадраты
-        if (width <= 100) layout = "xxs-sq";
-        else if (width <= 200) layout = "xs-sq";
-        else if (width <= 300) layout = "s-sq";
-        else if (width <= 400) layout = "m-sq";
-        else if (width <= 500) layout = "l-sq";
-        else if (width <= 600) layout = "xl-sq";
-        else layout = "xxl-sq";
+    let baseSize;
+    // Определяем базовый размер по отношению площади.
+    // Пороговые значения можно корректировать под конкретный дизайн.
+    if (areaRatio > 0.45) {
+        baseSize = "xxl";
+    } else if (areaRatio > 0.225) {
+        baseSize = "xl";
+    } else if (areaRatio > 0.1125) {
+        baseSize = "l";
+    } else if (areaRatio > 0.059) {
+        baseSize = "m";
+    } else if (areaRatio > 0.024){
+        baseSize = "s";
+    } else if (areaRatio > 0.012) {
+        baseSize = 'xs'
+    } else {
+        baseSize = 'xxs'
     }
-    if (aspectRatio > 1.3) { // широкие элементы
-        if (height <= 60) layout = "xxxs-w";
-        else if (height <= 100) layout = "xxs-w";
-        else if (height <= 200) layout = "xs-w";
-        else if (height <= 300) layout = "s-w";
-        else if (height <= 400) layout = "m-w";
-        else if (height <= 500) layout = "l-w";
-        else if (height <= 600) layout = "xl-w";
-        else layout = "xxl-w";
+
+    // Определяем суффикс в зависимости от соотношения сторон
+    const aspectRatio = width / height;
+    let shapeSuffix;
+    if (aspectRatio >= 0.7 && aspectRatio <= 1.45) {
+        shapeSuffix = "-sq";
+    } else if (aspectRatio > 1.45) {
+        shapeSuffix = "-w";
+    } else {
+        shapeSuffix = "-h";
     }
-    if (aspectRatio < 0.8) { // высокие элементы
-        if (width <= 40) layout = "xxxs-h";
-        else if (width <= 100) layout = "xxs-h";
-        else if (width <= 200) layout = "xs-h";
-        else if (width <= 300) layout = "s-h";
-        else if (width <= 400) layout = "m-h";
-        else if (width <= 500) layout = "l-h";
-        else if (width <= 600) layout = "xl-h";
-        else layout = "xxl-h";
-    }
-        // console.log(width, height, layout, size)
-    return {width, height, layout}
+
+    return {width, height, layout: baseSize + shapeSuffix};
 }
 
 

@@ -559,8 +559,7 @@ export const commands = [
                         'Настроить управление',
                     classes:
                         ['sidebar-button', 'fa', 'fa-gear', 'fa-lg'],
-                }
-            ,
+                },
             defaultHotkey: 'shift+m',
             description:
                 'Открыть окно настройки колрячих клавиш',
@@ -597,21 +596,42 @@ export const commands = [
                         'Очистить локальный кеш блоков',
                     classes:
                         ['sidebar-button', 'fa', 'fa-sync', 'fa-lg'],
-                }
-            ,
+                },
             defaultHotkey: 'shift+r',
             description:
                 'Очистить локальный кеш блоков',
             execute(ctx) {
                 dispatch('ResetState')
                 setCmdOpenBlock(ctx)
+            },
+            btnExec(ctx) {
+                this.execute(ctx)
+            }
+        },
+        {
+            id: 'Exit',
+            mode:
+                ['normal'],
+            btn:
+                {
+                    containerId: 'control-panel',
+                    label:
+                        'Выход',
+                    classes:
+                        ['sidebar-button', 'fa', 'fa-right-from-bracket', 'fa-lg'],
+                },
+            defaultHotkey: '',
+            description:
+                'Выход',
+            execute(ctx) {
+                api.logout()
+                setCmdOpenBlock(ctx)
             }
             ,
             btnExec(ctx) {
                 this.execute(ctx)
             }
-        }
-        ,
+        },
 // fa-gear
         ...
             arrowCommands,

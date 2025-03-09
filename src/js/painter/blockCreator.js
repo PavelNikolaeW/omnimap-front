@@ -3,6 +3,8 @@ import cssConverter from "./cssConverter";
 import CalcColor from "./calcBlockColor"
 import {auth} from './views/auth'
 import {registration} from './views/registration'
+import {log} from "@jsplumb/browser-ui";
+import {styleConfig} from "./styles";
 
 
 const viewRenderers = {
@@ -49,21 +51,39 @@ class BlockCreator {
     create(block, parentBlock, screen, depth) {
         const element = document.createElement('div');
         const customClasses = block.data?.customClasses ? block.data.customClasses : []
+        try {
+            block.contentEl = this.createContent(element, block)
+            this._setBlockGrid(block, parentBlock)
+            element.setAttribute('width', `${Math.floor(block.size.width)}`)
+            element.setAttribute('height', `${Math.floor(block.size.height)}`)
+            element.id = parentBlock.data?.view === 'link' ? `${parentBlock.id}*${block.id}` : block.id;
+            if (block.data.customGrid && Object.keys(block.data.customGrid).length) element.setAttribute('blockCustomGrid', '')
 
-        this._setBlockGrid(block, parentBlock)
-        element.id = parentBlock.data?.view === 'link' ? `${parentBlock.id}*${block.id}` : block.id;
-        if (block.data.customGrid && Object.keys(block.data.customGrid).length) element.setAttribute('blockCustomGrid', '')
+            this._setAttributes(element, block)
+            this._applyStyles(element, ['block', ...this.styleLayout(block), ...(block.grid), ...(parentBlock.childrenPositions[block.id]), ...customClasses])
 
-        this._setAttributes(element, block)
-        this._applyStyles(element, ['block', block.size.layout, ...(block.grid), ...(parentBlock.childrenPositions[block.id]), ...customClasses])
 
-        // для отладки размеров
-        // element.setAttribute('width', `${block.size.width}`)
-        // element.setAttribute('height', `${block.size.height}`)
+            this._applyStyles(block.contentEl, block.contentPosition)
 
-        block.contentEl = this.createContent(element, block)
-        block.color = this.colorist.calculateColor(element, block, [...parentBlock.color])
+            block.color = this.colorist.calculateColor(element, block, [...parentBlock.color])
+        } catch (e) {
+            console.log(block)
+            console.error(`Не получилось на рисовать блок ${e} ${block.id}`)
+        }
         return element
+    }
+
+    styleLayout(block) {
+        const [size, form] = block.size.layout.split('-')
+        const gap = styleConfig[size][form ?? 'table'].gap
+        return [block.size.layout, `gap_${this._calculateGap(block.children.length, gap, 2, )}px`]
+    }
+    _calculateGap(numElements, gapMax, gapMin) {
+        // Используем формулу с коэффициентом, определяющим кривую снижения.
+        // Чем больше constant, тем медленнее снижается gap для больших блоков.
+        const constant = 10;
+        // Формула, гарантирующая, что при numElements = 0 будет gapMax, а при бесконечном числе элементов – gapMin.
+        return  Math.floor(gapMax - (gapMax - gapMin) * (numElements / (numElements + constant)));
     }
 
     createLink(block, parentBlock, screen, depth) {
@@ -133,7 +153,7 @@ class BlockCreator {
 
         contentElement.classList.add('defaultContent');
         contentElement.setAttribute('defaultContent', block.title)
-        const content = block.data.text ? `<contentBlock><p>${block.data?.text}</p></contentBlock>` : '<contentBlock></contentBlock>'
+        const content = block.data.text ? `<contentBlock>${block.data?.text}</contentBlock>` : '<contentBlock></contentBlock>'
         contentElement.innerHTML = title + content
 
         block.data.contentAttributes?.forEach(attr => contentElement.setAttribute(attr.name, attr.value))
@@ -141,7 +161,6 @@ class BlockCreator {
 
 
         element.appendChild(contentElement)
-        this._applyStyles(contentElement, block.contentPosition)
 
         return contentElement
     }
@@ -173,7 +192,7 @@ class BlockCreator {
             block.childrenPositions = customGrid.childrenPositions
             block.grid = customGrid.grid
             block.contentPosition = customGrid.contentPosition
-            block.size = {width: 1000, height: 1000, layout: 'xxl-sq'}
+            gridClassManager.manager(block, parentBlock)
         } else {
             let [grid, contentPosition, childrenPositions] = gridClassManager.manager(block, parentBlock)
 

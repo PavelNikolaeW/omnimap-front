@@ -2,9 +2,12 @@ export class Queue {
     constructor(initialElements = [], initialCapacity = 64, autoResize = true) {
         const capacity = Math.max(initialCapacity, initialElements.length);
         this._elements = new Array(capacity);
+        this._capacity = capacity;
+        this._size = initialElements.length;
         this._head = 0;
-        this._tail = initialElements.length;
+        this._tail = initialElements.length % capacity;
         this.autoResize = autoResize;
+        this._initialCapacity = initialCapacity;
 
         for (let i = 0; i < initialElements.length; i++) {
             this._elements[i] = initialElements[i];
@@ -12,11 +15,12 @@ export class Queue {
     }
 
     enqueue(value) {
-        if (this._tail === this._elements.length) {
-            // Расширение массива
-            this._resize(this._elements.length << 1);
+        if (this._size === this._capacity) {
+            this._resize(this._capacity << 1);
         }
-        this._elements[this._tail++] = value;
+        this._elements[this._tail] = value;
+        this._tail = (this._tail + 1) % this._capacity;
+        this._size++;
     }
 
     dequeue() {
@@ -24,14 +28,18 @@ export class Queue {
 
         const value = this._elements[this._head];
         this._elements[this._head] = undefined; // Освобождение памяти
+        this._head = (this._head + 1) % this._capacity;
+        this._size--;
 
-        this._head = (this._head + 1) % this._elements.length;
-
-        // Сокращение размера, если данных мало и разрешено автоматическое уменьшение
-        if (this.autoResize && this.getSize() > 0 && this.getSize() === (this._elements.length >> 2)) {
-            this._resize(Math.max(this._elements.length >> 1));
+        // Сокращение размера массива при необходимости
+        if (
+            this.autoResize &&
+            this._size > 0 &&
+            this._size === (this._capacity >> 2) &&
+            (this._capacity >> 1) >= this._initialCapacity
+        ) {
+            this._resize(this._capacity >> 1);
         }
-
         return value;
     }
 
@@ -40,34 +48,25 @@ export class Queue {
     }
 
     isEmpty() {
-        return this._tail === this._head;
+        return this._size === 0;
     }
 
     getSize() {
-        return (this._tail - this._head + this._elements.length) % this._elements.length;
+        return this._size;
     }
 
     _resize(newCapacity) {
-        const oldElements = this._elements;
-        this._elements = new Array(newCapacity);
-        const size = this.getSize();
-
-        if (this._head === 0) {
-            // Если массив используется линейно, просто копируем срез
-            this._elements = oldElements.slice(0, size);
-        } else {
-            // Иначе выполняем циклическое копирование
-            for (let i = 0; i < size; i++) {
-                this._elements[i] = oldElements[(this._head + i) % oldElements.length];
-            }
+        const newElements = new Array(newCapacity);
+        for (let i = 0; i < this._size; i++) {
+            newElements[i] = this._elements[(this._head + i) % this._capacity];
         }
-
+        this._elements = newElements;
+        this._capacity = newCapacity;
         this._head = 0;
-        this._tail = size;
+        this._tail = this._size;
     }
 
     shrinkToFit() {
-        // Метод для ручного уменьшения размера массива до текущего количества элементов
-        this._resize(this.getSize());
+        this._resize(Math.max(this._size, this._initialCapacity));
     }
 }

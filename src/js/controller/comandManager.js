@@ -3,6 +3,7 @@ import hotkeys from 'hotkeys-js';
 import {ContextManager} from "./contextManager";
 import {uiManager} from "./uiManager";
 import localforage from "localforage";
+import {throttle} from "../utils/functions";
 
 export class CommandManager {
     constructor(idRootContainer, breadcrumb, treeNavigation, hotkeysMap = {}) {
@@ -14,6 +15,7 @@ export class CommandManager {
         this.controlPanel = document.getElementById('control-panel')
         this.ctxManager = new ContextManager(this.rootContainer, this.breadcrumb, this.treeNavigation)
         this.selectedText = ''
+        // this.executeCommand = throttle(this.executeCommand, 300)
         this.init()
     }
 

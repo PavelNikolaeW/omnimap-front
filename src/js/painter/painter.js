@@ -22,13 +22,11 @@ Map.prototype.getBlockOrEmpty = function (key) {
 }
 
 export class Painter {
-    constructor(jsPlumbInstance) {
+    constructor() {
         this.rootContainer = document.getElementById('rootContainer');
         this.config = {
             maxDepth: 40,
         }
-        this.jsPlumbInstance = jsPlumbInstance
-        // this.render = measurePerformance('render', this.render)
     }
 
     render(blocks, {color = [], blockId}) {
@@ -47,11 +45,12 @@ export class Painter {
                 'color': [...color]
             },
             parentElement: this.rootContainer
-        }], 512, false);
+        }], 524, false);
 
         this.rootContainer.textContent = ''
         this.removeIframePositions()
         this._render(queue, blocks, this.config);
+        // this.printRealSize()
         this.setIframePositions()
 
         if (blockCreator.emptyBlocks.size) {
@@ -72,7 +71,7 @@ export class Painter {
             const {block, depth, parentBlock, parentElement} = queue.dequeue();
 
             if (
-                (parentBlock?.size?.width < 60 || parentBlock?.size?.height < 60) &&
+                (parentBlock?.size?.width < 40 || parentBlock?.size?.height < 40) &&
                 parentBlock.data?.view !== 'link' ||
                 depth > maxDepth
             ) continue;
@@ -126,6 +125,17 @@ export class Painter {
             iframe.style.left = `-5000px`;
         })
         blockCreator.iframes.clear()
+    }
+    printRealSize() {
+        const blocks = document.querySelectorAll('[block]')
+        blocks.forEach((block) => {
+            const size = block.getBoundingClientRect()
+            const title = block.children[0].children[0]
+            const content = block.children[0].children[1]
+            title.innerHTML = `<b>${block.getAttribute('width')} - ${block.getAttribute('height')} - ${block.getAttribute('layout')} ${title.innerText}<b>`
+            content.innerHTML = `<p> ${Math.floor(size.width)} - ${Math.floor(size.height)} - ${content.innerText} </p>`
+            // content.children[0].innerHTML = ` ${Math.floor(size.width)} - ${Math.floor(size.height)} - ${content.children[0].innerText}`
+        })
     }
 }
 

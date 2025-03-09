@@ -6,58 +6,29 @@ import {styleConfig} from "./styles";
 class GridClassManager {
 
     constructor() {
-        this.layoutHandlers = {
-            "xxs-sq": GridClassManager.l_sq,
-            "xs-sq": GridClassManager.l_sq,
-            "s-sq": GridClassManager.l_sq,
-            "m-sq": GridClassManager.l_sq,
-            "l-sq": GridClassManager.l_sq,
-            "xl-sq": GridClassManager.l_sq,
-            "xxl-sq": GridClassManager.l_sq,
-            "xxxs-w": GridClassManager.xxxs_w,
-            "xxs-w": GridClassManager.xxxs_w,
-            "xs-w": GridClassManager.s_w,
-            "s-w": GridClassManager.s_w,
-            "m-w": GridClassManager.l_sq,
-            "l-w": GridClassManager.l_sq,
-            "xl-w": GridClassManager.l_sq,
-            "xxl-w": GridClassManager.xxl_w,
-            "xxxs-h": GridClassManager.xxxs_h,
-            "xxs-h": GridClassManager.xxs_h,
-            "xs-h": GridClassManager.xxl_h,
-            "s-h": GridClassManager.xxl_h,
-            "m-h": GridClassManager.xxl_h,
-            "l-h": GridClassManager.xxl_h,
-            "xl-h": GridClassManager.xxl_h,
-            "xxl-h": GridClassManager.xxl_h,
-            'table': GridClassManager.table,
-        }
     }
 
     manager(block, parentBlock) {
         this.calcBlockSize(block, parentBlock)
         const layout = block.size.layout
 
-        if (typeof this.layoutHandlers[layout] === 'function') {
-            return this.layoutHandlers[layout](block);
-        } else {
-            throw new Error(`Layout method ${layout} not found`);
+        const len = block.children.length
+        const layoutOptions = this.calc_optionsLayout(layout, len, block.data?.groupSizes)
+        if (layout === 'table') {
+            return GridClassManager.table(block)
         }
+        const {totalGridRows, gridColumns, rectangles} = GridClassManager.computeGridLayoutGroups(len, layoutOptions)
+        return GridClassManager.returnClasses(block, totalGridRows, gridColumns, rectangles)
     }
 
     calcBlockSize(block, parentBlock) {
-        if (!parentBlock.size) {
-            parentBlock.size = {
-                width: 1000,
-                height: 1000,
-                layout: 'xxxs-w'
-            }
-        }
         const {width: parentWidth, height: parentHeight, layout: parentLayout} = parentBlock.size;
         const [totalRows, totalCols] = this._calcParentGrid(parentBlock.grid);
-        // console.log(parentBlock, block.id, parentBlock.childrenPositions[block.id])
         const [childRows, childCols] = this._calcChildGrid(parentBlock.childrenPositions[block.id]);
-        const {padding, gapCol, gapRow, content} = this._styleCorrection(parentBlock, totalRows, totalCols);
+        let {padding, gapCol, gapRow, content} = this._styleCorrection(parentBlock, totalRows, totalCols);
+        if (block.data?.view === 'link') {
+            padding = 0
+        }
         const calculatedSize = {
             width: Number((parentWidth - padding - gapCol) / totalCols * childCols),
             height: Number((parentHeight - content - padding - gapRow) / totalRows * childRows)
@@ -69,220 +40,58 @@ class GridClassManager {
         }
     }
 
-    static xxs_sq() {
-
-    }
-
-    static xs_sq() {
-
-    }
-
-    static x_sq() {
-
-    }
-
-    static m_sq() {
-
-    }
-
-    static l_sq(block) {
-        let row, col;
-        if (block.children.length === 3) [row, col] = [2, 2]
-        else [row, col] = GridClassManager._calculateBlocksLayout(block.children.length) // без учета контента
-
-        return [
-            GridClassManager._setBlockGrid(block, row, col),
-            GridClassManager._setContentPosition(block, row, col),
-            GridClassManager._setChildrenPosition(block, row, col),
-        ]
-    }
-
-    static xxl_w(block) {
-        let [row, col] = GridClassManager._calculateBlocksLayout(block.children.length) // без учета контента
-        return [
-            GridClassManager._setBlockGrid(block, row, col),
-            GridClassManager._setContentPosition(block, row, col),
-            GridClassManager._setChildrenPosition(block, row, col),
-        ]
-    }
-
-    static xxxs_w(block) {
-        const col = block.children.length
-        const children_position = {row: 2, col: col}
-
-        for (let i = 0; i < col; i++) {
-            children_position[block.data.childOrder[i]] = [
-                `grid-column_${i + 1}`,
-                `grid_row_2`
-            ]
-        }
-        return [
-            GridClassManager._setBlockGrid(block, 1, col),
-            GridClassManager._setContentPosition(block, 1, col),
-            children_position
-        ]
-    }
-
-
-    static s_w(block) {
-        const totalChildren = block.children.length;
-        const children_position = {row: 2, col: totalChildren};
-
-        let rowCounter = 2;
-        let colCounter = 1;
-
-        // Если дочерних элементов больше 5, расставляем в 2 ряда
-        if (totalChildren > 4) {
-            const maxCols = Math.ceil(totalChildren / 2); // Количество колонок в каждом ряду
-            for (let i = 0; i < totalChildren; i++) {
-                // Если это последний элемент и общее количество нечетное
-                if (i === totalChildren - 1 && totalChildren % 2 !== 0) {
-                    // Последний элемент занимает две колонки
-                    children_position[block.data.childOrder[i]] = [
-                        `grid-column_${colCounter}__${colCounter + 2}`,  // Растягиваем на две колонки
-                        `grid-row_${rowCounter}`   // Оставляем в текущем ряду
-                    ];
-                } else {
-                    children_position[block.data.childOrder[i]] = [
-                        `grid-column_${colCounter}`,  // Позиция по колонке
-                        `grid-row_${rowCounter}`      // Позиция по ряду
-                    ];
-                }
-
-                colCounter++; // Переходим к следующей колонке
-                if (colCounter > maxCols) {
-                    colCounter = 1;  // Сбрасываем колонку на 1
-                    rowCounter++;    // Переходим на следующий ряд
-                }
-            }
-
-            return [
-                GridClassManager._setBlockGrid(block, 2, maxCols),  // Устанавливаем 2 ряда
-                GridClassManager._setContentPosition(block, 2, maxCols), // Для содержимого
-                children_position
-            ];
-
-        } else {
-            // Если элементов 5 или меньше, расставляем в один ряд
-            for (let i = 0; i < totalChildren; i++) {
-                children_position[block.data.childOrder[i]] = [
-                    `grid-column_${i + 1}`,  // Одна колонка для каждого
-                    `grid_row_2`             // В одной строке
-                ];
-            }
-
-            return [
-                GridClassManager._setBlockGrid(block, 1, totalChildren),  // 1 ряд, n колонок
-                GridClassManager._setContentPosition(block, 1, totalChildren), // Для содержимого
-                children_position
-            ];
+    calc_optionsLayout(layout, len, groupSizes = []) {
+        const groupCount = this.calc_group(layout, len)
+        return {
+            minArea: 1,
+            desiredGroupCount: groupCount,
+            groupSizes: groupSizes
         }
     }
 
-
-    static m_w() {
-
-    }
-
-    static xxxs_h(block) {
-        return GridClassManager.xxs_h(block)
-    }
-
-    static xxs_h(block) {
-        const row = block.data.childOrder.length
-        const children_position = {row: row + 1, col: 1}
-
-        let rowCounter = 2
-        for (let i = 0; i < row; i++) {
-            children_position[block.data.childOrder[i]] = [
-                `grid-column_1`,
-                `grid-row_${rowCounter++}`
-            ]
+    calc_group(layout, n) {
+        const [size, form] = layout.split('-')
+        if (form === 'sq') {
+            if (n < 4) return 2
+            return Math.floor(Math.sqrt(n))
         }
+        if (form === 'w') {
+            if (size === 'xxl')
+                if (n === 3) return 2
+                else return Math.max(Math.floor(Math.sqrt(n)), 1)
+            if (size === 'xl')
+                return Math.max(Math.floor(Math.sqrt(n / 3)), 1)
+            if (n < 6) return 1
+            if (n < 20) return 2
+            if (n < 32) return 4
+
+            return Math.floor(Math.sqrt(n / 2))
+        }
+        if (form === 'h') {
+            if (size === 'xxl' || size === 'xl') {
+                return Math.floor(Math.sqrt(n * 2))
+            }
+            if (size === 'l') {
+                if (n < 6) return n
+                else if (n < 12) return Math.floor(n / 2)
+                else return Math.floor(Math.sqrt(n * 2))
+            }
+            if (size === 'm' || size === 's' || size === 'xs' || size === 'xxs') {
+                if (n < 6) return n
+                else if (n < 12) return Math.floor(n / 2)
+                else return Math.floor(Math.sqrt(n * 2))
+            }
+        }
+        return 2
+    }
+
+    static returnClasses(block, totalGridRows, gridColumns, rectangles) {
         return [
-            GridClassManager._setBlockGrid(block, row, 1),
-            GridClassManager._setContentPosition(block, row, 1),
-            children_position
+            GridClassManager._setBlockGrid(totalGridRows, gridColumns),
+            GridClassManager._setContentPosition(totalGridRows, gridColumns),
+            GridClassManager._setChildrenPosition(block, totalGridRows, gridColumns, rectangles),
         ]
     }
-
-    static xs_h(block) {
-        return GridClassManager.xxs_h(block)
-    }
-
-    static s_h(block) {
-        return GridClassManager.xxs_h(block)
-    }
-
-    static m_h(block) {
-        return GridClassManager.xxs_h(block)
-    }
-
-    static l_h(block) {
-        return GridClassManager.xxs_h(block)
-    }
-
-    static xl_h(block) {
-        return GridClassManager.xxs_h(block)
-    }
-
-    static xxl_h(block) {
-        const totalChildren = block.data.childOrder?.length || 0;
-        const children_position = {row: totalChildren + 1, col: 1};
-
-        let rowCounter = 2;
-        let colCounter = 1;
-
-        // Если дочерних элементов больше 5, расставляем в 2 колонки
-        if (totalChildren > 4) {
-            const row = Math.ceil(totalChildren / 2); // Количество строк для 2 колонок
-            children_position.row = row + 1;
-
-            for (let i = 0; i < totalChildren; i++) {
-                // Проверяем, не последний ли это блок и нечетное ли общее количество
-                if (i === totalChildren - 1 && totalChildren % 2 !== 0) {
-                    // Последний блок при нечетном количестве занимает две колонки
-                    children_position[block.data.childOrder[i]] = [
-                        `grid-column_1__3`,  // Растягиваем на две колонки
-                        `grid-row_${rowCounter}`   // Строка для последнего элемента
-                    ];
-                } else {
-                    children_position[block.data.childOrder[i]] = [
-                        `grid-column_${colCounter}`,  // Колонка 1 или 2
-                        `grid-row_${rowCounter}`     // Строка
-                    ];
-
-                    // Чередуем колонки (1 -> 2), сбрасываем на 1 после второй колонки
-                    colCounter++;
-                    if (colCounter > 2) {
-                        colCounter = 1;
-                        rowCounter++; // Переход на новую строку после каждой второй колонки
-                    }
-                }
-            }
-
-            return [
-                GridClassManager._setBlockGrid(block, row, 2),  // Устанавливаем 2 колонки
-                GridClassManager._setContentPosition(block, row, 2), // Для содержимого
-                children_position
-            ];
-        } else {
-            // Расставляем в одну колонку, если дочерних элементов 5 или меньше
-            for (let i = 0; i < totalChildren; i++) {
-                children_position[block.data.childOrder[i]] = [
-                    `grid-column_1`,             // Одна колонка
-                    `grid-row_${rowCounter++}`   // Каждому элементу своя строка
-                ];
-            }
-
-            return [
-                GridClassManager._setBlockGrid(block, totalChildren, 1),  // 1 колонка
-                GridClassManager._setContentPosition(block, totalChildren, 1), // Для содержимого
-                children_position
-            ];
-        }
-    }
-
 
     static table(block) {
         const gridSize = Math.ceil(Math.sqrt(block.children.length))
@@ -321,14 +130,15 @@ class GridClassManager {
         ]
     }
 
-    static _setContentPosition(block, row, col) {
+    static _setContentPosition(row, col) {
         return [
             `grid-column_1_sl_${col + 1}`,
             `grid-row_auto`
         ]
     }
 
-    static _setBlockGrid(block, row, col) {
+    static _setBlockGrid(row, col) {
+        if (row > 1) row--
         return [
             `grid-template-columns_${'1fr__'.repeat(Math.max(col, 1))}`,
             `grid-template-rows_auto__${'1fr__'.repeat(row)}`
@@ -342,73 +152,20 @@ class GridClassManager {
      * @param {number} row - количество строк, на которые нужно распределить элементы.
      * @param {number} col - общее количество колонок в сетке.
      */
-    static _setChildrenPosition(block, row, col) {
-        // Общее количество дочерних элементов
-        const totalChildren = block.children.length;
-        // Максимальное количество блоков в одной строке
-        const maxBlocksInRow = Math.ceil(totalChildren / row);
-        // Минимальное количество блоков в последней строке
-        const minBlocksInRow = totalChildren - (maxBlocksInRow * (row - 1));
-        const children_position = {row: row + 1, col}
-
-        let childIndex = 0;
-        let currentRow = 2; // Начинаем со второй строки, так как первая занята текстовым контентом
-        row++;
-        for (let i = 0; i < totalChildren; i++) {
-            const id = block.data.childOrder[i]
-            if (childIndex !== 0 && childIndex % maxBlocksInRow === 0) {
-                currentRow++; // Переход на новую строку
-                childIndex = 0; // Сброс счетчика блоков в текущей строке
+    static _setChildrenPosition(block, row, col, rectangles = []) {
+        if (rectangles.length) {
+            const children_position = {row: row + 1, col}
+            const totalChildren = block.children.length;
+            for (let i = 0; i < totalChildren; i++) {
+                const id = block.data.childOrder[i]
+                const rect = rectangles[i]
+                children_position[id] = [
+                    `grid-column_${rect.gridColumnStart}__${rect.gridColumnEnd}`,
+                    `grid-row_${rect.gridRowStart}__${rect.gridRowEnd}`
+                ]
             }
-
-            let columnsPerChild;
-            if (currentRow < row) {
-                // Определение количества колонок на блок в обычных строках
-                columnsPerChild = Math.floor(col / maxBlocksInRow);
-            } else {
-                // Определение количества колонок на блок в последней строке
-                columnsPerChild = Math.floor(col / minBlocksInRow);
-            }
-
-            // Начальная и конечная колонки для текущего дочернего элемента
-            let startCol = childIndex * columnsPerChild + 1;
-            let endCol = startCol + columnsPerChild;
-
-            children_position[id] = [
-                `grid-column_${startCol}__${endCol}`,
-                `grid-row_${currentRow}`
-            ]
-            childIndex++; // Инкремент индекса в текущей строке
+            return children_position
         }
-        return children_position;
-    }
-
-    /**
-     * Вычисляет количество столбцов и колонок
-     * @param {number} number - Количество дочерних блоков
-     * @returns {Array} Массив, содержащий размеры для ряда и столбца.
-     */
-    static _calculateBlocksLayout(number) {
-        let [row, col] = findNearestRoots(number);
-        // row = row * 2
-        // col = col * 2
-        if (row * col === number) {
-            return [row, col];
-        }
-
-        const blocksInRow = number / row;
-        const maxBlocksInRow = Math.ceil(blocksInRow);
-        const minBlocksInRow = number - ((row - 1) * maxBlocksInRow);
-
-        const lcm = findLCM(minBlocksInRow, maxBlocksInRow); // Находим НОК для minBlocksInRow и maxBlocksInRow
-
-        col = Math.max(col, lcm); // Начинаем с максимального из col или lcm
-
-        // Используем НОК для определения подходящего col
-        while (col % minBlocksInRow !== 0 || col % maxBlocksInRow !== 0) {
-            col += lcm; // Увеличиваем col на НОК, гарантируя, что новое значение будет кратно обоим числам
-        }
-        return [row, col];
     }
 
     _calcParentGrid(grids) {
@@ -456,9 +213,9 @@ class GridClassManager {
         const layout = parentBlock.size.layout
         const [size, form] = layout.split('-')
         const style = styleConfig[size][form ?? 'table']
-        const padding = style.padding
-        const gap = style.gap
-        const orientation = style.writingMode
+        const padding = parentBlock.id === 'rootContainer' ? 0 : style.padding
+        const gap = this._calculateGap(parentBlock.children.length, style.gap, 2,)
+        row = parentBlock.id === 'rootContainer' ? row : row + 1
         const gapColCorrection = col > 1 ? gap * (col - 1) : 0
         const gapRowCorrection = row > 1 ? gap * (row - 1) : 0
         if (!parentBlock.contentHeight) {
@@ -472,6 +229,111 @@ class GridClassManager {
             gapRow: gapRowCorrection,
             content: parentBlock.contentHeight
         }
+    }
+
+    _calculateGap(numElements, gapMax, gapMin) {
+        // Используем формулу с коэффициентом, определяющим кривую снижения.
+        // Чем больше constant, тем медленнее снижается gap для больших блоков.
+        const constant = 5;
+        // Формула, гарантирующая, что при numElements = 0 будет gapMax, а при бесконечном числе элементов – gapMin.
+        return Math.floor(gapMax - (gapMax - gapMin) * (numElements / (numElements + constant)));
+    }
+
+    static lcmArray(arr) {
+        return arr.reduce((acc, val) => findLCM(acc, val), 1);
+    }
+
+    /**
+     * Функция разбивает число total на count групп как можно равномернее.
+     * Дополнительное условие: первые группы получают +1, если не делится поровну.
+     * Пример: partitionNumber(3, 2) => [2, 1]; partitionNumber(7, 2) => [4, 3].
+     */
+    static partitionNumber(total, count) {
+        const base = Math.floor(total / count);
+        const remainder = total % count;
+        const groups = [];
+        for (let i = 0; i < count; i++) {
+            groups.push(base + (i < remainder ? 1 : 0));
+        }
+        return groups;
+    }
+
+    /**
+     * Функция computeGridLayoutGroups рассчитывает расположение блоков в гриде.
+     * Входные параметры:
+     *   - N: общее число блоков.
+     *   - options:
+     *       minArea: минимальная площадь блока (в ячейках), по умолчанию 1.
+     *       desiredGroupCount: желаемое число групп (рядов для блоков).
+     *       groupSizes: массив чисел, суммарно равный N (приоритет выше, чем desiredGroupCount).
+     *
+     * Вычисления:
+     *   - Если groupSizes не заданы, то вычисляем их через partitionNumber(N, desiredGroupCount).
+     *   - Вычисляем L = LCM(groupSizes).
+     *   - Выбираем k = ceil(minArea / L).
+     *   - gridColumns = k * L.
+     *   - Для каждой группы i с n_i блоками:
+     *         блок шириной = gridColumns / n_i,
+     *         высотой = n_i (в грид-рядов),
+     *         таким образом, площадь блока = n_i * (k*L/n_i) = k*L.
+     *   - Контентная область сверху занимает contentRows = k рядов.
+     *   - Блоки располагаются последовательно ниже контента.
+     * Возвращается объект с:
+     *   gridColumns, totalGridRows, contentRows, groupSizes, k и массивом rectangles.
+     * Каждый rectangle имеет gridRowStart, gridRowEnd, gridColumnStart, gridColumnEnd и label.
+     */
+    static computeGridLayoutGroups(N, options = {}) {
+        const minArea = options.minArea || 1;
+        let groupSizes;
+        if (options.groupSizes && options.groupSizes.length > 0) {
+            groupSizes = options.groupSizes;
+        } else if (options.desiredGroupCount) {
+            groupSizes = this.partitionNumber(N, options.desiredGroupCount);
+        } else {
+            // По умолчанию два ряда: [ceil(N/2), floor(N/2)]
+            groupSizes = [Math.ceil(N / 2), Math.floor(N / 2)];
+        }
+
+        // Вычисляем LCM для групп
+        const L = this.lcmArray(groupSizes);
+        // Выбираем коэффициент масштабирования k так, чтобы k*L >= minArea
+        const k = Math.ceil(minArea / L);
+
+        const gridColumns = L ? k * L : 1;
+        const contentRows = 1; // контентная область занимает k рядов
+        const groupCount = groupSizes.length;
+        const rectangles = [];
+
+        // Начинаем размещать группы ниже контента
+        let currentRow = contentRows + 1;
+        for (let i = 0; i < groupCount; i++) {
+            const nBlocks = groupSizes[i]; // число блоков в группе i
+            const groupHeight = nBlocks;   // выделяем nBlocks рядов для группы
+            const blockWidth = gridColumns / nBlocks; // должно получаться целое число, т.к. L делится на nBlocks
+
+            // Для каждого блока в группе
+            for (let j = 0; j < nBlocks; j++) {
+                rectangles.push({
+                    gridRowStart: currentRow,
+                    gridRowEnd: currentRow + groupHeight,
+                    gridColumnStart: j * blockWidth + 1,
+                    gridColumnEnd: (j + 1) * blockWidth + 1,
+                });
+            }
+            currentRow += groupHeight; // переходим к следующей группе
+        }
+
+        const totalBlockRows = groupSizes.reduce((a, b) => a + b);
+        const totalGridRows = contentRows + totalBlockRows;
+
+        return {
+            gridColumns,
+            totalGridRows,
+            contentRows,
+            groupSizes,
+            k,
+            rectangles
+        };
     }
 }
 

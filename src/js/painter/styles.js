@@ -8,39 +8,39 @@ export const styleConfig = {
         h:  { padding: 2, gap: 4, fontSize: '12px', fontWeight: 'bold', textAlign: 'left', writingMode: 'vertical-rl' }
     },
     xxs: {
-        sq: { padding: 6, gap: 4, fontSize: '12px', fontWeight: 'bold', textAlign: 'left', writingMode: 'horizontal-tb' },
-        w:  { padding: 6, gap: 4, fontSize: '12px', fontWeight: 'bold', textAlign: 'center', writingMode: 'horizontal-tb' },
-        h:  { padding: 6, gap: 4, fontSize: '12px', fontWeight: 'bold', textAlign: 'left', writingMode: 'horizontal-tb' }
+        sq: { padding: 4, gap: 4, fontSize: '12px', fontWeight: 'bold', textAlign: 'left', writingMode: 'horizontal-tb' },
+        w:  { padding: 4, gap: 4, fontSize: '12px', fontWeight: 'bold', textAlign: 'center', writingMode: 'horizontal-tb' },
+        h:  { padding: 4, gap: 4, fontSize: '12px', fontWeight: 'bold', textAlign: 'left', writingMode: 'horizontal-tb' }
     },
     xs: {
-        sq: { padding: 6, gap: 4, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
-        w:  { padding: 6, gap: 4, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
-        h:  { padding: 6, gap: 4, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' }
+        sq: { padding: 6, gap: 5, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
+        w:  { padding: 6, gap: 5, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
+        h:  { padding: 6, gap: 5, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' }
     },
     s: {
-        sq: { padding: 6, gap: 4, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
-        w:  { padding: 6, gap: 4, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
-        h:  { padding: 6, gap: 4, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' }
+        sq: { padding: 6, gap: 6, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
+        w:  { padding: 6, gap: 6, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
+        h:  { padding: 6, gap: 6, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' }
     },
     m: {
-        sq: { padding: 6, gap: 4, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
-        w:  { padding: 6, gap: 4, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
-        h:  { padding: 6, gap: 4, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' }
+        sq: { padding: 6, gap: 6, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
+        w:  { padding: 6, gap: 6, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
+        h:  { padding: 6, gap: 6, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' }
     },
     l: {
-        sq: { padding: 6, gap: 4, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
-        w:  { padding: 6, gap: 4, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
-        h:  { padding: 6, gap: 4, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' }
+        sq: { padding: 7, gap: 7, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
+        w:  { padding: 7, gap: 7, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
+        h:  { padding: 7, gap: 7, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' }
     },
     xl: {
-        sq: { padding: 6, gap: 4, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
-        w:  { padding: 6, gap: 4, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
-        h:  { padding: 6, gap: 4, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' }
+        sq: { padding: 8, gap: 8, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
+        w:  { padding: 8, gap: 8, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
+        h:  { padding: 8, gap: 8, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' }
     },
     xxl: {
-        sq: { padding: 10, gap: 7, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
-        w:  { padding: 10, gap: 7, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
-        h:  { padding: 10, gap: 7, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' }
+        sq: { padding: 10, gap: 9, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
+        w:  { padding: 10, gap: 9, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },
+        h:  { padding: 10, gap: 9, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' }
     }
 };
 
