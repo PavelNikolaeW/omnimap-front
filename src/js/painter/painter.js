@@ -2,6 +2,7 @@ import {Queue} from "../utils/queue";
 import blockCreator from "./blockCreator";
 import cssConverter from "./cssConverter";
 import {dispatch, getElementSizeClass, measurePerformance, printTimer, resetTimer} from "../utils/utils"
+import {log} from "@jsplumb/browser-ui";
 
 Map.prototype.appendInParent = function () {
     const elementsToDelete = [];
@@ -69,9 +70,7 @@ export class Painter {
 
         while (!queue.isEmpty()) {
             const {block, depth, parentBlock, parentElement} = queue.dequeue();
-
-            if (
-                (parentBlock?.size?.width < 40 || parentBlock?.size?.height < 40) &&
+            if ((parentBlock?.size?.width < 40 && parentBlock?.size?.height < 40) &&
                 parentBlock.data?.view !== 'link' ||
                 depth > maxDepth
             ) continue;
@@ -88,15 +87,16 @@ export class Painter {
 
             const element = blockCreator.createElement(block, parentBlock, screen, depth);
             render_fragment.appendChild(element);
-
-            block.data.childOrder?.forEach(childId => {
-                queue.enqueue({
-                    block: blocks.getBlockOrEmpty(childId),
-                    depth: depth + 1,
-                    parentBlock: block,
-                    parentElement: element
+            if (element) {
+                block.data.childOrder?.forEach(childId => {
+                    queue.enqueue({
+                        block: blocks.getBlockOrEmpty(childId),
+                        depth: depth + 1,
+                        parentBlock: block,
+                        parentElement: element
+                    });
                 });
-            });
+            }
         }
         fragments.appendInParent()
     }
@@ -109,11 +109,15 @@ export class Painter {
             if (blockEl && iframe) {
                 // Получаем размеры и положение блока
                 const blockRect = blockEl.getBoundingClientRect();
-
-                iframe.style.top = `${blockRect.top + window.scrollY + 10}px`;
-                iframe.style.left = `${blockRect.left + window.scrollX + 10}px`;
-                iframe.style.width = `${blockRect.width - 20}px`;
-                iframe.style.height = `${blockRect.height - 20}px`;
+                if (blockRect.width > 50 && blockRect.height > 50) {
+                    iframe.style.top = `${blockRect.top + window.scrollY + 10}px`;
+                    iframe.style.left = `${blockRect.left + window.scrollX + 10}px`;
+                    iframe.style.width = `${blockRect.width - 20}px`;
+                    iframe.style.height = `${blockRect.height - 20}px`;
+                } else {
+                    iframe.style.top = `-5000px`;
+                    iframe.style.left = `-5000px`;
+                }
             }
         });
     }
@@ -126,6 +130,7 @@ export class Painter {
         })
         blockCreator.iframes.clear()
     }
+
     printRealSize() {
         const blocks = document.querySelectorAll('[block]')
         blocks.forEach((block) => {

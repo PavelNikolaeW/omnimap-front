@@ -299,31 +299,17 @@ export class AccessPopup extends Popup {
             userPermissionSelect.appendChild(option);
         });
         addUserForm.appendChild(userPermissionSelect);
+        addUserForm.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                this._addUser(usernameInput, userPermissionSelect)
+            }
+        })
 
         const addUserBtn = document.createElement("button");
         addUserBtn.textContent = "Добавить пользователя";
         addUserBtn.className = "access-button";
         addUserBtn.addEventListener("click", () => {
-            clearMessage(this.messageContainer);
-            const username = usernameInput.value.trim();
-            const permission = userPermissionSelect.value;
-            if (!username) {
-                showMessage(this.messageContainer, "Введите имя пользователя");
-                return;
-            }
-            this.updateAccess(this.blockId, {
-                permission_type: permission,
-                target_username: username,
-            })
-                .then(() => {
-                    showMessage(this.messageContainer, "Права пользователя обновлены", "success");
-                    this.loadAccessList();
-                    usernameInput.value = "";
-                })
-                .catch((err) => {
-                    console.error("Ошибка обновления прав доступа:", err);
-                    showMessage(this.messageContainer, "Ошибка обновления прав доступа для пользователя");
-                });
+            this._addUser(usernameInput, userPermissionSelect)
         });
         addUserForm.appendChild(addUserBtn);
 
@@ -346,6 +332,24 @@ export class AccessPopup extends Popup {
         // Форма создания/редактирования группы
         const groupForm = document.createElement("div");
         groupForm.className = "access-group-form";
+        groupForm.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const groupName = groupNameInput.value.trim();
+                const permission = groupPermissionSelect.value;
+                if (!groupName) {
+                    showMessage(this.messageContainer, "Введите название группы");
+                    return;
+                }
+                for (let i = 0; i < this.groups.length; i++) {
+                    const group = this.groups[i]
+                    if (group.name === groupName) {
+                        this._updateAccess(permission, groupName, groupNameInput)
+                        return;
+                    }
+                }
+                this._createGroup(groupName, permission, groupNameInput)
+            }
+        })
 
         const groupNameInput = document.createElement("input");
         groupNameInput.type = "text";
@@ -376,28 +380,7 @@ export class AccessPopup extends Popup {
                 showMessage(this.messageContainer, "Введите название группы");
                 return;
             }
-            this.updateAccess(this.blockId, {
-                permission_type: permission,
-                group_name: groupName,
-            })
-                .then(() => {
-                    showMessage(
-                        this.messageContainer,
-                        "Права группы обновлены",
-                        "success"
-                    );
-                    // Обновляем списки групп и прав доступа
-                    this.loadGroups();
-                    this.loadAccessList();
-                    groupNameInput.value = "";
-                })
-                .catch((err) => {
-                    console.error(err);
-                    showMessage(
-                        this.messageContainer,
-                        "Ошибка обновления прав доступа для группы"
-                    );
-                });
+            this._updateAccess(permission, groupName, groupNameInput)
         });
         groupForm.appendChild(updateGroupBtn);
 
@@ -413,7 +396,44 @@ export class AccessPopup extends Popup {
                 showMessage(this.messageContainer, "Введите название группы");
                 return;
             }
-            this.createGroup({name: groupName, permission})
+            this._createGroup(groupName, permission, groupNameInput)
+        });
+        groupForm.appendChild(createGroupBtn);
+
+        groupSection.appendChild(groupForm);
+        this.contentArea.appendChild(groupSection);
+
+        // Загружаем данные при открытии попапа
+        this.loadAccessList();
+        this.loadGroups();
+    }
+
+    _updateAccess(permission, groupName, groupNameInput) {
+        this.updateAccess(this.blockId, {
+            permission_type: permission,
+            group_name: groupName,
+        })
+            .then(() => {
+                showMessage(
+                    this.messageContainer,
+                    "Права группы обновлены",
+                    "success"
+                );
+                // Обновляем списки групп и прав доступа
+                this.loadGroups();
+                this.loadAccessList();
+                groupNameInput.value = "";
+            })
+            .catch((err) => {
+                console.error(err);
+                showMessage(
+                    this.messageContainer,
+                    "Ошибка обновления прав доступа для группы"
+                );
+            });
+    }
+    _createGroup(groupName, permission, groupNameInput) {
+        this.createGroup({name: groupName, permission})
                 .then(() => {
                     showMessage(
                         this.messageContainer,
@@ -427,15 +447,28 @@ export class AccessPopup extends Popup {
                     console.error(err);
                     showMessage(this.messageContainer, "Ошибка создания группы");
                 });
-        });
-        groupForm.appendChild(createGroupBtn);
-
-        groupSection.appendChild(groupForm);
-        this.contentArea.appendChild(groupSection);
-
-        // Загружаем данные при открытии попапа
-        this.loadAccessList();
-        this.loadGroups();
+    }
+    _addUser(usernameInput, userPermissionSelect) {
+        clearMessage(this.messageContainer);
+            const username = usernameInput.value.trim();
+            const permission = userPermissionSelect.value;
+            if (!username) {
+                showMessage(this.messageContainer, "Введите имя пользователя");
+                return;
+            }
+            this.updateAccess(this.blockId, {
+                permission_type: permission,
+                target_username: username,
+            })
+                .then(() => {
+                    showMessage(this.messageContainer, "Права пользователя обновлены", "success");
+                    this.loadAccessList();
+                    usernameInput.value = "";
+                })
+                .catch((err) => {
+                    console.error("Ошибка обновления прав доступа:", err);
+                    showMessage(this.messageContainer, "Ошибка обновления прав доступа для пользователя");
+                });
     }
 
     // Загрузка списка прав (пользовательские права)

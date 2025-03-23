@@ -40,7 +40,7 @@ export class SearchWindow {
 
     openSearchWindow() {
         this.searchModal.style.display = 'block';
-        this.searchInput.focus();
+        // this.searchInput.focus();
     }
 
     closeSearchWindow() {

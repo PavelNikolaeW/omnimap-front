@@ -52,23 +52,32 @@ class BlockCreator {
         const element = document.createElement('div');
         const customClasses = block.data?.customClasses ? block.data.customClasses : []
         try {
-            block.contentEl = this.createContent(element, block)
+            if (!parentBlock.size.layout.startsWith('xxxs')) {
+                block.contentEl = this.createContent(element, block)
+            }
             this._setBlockGrid(block, parentBlock)
+
+            if (block.size.width <= 40 && block.size.height <= 40) {
+                block.contentEl = null
+            }
+            if (block.contentEl) {
+                element.appendChild(block.contentEl)
+            }
             element.setAttribute('width', `${Math.floor(block.size.width)}`)
             element.setAttribute('height', `${Math.floor(block.size.height)}`)
             element.id = parentBlock.data?.view === 'link' ? `${parentBlock.id}*${block.id}` : block.id;
+
             if (block.data.customGrid && Object.keys(block.data.customGrid).length) element.setAttribute('blockCustomGrid', '')
 
             this._setAttributes(element, block)
             this._applyStyles(element, ['block', ...this.styleLayout(block), ...(block.grid), ...(parentBlock.childrenPositions[block.id]), ...customClasses])
-
 
             this._applyStyles(block.contentEl, block.contentPosition)
 
             block.color = this.colorist.calculateColor(element, block, [...parentBlock.color])
         } catch (e) {
             console.log(block)
-            console.error(`Не получилось на рисовать блок ${e} ${block.id}`)
+            console.error(`Не получилось на рисовать блок ${e} ${block.id} \n${e.stack}`)
         }
         return element
     }
@@ -159,9 +168,6 @@ class BlockCreator {
         block.data.contentAttributes?.forEach(attr => contentElement.setAttribute(attr.name, attr.value))
         block.data.layoutAttributes?.[block.size.layout].forEach(attr => contentElement.setAttribute(attr.name, attr.value))
 
-
-        element.appendChild(contentElement)
-
         return contentElement
     }
 
@@ -176,9 +182,11 @@ class BlockCreator {
     }
 
     _applyStyles(element, styles) {
-        element.classList.add(...styles)
-        cssConverter.generateStylesheet(styles)
-        cssConverter.applyCssClasses(element, styles)
+        if (element) {
+            element.classList.add(...styles)
+            cssConverter.generateStylesheet(styles)
+            cssConverter.applyCssClasses(element, styles)
+        }
     }
 
     createCustomView(block, parent) {

@@ -43,16 +43,16 @@ export function getElementSizeClass(element, size, screen = {width: WINDOW_WIDTH
         baseSize = "s";
     } else if (areaRatio > 0.012) {
         baseSize = 'xs'
-    } else {
+    } else if (areaRatio > 0.001) {
         baseSize = 'xxs'
-    }
+    } else baseSize = 'xxxs'
 
     // Определяем суффикс в зависимости от соотношения сторон
     const aspectRatio = width / height;
     let shapeSuffix;
-    if (aspectRatio >= 0.7 && aspectRatio <= 1.45) {
+    if (aspectRatio >= 0.7 && aspectRatio <= 1.49) {
         shapeSuffix = "-sq";
-    } else if (aspectRatio > 1.45) {
+    } else if (aspectRatio > 1.49) {
         shapeSuffix = "-w";
     } else {
         shapeSuffix = "-h";

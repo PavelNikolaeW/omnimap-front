@@ -1,4 +1,5 @@
 import {Popup} from "./popup";
+import {log} from "@jsplumb/browser-ui";
 
 export class UrlPopup extends Popup {
     /**

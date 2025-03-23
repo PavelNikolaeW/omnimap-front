@@ -5,7 +5,8 @@ export class UIManager {
     constructor() {
         this.mode = undefined
         this.elements = {
-            'control-panel': document.getElementById('control-panel')
+            'control-panel': document.getElementById('control-panel'),
+            'top-btn-container': document.getElementById('top-btn-container'),
         }
     }
 

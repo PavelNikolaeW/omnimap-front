@@ -1,0 +1,278 @@
+/* Оверлей для модального окна */
+.editBlock-popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+}
+
+/* Контейнер попапа */
+.editBlock-popup-container {
+    position: fixed;
+    background-color: #fff;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    width: 600px;
+    max-height: 600px;
+    overflow: auto; /* при необходимости прокрутка */
+}
+
+/* Заголовок попапа */
+.editBlock-popup-title {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    cursor: move; /* если окно перетаскиваемое */
+}
+
+/* Контейнер основного содержимого */
+.editBlock-popup-content {
+    height: auto;
+    overflow-y: auto;
+    margin-bottom: 20px;
+}
+
+/* Панель кнопок внизу окна */
+.editBlock-popup-buttons {
+    text-align: right;
+    margin-top: 10px;
+}
+
+/* Кнопка "Применить" */
+.editBlock-popup-button-submit {
+    padding: 8px 12px;
+    margin: 5px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    background-color: #3498db;
+    color: #fff;
+    font-size: 14px;
+    transition: background-color 0.2s ease;
+}
+
+.editBlock-popup-button-submit:hover {
+    background-color: #2980b9;
+}
+
+/* Кнопка "Отмена" */
+.editBlock-popup-button-cancel {
+    padding: 8px 12px;
+    margin: 5px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    background-color: #95a5a6;
+    color: #fff;
+    font-size: 14px;
+    transition: background-color 0.2s ease;
+}
+
+.editBlock-popup-button-cancel:hover {
+    background-color: #7f8c8d;
+}
+
+/* --- Дополнительные стили для каждой из трёх форм --- */
+
+/* 1) Схема рендера */
+.editBlock-popup-render-scheme-form {
+    margin-bottom: 20px;
+}
+
+.editBlock-popup-render-scheme-form h3 {
+    margin-bottom: 10px;
+    font-size: 16px;
+}
+
+/* Доп. контейнер для одной строки: label + select */
+.editBlock-popup-render-scheme-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.editBlock-popup-render-scheme-form select {
+    margin-left: 6px;
+    padding: 4px 6px;
+}
+
+.editBlock-popup-table-fields,
+.editBlock-popup-horizontal-fields,
+.editBlock-popup-vertical-fields {
+    margin-top: 8px;
+    margin-left: 20px;
+}
+
+.editBlock-popup-render-scheme-form input[type="number"] {
+    width: 60px;
+    margin-right: 6px;
+    padding: 4px;
+}
+
+/* 2) Редактор динамического объекта */
+.editBlock-popup-dynamic-object-form {
+    margin-bottom: 20px;
+}
+
+.editBlock-popup-dynamic-object-form h3 {
+    margin-bottom: 10px;
+    font-size: 16px;
+}
+
+/* Список ключ-значение */
+.editBlock-popup-dynamic-object-form .object-editor-list {
+    border-left: 2px solid #eee;
+    padding-left: 10px;
+    margin-top: 6px;
+    margin-bottom: 10px;
+}
+
+.editBlock-popup-dynamic-object-form .object-editor-list > div {
+    margin-bottom: 4px;
+}
+
+/* Аналогично для массива */
+.editBlock-popup-dynamic-object-form .array-editor-list {
+    margin-top: 6px;
+    margin-bottom: 10px;
+}
+
+/* Инпуты */
+.editBlock-popup-dynamic-object-form input[type="text"] {
+    padding: 3px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+/* Кнопки внутри редактора объекта/массива */
+.editBlock-popup-dynamic-object-form button {
+    margin-left: 4px;
+    padding: 3px 8px;
+    border: none;
+    border-radius: 3px;
+    background-color: #3498db;
+    color: #fff;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.2s ease;
+}
+
+.editBlock-popup-dynamic-object-form button:hover {
+    background-color: #2980b9;
+}
+
+/* 3) Выбор HSL */
+.editBlock-popup-hsl-form {
+    margin-bottom: 20px;
+}
+
+.editBlock-popup-hsl-form h3 {
+    margin-bottom: 10px;
+    font-size: 16px;
+}
+
+.editBlock-popup-hsl-form label {
+    margin-right: 6px;
+    font-weight: normal;
+}
+
+.editBlock-popup-hsl-form input[type="range"] {
+    vertical-align: middle;
+    margin-left: 4px;
+    margin-right: 6px;
+}
+
+.editBlock-popup-hsl-form input[type="text"] {
+    margin-left: 6px;
+    padding: 3px 6px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+}
+
+/* Общий блок редактора */
+.dynamic-object-editor {
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    color: #333;
+}
+
+/* Таблицы для объекта/массива */
+.dynamic-object-editor-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 0 12px 20px; /* левый отступ 20px для наглядности вложенности */
+}
+
+.dynamic-object-editor-th {
+    background-color: #f5f5f5;
+    border: 1px solid #ccc;
+    padding: 6px 10px;
+    text-align: left;
+    font-weight: normal;
+}
+
+.dynamic-object-editor-td {
+    border: 1px solid #ccc;
+    padding: 6px 10px;
+    vertical-align: middle;
+}
+
+/* Полосатые строки - "зебра" */
+.dynamic-object-editor-table tbody tr:nth-child(even) {
+    background-color: #fafafa;
+}
+
+/* Кнопки внутри редактора: Удалить, + Добавить и т.д. */
+.dynamic-object-editor-btn {
+    background-color: #3498db;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 12px;
+    margin-left: 5px;
+}
+
+.dynamic-object-editor-btn:hover {
+    background-color: #2980b9;
+}
+
+/* Инпуты (для ключей, значений, и т.д.) */
+.dynamic-object-editor-input {
+    width: 100px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    padding: 3px 6px;
+    font-size: 14px;
+    outline: none;
+}
+
+/* Селект для выбора типа */
+.dynamic-object-editor-select {
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    padding: 3px 6px;
+    font-size: 14px;
+    outline: none;
+    cursor: pointer;
+}
+
+/* Вложенные объекты/массивы (которые раскрываются) */
+.dynamic-object-editor-nested {
+    margin-top: 6px;
+    margin-left: 30px;
+}
+
+/* Примитив "в корне" (если вдруг используется) */
+.dynamic-object-editor-primitive-row {
+    margin: 8px 0;
+}

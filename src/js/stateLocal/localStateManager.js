@@ -4,9 +4,7 @@ import {Painter} from "../painter/painter";
 import api from "../api/api";
 
 import {truncate} from '../utils/functions'
-import {Queue} from "../utils/queue";
 import {jsPlumbInstance} from "../controller/arrowManager";
-import {log} from "@jsplumb/browser-ui";
 
 // Проверка поддержки IndexedDB и конфигурация localforage
 if (!localforage.supports(localforage.INDEXEDDB)) {
@@ -56,10 +54,8 @@ export class LocalStateManager {
         this.jsPlumbInstance = jsPlumbInstance;
         this.painter = new Painter();
         this.blockRepository = null;
-        this.treeNavigation = document.getElementById('tree-navigation');
 
-
-        // Initialize event handlers
+        // Инициализация слушателей событий
         this.registerEventHandlers();
     }
 
@@ -149,14 +145,18 @@ export class LocalStateManager {
             this.hueUpdate(e.detail);
         });
         window.addEventListener('SetIframe', async (e) => {
-            this.SetIframe(e.detail);
-        });
-        window.addEventListener('ShowedBlocks', (e) => {
-            this.paintPath(e.detail)
+            this.setIframe(e.detail);
         });
         window.addEventListener('DeleteTreeBlock', (e) => {
             this.deleteTreeBlock(e.detail)
         });
+        window.addEventListener('CreateTree', (e) => {
+            this.createTree(e.detail)
+        });
+
+        window.addEventListener('HistoryRevert', (e) => {
+            this.historyRevert(e.detail)
+        })
 
         window.addEventListener('resize', () => this.onResize());
         window.addEventListener('ShowError', (e) => {
@@ -183,9 +183,7 @@ export class LocalStateManager {
         window.addEventListener('WebSocUpdateBlockAccess', async (e) => {
             await this.WebSocUpdateBlockAccess(e.detail)
         })
-        window.addEventListener('ResetState', async (e) => {
-            await this.resetState()
-        })
+        window.addEventListener('ResetState', async (e) => this.resetState())
         window.addEventListener('CreateLink', async (e) => {
             if (confirm('Блок и все его дочерние блоки станут доступными для тех у кого есть ссылка или id блоков')) {
                 const id = e.detail.id
@@ -198,14 +196,33 @@ export class LocalStateManager {
                 })
             }
         })
-        this.treeNavigation.addEventListener('click', async (e) => {
-            const idBtn = e.target.id;
-            if (idBtn.startsWith('treeBtn_')) {
-                const blockId = idBtn.slice(8);
-                await localforage.setItem('currentTree', blockId);
-                this.showBlocks(); // Переключаемся на новое дерево
+        window.addEventListener('UpdateBlocks', (e) => {
+            console.log(e.detail)
+            const data = e.detail
+            data.blocks?.forEach(async (block) => {
+                await this.saveBlock(block)
+            })
+            data.removed?.forEach(async (blockId) => {
+                await this.removeBlock(blockId)
+
+            })
+            this.showBlocks()
+        })
+    }
+
+    createTree({title}) {
+        api.createTree(title).then(res => {
+            if (res.status === 201) {
+                const block = res.data
+                localforage.getItem(`treeIds${this.currentUser}`, (err, treeIds) => {
+                    treeIds.push(block.id)
+                    localforage.setItem(`treeIds${this.currentUser}`, treeIds, () => {
+                        this.saveBlock(block)
+                        this.showBlocks()
+                    })
+                })
             }
-        });
+        })
     }
 
     async deleteTreeBlock({blockId}) {
@@ -355,13 +372,32 @@ export class LocalStateManager {
     }
 
     async removeBlock(blockId) {
-        const removedBlock = this.blocks.get(blockId)
-        if (removedBlock.children) {
-            const treeIds = await localforage.getItem(`treeIds${this.currentUser}`)
-            await localforage.setItem(`treeIds${this.currentUser}`, [...treeIds, ...removedBlock.children])
-        }
+
+        this.removeBranch(blockId)
+
+        let treeIds = await localforage.getItem(`treeIds${this.currentUser}`)
+        treeIds = treeIds.filter(id => id !== blockId)
+        await localforage.setItem(`treeIds${this.currentUser}`, treeIds)
         await this.blockRepository.deleteBlock(blockId);
+    }
+
+    removeBranch(blockId) {
+        const block = this.blocks.get(blockId);
+        if (!block || !Array.isArray(block.children)) {
+            console.warn(`Block ${blockId} not found or has no children`);
+            return;
+        }
+
         this.blocks.delete(blockId);
+        this.removeBlock(block.id);
+
+        this.blockRepository.deleteBlock(block.id).catch(err => {
+            console.error(`Ошибка при удалении блока ${block.id}:`, err);
+        });
+
+        for (const childId of block.children) {
+            this.removeBranch(childId);
+        }
     }
 
     // Initialization
@@ -385,9 +421,7 @@ export class LocalStateManager {
         // Initialize path with the root block
         for (let i = 0; i < treeIds.length; i++) {
             const tree = treeIds[i]
-            console.log(treeIds[i])
             const rootBlock = blocks.get(tree);
-            console.log(rootBlock)
             const color = rootBlock.data?.color && rootBlock.data.color !== 'default_color' ? rootBlock.data.color : [];
             const titleBlock = rootBlock.title;
 
@@ -397,31 +431,6 @@ export class LocalStateManager {
         this.path = await localforage.getItem(`Path_${this.currentTree}${this.currentUser}`)
     }
 
-    async showTrees(currentTree, user) {
-        const trees = await localforage.getItem(`treeIds${user}`) || [];
-        this.treeNavigation.textContent = '';
-        const treeBlocks = await Promise.all(
-            trees.map(tree => localforage.getItem(`Block_${tree}_${user}`))
-        );
-        // Отображаем кнопки деревьев
-        treeBlocks.forEach((block, index) => {
-            const tree = trees[index];
-            const treeBtn = this.createTreeButton(tree, block, currentTree);
-            this.treeNavigation.appendChild(treeBtn);
-        });
-    }
-
-    createTreeButton(tree, block, currentTree) {
-        const treeBtn = document.createElement('button');
-        treeBtn.classList.add('tree-button');
-        treeBtn.setAttribute('blockId', block.id)
-        if (tree === currentTree) treeBtn.classList.add('selected');
-        treeBtn.id = `treeBtn_${tree}`;
-        treeBtn.setAttribute('title', block?.title || 'Нет названия');
-        if (!block?.title || block.title === '') treeBtn.textContent = 'Без имени'
-        else treeBtn.textContent = truncate(block.title, 10);
-        return treeBtn;
-    }
 
     async getAllBlocksForUser(username) {
         const keys = await localforage.keys();
@@ -469,6 +478,7 @@ export class LocalStateManager {
 
     async showBlocks() {
         this.currentUser = await localforage.getItem('currentUser') || 'anonim';
+        this.currentTree = await localforage.getItem('currentTree')
         this.blockRepository = new BlockRepository(this.currentUser);
 
         if (window.location.search) {
@@ -495,30 +505,38 @@ export class LocalStateManager {
             await localforage.setItem(`Path_${this.currentTree}${this.currentUser}`, this.path)
         }
         this.painter.render(this.blocks, screenObj);
-        dispatch('ShowedBlocks', this.path);
+        dispatch('ShowedBlocks', {path: this.path, activeId: undefined});
 
-        await this.showTrees(this.currentTree, this.currentUser);
     }
 
-    openBlock({id, parentHsl, isIframe}) {
-        const currentScreen = this.path.at(-1);
-        const block = this.blocks.get(id);
-        const title = block.title;
+    getPath(callback) {
+        localforage.getItem('currentTree', (err, tree) => {
+            localforage.getItem('currentUser', (err, user) => {
+                localforage.getItem(`Path_${tree}${user}`, callback)
+            })
+        })
+    }
 
-        if (currentScreen.blockId === block.id) {
-            if (this.path.length === 1) return;
-            this.path.pop();
-        } else {
-            this.path.push({screenName: truncate(title, 10), color: parentHsl, blockId: id});
-        }
-
-        if (!isIframe) {
-            this.painter.render(this.blocks, this.path.at(-1));
-        } else {
-            // Handle iframe logic if necessary
-        }
-        localforage.setItem(`Path_${this.currentTree}${this.currentUser}`, this.path)
-        dispatch("ShowedBlocks", this.path)
+    openBlock({id, parentHsl, isIframe, links}) {
+        this.getPath((err, path) => {
+            const currentScreen = path.at(-1)
+            const block = this.blocks.get(id);
+            const title = block.title;
+            let activeId = undefined
+            if (currentScreen.blockId === block.id) {
+                if (path.length === 1) return;
+                activeId = path.pop().blockId;
+            } else {
+                path.push({screenName: truncate(title, 10), color: parentHsl, blockId: id, links});
+            }
+            if (!isIframe) {
+                this.painter.render(this.blocks, path.at(-1));
+            } else {
+                // Handle iframe logic if necessary
+            }
+            localforage.setItem(`Path_${this.currentTree}${this.currentUser}`, path)
+            dispatch("ShowedBlocks", {path, activeId})
+        })
     }
 
     async createBlock({parentId, title}) {
@@ -667,6 +685,13 @@ export class LocalStateManager {
         }
     }
 
+
+    historyRevert({block}) {
+        console.log(block)
+        this.saveBlock(block)
+        this.showBlocks()
+    }
+
     async titleUpdate({blockId, title}) {
         try {
             const response = await api.updateBlock(blockId, {title});
@@ -680,8 +705,7 @@ export class LocalStateManager {
         }
     }
 
-
-    SetIframe({blockId, src}) {
+    setIframe({blockId, src}) {
         api.updateBlock(blockId, {
             data: {
                 view: 'iframe',
@@ -703,8 +727,7 @@ export class LocalStateManager {
 
     async hueUpdate({blockId, hue}) {
         try {
-            const color = hue === 'default_color' ? hue : [hue, 0, 0, 0];
-            const response = await api.updateBlock(blockId, {data: {color}});
+            const response = await api.updateBlock(blockId, {data: {color: hue}});
             if (response.status === 200) {
                 const updatedBlock = response.data;
                 await this.saveBlock(updatedBlock);
@@ -764,19 +787,14 @@ export class LocalStateManager {
     // Event handling methods
     onResize() {
         if (!this.timeoutId) {
-            this.timeoutId = setTimeout(() => {
-                this.jsPlumbInstance.repaintEverything();
-                this.painter.render(this.blocks, this.path.at(-1));
-                this.timeoutId = null;
-            }, 100);
+            this.getPath((err, path) => {
+                this.timeoutId = setTimeout(() => {
+                    this.jsPlumbInstance.repaintEverything();
+                    this.painter.render(this.blocks, path.at(-1));
+                    this.timeoutId = null;
+                }, 100);
+            })
         }
-    }
-
-    paintPath(path) {
-        const navElem = document.getElementById('breadcrumb')
-        navElem.innerHTML = ''
-        const list = generateBreadcrumbs(path)
-        navElem.appendChild(list)
     }
 
     getAllChildIds(block) {
@@ -794,20 +812,4 @@ export class LocalStateManager {
         return removesIds;
     }
 
-}
-
-
-function generateBreadcrumbs(items) {
-    const list = document.createElement('ul');
-
-    items.forEach((item, index) => {
-        const listItem = document.createElement('li');
-        const link = document.createElement('div');
-        link.elementId = item.id;
-        link.textContent = item.screenName;
-        listItem.appendChild(link)
-        list.appendChild(listItem);
-    });
-
-    return list;
 }

@@ -45,7 +45,6 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 
-
 /* Основное содержимое */
 .container-blocks {
     flex: 1;
@@ -53,38 +52,63 @@ h1, h2, h3, h4, h5, h6 {
     box-sizing: border-box;
 }
 
-/* Стили для хлебных крошек */
+/* Контейнер хлебных крошек */
 .breadcrumb-nav {
-    height: auto;
-    background-color: #f8f9fa;
-    box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
-    white-space: nowrap;
-    overflow-x: auto;
-    overflow-y: hidden;
-    border-top: 1px solid #ddd;
-    padding: 8px 16px;
-    box-sizing: border-box;
-}
-
-.breadcrumb-nav ul {
     display: flex;
-    gap: 8px;
-    padding: 0;
-    margin: 0;
-    list-style: none;
+    border-top: #999 solid;
+    align-items: center;
+    white-space: nowrap; /* Запрещаем перенос строк, чтобы получить горизонтальную прокрутку при переполнении */
+    overflow-x: auto; /* Горизонтальная прокрутка */
+    -ms-overflow-style: none; /* Скрываем scrollbar в IE/Edge */
+    scrollbar-width: none; /* Скрываем scrollbar в Firefox */
 }
 
-.breadcrumb-nav li {
+.breadcrumb-nav::-webkit-scrollbar {
+    display: none; /* Скрываем scrollbar в Chrome/Safari/Opera */
+}
+
+/* Сами "крошки" */
+.breadcrumb-item {
+    color: #007bff;
+    cursor: pointer;
+    text-decoration: none;
+    padding: 5px 10px;
     font-size: 14px;
-    color: #333;
+    width: 100%;
+    /* Для удобства чтения больших подсказок можно задать max-width и text-overflow:ellipsis;
+       но для этого нужно display:inline-block/inline-flex и overflow:hidden;
+       однако у нас есть отдельная функция shortenText,
+       поэтому в данном примере остаёмся без дополнительных ellipsis-свойств.
+    */
 }
 
+/* При наведении курсора */
+.breadcrumb-item:hover {
+    text-decoration: underline;
+}
+
+/* Разделитель */
+.separator {
+    border: #999 solid;
+    width: 0;
+    min-height: 14px;
+    padding: 5px 0;
+    user-select: none;
+}
+
+/* Адаптивность (пример уменьшения при ширине < 600px) */
 @media (max-width: 600px) {
-    .breadcrumb-nav {
-        padding: 6px 12px;
+
+    .breadcrumb-item {
+        font-size: 12px;
+        padding: 3px 6px;
+    }
+
+    .separator {
+        padding: 3px 0;
+        min-height: 12px;
     }
 }
-
 
 .cp-button__active {
     background-color: #8d8d8d;
@@ -118,7 +142,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .block-link-active {
-    outline: 2px dashed #343434;
+    outline: 2px dashed;
 }
 
 .block-link-selected {
@@ -135,7 +159,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .block-active {
-    outline: 2px solid #343434;
+    outline: 2px solid;
 }
 
 .block-selected {

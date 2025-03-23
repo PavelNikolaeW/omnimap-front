@@ -1,11 +1,14 @@
-import axios from 'axios';
+import axios, {request} from 'axios';
 import Cookies from 'js-cookie';
 import {dispatch} from "../utils/utils";
+import {v4 as uuidV4} from 'uuid';
+import {LimitedMapQueue} from "../utils/limitedQueue";
+import {log} from "@jsplumb/browser-ui";
 
 class Api {
     constructor() {
         // Настройка базового URL и создание экземпляра axios
-        this.errorMessage = '';
+        this.operationChache = new LimitedMapQueue(50)
         this.api = axios.create({
             // baseURL: 'http://omnimap.ru/api/v1/',
             baseURL: 'http://127.0.0.1:8000/api/v1/',
@@ -15,42 +18,73 @@ class Api {
             }
         });
 
-        // Добавление интерцептора запроса для вставки JWT в заголовки
-        this.api.interceptors.request.use(config => {
-            this.setLoading(true)
-            const token = Cookies.get('access');
-            if (token) {
-                config.headers['Authorization'] = `Bearer ${token}`;
-            }
-            return config;
-        }, error => {
-            return Promise.reject(error);
-        });
+        // сохраняем запрос и добавляем uuid операции
+        this.api.interceptors.request.use(
+            config => {
+                const uuid = uuidV4()
+                this.operationChache.set(uuid, {
+                    url: config.url,
+                    data: config.data
+                })
+                config.headers['X-Operation-UUID'] = uuid
+                return config
+            }, error => {
+                return Promise.reject(error);
+            });
+
+        this.api.interceptors.request.use(
+            config => {
+                this.setLoading(true)
+                const token = Cookies.get('access');
+                if (token) {
+                    config.headers['Authorization'] = `Bearer ${token}`;
+                }
+                return config;
+            }, error => {
+                return Promise.reject(error);
+            });
+
+        this.api.interceptors.response.use(
+            async response => {
+                const operation = this.operationChache.get(response.headers['x-operation-uuid'])
+                operation['isFail'] = false
+                operation['responseData'] = JSON.parse(JSON.stringify(response.data))
+                dispatch("UndoStackAdd", {operation})
+                return response
+            }, async error => {
+                const operation = this.operationChache.get(error.response.headers['x-operation-uuid'])
+                operation['isFail'] = error.response.status >= 400
+                if (error.response.status >= 500) this.sendHistoryOperations()
+                return Promise.reject(error);
+            })
 
         // Добавление интерцептора ответа для обработки истечения токена
-        this.api.interceptors.response.use(response => {
-            this.setLoading(false)
-            return response
-        }, async error => {
-            const originalRequest = error.config;
-            this.setLoading(false)
+        this.api.interceptors.response.use(
+            async response => {
+                this.setLoading(false)
+                return response
+            },
+            async error => {
+                log(error)
+                const originalRequest = error.config;
+                this.setLoading(false)
 
-            if (error.response.status === 401 && !originalRequest._retry) {
-                originalRequest._retry = true;
-                try {
-                    const tokenRefreshed = await this.refreshToken();
-                    if (tokenRefreshed) {
-                        return this.api(originalRequest);
+                if (error.response.status === 401 && !originalRequest._retry) {
+                    originalRequest._retry = true;
+                    try {
+                        const tokenRefreshed = await this.refreshToken();
+                        if (tokenRefreshed) {
+                            return this.api(originalRequest);
+                        }
+                    } catch (refreshError) {
+                        return Promise.reject(refreshError);
                     }
-                } catch (refreshError) {
-                    return Promise.reject(refreshError);
                 }
-            }
-            if (error.response.status >= 400) {
-                dispatch("ShowError", error)
-            }
-            return Promise.reject(error);
-        });
+                if (error.response.status >= 400) {
+                    dispatch("ShowError", error)
+                }
+                return Promise.reject(error);
+            });
     }
 
     setLoading(value) {
@@ -136,11 +170,13 @@ class Api {
         return {treeIds, blocks}
     }
 
-    removeBlock({removeId, parentId}) {
-        return this.api.delete(`/delete-child/${parentId}/${removeId}/`, )
+    sendHistoryOperations() {
+        console.log('надо реализовать меня')
+        // return this.api.post('/')
     }
+
     removeTree(blockId) {
-        return this.api.delete(`/delete-tree/${blockId}/`)
+        return this.api.delete(`delete-tree/${blockId}/`)
     }
 
     pasteBlock(data) {
@@ -148,17 +184,11 @@ class Api {
     }
 
     pasteLinkBlock({dest, src}) {
-        console.log({dest, src})
         return this.api.post(`create-link-block/${dest}/${src[0]}/`)
     }
 
     loadEmpty(block_ids) {
         return this.api.post('load-empty/', {block_ids})
-    }
-
-
-    async verifyToken(data) {
-        return this.api.post('token/verify/', data)
     }
 
     updateBlock(id, data) {
@@ -184,7 +214,8 @@ class Api {
     addUserToGroup(groupId, data) {
         return this.api.post(`groups/${groupId}/add_member/`, data)
     }
-    removeUserGroup(groupId, username){
+
+    removeUserGroup(groupId, username) {
         return this.api.delete(`groups/${groupId}/remove_member/${username}`)
     }
 
@@ -199,12 +230,15 @@ class Api {
     createUrlLink(blockId, slug) {
         return this.api.post(`create-url/${blockId}/`, {slug})
     }
+
     checkUrl(slug) {
         return this.api.get(`check-url/${slug}`)
     }
+
     getUrls(blockId) {
         return this.api.get(`get-urls/${blockId}`)
     }
+
     deleteUrl(slug, block_id) {
         console.log(slug, block_id)
         return this.api.delete(`delete-url/${block_id}/${slug}/`)
@@ -227,13 +261,34 @@ class Api {
         return this.api.get(`tasks/${task_id}/`)
     }
 
+    createTree(title) {
+        return this.api.post('new-tree/', {title})
+    }
+
+    getBlockHistory(blockId) {
+        return this.api.get(`blocks/${blockId}/history/`)
+    }
+
+    revertBlockToHistory(blockId, historyId) {
+        return this.api.post(`blocks/${blockId}/history/${historyId}/revert/`)
+    }
+
+    undo(operation) {
+        return this.api.post('/undo/', {operation})
+    }
+
+    redo(url, data) {
+        if (url.startsWith('delete-tree'))
+            return this.api.delete(url, data)
+        else
+            return this.api.post(url, data)
+    }
+
 }
 
 const api = new Api('http://0.0.0.0:7999')
 
 export default api
-
-
 
 
 /**

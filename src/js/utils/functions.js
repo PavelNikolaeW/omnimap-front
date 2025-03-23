@@ -83,7 +83,6 @@ export function copyToClipboard(text) {
 }
 
 export async function getClipboardText() {
-    console.log('test')
     if (navigator.clipboard && window.isSecureContext) {
         try {
             const text = await navigator.clipboard.readText();

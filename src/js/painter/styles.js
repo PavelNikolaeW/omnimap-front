@@ -3,14 +3,14 @@ export const styleConfig = {
         table: { padding: 2, gap: 4, fontSize: '12px', fontWeight: 'bold', textAlign: 'left', writingMode: 'horizontal-tb' }
     },
     xxxs: {
-        sq: { padding: 2, gap: 4, fontSize: '12px', fontWeight: 'bold', textAlign: 'left', writingMode: 'horizontal-tb' },
-        w:  { padding: 2, gap: 4, fontSize: '12px', fontWeight: 'bold', textAlign: 'center', writingMode: 'horizontal-tb' },
-        h:  { padding: 2, gap: 4, fontSize: '12px', fontWeight: 'bold', textAlign: 'left', writingMode: 'vertical-rl' }
+        sq: { padding: 3, gap: 2, fontSize: '8px', fontWeight: 'bold', textAlign: 'left', },
+        w:  { padding: 3, gap: 2, fontSize: '8px', fontWeight: 'bold', textAlign: 'center',  },
+        h:  { padding: 3, gap: 2, fontSize: '8px', fontWeight: 'bold', textAlign: 'left',  }
     },
     xxs: {
-        sq: { padding: 4, gap: 4, fontSize: '12px', fontWeight: 'bold', textAlign: 'left', writingMode: 'horizontal-tb' },
-        w:  { padding: 4, gap: 4, fontSize: '12px', fontWeight: 'bold', textAlign: 'center', writingMode: 'horizontal-tb' },
-        h:  { padding: 4, gap: 4, fontSize: '12px', fontWeight: 'bold', textAlign: 'left', writingMode: 'horizontal-tb' }
+        sq: { padding: 4, gap: 2, fontSize: '10px', fontWeight: 'bold', textAlign: 'left', writingMode: 'horizontal-tb' },
+        w:  { padding: 4, gap: 2, fontSize: '10px', fontWeight: 'bold', textAlign: 'center', writingMode: 'horizontal-tb' },
+        h:  { padding: 4, gap: 2, fontSize: '10px', fontWeight: 'bold', textAlign: 'left', writingMode: 'horizontal-tb' }
     },
     xs: {
         sq: { padding: 6, gap: 5, fontSize: '14px', fontWeight: 'normal', textAlign: 'left', writingMode: 'horizontal-tb' },

@@ -1,6 +1,7 @@
 import {findLCM, findNearestRoots} from '../utils/functions'
 import {getElementSizeClass, measurePerformance} from "../utils/utils"
 import {styleConfig} from "./styles";
+import {log} from "@jsplumb/browser-ui";
 
 
 class GridClassManager {

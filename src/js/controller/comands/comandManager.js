@@ -2,8 +2,7 @@ import {commands} from './commands.js';
 import hotkeys from 'hotkeys-js';
 import {ContextManager} from "./contextManager";
 import {uiManager} from "./uiManager";
-import localforage from "localforage";
-import {throttle} from "../utils/functions";
+import {throttle} from "../../utils/functions";
 
 export class CommandManager {
     constructor(idRootContainer, breadcrumb, treeNavigation, hotkeysMap = {}) {
@@ -13,9 +12,9 @@ export class CommandManager {
         this.breadcrumb = document.getElementById(breadcrumb)
         this.treeNavigation = document.getElementById(treeNavigation)
         this.controlPanel = document.getElementById('control-panel')
+        this.topSidebar = document.getElementById('topSidebar')
         this.ctxManager = new ContextManager(this.rootContainer, this.breadcrumb, this.treeNavigation)
         this.selectedText = ''
-        // this.executeCommand = throttle(this.executeCommand, 300)
         this.init()
     }
 
@@ -25,8 +24,11 @@ export class CommandManager {
         }
         this.clickOnRootContainerHandlerBound = this.clickOnRootContainerHandler.bind(this)
         this.clickOnControlPanelBound = this.clickOnControlPanel.bind(this)
+        this.clickOnTopNavigationBound = this.clickOnTopNavigation.bind(this)
+
         window.addEventListener('ShowedBlocks', () => {
             this.rootContainer.addEventListener('click', this.clickOnRootContainerHandlerBound);
+            this.topSidebar.addEventListener('click', this.clickOnTopNavigationBound);
             this.controlPanel.addEventListener('click', this.clickOnControlPanelBound)
         })
         window.addEventListener('ReRegistrationCmd', (e) => {
@@ -41,7 +43,7 @@ export class CommandManager {
         this.commandsById[id] = cmd
         if (cmd.defaultHotkey) {
             cmd.currentHotkey = this.hotkeysMap[id] || cmd.defaultHotkey
-            this.bindHotkey(id, cmd.currentHotkey);
+            this.bindHotkey(id, cmd);
         }
     }
 
@@ -67,26 +69,35 @@ export class CommandManager {
         uiManager.reRenderBtn(this.commandsById);
     }
 
-    bindHotkey(commandId, hotkey) {
-        hotkeys(hotkey, {enableInInput: true}, (event, handler) => {
+    bindHotkey(commandId, cmd) {
+        const options = {
+            enableInInput: true,
+            keyup: cmd.eventType === 'keyup',
+            keydown: cmd.eventType !== 'keyup'
+        }
+        let executeFn = (event, handler) => {
             event && event.preventDefault();
             this.ctxManager.setEvent(event)
-            this.ctxManager.setCmd(this.commandsById[commandId])
+            this.ctxManager.setCmd(cmd)
             this.executeCommand(this.ctxManager);
-        });
+        }
+        if (!cmd.throttleDisable) {
+            executeFn = throttle(executeFn, 250)
+        }
+        hotkeys(`${cmd.currentHotkey}`, options, executeFn);
     }
 
-    executeCommand(ctxManager) {
-        const cmdId = ctxManager.getCmd()
+    executeCommand(ctx) {
+        const cmdId = ctx.getCmd()
         const cmd = this.commandsById[cmdId];
         if (!cmd) return;
         if (cmdId === 'escape')
-            this.commandsById['escape'].execute(ctxManager)
-        else if (cmd.mode.includes(ctxManager.mode) || cmd.mode.includes('*'))
-            cmd.execute(ctxManager);
+            this.commandsById['escape'].execute(ctx)
+        else if (cmd.mode.includes(ctx.mode) || cmd.mode.includes('*'))
+            cmd.execute(ctx);
         else {
             setTimeout(() => {
-                ctxManager.setCmd('openBlock')
+                ctx.setCmd('openBlock')
             }, 50)
         }
     }
@@ -114,6 +125,14 @@ export class CommandManager {
     clickOnControlPanel(event) {
         const target = event.target
         if (target.tagName === 'BUTTON') {
+            const cmd = this.commandsById[target.id]
+            this.ctxManager.setCmd(cmd)
+        }
+    }
+    clickOnTopNavigation(event) {
+        const target = event.target
+         if (target.classList.contains('top-btn')) {
+             console.log('cklick')
             const cmd = this.commandsById[target.id]
             this.ctxManager.setCmd(cmd)
         }

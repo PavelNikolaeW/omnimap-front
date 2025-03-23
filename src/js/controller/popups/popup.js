@@ -53,13 +53,13 @@ function setupHotkeyInput(inputElement) {
     }
 
     // При фокусе очищаем состояние для нового ввода.
-    inputElement.addEventListener('focus', () => {
-        modifiers.clear();
-        mainKey = null;
-        nonModifierHeld = false;
-        combinationFrozen = false;
-        inputElement.value = '';
-    });
+    // inputElement.addEventListener('focus', () => {
+    //     modifiers.clear();
+    //     mainKey = null;
+    //     nonModifierHeld = false;
+    //     combinationFrozen = false;
+    //     inputElement.value = '';
+    // });
 
     // Нормализация названия клавиши с учётом цифр и преобразования русских символов.
     function getMappedKey(e) {
@@ -168,6 +168,7 @@ export class Popup {
 
         this.createPopup();
         this.bindEvents();
+        this.focus()
     }
 
     getPrefixedClass(className) {
@@ -394,16 +395,20 @@ export class Popup {
 
     handleCancel() {
         if (typeof this.options.onCancel === 'function') {
+            console.log('kek')
             this.options.onCancel();
         }
         this.close();
     }
 
     close() {
+        console.log('close')
         if (this.popupEl?.parentNode) {
+            console.log('remove parent')
             this.popupEl.parentNode.removeChild(this.popupEl);
         }
         if (this.overlay?.parentNode) {
+            console.log('remove overlay')
             this.overlay.parentNode.removeChild(this.overlay);
         }
         window.removeEventListener('resize', this.boundResizeHandler);
@@ -415,5 +420,11 @@ export class Popup {
             document.removeEventListener('mouseup', this.boundMouseUp);
             this.boundMouseUp = null;
         }
+    }
+
+    focus() {
+        setTimeout(() => {
+            this.nameInput?.focus()
+        }, 100)
     }
 }

@@ -1,4 +1,4 @@
-import {log} from "@jsplumb/browser-ui";
+import {getPath, savePath} from "./cmdUtils";
 
 export class ContextManager {
     // отвечает за текущий контекст
@@ -25,11 +25,12 @@ export class ContextManager {
         this.editor = document.getElementById('editor-popup')
         this.init()
 
+
     }
 
     init() {
         this.bindHandlers()
-        window.addEventListener('ShowedBlocks', () => {
+        window.addEventListener('ShowedBlocks', (e) => {
             this.rootContainer.addEventListener('mouseover', this.mouseOverBlockHandlerBound);
             this.rootContainer.addEventListener('mouseout', this.mouseOutBlockHandlerBound);
 
@@ -39,7 +40,22 @@ export class ContextManager {
             this.breadcrumb.addEventListener('mouseover', this.mouseOverBreadcrumbHandlerBound);
             this.breadcrumb.addEventListener('mouseout', this.mouseOutBreadcrumbHandlerBound)
 
+            this.rotationElements(e.detail)
         });
+    }
+
+    rotationElements({path, activeId}) {
+        this.blockElement = undefined
+        this.blockLinkElement = undefined
+        if (activeId) {
+            let el = document.getElementById(activeId)
+            this.blockElement = el
+            if (!el) {
+                el = document.querySelector(`[blocklink="${activeId}"]`)
+                if (el) this.blockLinkElement = el
+            }
+        }
+        this.addActiveClass()
     }
 
     bindHandlers() {
@@ -55,7 +71,11 @@ export class ContextManager {
 
     mouseOverBlockHandler(event) {
         event.preventDefault();
-        const {element, link} = this.getRelevantElements(event.target);
+        this.setActiveBlock(event.target)
+    }
+
+    setActiveBlock(el) {
+        const {element, link} = this.getRelevantElements(el);
         if (!element) return;
         this.removeActiveClass()
         this.blockElement = element
@@ -74,9 +94,14 @@ export class ContextManager {
 
     mouseOutBlockHandler(event) {
         const relatedTarget = event.relatedTarget
-        const relatedId = relatedTarget?.getAttribute('block_id')
+        this.setDisActiveBlock(relatedTarget)
+
+    }
+
+    setDisActiveBlock(el) {
+        const relatedId = el?.getAttribute('block_id')
         if (this.mode === 'cutBlock' &&
-            relatedTarget &&
+            el &&
             this.blockElement &&
             relatedId === this.blockElement.id ||
             this.blockLinkElement &&
@@ -94,15 +119,18 @@ export class ContextManager {
             }
         }
     }
+
     getActiveElement() {
         if (this.blockLinkElement) return this.blockLinkElement
         if (this.blockElement) return this.blockElement
         return this.rootContainer.children[0]
     }
+
     mouseOverTreeHandler(event) {
         event.preventDefault();
         if (event.target.hasAttribute('blockid')) {
             this.blockId = event.target.getAttribute('blockid')
+            this.isTree = true
         }
         if (this.mode === 'cutBlock') {
             this.cut['new_parent_id'] = this.blockId
@@ -111,8 +139,8 @@ export class ContextManager {
 
     mouseOutTreeHandler(event) {
         event.preventDefault();
-        this.allowExecute = false
         this.blockId = undefined
+        this.isTree = false
         if (this.mode === 'cutBlock') {
             this.cut['new_parent_id'] = this.blockId
         }
@@ -194,7 +222,7 @@ export class ContextManager {
     addActiveClass() {
         if (this.blockLinkElement) {
             this.blockLinkElement.classList.add('block-link-active')
-        } else {
+        } else if (this.blockElement) {
             this.blockElement.classList.add('block-active')
         }
     }
@@ -212,6 +240,7 @@ export class ContextManager {
         if (this.popup) {
             this.popup.handleSubmit()
             this.popup = undefined
+            this.mode = 'normal'
         }
     }
 
@@ -219,12 +248,15 @@ export class ContextManager {
         if (this.popup) {
             this.popup.handleCancel()
             this.popup = undefined
+            this.mode = 'normal'
         }
     }
 
     createBeforeBlockElement(blockElement) {
+        if (blockElement.parentNode.id === 'rootContainer') return
         const beforeBlockElement = document.createElement('div');
         beforeBlockElement.setAttribute('block_id', blockElement.id);
+        beforeBlockElement.setAttribute('parent_id', blockElement.parentNode.id);
         beforeBlockElement.classList.add('before-block');
 
         // Устанавливаем позицию относительно родительского элемента
