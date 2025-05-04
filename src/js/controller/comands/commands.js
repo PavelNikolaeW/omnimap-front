@@ -2,20 +2,19 @@ import {arrowCommands} from "./arrowComands";
 import {copyToClipboard, getClipboardText, isValidUUID, validURL} from "../../utils/functions";
 import {dispatch} from "../../utils/utils";
 import {colorCommands} from "./colorCommands";
-import {EditorText} from "../textEditor";
 import {arrowManager} from "../arrowManager";
 import api from "../../api/api";
 import {
     commandOpenBlock,
-    createEditHotkeyInputs,
     getTreeIds,
     getTreePath,
     openBlock,
     setCmdOpenBlock, setCurrentTree
 } from "./cmdUtils";
 import {popupsCommands} from "./popupsCmd";
+import {NoteEditor} from "../noteEditor";
 
-const textEditor = new EditorText()
+const nodeEditor = new NoteEditor('editor-container')
 
 function createTreeCmd() {
     const cmds = new Array(10)
@@ -59,6 +58,7 @@ export const commands = [
     {
         id: 'openBlock',
         mode: ['normal'],
+        regLink: true,
         execute(ctx) {
             let blockElement = ctx.blockElement
             if (!blockElement) {
@@ -70,10 +70,11 @@ export const commands = [
     {
         id: 'back',
         mode: ['normal'],
+        regLink: true,
         btn: {
             containerId: 'top-btn-container',
             label: 'Назад',
-            classes: ['sidebar-button', 'top-btn', 'fa', 'fa-arrow-up', 'fa-lg']
+            classes: ['sidebar-button', 'top-btn', 'fas', 'fa-arrow-up', 'fas-lg']
         },
         throttleDisable: true,
         defaultHotkey: 'backspace',
@@ -82,19 +83,23 @@ export const commands = [
 
         },
         btnExec(ctx) {
-            const rootBlock = ctx.rootContainer.children[0]
-            if (rootBlock.hasAttribute('block')) dispatch('OpenBlock', {id: rootBlock.id})
-            setCmdOpenBlock(ctx)
+            if (ctx.mode === 'normal') {
+                const rootBlock = ctx.rootContainer.children[0]
+                if (rootBlock.hasAttribute('block')) {
+                    dispatch('OpenBlock', {id: rootBlock.id})
+                }
+                setCmdOpenBlock(ctx)
+            }
         }
     },
     {
         id: 'escape',
         mode: ['*'],
         defaultHotkey: 'esc',
+        regLink: true,
         execute(ctx) {
-            console.log('esc')
             if (ctx.mode === 'textEdit') {
-                textEditor.closeEditor(false)
+                nodeEditor.closeEditor(false)
             }
             if (ctx.mode === 'connectToBlock') {
                 ctx.connect_source_id = undefined
@@ -103,12 +108,17 @@ export const commands = [
             }
             if (ctx.mode === 'cutBlock') {
                 if (ctx.beforeBlockElement) ctx.beforeBlockElement.remove()
+                const target = ctx.blockLinkElement || ctx.blockElement
+                target.classList.remove('block-selected')
                 ctx.cut = undefined
             }
-            ctx.closePopups()
+            if (ctx.mode !== 'diagram') {
+                ctx.diagramUtils.hiddenInputs()
+            }
             ctx.mode = 'normal'
             ctx.event = undefined
             ctx.blockId = undefined
+            ctx.closePopups()
             setCmdOpenBlock(ctx)
         }
     },
@@ -116,6 +126,7 @@ export const commands = [
         id: 'EnterKey',
         defaultHotkey: 'enter',
         description: 'Открывает выделенный блок',
+        regLink: true,
         mode: ['*'],
         execute(ctx) {
             if (ctx.mode === 'normal') {
@@ -124,7 +135,7 @@ export const commands = [
                 }
             }
             if (ctx.mode === 'textEdit') {
-                textEditor.closeEditor()
+                nodeEditor.closeEditor(true)
                 ctx.mode = 'normal'
                 ctx.event = undefined
             }
@@ -137,7 +148,6 @@ export const commands = [
         defaultHotkey: 'shift+enter',
         mode: ['textEdit'],
         execute(ctx) {
-            setCmdOpenBlock(ctx)
         }
     },
     {
@@ -164,7 +174,7 @@ export const commands = [
         btn: {
             containerId: 'control-panel',
             label: 'Создать новый блок',
-            classes: ['sidebar-button', 'fa', 'fa-plus-square', 'fa-lg']
+            classes: ['sidebar-button', 'fas', 'fa-plus-square', 'fas-lg']
         },
         defaultHotkey: 'n',
         description: 'Создать новый блок',
@@ -185,7 +195,7 @@ export const commands = [
         btn: {
             containerId: 'control-panel',
             label: 'Изменить название блока',
-            classes: ['sidebar-button', 'fa', 'fa-edit', 'fa-lg']
+            classes: ['sidebar-button', 'fas', 'fa-edit', 'fas-lg']
         },
         defaultHotkey: 't',
         description: 'Изменить название блока',
@@ -214,7 +224,7 @@ export const commands = [
         btn: {
             containerId: 'control-panel',
             label: 'Изменить текст в блоке',
-            classes: ['sidebar-button', 'fa', 'fa-keyboard', 'fa-lg']
+            classes: ['sidebar-button', 'fas', 'fa-keyboard', 'fas-lg']
         },
         defaultHotkey: 'w',
         description: 'Изменить текст в блоке.',
@@ -224,8 +234,11 @@ export const commands = [
             if (ctx.blockLinkElement?.hasAttribute('blockLink')) {
                 id = ctx.blockLinkElement.getAttribute('blocklink')
             }
+            console.log(ctx.mode)
             ctx.mode = 'textEdit'
-            textEditor.initEditor(ctx.blockElement.querySelector('contentBlock'), id)
+            nodeEditor.openEditor(id, ctx.blockElement.querySelector('contentBlock').innerHTML, ctx)
+            // console.log(ctx.blockElement.querySelector('contentBlock').innerHTML)
+            // textEditor.initEditor(ctx.blockElement.querySelector('contentBlock'), id)
             setCmdOpenBlock(ctx)
         }
     },
@@ -235,16 +248,18 @@ export const commands = [
         btn: {
             containerId: 'control-panel',
             label: 'Переместить блок в другое место',
-            classes: ['sidebar-button', 'fa', 'fa-cut', 'fa-lg']
+            classes: ['sidebar-button', 'fas', 'fa-cut', 'fas-lg']
         },
         defaultHotkey: 'shift+x',
         description: 'Переместить блок в другое место.',
         execute(ctx) {
             const target = ctx.blockLinkElement || ctx.blockElement
+            console.log(target)
             if (!target) return
             const id = target.id.split('*').at(-1)
             const parentId = target.parentElement.id
             if (id && parentId && parentId !== 'rootContainer') {
+                target.classList.add('block-selected')
                 ctx.mode = 'cutBlock'
                 ctx.cut = {
                     block_id: id,
@@ -260,7 +275,7 @@ export const commands = [
         btn: {
             containerId: 'control-panel',
             label: 'Копировать id блокa',
-            classes: ['sidebar-button', 'fa', 'fa-copy', 'fa-lg'],
+            classes: ['sidebar-button', 'fas', 'fa-copy', 'fas-lg'],
         },
         description: 'Копирует id выбранного блока или ожидает клика по блоку.',
         defaultHotkey: 'shift+c',
@@ -278,7 +293,7 @@ export const commands = [
         btn: {
             containerId: 'control-panel',
             label: 'Вставить копию блока',
-            classes: ['sidebar-button', 'fa', 'fa-paste', 'fa-lg']
+            classes: ['sidebar-button', 'fas', 'fa-paste', 'fas-lg']
         },
         defaultHotkey: 'shift+v',
         description: 'Если скопирован id делает копию блока и дочерних элементов и вставляет в блок.',
@@ -330,7 +345,7 @@ export const commands = [
         btn: {
             containerId: 'control-panel',
             label: 'Вставить блок как ссылку',
-            classes: ['sidebar-button', 'fa', 'fa-link', 'fa-lg']
+            classes: ['sidebar-button', 'fas', 'fa-link', 'fas-lg']
         },
         defaultHotkey: 'shift+l',
         description: 'Если скопирован id, вставляет блок как ссылку',
@@ -346,12 +361,39 @@ export const commands = [
         }
     },
     {
+        id: "createDiagram",
+        mode: ['normal', 'diagram'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Включить режим создания схемы в блоке',
+            classes: ['sidebar-button', 'fas', 'fa-project-diagram', 'fas-lg',]
+        },
+        defaultHotkey: 'd',
+        description: 'создать блок-схему',
+        execute(ctx) {
+            if (ctx.mode !== 'diagram') {
+                ctx.mode = 'diagram'
+                let id = ctx.blockElement?.id?.split('*').at(-1)
+                if (!id) return
+                ctx.diagramUtils.showInputs(id, ctx.blockElement)
+                console.log(ctx.blockElement)
+                dispatch('ShowDiagramInputs', {blockId: id})
+
+                console.log('kek')
+            } else {
+                ctx.mode = 'normal'
+                ctx.diagramUtils.hiddenInputs()
+                setCmdOpenBlock(ctx)
+            }
+        }
+    },
+    {
         id: "connectBlock",
         mode: ['normal', 'connectToBlock'],
         btn: {
             containerId: 'control-panel',
             label: 'Добавить соединение между блоками',
-            classes: ['sidebar-button', 'fa', 'fa-arrows-left-right', 'fa-lg'],
+            classes: ['sidebar-button', 'fas', 'fa-arrows-left-right', 'fas-lg'],
         },
         defaultHotkey: 'a',
         description: 'Создать стрелочку от блока до другого блока',
@@ -359,7 +401,8 @@ export const commands = [
             if (ctx.mode === 'normal' && ctx.blockElement) {
                 ctx.mode = 'connectToBlock'
                 let sourceEl = ctx.blockElement
-                if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement.id
+                if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
+                console.log(sourceEl)
                 ctx.connect_source_id = sourceEl.id
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
@@ -386,8 +429,7 @@ export const commands = [
         btn: {
             containerId: 'control-panel',
             label: 'Удалить соединение между блоками',
-            classes: ['sidebar-button', 'fa', 'fa-stack', 'fa-arrows-left-right', 'fa-lg'],
-            icons: [['fa', 'fa-xmark', 'fa-ml', 'fa-stack-1x', 'text-danger',]]
+            classes: ['sidebar-button', 'fas', 'fa-arrows-right-left', 'text-danger', 'fa-rotate-180', 'fas-lg'],
         },
         defaultHotkey: 'shift+a',
         description:
@@ -405,18 +447,20 @@ export const commands = [
         btn: {
             containerId: 'control-panel',
             label: 'Удалить дерево',
-            classes: ['sidebar-button', 'fa', 'fa-trash', 'fa-lg'],
+            classes: ['sidebar-button', 'fas', 'fa-trash', 'fas-lg'],
         },
         defaultHotkey: 'shift+d',
         description: 'Удаляет блок, и все дочерние блоки',
         execute(ctx) {
-            let id = ctx.blockId ?? ctx.blockLinkId ?? ctx.blockElement?.id
+            const id = ctx.blockId ?? ctx.blockLinkId ?? ctx.blockElement?.id
             if (!id) return
             dispatch('DeleteTreeBlock', {blockId: id})
+            ctx.shiftLock = false
             ctx.blockElement = ctx.blockLinkElement?.parentNode ?? ctx.blockElement?.parentNode
             if (ctx.blockElement && ctx.blockElement.id.indexOf('*') !== -1) {
                 ctx.blockLinkElement = ctx.blockElement.parentNode
                 ctx.blockElement = undefined
+
             }
             setCmdOpenBlock(ctx)
         }
@@ -429,7 +473,7 @@ export const commands = [
         btn: {
             containerId: 'control-panel',
             label: 'Очистить локальный кеш блоков',
-            classes: ['sidebar-button', 'fa', 'fa-sync', 'fa-lg'],
+            classes: ['sidebar-button', 'fas', 'fa-sync', 'fas-lg'],
         },
         defaultHotkey: 'shift+r',
         description:
@@ -448,7 +492,7 @@ export const commands = [
         btn: {
             containerId: 'control-panel',
             label: 'Выход',
-            classes: ['sidebar-button', 'fa', 'fa-right-from-bracket', 'fa-lg'],
+            classes: ['sidebar-button', 'fas', 'fa-right-from-bracket', 'fas-lg'],
         },
         defaultHotkey: '',
         description: 'Выход',

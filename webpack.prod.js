@@ -1,3 +1,4 @@
+const webpack = require('webpack');
 const {merge} = require('webpack-merge');
 const common = require('./webpack.common.js');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
@@ -5,9 +6,6 @@ const CssMinimizerPlugin = require('css-minimizer-webpack-plugin');
 const TerserPlugin = require('terser-webpack-plugin');
 const WorkboxWebpackPlugin = require('workbox-webpack-plugin');
 const path = require('path');
-
-const {BundleAnalyzerPlugin} = require('webpack-bundle-analyzer');
-
 
 module.exports = merge(common, {
     mode: 'production',
@@ -44,7 +42,9 @@ module.exports = merge(common, {
         new WorkboxWebpackPlugin.GenerateSW({
             clientsClaim: true,
             skipWaiting: true,
-            exclude: [/\.map$/, /\.txt$/], // Исключаем ненужные файлы из кэша
+            exclude: [/\.map$/, /\.txt$/], // все еще исключаем лишнее
+            // precache всех файлов, которые попали в output
+            maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // например, до 5МБ
             runtimeCaching: [
                 {
                     urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/,
@@ -57,8 +57,26 @@ module.exports = merge(common, {
                         },
                     },
                 },
+                {
+                    urlPattern: ({request}) => request.destination === 'document',
+                    handler: 'NetworkFirst',
+                    options: {
+                        cacheName: 'html-cache',
+                    },
+                },
+                {
+                    urlPattern: ({request}) => request.destination === 'script' || request.destination === 'style',
+                    handler: 'StaleWhileRevalidate',
+                    options: {
+                        cacheName: 'static-resources',
+                    },
+                },
             ],
         }),
+        new webpack.DefinePlugin({
+            APP_BACKEND_URL: JSON.stringify(process.env.APP_BACKEND_URL || 'https://omnimap.ru'),
+            SINC_SERVICE_URL: JSON.stringify(process.env.SINC_SERVICE_URL || 'wss://omnimap.ru/ws')
+        })
     ],
     optimization: {
         // Минификация JS и CSS

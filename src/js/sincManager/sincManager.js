@@ -4,7 +4,7 @@ import localforage from "localforage";
 
 export class SincManager {
     constructor() {
-        const wsUrl = 'ws://localhost:7999/ws';
+        const wsUrl = SINC_SERVICE_URL || 'wss://localhost:7999/ws';
         this.subscribed = new Set()
         this.toSend = []
 

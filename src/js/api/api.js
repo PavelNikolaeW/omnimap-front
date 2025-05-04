@@ -7,11 +7,13 @@ import {log} from "@jsplumb/browser-ui";
 
 class Api {
     constructor() {
+        this.backendUrl = APP_BACKEND_URL || 'http://localhost:8000';
+
         // Настройка базового URL и создание экземпляра axios
         this.operationChache = new LimitedMapQueue(50)
         this.api = axios.create({
             // baseURL: 'http://omnimap.ru/api/v1/',
-            baseURL: 'http://127.0.0.1:8000/api/v1/',
+            baseURL: this.backendUrl + '/api/v1/',
             timeout: 5000,
             headers: {
                 'Content-Type': 'application/json'
@@ -47,9 +49,16 @@ class Api {
         this.api.interceptors.response.use(
             async response => {
                 const operation = this.operationChache.get(response.headers['x-operation-uuid'])
+
                 operation['isFail'] = false
                 operation['responseData'] = JSON.parse(JSON.stringify(response.data))
+
+                if (response.headers['x-copy-block-id']) {
+                    operation['copyId'] = response.headers['x-copy-block-id']
+                }
+
                 dispatch("UndoStackAdd", {operation})
+
                 return response
             }, async error => {
                 const operation = this.operationChache.get(error.response.headers['x-operation-uuid'])
@@ -253,8 +262,8 @@ class Api {
         return this.api.post(`move-block/${old_parent_id}/${new_parent_id}/${blockId}/`, {childOrder})
     }
 
-    searchBlock(query, isPublic = false) {
-        return this.api.get(`search-block/?q=${query}&include_public=${isPublic}`)
+    searchBlock(query, everywhere = false, root = undefined) {
+        return this.api.get(`search-block/?q=${query}&everywhere=${everywhere}&root=${root}`)
     }
 
     checkStatusTask(task_id) {
@@ -286,7 +295,7 @@ class Api {
 
 }
 
-const api = new Api('http://0.0.0.0:7999')
+const api = new Api()
 
 export default api
 

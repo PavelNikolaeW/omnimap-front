@@ -55,16 +55,15 @@ class BlockCreator {
             if (!parentBlock.size.layout.startsWith('xxxs')) {
                 block.contentEl = this.createContent(element, block)
             }
-            this._setBlockGrid(block, parentBlock)
+            this._setBlockGrid(block, parentBlock)  // с учетом размера контента поэтому он в начале создается
 
-            if (block.size.width <= 40 && block.size.height <= 40) {
+            if (block.size.width <= 40) {
                 block.contentEl = null
-            }
-            if (block.contentEl) {
+            } else if (block.contentEl) {
                 element.appendChild(block.contentEl)
             }
-            element.setAttribute('width', `${Math.floor(block.size.width)}`)
-            element.setAttribute('height', `${Math.floor(block.size.height)}`)
+            // element.setAttribute('width', `${Math.floor(block.size.width)}`)
+            // element.setAttribute('height', `${Math.floor(block.size.height)}`)
             element.id = parentBlock.data?.view === 'link' ? `${parentBlock.id}*${block.id}` : block.id;
 
             if (block.data.customGrid && Object.keys(block.data.customGrid).length) element.setAttribute('blockCustomGrid', '')
@@ -72,12 +71,12 @@ class BlockCreator {
             this._setAttributes(element, block)
             this._applyStyles(element, ['block', ...this.styleLayout(block), ...(block.grid), ...(parentBlock.childrenPositions[block.id]), ...customClasses])
 
-            this._applyStyles(block.contentEl, block.contentPosition)
-
             block.color = this.colorist.calculateColor(element, block, [...parentBlock.color])
+            this._applyStyles(block.contentEl, block.contentPosition)
         } catch (e) {
             console.log(block)
-            console.error(`Не получилось на рисовать блок ${e} ${block.id} \n${e.stack}`)
+            console.error(`Не получилось создать блок ${e} ${block.id} \n${e.stack}`)
+            element.textContent = 'ERROR'
         }
         return element
     }
@@ -85,6 +84,7 @@ class BlockCreator {
     styleLayout(block) {
         const [size, form] = block.size.layout.split('-')
         const gap = styleConfig[size][form ?? 'table'].gap
+        if (block.data?.customGrid && Object.keys(block.data?.customGrid).length) return [block.size.layout, 'gap_0px']
         return [block.size.layout, `gap_${this._calculateGap(block.children.length, gap, 2, )}px`]
     }
     _calculateGap(numElements, gapMax, gapMin) {
@@ -194,7 +194,7 @@ class BlockCreator {
     }
 
     _setBlockGrid(block, parentBlock) {
-        if (block.data.customGrid && Object.keys(block.data.customGrid).length) {
+        if (block.data?.customGrid?.grid) {
             const customGrid = block.data.customGrid
 
             block.childrenPositions = customGrid.childrenPositions

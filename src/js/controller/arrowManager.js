@@ -1,29 +1,38 @@
 import {dispatch} from "../utils/utils";
-import {EVENT_CONNECTION_CLICK, newInstance} from "@jsplumb/browser-ui";
+import {EVENT_CONNECTION_CLICK, log, newInstance} from "@jsplumb/browser-ui";
+
+
+const SMALL_LAYOUTS = ["xxxs-sq", "xxxs-w", "xxxs-h"];
+const MEDIUM_LAYOUTS = ["xxs-sq", "xxs-w", "xxs-h"];
 
 class ArrowManager {
     constructor(jsPlumbInstance) {
-        // todo сделать выбор типа соединения
         // Инициализация jsPlumb
         this.instance = jsPlumbInstance;
         this.container = document.getElementById('rootContainer');
 
         // Флаги для управления состоянием
-        this.isCreatingConnection = false;
-        this.sourceElementId = null;
         this.removeArrow = false;
-        this.currentArrows = new Set();
-        this.currentArrowType = "Straight"; // можно расширить для поддержки разных типов стрелок
-        // this.currnetConnector = {type: this.currentArrowType}
-        this.currnetConnector = {
+        this.defaultConnector = {
             type: "Flowchart",
             options: {
-                stub: 50,          // отступ от элемента
+                stub: 50,
                 alwaysRespectStubs: true,
-                cornerRadius: 5    // сглаживает углы
+                cornerRadius: 5
             }
-        }
+        };
+        this.defaultPaintStyle = {
+            stroke: "#516077",
+            strokeWidth: 2,
+            outlineStroke: "transparent",
+            outlineWidth: 10
+        };
 
+        this.defaultOverlays = [
+            {type: "Arrow", options: {width: 10, length: 10, location: 1}},
+            {type: "Label", options: {label: "", location: 0.5, cssClass: "connection-label", id: "label"}}
+        ];
+        this.defaultAnchors = ["Continuous", "Continuous"];
 
         // Подписываемся на глобальные события
         this.subscribeToGlobalEvents();
@@ -137,40 +146,61 @@ class ArrowManager {
      * @param {string} targetId - ID элемента-цели.
      */
     completeConnectionToElement(sourceId, targetId) {
-        if (
-            sourceId && targetId && sourceId !== targetId
-        ) {
-            const connection = this.instance.connect({
-                source: sourceId,
-                target: targetId,
-                anchors: ["AutoDefault", "AutoDefault"],
-                connector: this.currnetConnector,
-                paintStyle: {stroke: "#456", strokeWidth: 2},
-                overlays: [
-                    {
-                        type: "Arrow",
-                        options: {
-                            width: 10,
-                            length: 10,
-                            location: 1,
-                        },
-                    },
-                ],
-            });
+        if (!sourceId || !targetId || sourceId === targetId) return;
 
-            this.saveConnection(sourceId, targetId, this.currnetConnector, "");
-        }
+        const sourceEl = document.getElementById(sourceId);
+        const layout = sourceEl.getAttribute("data-layout");
+
+        const connector = this.getConnector(this.defaultConnector, layout);
+        const paintStyle = this.getPaintStyle(this.defaultPaintStyle, layout);
+        const overlays = this.getOverlays(this.defaultOverlays, layout);
+        const endpoint = this.getEndpoint({type: 'Dot', options: {radius: 4}}, layout);
+        const endpointStyle = {fill: "#456", outlineWidth: 0};
+
+        this.instance.connect({
+            source: sourceId,
+            target: targetId,
+            anchors: this.defaultAnchors,
+            connector,
+            paintStyle,
+            overlays,
+            endpoint,
+            endpointStyle
+        });
+
+        this.saveConnection(
+            sourceId,
+            targetId,
+            this.defaultConnector,
+            this.defaultPaintStyle,
+            this.defaultOverlays,
+            this.defaultAnchors,
+            endpoint,
+            endpointStyle
+        );
     }
 
     /**
-     * Сохраняет соединение (диспатчит событие для дальнейшей обработки).
-     * @param {string} sourceId - ID источника.
-     * @param {string} targetId - ID цели.
-     * @param {string} connector - Тип соединителя.
-     * @param {string} label - Лейбл соединения.
+     * Сохраняет соединение с полной конфигурацией.
+     * @param {string} sourceId
+     * @param {string} targetId
+     * @param {Object} connector
+     * @param {string} label
+     * @param {Object} paintStyle
+     * @param {Array} overlays
+     * @param {Array} anchors
      */
-    saveConnection(sourceId, targetId, connector, label) {
-        dispatch("AddConnectionBlock", {sourceId, targetId, connector, label});
+    saveConnection(sourceId, targetId, connector, paintStyle, overlays, anchors, endpoint, endpointStyle) {
+        dispatch("AddConnectionBlock", {
+            sourceId,
+            targetId,
+            connector,
+            paintStyle,
+            overlays,
+            anchors,
+            endpoint,
+            endpointStyle
+        });
     }
 
     /**
@@ -178,121 +208,107 @@ class ArrowManager {
      * @param {Object} param0 - Объект с информацией о стрелках.
      */
     loadConnections({arrows}) {
-        // Сброс всех существующих соединений
         this.instance.reset();
 
-        // Функции проверки видимости элементов
-        const isElementFullyVisible = (el) => {
+        const isVisible = (el) => {
             if (!el) return false;
-            const rect = el.getBoundingClientRect();
-            const offset = 10; // смещение для учета border-radius
-            return (
-                isPointVisible(el, rect.left + offset, rect.top + offset) &&
-                isPointVisible(el, rect.right - offset, rect.top + offset) &&
-                isPointVisible(el, rect.left + offset, rect.bottom - offset) &&
-                isPointVisible(el, rect.right - offset, rect.bottom - offset)
-            );
+            const r = el.getBoundingClientRect(), o = 10;
+            return [
+                [r.left + o, r.top + o],
+                [r.right - o, r.top + o],
+                [r.left + o, r.bottom - o],
+                [r.right - o, r.bottom - o],
+            ].every(([x, y]) => {
+                const at = document.elementFromPoint(x, y);
+                return el.contains(at) || at === el;
+            });
         };
 
-        const isPointVisible = (el, x, y) => {
-            const elementAtPoint = document.elementFromPoint(x, y);
-            return el.contains(elementAtPoint) || elementAtPoint === el;
-        };
-
-        // Восстанавливаем каждое соединение
         arrows.forEach(({connections, layout}) => {
             connections.forEach(conn => {
-                const sourceEl = document.getElementById(conn.sourceId);
-                const targetEl = document.getElementById(conn.targetId);
+                const src = document.getElementById(conn.sourceId);
+                const tgt = document.getElementById(conn.targetId);
+                if (!src || !tgt) return;
 
-                if (isElementFullyVisible(sourceEl) && isElementFullyVisible(targetEl)) {
-                    const overlays = [
-                        {
-                            type: "Arrow",
-                            options: {
-                                width: 10,
-                                length: 10,
-                                location: 1,
-                            },
-                        },
-                    ];
-
-                    if (conn.label) {
-                        overlays.push({
-                            type: "Label",
-                            options: {
-                                label: conn.label,
-                                location: 0.5,
-                                cssClass: "connection-label",
-                                id: "label",
-                            },
-                        });
-                    }
-                    let connector = this.currnetConnector
-                    if (conn.connector) {
-                        connector = conn.connector
-                    }
-
-
-                    this.instance.connect({
-                        source: sourceEl,
-                        target: targetEl,
-                        anchors: ["Continuous", "Continuous"],
-                        connector: connector,
-                        // connector: {
-                        //     type: "Flowchart",
-                        //     options: {
-                        //         stub: 50,          // отступ от элемента
-                        //         alwaysRespectStubs: true,
-                        //         cornerRadius: 5    // сглаживает углы
-                        //     }
-                        // },
-                        paintStyle: this.getPaintStyle(layout),
-                        overlays,
-                    });
-                }
+                const connector = this.getConnector(conn.connector, layout);
+                const paintStyle = this.getPaintStyle(conn.paintStyle, layout);
+                const overlays = this.getOverlays(conn.overlays, layout);
+                const endpoint = this.getEndpoint(conn.endpoint, layout);
+                const endpointStyle = conn.endpointStyle;
+                const anchors = conn.anchors || this.defaultAnchors;
+                this.instance.connect({
+                    source: src,
+                    target: tgt,
+                    connector,
+                    paintStyle,
+                    overlays,
+                    endpoint,
+                    endpointStyle,
+                    anchors
+                });
             });
         });
     }
 
-    /**
-     * Возвращает стиль отрисовки соединения в зависимости от layout.
-     * @param {string} layout - Идентификатор типа layout.
-     */
-    getPaintStyle(layout) {
-        const thinLayouts = ["xxs-sq", "xxxs-w", "xxs-w", "xxxs-h", "xxs-h"];
-        if (thinLayouts.includes(layout)) {
-            return {
-                stroke: "#456",
-                strokeWidth: 1,
-                outlineStroke: "transparent",
-                outlineWidth: 10,
-            };
-        }
-        return {
-            stroke: "#516077",
-            strokeWidth: 2,
-            outlineStroke: "transparent",
-            outlineWidth: 10,
-        };
+    getLayoutFactor(layout) {
+        if (SMALL_LAYOUTS.includes(layout)) return 0.3;
+        if (MEDIUM_LAYOUTS.includes(layout)) return 0.75;
+        return 1;
     }
 
-    /**
-     * Возвращает конфигурацию для оверлея со стрелкой в зависимости от layout.
-     * @param {string} layout - Идентификатор типа layout.
-     */
-    getArrowStyle(layout) {
-        const thinLayouts = ["xxs-sq", "xxxs-w", "xxs-w", "xxxs-h", "xxs-h"];
-        if (thinLayouts.includes(layout)) {
-            return {
-                type: "Arrow",
-                options: {width: 5, length: 5, location: 1},
-            };
+    clone(obj) {
+        return JSON.parse(JSON.stringify(obj));
+    }
+
+    getConnector(origConnector = {}, layout) {
+        const connector = this.clone(origConnector);
+        const f = this.getLayoutFactor(layout);
+
+        if (connector.options) {
+            for (const key in connector.options) {
+                if (typeof connector.options[key] === 'number') {
+                    connector.options[key] = connector.options[key] * f;
+                }
+            }
         }
-        return {
-            type: "Arrow",
-            options: {width: 10, length: 10, location: 1},
-        };
+        return connector;
+    }
+
+    getPaintStyle(origStyle = {}, layout) {
+        const style = {...origStyle};
+        const f = this.getLayoutFactor(layout);
+
+        ['strokeWidth', 'outlineWidth'].forEach(prop => {
+            if (typeof style[prop] === 'number') {
+                style[prop] = style[prop] * f;
+            }
+        });
+        return style;
+    }
+
+    getOverlays(origOverlays = [], layout) {
+        const f = this.getLayoutFactor(layout);
+        return origOverlays.map(ov => {
+            const copy = this.clone(ov);
+            if (copy.type === 'Arrow' && copy.options) {
+                ['width', 'length'].forEach(prop => {
+                    if (typeof copy.options[prop] === 'number') {
+                        copy.options[prop] = copy.options[prop] * f;
+                    }
+                });
+            }
+            return copy;
+        });
+    }
+
+    getEndpoint(origEndpoint = {type: 'Dot', options: {radius: 4}}, layout) {
+        const ep = this.clone(origEndpoint);
+        const f = this.getLayoutFactor(layout);
+
+        if (ep.options && typeof ep.options.radius === 'number') {
+            ep.options.radius = ep.options.radius * f;
+        }
+        return ep;
     }
 }
 

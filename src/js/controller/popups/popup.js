@@ -52,15 +52,6 @@ function setupHotkeyInput(inputElement) {
         inputElement.value = parts.join('+');
     }
 
-    // При фокусе очищаем состояние для нового ввода.
-    // inputElement.addEventListener('focus', () => {
-    //     modifiers.clear();
-    //     mainKey = null;
-    //     nonModifierHeld = false;
-    //     combinationFrozen = false;
-    //     inputElement.value = '';
-    // });
-
     // Нормализация названия клавиши с учётом цифр и преобразования русских символов.
     function getMappedKey(e) {
         let key = e.key;
@@ -168,7 +159,6 @@ export class Popup {
 
         this.createPopup();
         this.bindEvents();
-        this.focus()
     }
 
     getPrefixedClass(className) {
@@ -187,20 +177,43 @@ export class Popup {
     }
 
     createOverlay() {
-        if (this.options.modal) {
-            this.overlay = document.createElement('div');
-            this.overlay.className = this.getPrefixedClass('overlay');
-            document.body.appendChild(this.overlay);
-        }
+        if (!this.options.modal) return;
+        this.overlay = document.createElement('div');
+        this.overlay.className = this.getPrefixedClass('overlay');
+        Object.assign(this.overlay.style, {
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(0,0,0,0.5)',
+            zIndex: 9998
+        });
+        document.body.appendChild(this.overlay);
+        this.overlay.addEventListener('click', () => {
+            if (typeof this.options.onCancel === 'function') {
+                this.options.onCancel();
+            }
+            this.close();
+        });
     }
 
     createContainer() {
         this.popupEl = document.createElement('div');
         this.popupEl.className = this.getPrefixedClass('container');
-        this.popupEl.style.width = `${this.options.width}px`;
-        if (this.options.height !== 'auto') {
-            this.popupEl.style.height = `${this.options.height}px`;
-        }
+        Object.assign(this.popupEl.style, {
+            position: 'fixed',
+            zIndex: 9999,
+            maxWidth: '90%',
+            width: `${this.options.width}px`,
+            height: this.options.height === 'auto'
+                ? 'auto'
+                : `${this.options.height}px`,
+            boxSizing: 'border-box',
+            background: '#fff',
+            borderRadius: '8px',
+            padding: '1em'
+        });
     }
 
     createTitle() {
@@ -313,35 +326,25 @@ export class Popup {
     }
 
     positionPopup() {
-        // Делаем popup видимым перед вычислением размеров
-        this.popupEl.style.visibility = "hidden";
-        this.popupEl.style.display = "block";
+        this.popupEl.style.visibility = 'hidden';
+        this.popupEl.style.display = 'block';
 
         requestAnimationFrame(() => {
             const rect = this.popupEl.getBoundingClientRect();
-            const windowWidth = window.innerWidth;
-            const windowHeight = window.innerHeight;
-
-            // Вычисляем координаты так, чтобы центр popup совпадал с центром экрана
-            let left = (windowWidth - rect.width) / 2;
-            let top = (windowHeight - rect.height) / 2;
-
-            // Гарантируем, что popup не выходит за границы экрана
-            left = Math.max(10, left);
-            top = Math.max(10, top);
-
-            // Устанавливаем новые координаты
+            const w = window.innerWidth, h = window.innerHeight;
+            // адаптивная ширина для мобил
+            if (w < 480) {
+                this.popupEl.style.width = `${Math.floor(w * 0.9)}px`;
+            }
+            let left = Math.max(10, (w - rect.width) / 2);
+            let top = Math.max(10, (h - rect.height) / 2);
             this.popupEl.style.left = `${left}px`;
             this.popupEl.style.top = `${top}px`;
-
-            // Делаем popup видимым
-            this.popupEl.style.visibility = "visible";
+            this.popupEl.style.visibility = 'visible';
         });
     }
 
     bindEvents() {
-        if (this.submitButton) this.submitButton.addEventListener('click', () => this.handleSubmit());
-        if (this.cancelButton) this.cancelButton.addEventListener('click', () => this.handleCancel());
         if (this.options.draggable && this.titleBar) {
             this.titleBar.addEventListener('mousedown', this.onMouseDown.bind(this));
         }
@@ -395,20 +398,16 @@ export class Popup {
 
     handleCancel() {
         if (typeof this.options.onCancel === 'function') {
-            console.log('kek')
             this.options.onCancel();
         }
         this.close();
     }
 
     close() {
-        console.log('close')
         if (this.popupEl?.parentNode) {
-            console.log('remove parent')
             this.popupEl.parentNode.removeChild(this.popupEl);
         }
         if (this.overlay?.parentNode) {
-            console.log('remove overlay')
             this.overlay.parentNode.removeChild(this.overlay);
         }
         window.removeEventListener('resize', this.boundResizeHandler);
@@ -420,11 +419,5 @@ export class Popup {
             document.removeEventListener('mouseup', this.boundMouseUp);
             this.boundMouseUp = null;
         }
-    }
-
-    focus() {
-        setTimeout(() => {
-            this.nameInput?.focus()
-        }, 100)
     }
 }

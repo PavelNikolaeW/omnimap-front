@@ -4,15 +4,18 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "webpack serve --config webpack.dev.js",
-    "build": "webpack --config webpack.prod.js"
+    "start": "cross-env APP_BACKEND_URL=http://localhost:8000 SINC_SERVICE_URL=ws://localhost:7999/ws webpack serve --config webpack.dev.js",
+    "build": "cross-env APP_BACKEND_URL=https://omnimap.ru SINC_SERVICE_URL=wss://omnimap.ru/ws webpack --config webpack.prod.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "babel-loader": "^9.2.1",
+    "cross-env": "^7.0.3",
     "css-loader": "^7.1.2",
     "css-minimizer-webpack-plugin": "^7.0.0",
+    "depcheck": "^1.4.7",
     "file-loader": "^6.2.0",
     "html-loader": "^5.1.0",
     "html-webpack-plugin": "^5.6.0",
@@ -25,18 +28,19 @@
     "workbox-webpack-plugin": "^7.1.0"
   },
   "dependencies": {
-    "@fortawesome/fontawesome-free": "^6.7.2",
     "@jsplumb/browser-ui": "^6.2.10",
     "axios": "^1.7.5",
-    "babel-loader": "^9.2.1",
     "dompurify": "^3.1.7",
     "easymde": "^2.18.0",
-    "fortawesome": "^0.0.1-security",
+    "emoji-picker-element": "^1.26.1",
+    "highlight.js": "^11.11.1",
     "hotkeys-js": "^3.13.9",
     "js-cookie": "^3.0.5",
     "localforage": "^1.10.0",
-    "lz-string": "^1.5.0",
+    "marked": "^15.0.7",
+    "simplemde": "^1.11.2",
     "turndown": "^7.2.0",
+    "turndown-plugin-gfm": "^1.0.2",
     "uuid": "^11.1.0"
   }
 }

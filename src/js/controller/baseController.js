@@ -4,7 +4,6 @@ export class BaseController {
     constructor() {
         this.user = null;
         this.addListeners()
-        console.log('BaseController')
     }
 
 

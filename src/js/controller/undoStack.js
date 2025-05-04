@@ -9,7 +9,6 @@ const ALLOWED_OPERATIONS = {
     'new-tree': api.createTree,
     'create-link-block': api.pasteLinkBlock,
     'edit-block': api.updateBlock,
-
     'move-block': api.moveBlock,
     'copy-block': api.pasteBlock,
 }
@@ -38,7 +37,6 @@ export class RedoStack {
                         if (res.status === 200 || res.status === 201) {
                             this.updateBlocks(operation, res.data)
                         }
-                        console.log(res.data)
                     }).catch(err => console.error(err))
 
             }
@@ -46,6 +44,7 @@ export class RedoStack {
     }
 
     updateBlocks(operation, data) {
+        console.log(operation, data)
         const url = operation.url
         if (url.startsWith('edit-block')) {
             dispatch("UpdateBlocks", {blocks: [data]})
@@ -64,10 +63,16 @@ export class RedoStack {
             this.stack.getAll().forEach(op => {
                 op.url = op.url.replace(old_id, new_id)
             })
+            dispatch("UpdateBlocks", {blocks: data})
+        } else if (url.startsWith('copy-block')) {
+            this.stack.clear()
+            dispatch("UpdateBlocks", {blocks: Object.values(data)})
         } else if (url.startsWith('create-link-block')) {
-            console.log(data)
-            console.log(operation)
-            dispatch("UpdateBlocks", {blocks: [data]})
+            dispatch("UpdateBlocks", {blocks: data})
+        } else if (url.startsWith('delete-tree')) {
+            dispatch('UpdateBlocks', {blocks: [data.parent]})
+        } else {
+            dispatch("UpdateBlocks", {blocks: data})
         }
     }
 }
@@ -99,20 +104,6 @@ export class UndoStack {
                     })
                     .catch(err => {
                         console.error(err)
-                        // if (err.res.status === 409) {
-                        //     if (confirm('Вы отменяете изменения внесенные другим пользователем. Подтвердить?')) {
-                        //         api.undo(operation, true)
-                        //             .then(res => {
-                        //                 if (res.status === 200) {
-                        //                     dispatch('RedoStackAdd', {operation})
-                        //                     dispatch('UpdateBlocks', {
-                        //                         blocks: res.data.blocks,
-                        //                         removed: res.data.removed
-                        //                     })
-                        //                 }
-                        //             }).catch(err => console.error(err))
-                        //     }
-                        // } else console.error(err)
                     })
             }
         })

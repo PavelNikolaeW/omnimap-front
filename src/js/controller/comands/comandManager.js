@@ -3,9 +3,19 @@ import hotkeys from 'hotkeys-js';
 import {ContextManager} from "./contextManager";
 import {uiManager} from "./uiManager";
 import {throttle} from "../../utils/functions";
+import {dispatch} from "../../utils/utils";
 
+hotkeys.filter = function(event) {
+    const target = event.target || event.srcElement;
+    const tagName = target.tagName.toUpperCase();
+
+    // Разрешаем только esc, даже если фокус в input
+    if (event.key === "Escape") return true;
+
+    return !(tagName === 'INPUT' || tagName === 'TEXTAREA' || target.isContentEditable);
+};
 export class CommandManager {
-    constructor(idRootContainer, breadcrumb, treeNavigation, hotkeysMap = {}) {
+    constructor(idRootContainer, breadcrumb, treeNavigation, hotkeysMap = {},) {
         this.commandsById = {}
         this.hotkeysMap = hotkeysMap;
         this.rootContainer = document.getElementById(idRootContainer);
@@ -14,6 +24,7 @@ export class CommandManager {
         this.controlPanel = document.getElementById('control-panel')
         this.topSidebar = document.getElementById('topSidebar')
         this.ctxManager = new ContextManager(this.rootContainer, this.breadcrumb, this.treeNavigation)
+        this.isLink = window.location.href.indexOf('/?') !== -1
         this.selectedText = ''
         this.init()
     }
@@ -39,6 +50,8 @@ export class CommandManager {
     }
 
     registerCommand(cmd) {
+        if (this.isLink && !cmd.regLink) return
+
         const id = cmd.id
         this.commandsById[id] = cmd
         if (cmd.defaultHotkey) {
@@ -76,7 +89,10 @@ export class CommandManager {
             keydown: cmd.eventType !== 'keyup'
         }
         let executeFn = (event, handler) => {
-            event && event.preventDefault();
+            if (event?.target && event.target.closest('emoji-picker, .emoji-picker-container')) {
+                return
+            }
+            // event && event.preventDefault();
             this.ctxManager.setEvent(event)
             this.ctxManager.setCmd(cmd)
             this.executeCommand(this.ctxManager);
@@ -107,7 +123,16 @@ export class CommandManager {
         // переходим по url ссылке
         if (target.tagName === 'A') {
             event.preventDefault();
-            window.open(target.href, '_blank')
+            if (target.classList.contains('block-tag-link')) {
+                dispatch('OpenBlock', {
+                    id: target.getAttribute('href').slice(7, ),
+                    parentHsl: [],
+                    isIframe: false,
+                    links: []
+                });
+            } else if (target.href.startsWith('http')){
+                window.open(target.href, '_blank')
+            }
         } else {
             const selection = window.getSelection()
             // позволяем выделять текст курсором
@@ -129,10 +154,10 @@ export class CommandManager {
             this.ctxManager.setCmd(cmd)
         }
     }
+
     clickOnTopNavigation(event) {
         const target = event.target
-         if (target.classList.contains('top-btn')) {
-             console.log('cklick')
+        if (target.classList.contains('top-btn')) {
             const cmd = this.commandsById[target.id]
             this.ctxManager.setCmd(cmd)
         }

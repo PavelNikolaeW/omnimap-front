@@ -1,11 +1,6 @@
-import {getPath, savePath} from "./cmdUtils";
+import {DiagramUtils} from "../diagramUtils";
 
 export class ContextManager {
-    // отвечает за текущий контекст
-    // 1 какой блок выделен или ссылка
-    // 2 какой режим включен
-    // 3 какая команда будет использоваться при клике
-
     constructor(rootContainer, breadcrumb, treeNavigation) {
         this.mode = 'normal'
         this.blockElement = undefined
@@ -22,10 +17,9 @@ export class ContextManager {
         this.rootContainer = rootContainer
         this.breadcrumb = breadcrumb
         this.treeNavigation = treeNavigation
-        this.editor = document.getElementById('editor-popup')
+        this.diagramUtils = new DiagramUtils()
+
         this.init()
-
-
     }
 
     init() {
@@ -38,13 +32,29 @@ export class ContextManager {
             this.treeNavigation.addEventListener('mouseout', this.mouseOutTreeHandlerBound)
 
             this.breadcrumb.addEventListener('mouseover', this.mouseOverBreadcrumbHandlerBound);
-            this.breadcrumb.addEventListener('mouseout', this.mouseOutBreadcrumbHandlerBound)
+            this.breadcrumb.addEventListener('mouseout', this.mouseOutBreadcrumbHandlerBound);
+
 
             this.rotationElements(e.detail)
         });
+        window.addEventListener('keydown', this.keydownHandler.bind(this));
+        window.addEventListener('keyup', this.keyupHandler.bind(this));
+    }
+
+    keydownHandler(e) {
+        if (e.key === 'Shift' || e.key == '-') {
+            this.shiftLock = true;
+        }
+    }
+
+    keyupHandler(e) {
+        if (e.key === 'Shift' || e.key == '-') {
+            this.shiftLock = false;
+        }
     }
 
     rotationElements({path, activeId}) {
+        if (!activeId) activeId = this.blockElement?.id.split('*')[0]
         this.blockElement = undefined
         this.blockLinkElement = undefined
         if (activeId) {
@@ -67,11 +77,13 @@ export class ContextManager {
 
         this.mouseOverBreadcrumbHandlerBound = this.mouseOverBreadcrumbHandler.bind(this)
         this.mouseOutBreadcrumbHandlerBound = this.mouseOutBreadcrumbHandler.bind(this)
+
     }
 
     mouseOverBlockHandler(event) {
-        event.preventDefault();
-        this.setActiveBlock(event.target)
+        if (!this.shiftLock) {
+            this.setActiveBlock(event.target)
+        }
     }
 
     setActiveBlock(el) {
@@ -90,12 +102,14 @@ export class ContextManager {
                 else this.cut['new_parent_id'] = element.id
             }
         }
+        return element
     }
 
     mouseOutBlockHandler(event) {
         const relatedTarget = event.relatedTarget
-        this.setDisActiveBlock(relatedTarget)
-
+        if (!this.shiftLock) {
+            this.setDisActiveBlock(relatedTarget)
+        }
     }
 
     setDisActiveBlock(el) {
@@ -186,7 +200,12 @@ export class ContextManager {
     }
 
     setCmd(cmd) {
+        console.log(cmd, this.cmdId)
         if (typeof cmd !== "string") {
+            if (this.cmdId === cmd.id) {
+                this.setCmd('openBlock')
+                return
+            }
             this.cmdId = cmd.id
             this.toggleActiveButton(cmd.id)
             this.activeBtnIndicator.innerText = cmd.id
@@ -201,8 +220,10 @@ export class ContextManager {
     }
 
     toggleActiveButton(cmd) {
+        console.log(cmd, this.activeBtnElem && this.activeBtnElem.id !== cmd)
         if (this.activeBtnElem && this.activeBtnElem.id !== cmd) {
             this.activeBtnElem.classList.remove('active-button')
+            this.activeBtnElem.blur()
         }
         const elem = document.getElementById(cmd)
         if (elem) {

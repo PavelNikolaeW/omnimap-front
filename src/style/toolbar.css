@@ -2,8 +2,8 @@
     padding: 5px 10px;
     font-size: 0.9em;
     position: absolute;
-    top: 37px;
-    left: -5px;
+    bottom: 20px;
+    left: 42px;
     user-select: none;
 }
 
@@ -20,8 +20,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 50px;
-    height: 40px;
+    width: 40px;
+    height: 30px;
     background-color: #f9f9f9;
     border: 2px solid #e0e0e0;
     border-radius: 8px;
@@ -32,6 +32,7 @@
 
 .top-btn:hover {
     color: red;
+    /*font-style: italic;*/
 }
 
 .sidebar-button:last-child {
@@ -44,7 +45,7 @@ button:focus {
 
 /* Сайдбар */
 .sidebar {
-    min-width: 50px;
+    min-width: 40px;
     padding: 0 4px;
     background-color: #e9ecef;
     border-right: 1px solid #ccc;
@@ -59,8 +60,7 @@ button:focus {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
-    padding: 8px 0;
+    gap: 9px;
     box-sizing: border-box;
 }
 
@@ -77,29 +77,9 @@ button:focus {
 
 
 .text-danger {
-    color: #b23c3c;
+    color: #dc3545;
 }
 
-
-@media (max-width: 600px) {
-    .sidebar-button {
-        width: 40px;
-        height: 35px;
-        padding: 8px 8px;
-    }
-
-    .control-panel {
-        padding: 20px;
-    }
-
-    .toolbar-section h3 {
-        font-size: 1em;
-    }
-
-    .sidebar {
-        min-width: 30px;
-    }
-}
 
 .top-navigation {
     background-color: #f8f9fa;
@@ -107,7 +87,7 @@ button:focus {
     overflow: scroll;
     display: flex;
     align-items: center;
-    padding: 5px 20px 15px 20px;
+    padding: 10px 15px;
     box-sizing: border-box;
 }
 
@@ -186,30 +166,51 @@ button:focus {
 
 /* Адаптивные стили */
 @media (max-width: 600px) {
-    .tree-button {
-        font-size: 12px;
+    .sidebar-button {
+        width: 44px;
+        height: 44px;
+        font-size: 1rem;
+        padding: 6px;
     }
 
-    .tree-navigation {
-        gap: 10px;
-        margin-right: 10px;
+    .top-navigation-btn {
+        width: 44px;
+        height: 44px;
+        font-size: 1rem;
     }
 
     .top-navigation {
-        display: flex;
-        padding: 5px 10px 10px 10px;
-        box-sizing: border-box;
+        padding: 0 10px;
     }
 
     .active-button-info {
-        font-size: 10px;
-        top: 32px;
-        left: -5px;
+        font-size: 0.9rem;
+        bottom: 15px;
+        left: 40px;
+        padding: 6px 12px;
+    }
+
+    .tree-button {
+        font-size: 13px;
+        padding: 6px 10px;
     }
 
     .tree-add-button {
-        font-size: 14px;
+        font-size: 16px;
+    }
+
+    .toolbar-section h3 {
+        font-size: 1rem;
+        margin-bottom: 10px;
+    }
+
+    .sidebar-content {
+        gap: 12px;
+    }
+
+    .sidebar {
+        min-width: 48px;
+        padding: 0;
     }
 }
-
 

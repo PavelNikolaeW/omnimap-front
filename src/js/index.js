@@ -1,20 +1,19 @@
-import 'easymde/dist/easymde.min.css';
-import '@fortawesome/fontawesome-free/css/all.min.css';
+import 'highlight.js/styles/github.css';
+import 'simplemde/dist/simplemde.min.css';
 import '../style/index.css';
 import '../style/toolbar.css';
 import '../style/controls.css';
 import '../style/auth.css';
-import '../style/accessWindow.css';
-import '../style/searchWindow.css';
 import '../style/popup.css';
 import '../style/hotKeyPopup.css';
 import '../style/urlPopup.css';
 import '../style/accessPopup.css';
 import '../style/editBlock.css';
 import '../style/historyPopup.css';
+import '../style/solid.css';
+import '../style/fontawesome.css';
 
-
-import {dispatch} from "./utils/utils";
+import {checkClass, dispatch} from "./utils/utils";
 import {LocalStateManager} from "./stateLocal/localStateManager";
 import {addedSizeStyles} from "./painter/styles";
 import localforage from "localforage";
@@ -23,14 +22,7 @@ import {SincManager} from "./sincManager/sincManager";
 import {CommandManager} from "./controller/comands/comandManager";
 import {Breadcrumbs} from "./controller/breadcrumds";
 import {TreeNavigation} from "./controller/treeNavigation";
-import {log} from "@jsplumb/browser-ui";
 import {RedoStack, UndoStack} from "./controller/undoStack";
-
-// что нужно доделать перед переходом к беку
-// 1 редактор размеров и расположения блоков
-// 2 текстовый редактор
-// 3 добавление своих стилей к блокам и стрелкам
-// 4 кнопки взаимодействия с интерфейсом (выделить несколько, копировать, вставить, переместить, сделать ссылку, открыть редактор(размеров, стилей, расположения), удалить блок)
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
     window.addEventListener('load', () => {
@@ -47,6 +39,14 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
 
 
 document.addEventListener('DOMContentLoaded', async () => {
+    function setRealVh() {
+        const vh = window.innerHeight * 0.01;
+        document.documentElement.style.setProperty('--vh', `${vh}px`);
+    }
+
+    window.addEventListener('resize', setRealVh);
+    window.addEventListener('orientationchange', setRealVh);
+    setRealVh();
     await initApp()
 })
 
@@ -69,6 +69,14 @@ async function checkAuth() {
  */
 async function initApp() {
     addedSizeStyles()
+    localforage.getItem('hotkeysMap', (err, hotkeysMap) => {
+        new CommandManager(
+            'rootContainer',
+            'breadcrumb',
+            'tree-navigation',
+            hotkeysMap ?? {},
+        )
+    })
     const localState = new LocalStateManager()
     const sincManager = new SincManager()
     const breadcrumbs = new Breadcrumbs()
@@ -76,13 +84,7 @@ async function initApp() {
     const undoStack = new UndoStack()
     const redoStack = new RedoStack()
 
-    localforage.getItem('hotkeysMap', (err, hotkeysMap) => {
-        new CommandManager(
-            'rootContainer',
-            'breadcrumb',
-            'tree-navigation',
-            hotkeysMap ?? {})
-    })
+
     const isAuth = await checkAuth()
 
     if (isAuth) {
@@ -92,18 +94,15 @@ async function initApp() {
     setInterface()
 }
 
+/**
+ * TODO Настраиваем интрефейс если в хранилище есть настройки
+ */
 function setInterface() {
-    const isHiddenSidebar = localStorage.getItem('sidebarIsHidden')
-    const istopSidebarHidden = localStorage.getItem('topSidebarHidden')
+    const isLink = window.location.href.indexOf('/?')
     const sidebar = document.getElementById('sidebar')
     const topSidebar = document.getElementById('topSidebar')
-    if (isHiddenSidebar === 'true') {
-        sidebar.classList.add('hidden')
-    }
-    if (istopSidebarHidden === 'true') {
-        topSidebar.classList.add('hidden')
-    }
-    if (window.location.search.includes('path/')) {
+
+    if (isLink != -1) {
         sidebar.classList.add('hidden')
         topSidebar.classList.add('hidden')
     }
@@ -122,7 +121,9 @@ document.addEventListener('mousedown', (e) => {
 });
 
 document.addEventListener('mouseup', (e) => {
-    if (e.target.type === 'text') return
+    if (['text', 'email', 'password', 'textarea'].includes(e.target.type) ||
+        e.target.localName === 'emoji-picker' ||
+        checkClass(e.target, 'CodeMirror')) return
     const clickDuration = Date.now() - clickStartTime;
     const deltaX = Math.abs(e.clientX - startX);
     const deltaY = Math.abs(e.clientY - startY);

@@ -25,15 +25,41 @@ ul {
 }
 
 h1, h2, h3, h4, h5, h6 {
-    margin: 0;
-    padding: 0;
+    margin-top: 0;
+    margin-bottom: .5rem;
+    font-weight: 500;
+    line-height: 1.2;
+}
+
+h1 {
+    font-size: 5.5rem;
+}
+
+h2 {
+    font-size: 4.5rem;
+}
+
+h3 {
+    font-size: 3.5rem;
+}
+
+h4 {
+    font-size: 2.75rem;
+}
+
+h5 {
+    font-size: 2rem;
+}
+
+h6 {
+    font-size: 1.5rem;
 }
 
 /* Основной контейнер страницы */
 .layout {
     display: flex;
     flex-direction: column;
-    height: 100vh; /* Высота занимает весь экран */
+    height: calc(var(--vh, 1vh) * 100);
     margin: 0;
 }
 
@@ -173,13 +199,21 @@ iframe {
     border: none;
 }
 
-.table {
-    font-weight: bold;
+table {
     gap: 7px;
     padding: 7px;
-    font-size: 12px;
     text-align: left;
     writing-mode: horizontal-tb;
+}
+
+td {
+    border: 1px solid;
+    padding: 5px;
+}
+
+th {
+    border: 1px solid;
+    padding: 5px;
 }
 
 .loading-cursor {
@@ -236,4 +270,130 @@ iframe {
     background-color: rgba(0, 150, 255, 0.4);
     border: 1px solid rgba(0, 150, 255, 0.8);
     box-shadow: 0 0 5px rgba(0, 150, 255, 0.8);
+}
+
+.block-tag-link {
+
+}
+
+/* Контейнер скрыт по умолчанию */
+#editor-container {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: #ffffff; /* Можно заменить на темную тему */
+    z-index: 999;
+    padding: 20px;
+    box-sizing: border-box;
+    overflow: auto;
+}
+
+/* Показываем контейнер, когда добавлен класс .active */
+#editor-container.active {
+    display: block;
+}
+
+/* Настройки SimpleMDE внутри */
+#editor-container .CodeMirror,
+#editor-container .CodeMirror-scroll {
+    height: 100% !important;
+    max-height: 100% !important;
+}
+
+@font-face {
+    font-family: 'Font Awesome 6 Free';
+    font-style: normal;
+    font-weight: 900;
+    font-display: block;
+    src: url('/src/fonts/fa-solid-900.woff2') format('woff2'),
+    url('/src/fonts/fa-solid-900.ttf') format('ttf'),;
+}
+
+.fas {
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    display: inline-block;
+    font-style: normal;
+    font-variant: normal;
+    text-rendering: auto;
+    line-height: 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.fas-lg {
+    font-size: 1.2em;
+}
+
+@media (max-width: 600px) {
+    .fas-lg {
+        font-size: 1em;
+    }
+}
+
+.fas-xs {
+    font-size: 0.8em;
+    line-height: .75em;
+    vertical-align: -15%;
+}
+
+.fas-stack .fas {
+    position: absolute;
+    text-align: center;
+}
+
+.diagram-inputs {
+    position: absolute;
+    top: 56px;
+    right: 10px;
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    align-items: center;
+    z-index: 1000
+}
+
+.diagram-btn {
+    background-color: white;
+    border: 1px solid #bbb;
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 14px;
+    color: #333;
+    cursor: pointer;
+}
+
+.diagram-btn:hover {
+    background-color: #f0f0f0;
+}
+
+[blockcustomgrid] {
+    gap: 0
+}
+
+button:focus {
+    box-shadow: 0 0 0 3px rgb(99, 99, 250); /* Подсветка вокруг кнопки */
+    transform: scale(1.05); /* Немного увеличим для эффекта */
+}
+
+.connection-label {
+    padding-bottom: 15px;
+}
+
+.block::-webkit-scrollbar {
+  display: none; /* Safari и Chrome */
+}
+.block-link::-webkit-scrollbar {
+  display: none; /* Safari и Chrome */
+}
+
+.top-navigation::-webkit-scrollbar {
+  display: none; /* Safari и Chrome */
+}
+
+.sidebar::-webkit-scrollbar {
+  display: none; /* Safari и Chrome */
 }

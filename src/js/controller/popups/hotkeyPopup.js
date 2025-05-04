@@ -3,7 +3,7 @@ import {Popup} from "./popup";
 export class HotkeyPopup extends Popup {
     /**
      * @param {Object} options - Опции для настройки попапа.
-     *   options.commands – массив объектов команд с полями:
+     *   options.comands – массив объектов команд с полями:
      *      id – уникальный идентификатор команды,
      *      description – описание команды,
      *      hotkeys – текущие хоткеи (массив или строка),
@@ -13,7 +13,7 @@ export class HotkeyPopup extends Popup {
      */
     constructor(options = {}) {
         if (!options.commands || !Array.isArray(options.commands)) {
-            throw new Error("Необходимо передать массив команд в опциях { commands: [...] }");
+            throw new Error("Необходимо передать массив команд в опциях { comands: [...] }");
         }
         Object.assign(options, {
             title: options.title || "Настройка хоткеев",
@@ -33,7 +33,7 @@ export class HotkeyPopup extends Popup {
         // Очищаем контент (к примеру, удаляем форму)
         this.contentArea.innerHTML = "";
         this.commandsContainer = document.createElement("div");
-        this.commandsContainer.className = "hotkey-commands-container";
+        this.commandsContainer.className = "hotkey-comands-container";
         this.contentArea.appendChild(this.commandsContainer);
         this.commandElements = {};
 

@@ -34,7 +34,7 @@ export class TreeNavigation extends BaseController {
     _renderTreeNavigation() {
         localforage.getItem('currentTree', (err, currentTree) => {
             localforage.getItem(`treeIds${this.user}`, (err, trees) => {
-
+                if (!trees) return
                 Promise.all(
                     trees.map(tree => localforage.getItem(`Block_${tree}_${this.user}`))
                 ).then((treeBlocks) => {

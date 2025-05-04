@@ -1,3 +1,4 @@
+const webpack = require('webpack');
 const { merge } = require('webpack-merge');
 const common = require('./webpack.common.js');
 
@@ -15,4 +16,10 @@ module.exports = merge(common, {
     optimization: {
         runtimeChunk: 'single', // Добавляем runtime для разработки
     },
+    plugins: [
+        new webpack.DefinePlugin({
+            APP_BACKEND_URL: JSON.stringify(process.env.APP_BACKEND_URL || 'http://localhost:8000'),
+            SINC_SERVICE_URL: JSON.stringify(process.env.SINC_SERVICE_URL || 'ws://localhost:7999/ws')
+        })
+    ]
 });

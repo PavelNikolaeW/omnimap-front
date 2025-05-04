@@ -7,22 +7,69 @@ import localforage from "localforage";
 import {AccessPopup} from "../popups/accessPopup";
 import {UrlPopup} from "../popups/urlPopup";
 import {EditBlockPopup} from "../popups/editBlockPopup";
+import {SearchBlocksPopup} from "../popups/SearchPopup";
 
 
 export const popupsCommands = [
+    {
+        id: "findBlock",
+        mode: ['normal'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Поиск блоков',
+            classes: ['sidebar-button', 'fas', 'fa-search', 'fas-lg']
+        },
+        defaultHotkey: 'f',
+        description: 'Поиск блоков',
+        execute(ctx) {
+        },
+        btnExec(ctx) {
+            ctx.mode = 'findBlock'
+            ctx.closePopups()
+            setCmdOpenBlock(ctx);
+            if (!ctx.searchPopupState) {
+                ctx.searchPopupState = {query: "", everywhere: false, results: []};
+            }
+            ctx.popup = new SearchBlocksPopup({
+                initialState: ctx.searchPopupState,
+                async onSearch(query, everywhere) {
+                    return await api.searchBlock(query, everywhere, ctx.rootContainer.children[0].id)
+                        .then(res => {
+                            if (res.status !== 200) throw new Error('Ошибка помска блока');
+
+                            ctx.searchPopupState.query = query;
+                            ctx.searchPopupState.everywhere = everywhere;
+                            ctx.searchPopupState.results = res.data.results;
+                            return res.data.results
+                        }).catch(err => {
+                            console.error(err)
+                            return []
+                        })
+                },
+                onOpen(id) {
+                    dispatch('OpenBlock', {id})
+                },
+                onCancel() {
+                    ctx.mode = "normal";
+                },
+            })
+            setTimeout(() => ctx.popup.searchInput.focus(), 0)
+
+        }
+    },
     {
         id: "editBlock",
         mode: ['normal'],
         btn: {
             containerId: 'control-panel',
             label: 'Редактировать блок',
-            classes: ['sidebar-button', 'fa', 'fa-wrench', 'fa-lg']
+            classes: ['sidebar-button', 'fas', 'fa-wrench', 'fas-lg']
         },
         defaultHotkey: 'shift+e',
         description: 'Открывает меню редактирования размеров блока',
         execute(ctx) {
             ctx.mode = 'editBlock'
-            const id = ctx.blockId || ctx.blockElement?.id.split('*').at(-1)
+            const id = ctx.blockId || ctx.blockElement?.id.split('*').at(0)
             if (!id) return
             ctx.closePopups()
             setCmdOpenBlock(ctx);
@@ -30,9 +77,10 @@ export const popupsCommands = [
                 localforage.getItem(`Block_${id}_${user}`, (err, block) => {
                     ctx.popup = new EditBlockPopup({
                         title: "Редактирование блока",
-                        dynamicObject: block.data,
+                        blockData: block.data,
                         forbiddenKeys: ['childOrder', 'connections'],
                         onSubmit: (data) => {
+                            dispatch('UpdateDataBlock', {blockId: id, data})
                             ctx.mode = 'normal'
                         },
                         onCancel: () => {
@@ -49,7 +97,7 @@ export const popupsCommands = [
         btn: {
             containerId: 'control-panel',
             label: 'Создать url на блок',
-            classes: ['sidebar-button', 'fa', 'fa-globe', 'fa-lg']
+            classes: ['sidebar-button', 'fas', 'fa-globe', 'fas-lg']
         },
         defaultHotkey: 'shift+u',
         description: 'Открывает меню блока для управления URL',
@@ -129,6 +177,7 @@ export const popupsCommands = [
                     ctx.mode = 'normal';
                 }
             })
+            setTimeout(() => ctx.popup.nameInput.focus(), 0)
         }
     },
     {
@@ -137,12 +186,13 @@ export const popupsCommands = [
         btn: {
             containerId: 'control-panel',
             label: 'Редактировать права на блок',
-            classes: ['sidebar-button', 'fa', 'fa-user-lock', 'fa-lg']
+            classes: ['sidebar-button', 'fas', 'fa-user-lock', 'fas-lg']
         },
         defaultHotkey: 'shift+p',
         description: 'Открывает меню редактирования прав на блок',
         execute(ctx) {
-            const id = ctx.blockId || ctx.blockLinkId || ctx.blockElement?.id
+            const id = ctx.blockElement?.id.split('*').at(-1)
+            console.log(id)
             if (!id) return
             ctx.closePopups()
             ctx.mode = 'editAccessBlock'
@@ -159,6 +209,7 @@ export const popupsCommands = [
                 updateAccess: (blockId, data) => {
                     return api.updateAccess(blockId, data)
                         .then((res) => {
+                            console.log(res)
                             if (res.status !== 202) {
                                 throw new Error("Ошибка обновления прав доступа");
                             }
@@ -206,7 +257,7 @@ export const popupsCommands = [
         btn: {
             containerId: 'control-panel',
             label: 'Настроить управление',
-            classes: ['sidebar-button', 'fa', 'fa-gear', 'fa-lg'],
+            classes: ['sidebar-button', 'fas', 'fa-gear', 'fas-lg'],
         },
         defaultHotkey: 'shift+m',
         description: 'Открыть окно настройки колрячих клавиш',
@@ -214,7 +265,6 @@ export const popupsCommands = [
 
         },
         async btnExec(ctx) {
-            if (ctx.popup) return
             ctx.mode = 'editHotkeys'
             ctx.closePopups()
             setCmdOpenBlock(ctx);
@@ -233,49 +283,49 @@ export const popupsCommands = [
             })
         }
     },
-    {
-        id: "historyView",
-        mode: ['normal'],
-        btn: {
-            containerId: 'control-panel',
-            label: 'История изменений',
-            classes: ['sidebar-button', 'fa', 'fa-history', 'fa-lg']
-        },
-        defaultHotkey: 'shift+h',
-        description: 'Открывает окно с историей изменений для текущего блока',
-        execute(ctx) {
-            ctx.mode = 'historyView';
-            // Предположим, blockId получаем из контекста
-            const blockId = ctx.blockId || ctx.blockElement?.id.split('*').at(-1);
-            if (!blockId) return;
-            ctx.closePopups()
-            setCmdOpenBlock(ctx);
-            // Создаём popup
-            ctx.popup = new HistoryPopup({
-                classPrefix: 'history-popup',
-                blockId: blockId,
-                fetchHistory: (blockId) => {
-                    return api.getBlockHistory(blockId) // ваш реальный вызов к API
-                        .then((res) => {
-                            if (res.status !== 200) throw new Error('Ошибка загрузки истории');
-                            // Ожидаем, что вернётся массив объектов {history_id, history_date, changed_by, ...}
-                            return res.data;
-                        });
-                },
-                revertHistory: async (blockId, historyId) => {
-                    const res = await api.revertBlockToHistory(blockId, historyId);
-                    console.log(res)
-                    if (res.status === 200) {
-                        dispatch('HistoryRevert', {block: res.data})
-                    } else {
-                        throw new Error('Ошибка при откате');
-                    }
-                },
-                onCancel() {
-                    // Когда пользователь закрывает окно, возвращаем режим 'normal'
-                    ctx.mode = 'normal';
-                },
-            });
-        }
-    },
+    // {
+    //     id: "historyView",
+    //     mode: ['normal'],
+    //     btn: {
+    //         containerId: 'control-panel',
+    //         label: 'История изменений',
+    //         classes: ['sidebar-button', 'fas', 'fa-history', 'fas-lg']
+    //     },
+    //     defaultHotkey: 'shift+h',
+    //     description: 'Открывает окно с историей изменений для текущего блока',
+    //     execute(ctx) {
+    //         ctx.mode = 'historyView';
+    //         // Предположим, blockId получаем из контекста
+    //         const blockId = ctx.blockId || ctx.blockElement?.id.split('*').at(-1);
+    //         if (!blockId) return;
+    //         ctx.closePopups()
+    //         setCmdOpenBlock(ctx);
+    //         // Создаём popup
+    //         ctx.popup = new HistoryPopup({
+    //             classPrefix: 'history-popup',
+    //             blockId: blockId,
+    //             fetchHistory: (blockId) => {
+    //                 return api.getBlockHistory(blockId) // ваш реальный вызов к API
+    //                     .then((res) => {
+    //                         if (res.status !== 200) throw new Error('Ошибка загрузки истории');
+    //                         // Ожидаем, что вернётся массив объектов {history_id, history_date, changed_by, ...}
+    //                         return res.data;
+    //                     });
+    //             },
+    //             revertHistory: async (blockId, historyId) => {
+    //                 const res = await api.revertBlockToHistory(blockId, historyId);
+    //                 console.log(res)
+    //                 if (res.status === 200) {
+    //                     dispatch('HistoryRevert', {block: res.data})
+    //                 } else {
+    //                     throw new Error('Ошибка при откате');
+    //                 }
+    //             },
+    //             onCancel() {
+    //                 // Когда пользователь закрывает окно, возвращаем режим 'normal'
+    //                 ctx.mode = 'normal';
+    //             },
+    //         });
+    //     }
+    // },
 ]

@@ -18,24 +18,19 @@
     border-radius: 5px;
     padding: 10px;
     box-sizing: border-box;
-    /* Центрирование по умолчанию; JS-позиционирование может корректировать положение */
-    /*left: 50%;*/
-    /*top: 50%;*/
-    /*transform: translate(-50%, -50%);*/
 }
 
 /* Заголовок попапа */
 .popup-title {
     font-weight: bold;
     margin-bottom: 10px;
-    cursor: move; /* Если попап перетаскиваемый */
+    cursor: move;
 }
 
 /* Область для основного контента */
 .popup-content {
     overflow-y: auto;
-    /* При необходимости можно задать максимальную высоту */
-    max-height: calc(100vh - 150px);
+    max-height: 75vh;
 }
 
 /* Контейнер для формы с инпутами */
@@ -85,4 +80,82 @@
 .popup-button-submit:hover,
 .popup-button-cancel:hover {
     opacity: 0.9;
+}
+
+/* Контейнер поиска */
+.search-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+/* Поле поиска */
+.search-input {
+    padding: 8px;
+    font-size: 14px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Чекбокс */
+.search-checkbox-label {
+    font-size: 13px;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* Контейнер результатов */
+.search-results-container {
+    height: auto;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    padding: 10px;
+    border-radius: 4px;
+    background-color: #fafafa;
+}
+
+/* Элемент результата */
+.search-result-item {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+}
+
+.search-result-item:hover {
+    background-color: #f0f0f0;
+}
+
+/* Сообщения об отсутствии или ошибке */
+.search-empty, .search-error {
+    padding: 10px;
+    font-size: 14px;
+    color: #777;
+    text-align: center;
+}
+
+.btn-open {
+    padding: 8px 12px;
+    margin: 5px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    background-color: #3498db;
+    color: #fff;
+    font-size: 14px;
+    transition: background-color 0.2s ease;
+}
+
+.btn-copy {
+    padding: 8px 12px;
+    margin: 5px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    background-color: #3498db;
+    color: #fff;
+    font-size: 14px;
+    transition: background-color 0.2s ease;
 }

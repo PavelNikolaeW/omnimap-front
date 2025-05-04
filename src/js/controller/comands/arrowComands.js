@@ -1,11 +1,29 @@
 import {getBlock, getPath, openBlock, openSibling, savePath, setCmdOpenBlock} from "./cmdUtils";
-import localforage from "localforage";
-import {truncate} from "../../utils/functions";
+
 import {dispatch} from "../../utils/utils";
+
+function handleBlockCommand(ctx, direction, action, sign) {
+    let el = ctx.blockElement;
+    let parentEl = el?.parentNode;
+
+    if (parentEl && parentEl.hasAttribute('blocklink')) {
+        parentEl = parentEl.parentNode;
+        el = ctx.blockLinkElement;
+    }
+    if (el && parentEl && parentEl.hasAttribute('blockcustomgrid')) {
+        const parentId = parentEl.id.split('*').at(-1)
+        getBlock(parentId, (err, block) => {
+            ctx.diagramUtils[action](el.id, direction, block.data.customGrid, parentId, sign === 'plus');
+        });
+    }
+
+    setCmdOpenBlock(ctx);
+}
 
 export const arrowCommands = [
     {
         id: 'arrowUp',
+        regLink: true,
         defaultHotkey: 'Up',
         description: 'Перемещает выделение к верхнему блоку',
         mode: ['normal', 'connectToBlock', 'cutBlock'],
@@ -23,6 +41,7 @@ export const arrowCommands = [
     },
     {
         id: 'arrowDown',
+        regLink: true,
         defaultHotkey: 'down',
         description: 'Перемещает выделение к нижнему блоку',
         mode: ['normal', 'connectToBlock', 'cutBlock'],
@@ -44,6 +63,7 @@ export const arrowCommands = [
     },
     {
         id: 'arrowLeft',
+        regLink: true,
         defaultHotkey: 'left',
         description: 'Перемещает выделение к левому блоку',
         mode: ['normal', 'connectToBlock', 'cutBlock'],
@@ -65,6 +85,7 @@ export const arrowCommands = [
     },
     {
         id: 'openLeft',
+        regLink: true,
         defaultHotkey: ',',
         description: 'Открыть соседний левый блок.',
         mode: ['normal'],
@@ -103,6 +124,7 @@ export const arrowCommands = [
     },
     {
         id: 'openRight',
+        regLink: true,
         defaultHotkey: '.',
         description: 'Открыть соседний правый блок.',
         mode: ['normal'],
@@ -143,6 +165,7 @@ export const arrowCommands = [
     },
     {
         id: 'arrowRight',
+        regLink: true,
         defaultHotkey: 'right',
         description: 'Перемещает выделение к правому блоку',
         mode: ['normal', 'connectToBlock', 'cutBlock'],
@@ -166,44 +189,121 @@ export const arrowCommands = [
     {
         id: 'shiftArrowUp',
         defaultHotkey: 'shift+up',
-        description: 'Открывает родительский блок, используя Shift',
+        description: 'Перемещает блок вверх внутри диаграммы',
         mode: ['normal'],
+        throttleDisable: true,
         execute(ctx) {
-            console.log(ctx)
+            handleBlockCommand(ctx, 'up', 'moveBlock');
         }
     },
     {
         id: 'shiftArrowDown',
-        label: 'Shift + Стрелка Вниз',
-        icon: 'fa fa-arrow-down',
         defaultHotkey: 'shift+down',
-        description: 'Открывает первый дочерний блок, используя Shift',
+        description: 'Перемещает блок вниз внутри диаграммы',
         mode: ['normal'],
+        throttleDisable: true,
         execute(ctx) {
-            console.log(ctx)
+            handleBlockCommand(ctx, 'down', 'moveBlock');
         }
     },
     {
         id: 'shiftArrowLeft',
-        label: 'Shift + Стрелка Влево',
-        icon: 'fa fa-arrow-left',
         defaultHotkey: 'shift+left',
-        description: 'Открывает левый блок, используя Shift',
+        description: 'Перемещает блок влево внутри диаграммы',
         mode: ['normal'],
+        throttleDisable: true,
         execute(ctx) {
-            console.log(ctx)
+            handleBlockCommand(ctx, 'left', 'moveBlock');
         }
     },
     {
         id: 'shiftArrowRight',
-        label: 'Shift + Стрелка Вправо',
-        icon: 'fa fa-arrow-right',
         defaultHotkey: 'shift+right',
-        description: 'Открывает правый блок, используя Shift',
+        description: 'Перемещает блок вправо внутри диаграммы',
         mode: ['normal'],
+        throttleDisable: true,
         execute(ctx) {
-            console.log(ctx)
+            handleBlockCommand(ctx, 'right', 'moveBlock');
         }
     },
-
+    {
+        id: 'plusArrowUp',
+        defaultHotkey: '=+up',
+        description: 'Растягивает блок вверх внутри диаграммы',
+        mode: ['normal'],
+        throttleDisable: true,
+        execute(ctx) {
+            handleBlockCommand(ctx, 'up', 'stretchBlock', 'plus');
+        }
+    },
+    {
+        id: 'plusArrowDown',
+        defaultHotkey: '=+down',
+        description: 'Растягивает блок вниз внутри диаграммы',
+        mode: ['normal'],
+        throttleDisable: true,
+        execute(ctx) {
+            handleBlockCommand(ctx, 'down', 'stretchBlock', 'plus');
+        }
+    },
+    {
+        id: 'plusArrowLeft',
+        defaultHotkey: '=+left',
+        description: 'Растягивает блок влево внутри диаграммы',
+        mode: ['normal'],
+        throttleDisable: true,
+        execute(ctx) {
+            handleBlockCommand(ctx, 'left', 'stretchBlock', 'plus');
+        }
+    },
+    {
+        id: 'plusArrowRight',
+        defaultHotkey: '=+right',
+        description: 'Растягивает блок вправо внутри диаграммы',
+        mode: ['normal'],
+        throttleDisable: true,
+        execute(ctx) {
+            handleBlockCommand(ctx, 'right', 'stretchBlock', 'plus');
+        }
+    },
+    {
+        id: 'minusArrowUp',
+        defaultHotkey: '-+up',
+        description: 'Сжимает блок вверх внутри диаграммы',
+        mode: ['normal'],
+        throttleDisable: true,
+        execute(ctx) {
+            handleBlockCommand(ctx, 'up', 'stretchBlock', 'minus');
+        }
+    },
+    {
+        id: 'minusArrowDown',
+        defaultHotkey: '-+down',
+        description: 'Сжимает блок вниз внутри диаграммы',
+        mode: ['normal'],
+        throttleDisable: true,
+        execute(ctx) {
+            handleBlockCommand(ctx, 'down', 'stretchBlock', 'minus');
+        }
+    },
+    {
+        id: 'minusArrowLeft',
+        defaultHotkey: '-+left',
+        description: 'Сжимает блок влево внутри диаграммы',
+        mode: ['normal'],
+        throttleDisable: true,
+        execute(ctx) {
+            handleBlockCommand(ctx, 'left', 'stretchBlock', 'minus');
+        }
+    },
+    {
+        id: 'minusArrowRight',
+        defaultHotkey: '-+right',
+        description: 'Сжимает блок вправо внутри диаграммы',
+        mode: ['normal'],
+        throttleDisable: true,
+        execute(ctx) {
+            handleBlockCommand(ctx, 'right', 'stretchBlock', 'minus');
+        }
+    },
 ];

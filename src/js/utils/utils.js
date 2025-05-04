@@ -89,3 +89,12 @@ export function printTimer() {
 export function resetTimer() {
     performanceReport = {}
 }
+
+export function checkClass(el, clas) {
+    while (el.parentNode) {
+        if (el.classList.contains(clas)) {
+            return true
+        }
+        el = el.parentNode
+    }
+}

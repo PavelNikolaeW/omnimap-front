@@ -38,7 +38,6 @@ export class Painter {
             parentBlock: {
                 'id': this.rootContainer.id,
                 'grid': ["grid-template-columns_1fr", "grid-template-rows_1fr"],
-                'gridSize': {row: 0, col: 0},
                 'contentEl': null,
                 'children': [block.id],
                 'childrenPositions': {[block.id]: ['grid-column_1', 'grid-row_1']},
@@ -67,8 +66,9 @@ export class Painter {
         const fragments = new Map();
         let render_fragment = null
         let step = 0
-
+        let c = 0
         while (!queue.isEmpty()) {
+            c++
             const {block, depth, parentBlock, parentElement} = queue.dequeue();
             if ((parentBlock?.size?.width < 40 && parentBlock?.size?.height < 40) &&
                 parentBlock.data?.view !== 'link' ||
@@ -98,6 +98,7 @@ export class Painter {
                 });
             }
         }
+        console.log("blocks ", c)
         fragments.appendInParent()
     }
 

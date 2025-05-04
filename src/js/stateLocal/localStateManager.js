@@ -1,10 +1,14 @@
 import localforage from "localforage";
-import {dispatch, printTimer, resetTimer} from "../utils/utils";
+import {dispatch, getElementSizeClass, printTimer, resetTimer} from "../utils/utils";
 import {Painter} from "../painter/painter";
 import api from "../api/api";
 
 import {truncate} from '../utils/functions'
 import {jsPlumbInstance} from "../controller/arrowManager";
+import {Queue} from "../utils/queue";
+import blockCreator from "../painter/blockCreator";
+import generateGrid from "../controller/diagramUtils";
+import {log} from "@jsplumb/browser-ui";
 
 // Проверка поддержки IndexedDB и конфигурация localforage
 if (!localforage.supports(localforage.INDEXEDDB)) {
@@ -54,7 +58,7 @@ export class LocalStateManager {
         this.jsPlumbInstance = jsPlumbInstance;
         this.painter = new Painter();
         this.blockRepository = null;
-
+        this.debounceTimer = undefined
         // Инициализация слушателей событий
         this.registerEventHandlers();
     }
@@ -119,10 +123,18 @@ export class LocalStateManager {
             console.log(treeBlocks)
             await this.initUser(treeBlocks, e.detail.user);
             dispatch('ShowBlocks');
+            const sidebar = document.getElementById('sidebar')
+            const topSidebar = document.getElementById('topSidebar')
+            sidebar.classList.remove('hidden')
+            topSidebar.classList.remove('hidden')
         });
 
         window.addEventListener('Logout', async () => {
             dispatch('InitAnonimUser')
+            const sidebar = document.getElementById('sidebar')
+            const topSidebar = document.getElementById('topSidebar')
+            sidebar.classList.add('hidden')
+            topSidebar.classList.add('hidden')
         });
 
         window.addEventListener('PasteBlock', async (e) => {
@@ -197,9 +209,9 @@ export class LocalStateManager {
             }
         })
         window.addEventListener('UpdateBlocks', (e) => {
-            console.log(e.detail)
             const data = e.detail
             data.blocks?.forEach(async (block) => {
+                console.log(block)
                 await this.saveBlock(block)
             })
             data.removed?.forEach(async (blockId) => {
@@ -343,16 +355,18 @@ export class LocalStateManager {
             return filteredIds;
         }
 
-        const newOrder = reorderList(parent.data.childOrder, block_id, before)
-        api.moveBlock(block_id, {new_parent_id, old_parent_id, childOrder: newOrder})
-            .then((res) => {
-                if (res.status === 200) {
-                    Object.values(res.data).forEach((block) => {
-                        this.saveBlock(block)
-                    })
-                    dispatch('ShowBlocks');
-                }
-            })
+        if (parent && parent.data) {
+            const newOrder = reorderList(parent.data.childOrder, block_id, before)
+            api.moveBlock(block_id, {new_parent_id, old_parent_id, childOrder: newOrder})
+                .then((res) => {
+                    if (res.status === 200) {
+                        Object.values(res.data).forEach((block) => {
+                            this.saveBlock(block)
+                        })
+                        dispatch('ShowBlocks');
+                    }
+                })
+        }
     }
 
     async loadEmptyBlocks({emptyBlocks}) {
@@ -462,6 +476,7 @@ export class LocalStateManager {
                 await localforage.setItem(`Path_${block.id}${this.currentUser}`, [
                     {screenName: truncate(block.title, 10), color: color, blockId: block.id}
                 ])
+
                 for (let i = 0; i < blocks.length; i++) {
                     const block = blocks[i]
                     await this.saveBlock(block)
@@ -478,24 +493,22 @@ export class LocalStateManager {
 
     async showBlocks() {
         this.currentUser = await localforage.getItem('currentUser') || 'anonim';
-        this.currentTree = await localforage.getItem('currentTree')
         this.blockRepository = new BlockRepository(this.currentUser);
 
-        if (window.location.search) {
+        if (window.location.href.indexOf('/?') !== -1) {
             this.currentTree = await this.initShowLink(window.location.search.slice(1,))
         } else {
             this.currentTree = await localforage.getItem('currentTree');
         }
 
+
         if (!this.blocks || this.blocks.size === 0) {
             await this.getAllBlocksForUser(this.currentUser);
         }
-
         this.path = await localforage.getItem(`Path_${this.currentTree}${this.currentUser}`) || [];
         let screenObj = this.path.at(-1);
         if (!screenObj) {
             const block = this.blocks.get(this.currentTree)
-            console.log(this.currentTree)
             screenObj = {
                 screenName: truncate(block.title, 10),
                 color: block.data?.color && block.data.color !== 'default_color' ? block.data.color : [],
@@ -620,53 +633,50 @@ export class LocalStateManager {
     }
 
     async updateCustomGridBlock({blockId, customGrid}) {
-        try {
-            const block = this.blocks.get(blockId);
+        const block = await this.blockRepository.loadBlock(blockId)
+        console.log(block)
+        block.data.customGrid = customGrid
+        await this.saveBlock(block).then(() => dispatch('ShowBlocks'))
 
-            if (Object.values(customGrid.childrenPositions).length === 0) {
-                customGrid.childrenPositions = block.childrenPositions;
-            } else {
-                const {id, childPosition} = customGrid.childrenPositions;
+        if (this.debounceTimer) clearTimeout(this.debounceTimer);
 
-                block.childrenPositions[id] = childPosition;
-                customGrid.childrenPositions = block.childrenPositions;
+        this.debounceTimer = setTimeout(async () => {
+            try {
+                const response = await api.updateBlock(blockId, {data: {customGrid}});
+                if (response.status === 200) {
+                    const updatedBlock = response.data;
+                    await this.saveBlock(updatedBlock);
+                }
+            } catch (err) {
+                console.error(err);
             }
-            if (!customGrid.grid) customGrid.grid = block.grid;
-            if (!customGrid.contentPosition) customGrid.contentPosition = block.contentPosition;
-            const response = await api.updateBlock(blockId, {data: {customGrid}});
-            if (response.status === 200) {
-                const updatedBlock = response.data;
-                await this.saveBlock(updatedBlock);
-                dispatch('ShowBlocks');
-            }
-        } catch (err) {
-            console.error(err);
-        }
+        }, 1000);
     }
 
-    async updateDataBlock({blockId, data}) {
+    updateDataBlock({blockId, data}) {
         try {
             const block = this.blocks.get(blockId);
+            if (!block) throw new Error(`Block with id ${blockId} not found.`);
 
-            if (!block.data.customClasses) block.data.customClasses = [];
-            if (data.gap) {
-                block.data.customClasses = block.data.customClasses.filter((cls) => !cls.startsWith('gap_'));
-                block.data.customClasses.push(data.gap);
-            }
-            if (data.color) {
-                block.data.color = data.color;
-            }
-            if (data.customGrid) {
-                block.data.customGrid = data.customGrid;
+            const deniedFields = [
+                // 'childOrder',
+                // 'customGrid',
+                // 'text'
+            ];
+
+            for (const key of Object.keys(data)) {
+                if (!deniedFields.includes(key)) {
+                    block.data[key] = data[key];
+                }
             }
 
-            const response = await api.updateBlock(blockId, {data: block.data});
-            if (response.status === 200) {
-                const updatedBlock = response.data;
-                await this.saveBlock(updatedBlock);
-                dispatch('ShowBlocks');
-                this.jsPlumbInstance.repaintEverything();
-            }
+            api.updateBlock(blockId, {data: block.data}).then(res => {
+                if (res.status === 200) {
+                    const updatedBlock = res.data;
+                    this.saveBlock(updatedBlock).then(() => dispatch('ShowBlocks'));
+                }
+            });
+
         } catch (err) {
             console.error(err);
         }
@@ -738,23 +748,46 @@ export class LocalStateManager {
         }
     }
 
-    async addConnectionBlock({sourceId, targetId, connector, label}) {
+    async addConnectionBlock({
+                                 sourceId,
+                                 targetId,
+                                 connector,
+                                 paintStyle,
+                                 overlays,
+                                 anchors,
+                                 endpoint,
+                                 endpointStyle
+                             }) {
         try {
             const sourceBlock = this.blocks.get(sourceId);
             if (!sourceBlock.data.connections) sourceBlock.data.connections = [];
 
-            // Проверяем, существует ли уже соединение с такими же sourceId и targetId
             const existingConnection = sourceBlock.data.connections.find(
                 connection => connection.sourceId === sourceId && connection.targetId === targetId
             );
 
             if (existingConnection) {
-                // Если соединение существует, обновляем его свойства
-                existingConnection.connector = connector;
-                existingConnection.label = label;
+                // Обновляем все свойства соединения
+                Object.assign(existingConnection, {
+                    connector,
+                    paintStyle,
+                    overlays,
+                    anchors,
+                    endpoint,
+                    endpointStyle
+                });
             } else {
-                // Если соединение не найдено, добавляем новое
-                sourceBlock.data.connections.push({sourceId, targetId, connector, label});
+                // Добавляем новое соединение
+                sourceBlock.data.connections.push({
+                    sourceId,
+                    targetId,
+                    connector,
+                    paintStyle,
+                    overlays,
+                    anchors,
+                    endpoint,
+                    endpointStyle
+                });
             }
 
             const response = await api.updateBlock(sourceId, {data: sourceBlock.data});

@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>omniMap</title>
 </head>
 <body>
@@ -20,7 +21,7 @@
             <!-- Содержимое основного блока -->
         </div>
     </div>
-        <nav class="breadcrumb-nav" id="breadcrumb">
+    <nav class="breadcrumb-nav" id="breadcrumb">
     </nav>
 </main>
 
@@ -59,38 +60,40 @@
 </template>
 
 
-<div class="search-overlay" id="searchModal">
-    <div class="search-modal">
-        <span class="close-search-button" id="closeSearchModal">&times;</span>
-        <h2>Поиск</h2>
-        <input type="text" id="searchInput" class="search-input" placeholder="Введите запрос...">
-        <ul id="searchResults" class="search-results">
-            <!-- Результаты поиска будут отображаться здесь -->
-        </ul>
-    </div>
-</div>
-
-<div id="editor-container" style="display:none;">
-    <textarea id="editor"></textarea>
+<div id="editor-container">
 </div>
 
 
 <div class="container-iframe" id="container-iframe"></div>
-
-<div class="editor-popup"
-     id="editor-popup" style="visibility: hidden;">
-    <div class="editor-content">
-        <textarea id="editor-textarea"></textarea>
-    </div>
-</div>
 <div id="error-popup" class="hidden">
     <span id="error-message"></span>
 </div>
 
-<script>
-    // Получаем ссылки на элементы
+<div class="diagram-inputs hidden" id="diagram-inputs">
+    <label class="hidden">Rows
+        <input id="diagramRow" type="number" max="300" min="2">
+    </label>
+    <label class="hidden">Cols
+        <input id="diagramCol" type="number" max="500" min="2">
+    </label>
 
-</script>
+    <label>Connections
+        <input type="checkbox" id="CerateConnections" name="create" value="create">
+    </label>
+
+    <label for="sizeSelector">Size</label>
+    <select id="sizeSelector">
+        <option value="-">-</option>
+        <option value="default">default</option>
+        <option value="xs">xs</option>
+        <option value="s">s</option>
+        <option value="m">m</option>
+        <option value="l">l</option>
+    </select>
+
+    <button class="diagram-btn fas fa-plus-square fas-lg" id="addDiagram"></button>
+    <button class="diagram-btn fas fa-rotate fas-lg" id="reset"></button>
+</div>
 
 </body>
 </html>

@@ -63,7 +63,7 @@ class GroupMembersPopup extends Popup {
         const membersSection = document.createElement("div");
         membersSection.className = "group-members-section";
 
-        const title = document.createElement("h3");
+        const title = document.createElement("div");
         title.className = 'popup-title'
         title.textContent = "Участники группы";
         membersSection.appendChild(title);
@@ -289,7 +289,7 @@ export class AccessPopup extends Popup {
         usernameInput.id = "access-username-input";
         usernameInput.setAttribute("autocomplete", "off");
         addUserForm.appendChild(usernameInput);
-
+        setTimeout(() => usernameInput.focus(), 0)
         const userPermissionSelect = document.createElement("select");
         userPermissionSelect.id = "access-user-permission-select";
         this.permissionChoices.forEach((choice) => {

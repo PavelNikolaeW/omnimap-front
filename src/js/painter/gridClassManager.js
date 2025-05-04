@@ -1,7 +1,6 @@
-import {findLCM, findNearestRoots} from '../utils/functions'
 import {getElementSizeClass, measurePerformance} from "../utils/utils"
 import {styleConfig} from "./styles";
-import {log} from "@jsplumb/browser-ui";
+import {GridLayoutCalculator} from "./gridLayoutCalculator";
 
 
 class GridClassManager {
@@ -12,21 +11,27 @@ class GridClassManager {
     manager(block, parentBlock) {
         this.calcBlockSize(block, parentBlock)
         const layout = block.size.layout
-
         const len = block.children.length
-        const layoutOptions = this.calc_optionsLayout(layout, len, block.data?.groupSizes)
-        if (layout === 'table') {
+
+        if (block.data.layout === 'table') {
             return GridClassManager.table(block)
         }
-        const {totalGridRows, gridColumns, rectangles} = GridClassManager.computeGridLayoutGroups(len, layoutOptions)
-        return GridClassManager.returnClasses(block, totalGridRows, gridColumns, rectangles)
+        const layoutOptions = this.calc_optionsLayout(layout, len, block.data?.groupSizes)
+        const rez = GridLayoutCalculator.computeGridLayoutGroups(len, layoutOptions)
+        return GridClassManager.returnClasses(block, rez.totalGridRows, rez.gridColumns, rez.rectangles, rez.groupSizes)
     }
 
     calcBlockSize(block, parentBlock) {
+        const blockPosition = parentBlock?.data?.childOrder.findIndex(el => el === block.id)
         const {width: parentWidth, height: parentHeight, layout: parentLayout} = parentBlock.size;
         const [totalRows, totalCols] = this._calcParentGrid(parentBlock.grid);
         const [childRows, childCols] = this._calcChildGrid(parentBlock.childrenPositions[block.id]);
-        let {padding, gapCol, gapRow, content} = this._styleCorrection(parentBlock, totalRows, totalCols);
+        let {
+            padding,
+            gapCol,
+            gapRow,
+            content
+        } = this._styleCorrection(block, parentBlock, totalRows, totalCols, blockPosition);
         if (block.data?.view === 'link') {
             padding = 0
         }
@@ -46,7 +51,8 @@ class GridClassManager {
         return {
             minArea: 1,
             desiredGroupCount: groupCount,
-            groupSizes: groupSizes
+            groupSizes: groupSizes,
+            relativeRows: true
         }
     }
 
@@ -86,7 +92,8 @@ class GridClassManager {
         return 2
     }
 
-    static returnClasses(block, totalGridRows, gridColumns, rectangles) {
+    static returnClasses(block, totalGridRows, gridColumns, rectangles, groupSizes) {
+        block.groupSizes = groupSizes
         return [
             GridClassManager._setBlockGrid(totalGridRows, gridColumns),
             GridClassManager._setContentPosition(totalGridRows, gridColumns),
@@ -96,6 +103,10 @@ class GridClassManager {
 
     static table(block) {
         const gridSize = Math.ceil(Math.sqrt(block.children.length))
+        let [row, col] = [gridSize + 1, gridSize]
+        if (block.data.table) {
+            [row, col] = [block.data.table.row, block.data.table.col]
+        }
         const childrenPosition = {}
 
         let childIndex = 0;
@@ -108,7 +119,7 @@ class GridClassManager {
         for (let i = 0; i < block.children.length; i++) {
             const id = block.data.childOrder[i]
             // Проверка, нужно ли переходить на новую строку
-            if (childIndex !== 0 && childIndex % gridSize === 0) {
+            if (childIndex !== 0 && childIndex % col === 0) {
                 currentRow++;
                 childIndex = 0;
             }
@@ -125,8 +136,8 @@ class GridClassManager {
             childIndex++;
         }
         return [
-            GridClassManager._setBlockGrid(block, gridSize, gridSize),
-            GridClassManager._setContentPosition(block, gridSize, gridSize),
+            GridClassManager._setBlockGrid(row, col),
+            GridClassManager._setContentPosition(row, col),
             childrenPosition,
         ]
     }
@@ -152,21 +163,20 @@ class GridClassManager {
      * @param {Object} block - объект блока, содержащий дочерние элементы.
      * @param {number} row - количество строк, на которые нужно распределить элементы.
      * @param {number} col - общее количество колонок в сетке.
+     * @param rectangles
      */
     static _setChildrenPosition(block, row, col, rectangles = []) {
-        if (rectangles.length) {
-            const children_position = {row: row + 1, col}
-            const totalChildren = block.children.length;
-            for (let i = 0; i < totalChildren; i++) {
-                const id = block.data.childOrder[i]
-                const rect = rectangles[i]
-                children_position[id] = [
-                    `grid-column_${rect.gridColumnStart}__${rect.gridColumnEnd}`,
-                    `grid-row_${rect.gridRowStart}__${rect.gridRowEnd}`
-                ]
-            }
-            return children_position
+        const children_position = {}
+        const totalChildren = block.children.length;
+        for (let i = 0; i < totalChildren; i++) {
+            const id = block.data.childOrder[i]
+            const rect = rectangles[i]
+            children_position[id] = [
+                `grid-column_${rect.gridColumnStart}__${rect.gridColumnEnd}`,
+                `grid-row_${rect.gridRowStart}__${rect.gridRowEnd}`
+            ]
         }
+        return children_position
     }
 
     _calcParentGrid(grids) {
@@ -210,12 +220,25 @@ class GridClassManager {
         return [row, col];
     }
 
-    _styleCorrection(parentBlock, row, col) {
+    _styleCorrection(block, parentBlock, row, col, blockPosition) {
         const layout = parentBlock.size.layout
         const [size, form] = layout.split('-')
         const style = styleConfig[size][form ?? 'table']
         const padding = parentBlock.id === 'rootContainer' ? 0 : style.padding
-        const gap = this._calculateGap(parentBlock.children.length, style.gap, 2,)
+        let gap = (!block.data?.customGrid?.grid) ? this._calculateGap(parentBlock.children.length, style.gap, 2,) : 0
+        if (parentBlock.data?.groupSizes) {
+            let acc = 0
+            for (let i = 0; i < parentBlock.data.groupSizes.length; i++) {
+                const group = parentBlock.data.groupSizes[i]
+                const blocksInGroup = parseInt(group)
+                acc = acc + blocksInGroup
+                if (blockPosition < acc) {
+                    col = blocksInGroup
+                    break
+                }
+            }
+            row = parentBlock.data.groupSizes.length - 1
+        }
         row = parentBlock.id === 'rootContainer' ? row : row + 1
         const gapColCorrection = col > 1 ? gap * (col - 1) : 0
         const gapRowCorrection = row > 1 ? gap * (row - 1) : 0
@@ -223,7 +246,6 @@ class GridClassManager {
             parentBlock.contentHeight = parentBlock.contentEl ? parentBlock.contentEl.clientHeight : 0;
             parentBlock.contentEl = undefined
         }
-
         return {
             padding: (padding * 2),
             gapCol: gapColCorrection,
@@ -239,104 +261,8 @@ class GridClassManager {
         // Формула, гарантирующая, что при numElements = 0 будет gapMax, а при бесконечном числе элементов – gapMin.
         return Math.floor(gapMax - (gapMax - gapMin) * (numElements / (numElements + constant)));
     }
-
-    static lcmArray(arr) {
-        return arr.reduce((acc, val) => findLCM(acc, val), 1);
-    }
-
-    /**
-     * Функция разбивает число total на count групп как можно равномернее.
-     * Дополнительное условие: первые группы получают +1, если не делится поровну.
-     * Пример: partitionNumber(3, 2) => [2, 1]; partitionNumber(7, 2) => [4, 3].
-     */
-    static partitionNumber(total, count) {
-        const base = Math.floor(total / count);
-        const remainder = total % count;
-        const groups = [];
-        for (let i = 0; i < count; i++) {
-            groups.push(base + (i < remainder ? 1 : 0));
-        }
-        return groups;
-    }
-
-    /**
-     * Функция computeGridLayoutGroups рассчитывает расположение блоков в гриде.
-     * Входные параметры:
-     *   - N: общее число блоков.
-     *   - options:
-     *       minArea: минимальная площадь блока (в ячейках), по умолчанию 1.
-     *       desiredGroupCount: желаемое число групп (рядов для блоков).
-     *       groupSizes: массив чисел, суммарно равный N (приоритет выше, чем desiredGroupCount).
-     *
-     * Вычисления:
-     *   - Если groupSizes не заданы, то вычисляем их через partitionNumber(N, desiredGroupCount).
-     *   - Вычисляем L = LCM(groupSizes).
-     *   - Выбираем k = ceil(minArea / L).
-     *   - gridColumns = k * L.
-     *   - Для каждой группы i с n_i блоками:
-     *         блок шириной = gridColumns / n_i,
-     *         высотой = n_i (в грид-рядов),
-     *         таким образом, площадь блока = n_i * (k*L/n_i) = k*L.
-     *   - Контентная область сверху занимает contentRows = k рядов.
-     *   - Блоки располагаются последовательно ниже контента.
-     * Возвращается объект с:
-     *   gridColumns, totalGridRows, contentRows, groupSizes, k и массивом rectangles.
-     * Каждый rectangle имеет gridRowStart, gridRowEnd, gridColumnStart, gridColumnEnd и label.
-     */
-    static computeGridLayoutGroups(N, options = {}) {
-        const minArea = options.minArea || 1;
-        let groupSizes;
-        if (options.groupSizes && options.groupSizes.length > 0) {
-            groupSizes = options.groupSizes;
-        } else if (options.desiredGroupCount) {
-            groupSizes = this.partitionNumber(N, options.desiredGroupCount);
-        } else {
-            // По умолчанию два ряда: [ceil(N/2), floor(N/2)]
-            groupSizes = [Math.ceil(N / 2), Math.floor(N / 2)];
-        }
-
-        // Вычисляем LCM для групп
-        const L = this.lcmArray(groupSizes);
-        // Выбираем коэффициент масштабирования k так, чтобы k*L >= minArea
-        const k = Math.ceil(minArea / L);
-
-        const gridColumns = L ? k * L : 1;
-        const contentRows = 1; // контентная область занимает k рядов
-        const groupCount = groupSizes.length;
-        const rectangles = [];
-
-        // Начинаем размещать группы ниже контента
-        let currentRow = contentRows + 1;
-        for (let i = 0; i < groupCount; i++) {
-            const nBlocks = groupSizes[i]; // число блоков в группе i
-            const groupHeight = nBlocks;   // выделяем nBlocks рядов для группы
-            const blockWidth = gridColumns / nBlocks; // должно получаться целое число, т.к. L делится на nBlocks
-
-            // Для каждого блока в группе
-            for (let j = 0; j < nBlocks; j++) {
-                rectangles.push({
-                    gridRowStart: currentRow,
-                    gridRowEnd: currentRow + groupHeight,
-                    gridColumnStart: j * blockWidth + 1,
-                    gridColumnEnd: (j + 1) * blockWidth + 1,
-                });
-            }
-            currentRow += groupHeight; // переходим к следующей группе
-        }
-
-        const totalBlockRows = groupSizes.reduce((a, b) => a + b);
-        const totalGridRows = contentRows + totalBlockRows;
-
-        return {
-            gridColumns,
-            totalGridRows,
-            contentRows,
-            groupSizes,
-            k,
-            rectangles
-        };
-    }
 }
+
 
 const gridClassManager = new GridClassManager()
 
