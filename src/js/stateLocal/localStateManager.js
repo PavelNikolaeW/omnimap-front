@@ -307,12 +307,22 @@ export class LocalStateManager {
                 if (block.deleted) {
                     this.removeOneBlock(block.id)
                 } else {
+                    console.log(block)
+                    if (!block.parent_id) {
+                        localforage.getItem('currentUser', (err, user) => {
+                            localforage.getItem(`treeIds${user}`, (err, treeIds) => {
+                                treeIds.push(block.id)
+                                localforage.setItem(`treeIds${user}`, treeIds)
+                            })
+                        })
+                    }
                     this.saveBlock({
                         id: block.id,
                         updated_at: new Date(block.updated_at * 1000).toISOString(),
                         title: block.title,
                         data: JSON.parse(block.data),
-                        children: JSON.parse(block.children)
+                        children: JSON.parse(block.children),
+                        parent_id: block.parent_id
                     })
                 }
             })

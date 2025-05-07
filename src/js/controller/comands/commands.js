@@ -161,7 +161,7 @@ export const commands = [
         defaultHotkey: 'n',
         description: 'Создать новый блок',
         execute(ctx) {
-            let id = ctx.blockId || ctx.blockElement?.id.split('*').at(-1)
+            let id = ctx.blockElement?.id.split('*').at(-1)
             if (!id) return
             const title = prompt('Введите название блока');
             if (title !== null) {
@@ -259,7 +259,7 @@ export const commands = [
         defaultHotkey: 'shift+c',
         mode: ['normal',],
         async execute(ctx) {
-            const id = ctx.blockId || ctx.blockLinkId || ctx.blockElement?.id
+            const id = ctx.blockElement?.id?.split('*')?.at(-1)
             if (!id) return
             copyToClipboard(id)
             setCmdOpenBlock(ctx)
@@ -328,7 +328,7 @@ export const commands = [
         defaultHotkey: 'shift+l',
         description: 'Если скопирован id, вставляет блок как ссылку',
         async execute(ctx) {
-            const id = ctx.blockId || ctx.blockLinkElement?.getAttribute('blockLink') || ctx.blockElement?.id
+            const id = ctx.blockElement?.id?.split('*').at(-1)
             if (!id) return
             const srcId = await getClipboardText()
             if (id === srcId) return
@@ -385,7 +385,7 @@ export const commands = [
         defaultHotkey: 'shift+d',
         description: 'Удаляет блок, и все дочерние блоки',
         execute(ctx) {
-            const id = ctx.blockId ?? ctx.blockLinkId ?? ctx.blockElement?.id
+            const id = ctx.blockElement?.id.split('*').at(-1)
             if (!id) return
             dispatch('DeleteTreeBlock', {blockId: id})
             ctx.shiftLock = false
@@ -411,13 +411,9 @@ export const commands = [
         execute(ctx) {
             if (ctx.mode !== 'diagram') {
                 ctx.mode = 'diagram'
-                let id = ctx.blockElement?.id?.split('*').at(-1)
+                let id = ctx.blockElement?.id?.split('*')?.at(-1)
                 if (!id) return
                 ctx.diagramUtils.showInputs(id, ctx.blockElement)
-                console.log(ctx.blockElement)
-                dispatch('ShowDiagramInputs', {blockId: id})
-
-                console.log('kek')
             } else {
                 ctx.mode = 'normal'
                 ctx.diagramUtils.hiddenInputs()
@@ -431,7 +427,7 @@ export const commands = [
         btn: {
             containerId: 'control-panel',
             label: 'Добавить соединение между блоками',
-            classes: ['sidebar-button', 'fas', 'fa-arrows-left-right', 'fas-lg'],
+            classes: ['sidebar-button', 'fas', 'fa-light', 'fa-down-left-and-up-right-to-center', 'fas-lg'],
         },
         defaultHotkey: 'a',
         description: 'Создать стрелочку от блока до другого блока',
@@ -440,7 +436,6 @@ export const commands = [
                 ctx.mode = 'connectToBlock'
                 let sourceEl = ctx.blockElement
                 if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
-                console.log(sourceEl)
                 ctx.connect_source_id = sourceEl.id
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
