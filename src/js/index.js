@@ -50,18 +50,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     await initApp()
 })
 
-async function checkAuth() {
-    let user = await localforage.getItem('currentUser')
-    if (user == null) {
-        dispatch('InitAnonimUser')
-        return false
-    }
-    if (user !== 'anonim') {
-        return await api.refreshToken()
-    }
-    return true
-}
-
 
 /**
  * Проверяем токены и устанавливаем текущего пользователя
@@ -93,6 +81,21 @@ async function initApp() {
 
     setInterface()
 }
+async function checkAuth() {
+    let user = await localforage.getItem('currentUser')
+    if (user == null) {
+        dispatch('InitAnonimUser')
+        return false
+    }
+    if (!navigator.onLine) {
+        return true
+    }
+    if (user !== 'anonim') {
+        return await api.refreshToken()
+    }
+    return true
+}
+
 
 /**
  * TODO Настраиваем интрефейс если в хранилище есть настройки
@@ -106,6 +109,12 @@ function setInterface() {
         sidebar.classList.add('hidden')
         topSidebar.classList.add('hidden')
     }
+    localforage.getItem('currentUser', (err, user) => {
+        if (user === 'anonim') {
+            sidebar.classList.add('hidden')
+            topSidebar.classList.add('hidden')
+        }
+    })
 }
 
 let clickStartTime = 0;
@@ -134,3 +143,12 @@ document.addEventListener('mouseup', (e) => {
         window.getSelection().removeAllRanges();
     }
 });
+
+let lastTouchEnd = 0;
+document.addEventListener('touchend', function (e) {
+    const now = Date.now();
+    if (now - lastTouchEnd <= 300) {
+        e.preventDefault(); // блокирует двойной тап
+    }
+    lastTouchEnd = now;
+}, false);

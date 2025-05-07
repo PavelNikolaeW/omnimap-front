@@ -66,7 +66,7 @@ export class Breadcrumbs extends BaseController {
         } else {
             buffer.push(blockId)
         }
-        for (let i = path.length-1; i >= 0; i--) {
+        for (let i = path.length - 1; i >= 0; i--) {
             const pathObj = path[i]
             if (buffer.includes(pathObj.blockId)) {
                 const links = pathObj.links
@@ -129,6 +129,7 @@ export class Breadcrumbs extends BaseController {
 
         let parentColor = []
         reversed.forEach((block, index) => {
+            console.log(block)
             if (block.data.view !== 'link') {
                 // Полное название для подсказки
                 const fullTitle = block.title || `${block.id}`;
@@ -153,6 +154,8 @@ export class Breadcrumbs extends BaseController {
                 }
             }
         });
-        this.container.scrollLeft = this.container.scrollWidth;
+        setTimeout(() => {
+            this.container.scrollLeft = this.container.scrollWidth;
+        }, 150); // или 100 мс, если всё ещё глючит
     }
 }

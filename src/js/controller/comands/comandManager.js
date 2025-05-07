@@ -37,11 +37,9 @@ export class CommandManager {
         this.clickOnControlPanelBound = this.clickOnControlPanel.bind(this)
         this.clickOnTopNavigationBound = this.clickOnTopNavigation.bind(this)
 
-        window.addEventListener('ShowedBlocks', () => {
-            this.rootContainer.addEventListener('click', this.clickOnRootContainerHandlerBound);
-            this.topSidebar.addEventListener('click', this.clickOnTopNavigationBound);
-            this.controlPanel.addEventListener('click', this.clickOnControlPanelBound)
-        })
+        this.rootContainer.addEventListener('click', this.clickOnRootContainerHandlerBound);
+        this.topSidebar.addEventListener('click', this.clickOnTopNavigationBound);
+        this.controlPanel.addEventListener('click', this.clickOnControlPanelBound)
         window.addEventListener('ReRegistrationCmd', (e) => {
             this.resetAndReRegisterCommands(e.detail)
         })

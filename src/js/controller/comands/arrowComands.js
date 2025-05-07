@@ -69,7 +69,6 @@ export const arrowCommands = [
         mode: ['normal', 'connectToBlock', 'cutBlock'],
         throttleDisable: true,
         execute(ctx) {
-            console.log('left')
             const activeElem = ctx.getActiveElement();
             const parentContainer = activeElem.parentElement;
             ctx.setDisActiveBlock(activeElem)

@@ -7,6 +7,8 @@ body {
     display: flex;
     flex-direction: column;
     overflow: auto;
+    overscroll-behavior-y: contain;
+    overscroll-behavior: none;
 }
 
 p {
@@ -101,11 +103,6 @@ h6 {
     padding: 5px 10px;
     font-size: 14px;
     width: 100%;
-    /* Для удобства чтения больших подсказок можно задать max-width и text-overflow:ellipsis;
-       но для этого нужно display:inline-block/inline-flex и overflow:hidden;
-       однако у нас есть отдельная функция shortenText,
-       поэтому в данном примере остаёмся без дополнительных ellipsis-свойств.
-    */
 }
 
 /* При наведении курсора */

@@ -32,20 +32,25 @@ export class Painter {
 
     render(blocks, {color = [], blockId}) {
         const block = blocks.get(blockId)
-        const queue = new Queue([{
-            block: block,
-            depth: 0,
-            parentBlock: {
-                'id': this.rootContainer.id,
-                'grid': ["grid-template-columns_1fr", "grid-template-rows_1fr"],
-                'contentEl': null,
-                'children': [block.id],
-                'childrenPositions': {[block.id]: ['grid-column_1', 'grid-row_1']},
-                'size': getElementSizeClass(this.rootContainer),
-                'color': [...color]
-            },
-            parentElement: this.rootContainer
-        }], 524, false);
+        let queue
+        try {
+            queue = new Queue([{
+                block: block,
+                depth: 0,
+                parentBlock: {
+                    'id': this.rootContainer.id,
+                    'grid': ["grid-template-columns_1fr", "grid-template-rows_1fr"],
+                    'contentEl': null,
+                    'children': [block.id],
+                    'childrenPositions': {[block.id]: ['grid-column_1', 'grid-row_1']},
+                    'size': getElementSizeClass(this.rootContainer),
+                    'color': [...color]
+                },
+                parentElement: this.rootContainer
+            }], 524, false);
+        } catch (e) {
+            console.error(`Create queue ${block} error ${e} ${e.trace} `)
+        }
 
         this.rootContainer.textContent = ''
         this.removeIframePositions()

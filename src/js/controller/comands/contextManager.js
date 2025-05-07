@@ -24,19 +24,26 @@ export class ContextManager {
 
     init() {
         this.bindHandlers()
+        // надо отписываться от собитыий при перерендере?
         window.addEventListener('ShowedBlocks', (e) => {
-            this.rootContainer.addEventListener('mouseover', this.mouseOverBlockHandlerBound);
-            this.rootContainer.addEventListener('mouseout', this.mouseOutBlockHandlerBound);
-
-            this.treeNavigation.addEventListener('mouseover', this.mouseOverTreeHandlerBound)
-            this.treeNavigation.addEventListener('mouseout', this.mouseOutTreeHandlerBound)
-
-            this.breadcrumb.addEventListener('mouseover', this.mouseOverBreadcrumbHandlerBound);
-            this.breadcrumb.addEventListener('mouseout', this.mouseOutBreadcrumbHandlerBound);
-
-
             this.rotationElements(e.detail)
         });
+
+        this.rootContainer.addEventListener('mouseover', this.mouseOverBlockHandlerBound);
+        this.rootContainer.addEventListener('touchstart', this.mouseOverBlockHandlerBound);
+        this.rootContainer.addEventListener('mouseout', this.mouseOutBlockHandlerBound);
+        this.rootContainer.addEventListener('touchend', this.mouseOutBlockHandlerBound);
+
+        this.treeNavigation.addEventListener('mouseover', this.mouseOverTreeHandlerBound)
+        this.treeNavigation.addEventListener('touchstart', this.mouseOverTreeHandlerBound)
+        this.treeNavigation.addEventListener('mouseout', this.mouseOutBreadcrumbHandlerBound)
+        this.treeNavigation.addEventListener('touchend', this.mouseOutTreeHandlerBound)
+
+        this.breadcrumb.addEventListener('mouseover', this.mouseOverBreadcrumbHandlerBound);
+        this.breadcrumb.addEventListener('touchstart', this.mouseOverBreadcrumbHandlerBound);
+        this.breadcrumb.addEventListener('mouseout', this.mouseOutBreadcrumbHandlerBound);
+        this.breadcrumb.addEventListener('touchend', this.mouseOutBreadcrumbHandlerBound);
+
         window.addEventListener('keydown', this.keydownHandler.bind(this));
         window.addEventListener('keyup', this.keyupHandler.bind(this));
     }
@@ -93,6 +100,7 @@ export class ContextManager {
         this.blockElement = element
         this.blockLinkElement = link
         this.blockLinkId = link && link.id
+        this.blockId = undefined
         this.addActiveClass()
         if (this.mode === 'cutBlock') {
             const target = link || element
@@ -126,6 +134,7 @@ export class ContextManager {
         this.blockElement = undefined
         this.blockLinkElement = undefined
         this.blockLinkId = undefined
+        this.block = undefined
         if (this.mode === 'cutBlock') {
             if (this.beforeBlockElement) {
                 this.beforeBlockElement.remove()
@@ -141,7 +150,6 @@ export class ContextManager {
     }
 
     mouseOverTreeHandler(event) {
-        event.preventDefault();
         if (event.target.hasAttribute('blockid')) {
             this.blockId = event.target.getAttribute('blockid')
             this.isTree = true
@@ -152,16 +160,14 @@ export class ContextManager {
     }
 
     mouseOutTreeHandler(event) {
-        event.preventDefault();
         this.blockId = undefined
         this.isTree = false
         if (this.mode === 'cutBlock') {
-            this.cut['new_parent_id'] = this.blockId
+            this.cut['new_parent_id'] = undefined
         }
     }
 
     mouseOverBreadcrumbHandler(event) {
-        event.preventDefault();
         if (event.target.hasAttribute('blockid')) {
             this.blockId = event.target.getAttribute('blockid')
         }
@@ -171,10 +177,9 @@ export class ContextManager {
     }
 
     mouseOutBreadcrumbHandler(event) {
-        event.preventDefault();
         this.blockId = undefined
         if (this.mode === 'cutBlock') {
-            this.cut['new_parent_id'] = this.blockId
+            this.cut['new_parent_id'] = undefined
         }
     }
 
@@ -200,7 +205,6 @@ export class ContextManager {
     }
 
     setCmd(cmd) {
-        console.log(cmd, this.cmdId)
         if (typeof cmd !== "string") {
             if (this.cmdId === cmd.id) {
                 this.setCmd('openBlock')
@@ -220,7 +224,6 @@ export class ContextManager {
     }
 
     toggleActiveButton(cmd) {
-        console.log(cmd, this.activeBtnElem && this.activeBtnElem.id !== cmd)
         if (this.activeBtnElem && this.activeBtnElem.id !== cmd) {
             this.activeBtnElem.classList.remove('active-button')
             this.activeBtnElem.blur()

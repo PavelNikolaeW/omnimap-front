@@ -151,24 +151,6 @@ export const commands = [
         }
     },
     {
-        id: 'undo',
-        defaultHotkey: 'shift+z',
-        mode: ['normal'],
-        execute(ctx) {
-            dispatch('Undo')
-            setCmdOpenBlock(ctx)
-        }
-    },
-    {
-        id: 'redo',
-        defaultHotkey: 'shift+ctrl+z',
-        mode: ['normal'],
-        execute(ctx) {
-            dispatch('Redo')
-            setCmdOpenBlock(ctx)
-        }
-    },
-    {
         id: 'newBlock',
         mode: ['normal'],
         btn: {
@@ -234,11 +216,8 @@ export const commands = [
             if (ctx.blockLinkElement?.hasAttribute('blockLink')) {
                 id = ctx.blockLinkElement.getAttribute('blocklink')
             }
-            console.log(ctx.mode)
             ctx.mode = 'textEdit'
             nodeEditor.openEditor(id, ctx.blockElement.querySelector('contentBlock').innerHTML, ctx)
-            // console.log(ctx.blockElement.querySelector('contentBlock').innerHTML)
-            // textEditor.initEditor(ctx.blockElement.querySelector('contentBlock'), id)
             setCmdOpenBlock(ctx)
         }
     },
@@ -254,7 +233,6 @@ export const commands = [
         description: 'Переместить блок в другое место.',
         execute(ctx) {
             const target = ctx.blockLinkElement || ctx.blockElement
-            console.log(target)
             if (!target) return
             const id = target.id.split('*').at(-1)
             const parentId = target.parentElement.id
@@ -361,6 +339,66 @@ export const commands = [
         }
     },
     {
+        id: 'undo',
+        defaultHotkey: 'shift+z',
+        btn: {
+            containerId: 'control-panel',
+            label: 'Отменить последнее действие',
+            classes: ['sidebar-button', 'fas', 'fa-rotate-left', 'fas-lg'],
+        },
+        description: 'Отменить последнее действие',
+        mode: ['normal'],
+        execute(ctx) {
+            dispatch('Undo')
+            setCmdOpenBlock(ctx)
+        },
+        btnExec(ctx) {
+            this.execute(ctx)
+        }
+    },
+    {
+        id: 'redo',
+        defaultHotkey: 'shift+ctrl+z',
+        mode: ['normal'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Отменить отмену действия',
+            classes: ['sidebar-button', 'fas', 'fa-rotate-right', 'fas-lg'],
+        },
+        description: 'Отменить отмену последнего действия',
+        execute(ctx) {
+            dispatch('Redo')
+            setCmdOpenBlock(ctx)
+        },
+        btnExec(ctx) {
+            this.execute(ctx)
+        }
+    },
+    {
+        id: "removeTreeBlock",
+        mode: ['normal'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Удалить дерево',
+            classes: ['sidebar-button', 'fas', 'fa-trash', 'fas-lg'],
+        },
+        defaultHotkey: 'shift+d',
+        description: 'Удаляет блок, и все дочерние блоки',
+        execute(ctx) {
+            const id = ctx.blockId ?? ctx.blockLinkId ?? ctx.blockElement?.id
+            if (!id) return
+            dispatch('DeleteTreeBlock', {blockId: id})
+            ctx.shiftLock = false
+            ctx.blockElement = ctx.blockLinkElement?.parentNode ?? ctx.blockElement?.parentNode
+            if (ctx.blockElement && ctx.blockElement.id.indexOf('*') !== -1) {
+                ctx.blockLinkElement = ctx.blockElement.parentNode
+                ctx.blockElement = undefined
+
+            }
+            setCmdOpenBlock(ctx)
+        }
+    },
+    {
         id: "createDiagram",
         mode: ['normal', 'diagram'],
         btn: {
@@ -439,30 +477,6 @@ export const commands = [
         },
         btnExec(ctx) {
             this.execute(ctx)
-        }
-    },
-    {
-        id: "removeTreeBlock",
-        mode: ['normal'],
-        btn: {
-            containerId: 'control-panel',
-            label: 'Удалить дерево',
-            classes: ['sidebar-button', 'fas', 'fa-trash', 'fas-lg'],
-        },
-        defaultHotkey: 'shift+d',
-        description: 'Удаляет блок, и все дочерние блоки',
-        execute(ctx) {
-            const id = ctx.blockId ?? ctx.blockLinkId ?? ctx.blockElement?.id
-            if (!id) return
-            dispatch('DeleteTreeBlock', {blockId: id})
-            ctx.shiftLock = false
-            ctx.blockElement = ctx.blockLinkElement?.parentNode ?? ctx.blockElement?.parentNode
-            if (ctx.blockElement && ctx.blockElement.id.indexOf('*') !== -1) {
-                ctx.blockLinkElement = ctx.blockElement.parentNode
-                ctx.blockElement = undefined
-
-            }
-            setCmdOpenBlock(ctx)
         }
     },
     ...popupsCommands,

@@ -22,4 +22,8 @@ export class BaseController {
             if (callback && typeof callback === 'function') callback()
         });
     }
+
+    async getCurrentUser() {
+        return await localforage.getItem('currentUser')
+    }
 }

@@ -67,9 +67,7 @@ export class UpdateServiceWebSocket {
     }
 
     /**
-     * Отправляет UUID данных, на которые клиент подписан.
-     * UUID передаются в виде массива.
-     * @param {Array<{string:string}>} blocks - Массив UUID и даты последнего обновления.
+     * Отправляет UUID блоков и их даты обновления
      */
     getUpdates(blocks) {
         if (this.isConnected) {

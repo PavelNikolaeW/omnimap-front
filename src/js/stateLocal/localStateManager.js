@@ -34,7 +34,14 @@ class BlockRepository {
 
     async saveBlock(block) {
         const key = this.getKey(block.id);
-        await localforage.setItem(key, block);
+        await localforage.setItem(key, {
+            id: block.id,
+            data: block.data,
+            children: block.children,
+            parent_id: block.parent_id,
+            title: block.title,
+            updated_at: block.updated_at
+        });
     }
 
     async loadBlock(blockId) {
@@ -112,10 +119,6 @@ export class LocalStateManager {
         });
         window.addEventListener('IframeCreate', (e) => {
             this.iframeCreate(e.detail);
-        });
-
-        window.addEventListener('DeleteBlock', (e) => {
-            this.removeBlockHandler(e.detail);
         });
 
         window.addEventListener('Login', async (e) => {
@@ -223,18 +226,17 @@ export class LocalStateManager {
     }
 
     createTree({title}) {
-        api.createTree(title).then(res => {
-            if (res.status === 201) {
-                const block = res.data
-                localforage.getItem(`treeIds${this.currentUser}`, (err, treeIds) => {
+        api.createTree(title)
+            .then(async (res) => {
+                if (res.status === 201) {
+                    const block = res.data
+                    const treeIds = await localforage.getItem(`treeIds${this.currentUser}`)
                     treeIds.push(block.id)
-                    localforage.setItem(`treeIds${this.currentUser}`, treeIds, () => {
-                        this.saveBlock(block)
-                        this.showBlocks()
-                    })
-                })
-            }
-        })
+                    await localforage.setItem(`treeIds${this.currentUser}`, treeIds)
+                    await this.saveBlock(block)
+                    this.showBlocks()
+                }
+            })
     }
 
     async deleteTreeBlock({blockId}) {
@@ -254,9 +256,9 @@ export class LocalStateManager {
         }
         api.removeTree(blockId).then(async (res) => {
             if (res.status === 200) {
-                await localforage.removeItem(`Path_${blockId}${this.currentUser}`)
+                localforage.removeItem(`Path_${blockId}${this.currentUser}`)
                 if (newTreeIds) {
-                    localforage.setItem(`treeIds${this.currentUser}`, newTreeIds)
+                    await localforage.setItem(`treeIds${this.currentUser}`, newTreeIds)
                 }
                 if (currentTree === blockId) {
                     await localforage.setItem(`currentTree`, newTreeIds[0])
@@ -299,15 +301,20 @@ export class LocalStateManager {
     }
 
     webSocUpdateBlock(newBlocks) {
+        console.log(newBlocks)
         if (newBlocks.length) {
             newBlocks.forEach((block) => {
-                this.saveBlock({
-                    id: block.id,
-                    updated_at: new Date(block.updated_at * 1000).toISOString(),
-                    title: block.title,
-                    data: JSON.parse(block.data),
-                    children: JSON.parse(block.children)
-                })
+                if (block.deleted) {
+                    this.removeOneBlock(block.id)
+                } else {
+                    this.saveBlock({
+                        id: block.id,
+                        updated_at: new Date(block.updated_at * 1000).toISOString(),
+                        title: block.title,
+                        data: JSON.parse(block.data),
+                        children: JSON.parse(block.children)
+                    })
+                }
             })
             this.updateScreen(newBlocks)
         }
@@ -356,7 +363,7 @@ export class LocalStateManager {
         }
 
         if (parent && parent.data) {
-            const newOrder = reorderList(parent.data.childOrder, block_id, before)
+            const newOrder = reorderList(parent.data.childOrder || [], block_id, before)
             api.moveBlock(block_id, {new_parent_id, old_parent_id, childOrder: newOrder})
                 .then((res) => {
                     if (res.status === 200) {
@@ -381,38 +388,98 @@ export class LocalStateManager {
 
 
     async saveBlock(block) {
-        this.blocks.set(block.id, block)
-        await this.blockRepository.saveBlock(block);
+        if (block) {
+            this.blocks.set(block.id, block)
+            await this.blockRepository.saveBlock(block);
+        } else {
+            console.error('Save block undefined')
+        }
     }
 
-    async removeBlock(blockId) {
-
-        this.removeBranch(blockId)
-
-        let treeIds = await localforage.getItem(`treeIds${this.currentUser}`)
-        treeIds = treeIds.filter(id => id !== blockId)
-        await localforage.setItem(`treeIds${this.currentUser}`, treeIds)
-        await this.blockRepository.deleteBlock(blockId);
-    }
-
-    removeBranch(blockId) {
+    async removeOneBlock(blockId) {
         const block = this.blocks.get(blockId);
-        if (!block || !Array.isArray(block.children)) {
-            console.warn(`Block ${blockId} not found or has no children`);
+        if (!block) {
+            console.warn(`Block ${blockId} not found`);
+            return;
+        }
+        const parentId = block.parent_id;
+        if (parentId) {
+            const parentBlock = this.blocks.get(parentId);
+            if (parentBlock) {
+                parentBlock.children = parentBlock.children.filter(id => id !== blockId);
+                parentBlock.data.childOrder = parentBlock.data.childOrder.filter(id => id !== blockId);
+                this.blockRepository.saveBlock(parentBlock)
+            }
+        }
+
+        let treeIds = await localforage.getItem(`treeIds${this.currentUser}`);
+
+        if (Array.isArray(treeIds)) {
+            treeIds = treeIds.filter(id => id !== blockId);
+            await localforage.setItem(`treeIds${this.currentUser}`, treeIds);
+        }
+
+        // Remove from internal map and delete from repository
+        this.blocks.delete(blockId);
+        await this.blockRepository.deleteBlock(blockId);
+
+    }
+
+    // Corrected block and branch removal logic with parent update
+    async removeBlock(blockId) {
+        const block = this.blocks.get(blockId);
+        if (!block) {
+            console.warn(`Block ${blockId} not found`);
             return;
         }
 
-        this.blocks.delete(blockId);
-        this.removeBlock(block.id);
+        // Recursively remove children first
+        this.removeBranch(block);
 
-        this.blockRepository.deleteBlock(block.id).catch(err => {
-            console.error(`Ошибка при удалении блока ${block.id}:`, err);
-        });
+        // Attempt to update parent block using parent_id
+        const parentId = block.parent_id;
+        if (parentId) {
+            const parentBlock = this.blocks.get(parentId);
+            if (parentBlock) {
+                if (Array.isArray(parentBlock.children)) {
+                    parentBlock.children = parentBlock.children.filter(id => id !== blockId);
+                }
+                if (Array.isArray(parentBlock.childOrder)) {
+                    parentBlock.data.childOrder = parentBlock.data.childOrder.filter(id => id !== blockId);
+                }
+            }
+        }
+
+        // Remove from treeIds in localforage
+        let treeIds = await localforage.getItem(`treeIds${this.currentUser}`);
+        if (Array.isArray(treeIds)) {
+            treeIds = treeIds.filter(id => id !== blockId);
+            await localforage.setItem(`treeIds${this.currentUser}`, treeIds);
+        }
+
+        // Remove from internal map and delete from repository
+        this.blocks.delete(blockId);
+        await this.blockRepository.deleteBlock(blockId);
+    }
+
+    removeBranch(block) {
+        if (!block || !Array.isArray(block.children)) {
+            console.warn(`Block ${block?.id} is invalid or has no children`);
+            return;
+        }
 
         for (const childId of block.children) {
-            this.removeBranch(childId);
+            const childBlock = this.blocks.get(childId);
+            this.removeBranch(childBlock);
+
+            // Remove child from internal map and repository
+            this.blocks.delete(childId);
+            this.blockRepository.deleteBlock(childId).catch(err => {
+                console.error(`Ошибка при удалении блока ${childId}:`, err);
+            });
         }
     }
+
 
     // Initialization
     async initUser({treeIds, blocks}, user) {
@@ -462,9 +529,8 @@ export class LocalStateManager {
         });
     }
 
-
-    async initShowLink(linkSlug) {
-        let treeId = await localforage.getItem(`linkSlugTreeId${this.currentUser}:${linkSlug}`)
+    async initShowLink(linkSlug, user) {
+        let treeId = await localforage.getItem(`linkSlugTreeId${user}:${linkSlug}`)
         if (!treeId) {
             const res = await api.loadBlockUrl(linkSlug)
 
@@ -472,8 +538,8 @@ export class LocalStateManager {
                 const blocks = Object.values(res.data)
                 const block = blocks[0]
                 const color = block.data?.color && block.data.color !== 'default_color' ? block.data.color : [];
-                await localforage.setItem(`linkSlugTreeId${this.currentUser}:${linkSlug}`, block.id)
-                await localforage.setItem(`Path_${block.id}${this.currentUser}`, [
+                await localforage.setItem(`linkSlugTreeId${user}:${linkSlug}`, block.id)
+                await localforage.setItem(`Path_${block.id}${user}`, [
                     {screenName: truncate(block.title, 10), color: color, blockId: block.id}
                 ])
 
@@ -496,13 +562,12 @@ export class LocalStateManager {
         this.blockRepository = new BlockRepository(this.currentUser);
 
         if (window.location.href.indexOf('/?') !== -1) {
-            this.currentTree = await this.initShowLink(window.location.search.slice(1,))
+            this.currentTree = await this.initShowLink(window.location.search.slice(1,), this.currentUser)
         } else {
             this.currentTree = await localforage.getItem('currentTree');
         }
 
-
-        if (!this.blocks || this.blocks.size === 0) {
+        if (!this.blocks || this.blocks.size === 0 ){
             await this.getAllBlocksForUser(this.currentUser);
         }
         this.path = await localforage.getItem(`Path_${this.currentTree}${this.currentUser}`) || [];
@@ -517,6 +582,7 @@ export class LocalStateManager {
             this.path.push(screenObj)
             await localforage.setItem(`Path_${this.currentTree}${this.currentUser}`, this.path)
         }
+        if (!this.blocks.has(screenObj.blockId)) await this.getAllBlocksForUser(this.currentUser);
         this.painter.render(this.blocks, screenObj);
         dispatch('ShowedBlocks', {path: this.path, activeId: undefined});
 
@@ -525,7 +591,13 @@ export class LocalStateManager {
     getPath(callback) {
         localforage.getItem('currentTree', (err, tree) => {
             localforage.getItem('currentUser', (err, user) => {
-                localforage.getItem(`Path_${tree}${user}`, callback)
+                if (window.location.href.indexOf('/?') !== -1) {
+                    localforage.getItem(`linkSlugTreeId${user}:${window.location.search.slice(1,)}`, (err, linkTree) => {
+                        localforage.getItem(`Path_${linkTree}${user}`, callback)
+                    })
+                } else {
+                    localforage.getItem(`Path_${tree}${user}`, callback)
+                }
             })
         })
     }
@@ -534,6 +606,7 @@ export class LocalStateManager {
         this.getPath((err, path) => {
             const currentScreen = path.at(-1)
             const block = this.blocks.get(id);
+            console.log(block)
             const title = block.title;
             let activeId = undefined
             if (currentScreen.blockId === block.id) {
