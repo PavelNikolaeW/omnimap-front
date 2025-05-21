@@ -1,4 +1,5 @@
 import {commands} from "./commands";
+import localforage from "localforage";
 
 
 export class UIManager {
@@ -12,23 +13,27 @@ export class UIManager {
 
     renderBtn(mode, commandsById) {
         this.mode = mode
-        Object.values(commandsById).forEach((cmd) => {
-            if (cmd.mode.includes(mode) && cmd.btn) {
-                const btn = cmd.btn
-                const containerId = btn.containerId
-                const element = document.createElement('button')
+        localforage.getItem('currnetUser').then(user => {
+            if ((user && user !== 'anonim') || window.location.search) {
+                Object.values(commandsById).forEach((cmd) => {
+                    if (cmd.mode.includes(mode) && cmd.btn) {
+                        const btn = cmd.btn
+                        const containerId = btn.containerId
+                        const element = document.createElement('button')
 
-                element.id = cmd.id
-                element.classList.add(...btn.classes)
-                if (btn.icons) {
-                    btn.icons.forEach((icon) => {
-                        const i = document.createElement('i')
-                        i.classList.add(...icon)
-                        element.appendChild(i)
-                    })
-                }
-                element.setAttribute('title', `${btn.label} [${cmd.currentHotkey}]`)
-                this.elements[containerId].appendChild(element)
+                        element.id = cmd.id
+                        element.classList.add(...btn.classes)
+                        if (btn.icons) {
+                            btn.icons.forEach((icon) => {
+                                const i = document.createElement('i')
+                                i.classList.add(...icon)
+                                element.appendChild(i)
+                            })
+                        }
+                        element.setAttribute('title', `${btn.label} [${cmd.currentHotkey}]`)
+                        this.elements[containerId].appendChild(element)
+                    }
+                })
             }
         })
     }

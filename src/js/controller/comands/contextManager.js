@@ -208,18 +208,22 @@ export class ContextManager {
         if (typeof cmd !== "string") {
             if (this.cmdId === cmd.id) {
                 this.setCmd('openBlock')
+                if (cmd.btnExec) {
+                    cmd.btnExec(this)
+                }
                 return
             }
             this.cmdId = cmd.id
             this.toggleActiveButton(cmd.id)
             this.activeBtnIndicator.innerText = cmd.id
-            if (cmd.btnExec) {
-                cmd.btnExec(this)
-            }
+
         } else {
             this.cmdId = cmd
             this.toggleActiveButton(cmd)
             this.activeBtnIndicator.innerText = cmd
+        }
+        if (cmd.btnExec) {
+            cmd.btnExec(this)
         }
     }
 

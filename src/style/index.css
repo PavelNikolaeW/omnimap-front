@@ -9,6 +9,7 @@ body {
     overflow: auto;
     overscroll-behavior-y: contain;
     overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
 }
 
 p {
@@ -325,22 +326,6 @@ th {
     font-size: 1.2em;
 }
 
-@media (max-width: 600px) {
-    .fas-lg {
-        font-size: 1em;
-    }
-}
-
-.fas-xs {
-    font-size: 0.8em;
-    line-height: .75em;
-    vertical-align: -15%;
-}
-
-.fas-stack .fas {
-    position: absolute;
-    text-align: center;
-}
 
 .diagram-inputs {
     position: absolute;
@@ -367,6 +352,29 @@ th {
     background-color: #f0f0f0;
 }
 
+@media (max-width: 600px) {
+    .fas-lg {
+        font-size: 1em;
+    }
+    .diagram-inputs {
+        flex-direction: column;
+        background-color: white;
+    }
+}
+
+
+.fas-xs {
+    font-size: 0.8em;
+    line-height: .75em;
+    vertical-align: -15%;
+}
+
+.fas-stack .fas {
+    position: absolute;
+    text-align: center;
+}
+
+
 [blockcustomgrid] {
     gap: 0
 }
@@ -381,16 +389,17 @@ button:focus {
 }
 
 .block::-webkit-scrollbar {
-  display: none; /* Safari и Chrome */
+    display: none; /* Safari и Chrome */
 }
+
 .block-link::-webkit-scrollbar {
-  display: none; /* Safari и Chrome */
+    display: none; /* Safari и Chrome */
 }
 
 .top-navigation::-webkit-scrollbar {
-  display: none; /* Safari и Chrome */
+    display: none; /* Safari и Chrome */
 }
 
 .sidebar::-webkit-scrollbar {
-  display: none; /* Safari и Chrome */
+    display: none; /* Safari и Chrome */
 }

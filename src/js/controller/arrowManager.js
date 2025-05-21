@@ -1,5 +1,6 @@
 import {dispatch} from "../utils/utils";
 import {EVENT_CONNECTION_CLICK, log, newInstance} from "@jsplumb/browser-ui";
+import {customPrompt} from "../utils/custom-dialog";
 
 
 const SMALL_LAYOUTS = ["xxxs-sq", "xxxs-w", "xxxs-h"];
@@ -77,28 +78,29 @@ class ArrowManager {
     handleConnectionLabel(connection) {
         const labelOverlay = connection.getOverlay("label");
         const currentLabel = labelOverlay ? labelOverlay.getLabel() : "";
-        const newLabel = prompt("Введите лейбл для связи:", currentLabel);
-
-        if (newLabel === null) {
-            // Пользователь отменил ввод
-            return;
-        }
-
-        if (newLabel.trim() === "") {
-            // Если введена пустая строка, удаляем лейбл (если он был)
-            if (labelOverlay) {
-                connection.removeOverlay("label");
-                this.updateConnectionLabel(connection.source.id, connection.target.id, "");
+        customPrompt("Введите лейбл для связи:", currentLabel).then(newLabel => {
+            if (newLabel === null) {
+                // Пользователь отменил ввод
+                return;
             }
-        } else {
-            // Добавляем или обновляем лейбл
-            if (labelOverlay) {
-                labelOverlay.setLabel(newLabel);
+            if (newLabel.trim() === "") {
+                // Если введена пустая строка, удаляем лейбл (если он был)
+                if (labelOverlay) {
+                    connection.removeOverlay("label");
+                    this.updateConnectionLabel(connection.source.id, connection.target.id, "");
+                }
             } else {
-                connection.addOverlay(this.createLabelOverlay(newLabel));
+                // Добавляем или обновляем лейбл
+                if (labelOverlay) {
+                    labelOverlay.setLabel(newLabel);
+                } else {
+                    connection.addOverlay(this.createLabelOverlay(newLabel));
+                }
+                this.updateConnectionLabel(connection.source.id, connection.target.id, newLabel);
             }
-            this.updateConnectionLabel(connection.source.id, connection.target.id, newLabel);
-        }
+        })
+
+
     }
 
     /**

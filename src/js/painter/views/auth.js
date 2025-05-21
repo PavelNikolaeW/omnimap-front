@@ -56,10 +56,6 @@ export function auth(block, parent) {
     // Добавляем контейнер в тело документа
     document.body.appendChild(container);
 
-    container.addEventListener('click', (e) => {
-        e.stopPropagation()
-    })
-
     // Обработчик отправки формы
     form.addEventListener('submit', async function (event) {
         event.preventDefault(); // Предотвращаем перезагрузку страницы
@@ -74,6 +70,6 @@ export function auth(block, parent) {
             alert('Неверное имя пользователя или пароль.');
         }
     });
-    
+
     return container
 }

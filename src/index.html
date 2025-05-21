@@ -2,7 +2,23 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <head>
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+                const meta = document.createElement('meta');
+                meta.name = 'viewport';
+                if (isMobile) {
+                    // Для мобильных: уменьшаем масштаб, например initial-scale=0.7
+                    meta.content = 'width=device-width, initial-scale=0.75, maximum-scale=1.0';
+                } else {
+                    // Для десктопов: стандартная вёрстка без масштабирования
+                    meta.content = 'width=device-width, initial-scale=1.0';
+                }
+                document.head.appendChild(meta);
+            });
+        </script>
+    </head>
     <title>omniMap</title>
 </head>
 <body>

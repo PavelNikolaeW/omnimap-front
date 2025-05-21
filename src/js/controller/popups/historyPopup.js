@@ -1,4 +1,5 @@
 import {Popup} from "./popup";
+import {customConfirm} from "../../utils/custom-dialog";
 
 export class HistoryPopup extends Popup {
     /**
@@ -112,7 +113,7 @@ export class HistoryPopup extends Popup {
      */
     async handleRevert(record) {
         // Тут можно добавить доп. подтверждение «Вы уверены?» и т.д.
-        const confirmed = confirm(`Откатиться к изменению #${record.history_id} от ${record.history_date}?`);
+        const confirmed = await customConfirm(`Откатиться к изменению #${record.history_id} от ${record.history_date}?`);
         if (!confirmed) return;
 
         // Вызываем переданную функцию revertHistory

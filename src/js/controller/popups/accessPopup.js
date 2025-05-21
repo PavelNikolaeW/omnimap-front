@@ -1,5 +1,6 @@
 import {Popup} from "./popup";
 import {pollTaskStatus} from "../../api/api";
+import {customConfirm} from "../../utils/custom-dialog";
 
 /**
  * Функция для вывода сообщений в попапе.
@@ -432,43 +433,45 @@ export class AccessPopup extends Popup {
                 );
             });
     }
+
     _createGroup(groupName, permission, groupNameInput) {
         this.createGroup({name: groupName, permission})
-                .then(() => {
-                    showMessage(
-                        this.messageContainer,
-                        "Группа успешно создана",
-                        "success"
-                    );
-                    this.loadGroups();
-                    groupNameInput.value = "";
-                })
-                .catch((err) => {
-                    console.error(err);
-                    showMessage(this.messageContainer, "Ошибка создания группы");
-                });
+            .then(() => {
+                showMessage(
+                    this.messageContainer,
+                    "Группа успешно создана",
+                    "success"
+                );
+                this.loadGroups();
+                groupNameInput.value = "";
+            })
+            .catch((err) => {
+                console.error(err);
+                showMessage(this.messageContainer, "Ошибка создания группы");
+            });
     }
+
     _addUser(usernameInput, userPermissionSelect) {
         clearMessage(this.messageContainer);
-            const username = usernameInput.value.trim();
-            const permission = userPermissionSelect.value;
-            if (!username) {
-                showMessage(this.messageContainer, "Введите имя пользователя");
-                return;
-            }
-            this.updateAccess(this.blockId, {
-                permission_type: permission,
-                target_username: username,
+        const username = usernameInput.value.trim();
+        const permission = userPermissionSelect.value;
+        if (!username) {
+            showMessage(this.messageContainer, "Введите имя пользователя");
+            return;
+        }
+        this.updateAccess(this.blockId, {
+            permission_type: permission,
+            target_username: username,
+        })
+            .then(() => {
+                showMessage(this.messageContainer, "Права пользователя обновлены", "success");
+                this.loadAccessList();
+                usernameInput.value = "";
             })
-                .then(() => {
-                    showMessage(this.messageContainer, "Права пользователя обновлены", "success");
-                    this.loadAccessList();
-                    usernameInput.value = "";
-                })
-                .catch((err) => {
-                    console.error("Ошибка обновления прав доступа:", err);
-                    showMessage(this.messageContainer, "Ошибка обновления прав доступа для пользователя");
-                });
+            .catch((err) => {
+                console.error("Ошибка обновления прав доступа:", err);
+                showMessage(this.messageContainer, "Ошибка обновления прав доступа для пользователя");
+            });
     }
 
     // Загрузка списка прав (пользовательские права)
@@ -569,22 +572,24 @@ export class AccessPopup extends Popup {
             deleteBtn.textContent = "Удалить группу";
             deleteBtn.className = "access-remove-button";
             deleteBtn.addEventListener("click", () => {
-                if (confirm(`Вы хотите удалить группу ${group.name}?`)) {
-                    clearMessage(this.messageContainer);
-                    if (typeof this.deleteGroup === "function") {
-                        this.deleteGroup(group.id)
-                            .then(() => {
-                                showMessage(this.messageContainer, "Группа удалена", "success");
-                                // Обновляем список групп и пользователей
-                                this.loadGroups();
-                                this.loadAccessList();
-                            })
-                            .catch((err) => {
-                                console.error(err);
-                                showMessage(this.messageContainer, "Ошибка удаления группы");
-                            });
+                customConfirm(`Вы хотите удалить группу ${group.name}?`).then(ok => {
+                    if (ok) {
+                        clearMessage(this.messageContainer);
+                        if (typeof this.deleteGroup === "function") {
+                            this.deleteGroup(group.id)
+                                .then(() => {
+                                    showMessage(this.messageContainer, "Группа удалена", "success");
+                                    // Обновляем список групп и пользователей
+                                    this.loadGroups();
+                                    this.loadAccessList();
+                                })
+                                .catch((err) => {
+                                    console.error(err);
+                                    showMessage(this.messageContainer, "Ошибка удаления группы");
+                                });
+                        }
                     }
-                }
+                })
             });
 
             // Кнопка для управления участниками группы

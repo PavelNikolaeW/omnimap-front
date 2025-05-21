@@ -86,10 +86,6 @@ export function registration(block, parent) {
     // Добавляем форму в контейнер
     container.appendChild(form);
 
-    container.addEventListener('click', (e) => {
-        e.stopPropagation();
-    });
-
     // Обработчик отправки формы
     form.addEventListener('submit', async function (event) {
         event.preventDefault(); // Предотвращаем перезагрузку страницы
@@ -105,7 +101,7 @@ export function registration(block, parent) {
         }
 
         try {
-            const isRegistered = await api.register({ username, email, password });
+            const isRegistered = await api.register({username, email, password});
             console.log(isRegistered)
             if (isRegistered) {
                 alert('Успешная регистрация!');

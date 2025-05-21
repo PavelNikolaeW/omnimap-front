@@ -13,7 +13,7 @@ import '../style/historyPopup.css';
 import '../style/solid.css';
 import '../style/fontawesome.css';
 
-import {checkClass, dispatch} from "./utils/utils";
+import {dispatch} from "./utils/utils";
 import {LocalStateManager} from "./stateLocal/localStateManager";
 import {addedSizeStyles} from "./painter/styles";
 import localforage from "localforage";
@@ -23,6 +23,7 @@ import {CommandManager} from "./controller/comands/comandManager";
 import {Breadcrumbs} from "./controller/breadcrumds";
 import {TreeNavigation} from "./controller/treeNavigation";
 import {RedoStack, UndoStack} from "./controller/undoStack";
+import Cookies from "js-cookie";
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
     window.addEventListener('load', () => {
@@ -39,6 +40,24 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
 
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // Проверка поддержки IndexedDB и конфигурация localforage
+    if (!localforage.supports(localforage.INDEXEDDB)) {
+        alert('Ваш браузер не поддерживает IndexedDB. Пожалуйста, обновите браузер для полноценной работы сайта.');
+    } else {
+        if ('storage' in navigator && 'persist' in navigator.storage) {
+            const granted = await navigator.storage.persist();
+            console.log('Persistent storage', granted ? 'granted' : 'denied');
+        }
+        localforage.config({
+            name: 'omniMap',
+            storeName: 'omniMap',
+            driver: [localforage.INDEXEDDB],
+            version: 1.0,
+            description: ''
+        });
+        await localforage.ready()
+    }
+
     function setRealVh() {
         const vh = window.innerHeight * 0.01;
         document.documentElement.style.setProperty('--vh', `${vh}px`);
@@ -47,6 +66,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.addEventListener('resize', setRealVh);
     window.addEventListener('orientationchange', setRealVh);
     setRealVh();
+
     await initApp()
 })
 
@@ -56,8 +76,9 @@ document.addEventListener('DOMContentLoaded', async () => {
  * Генерируем событие ShowBlocks
  */
 async function initApp() {
+
     addedSizeStyles()
-    localforage.getItem('hotkeysMap', (err, hotkeysMap) => {
+    await localforage.getItem('hotkeysMap', (err, hotkeysMap) => {
         new CommandManager(
             'rootContainer',
             'breadcrumb',
@@ -81,13 +102,14 @@ async function initApp() {
 
     setInterface()
 }
+
 async function checkAuth() {
     let user = await localforage.getItem('currentUser')
     if (user == null) {
         dispatch('InitAnonimUser')
         return false
     }
-    if (!navigator.onLine) {
+    if (!navigator.onLine && Cookies.get('refresh') !== undefined) {
         return true
     }
     if (user !== 'anonim') {
@@ -117,38 +139,72 @@ function setInterface() {
     })
 }
 
-let clickStartTime = 0;
-let startX = 0;
-let startY = 0;
-const timeThreshold = 200; // время в мс, ниже которого считаем клик быстрым
-const moveThreshold = 5;   // порог перемещения в пикселях
+(() => {
+  const TIME_THRESHOLD = 200;   // мс, ниже — быстрый клик
+  const MOVE_THRESHOLD = 5;     // пикселей, ниже — без движения
 
-document.addEventListener('mousedown', (e) => {
+  let clickStartTime = 0;
+  let startX = 0;
+  let startY = 0;
+
+  /**
+   * Проверяет, что клик произошёл по элементу, где ввод текста нужен:
+   * - <textarea>
+   * - <input type="text|email|password">
+   * - <emoji-picker>
+   * - любой элемент внутри .CodeMirror
+   * - любой элемент с contenteditable="true"
+   */
+  const isExcludedElement = (el) => {
+    const tag = el.tagName.toLowerCase();
+
+    if (el.isContentEditable) {
+      return true;
+    }
+
+    if (tag === 'textarea') {
+      return true;
+    }
+
+    if (tag === 'input') {
+      return true;
+    }
+
+    if (tag === 'emoji-picker') {
+      return true;
+    }
+
+    if (el.closest('.CodeMirror')) {
+      return true;
+    }
+
+    return false;
+  };
+
+  document.addEventListener('mousedown', (e) => {
     clickStartTime = Date.now();
     startX = e.clientX;
     startY = e.clientY;
-});
+  });
 
-document.addEventListener('mouseup', (e) => {
-    if (['text', 'email', 'password', 'textarea'].includes(e.target.type) ||
-        e.target.localName === 'emoji-picker' ||
-        checkClass(e.target, 'CodeMirror')) return
+  document.addEventListener('mouseup', (e) => {
+    if (isExcludedElement(e.target)) {
+      // стандартное поведение для полей ввода текста
+      return;
+    }
+
     const clickDuration = Date.now() - clickStartTime;
-    const deltaX = Math.abs(e.clientX - startX);
-    const deltaY = Math.abs(e.clientY - startY);
+    const deltaX = e.clientX - startX;
+    const deltaY = e.clientY - startY;
 
-    // Если клик был быстрым и без значительного перемещения
-    if (clickDuration < timeThreshold && deltaX < moveThreshold && deltaY < moveThreshold) {
-        // Убираем выделение, если оно случайно произошло
-        window.getSelection().removeAllRanges();
+    if (
+      clickDuration < TIME_THRESHOLD &&
+      Math.hypot(deltaX, deltaY) < MOVE_THRESHOLD
+    ) {
+      const sel = window.getSelection();
+      if (!sel.isCollapsed) {
+        sel.removeAllRanges();
+      }
     }
-});
-
-let lastTouchEnd = 0;
-document.addEventListener('touchend', function (e) {
-    const now = Date.now();
-    if (now - lastTouchEnd <= 300) {
-        e.preventDefault(); // блокирует двойной тап
-    }
-    lastTouchEnd = now;
-}, false);
+  });
+})();

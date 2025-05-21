@@ -2,7 +2,6 @@ import localforage from "localforage";
 import {BaseController} from "./baseController";
 import {dispatch} from "../utils/utils";
 import CalcColor from "../painter/calcBlockColor";
-import {getPath} from "./comands/cmdUtils";
 
 function shortenText(str, maxLength = 15) {
     if (!str) return "";
@@ -129,7 +128,6 @@ export class Breadcrumbs extends BaseController {
 
         let parentColor = []
         reversed.forEach((block, index) => {
-            console.log(block)
             if (block.data.view !== 'link') {
                 // Полное название для подсказки
                 const fullTitle = block.title || `${block.id}`;

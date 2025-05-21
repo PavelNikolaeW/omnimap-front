@@ -28,10 +28,25 @@ export class Painter {
         this.config = {
             maxDepth: 40,
         }
+        this.counter = 0
     }
 
     render(blocks, {color = [], blockId}) {
         const block = blocks.get(blockId)
+        if (block === undefined && this.counter === 0) {
+            dispatch('LoadTrees')
+            this.counter++
+            return
+        }
+        if (block === undefined && this.counter === 1) {
+            dispatch('ResetState')
+            this.counter++
+            return;
+        }
+        if (block === undefined && this.counter > 1 ) {
+            dispatch("ShowError", `Ну все, приплыли block id ${blockId} не найден`)
+            return;
+        }
         let queue
         try {
             queue = new Queue([{
@@ -57,7 +72,6 @@ export class Painter {
         this._render(queue, blocks, this.config);
         // this.printRealSize()
         this.setIframePositions()
-
         if (blockCreator.emptyBlocks.size) {
             dispatch('LoadEmptyBlocks', {emptyBlocks: [...blockCreator.emptyBlocks]})
             blockCreator.emptyBlocks.clear()

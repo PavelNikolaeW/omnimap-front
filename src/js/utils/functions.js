@@ -1,3 +1,5 @@
+import {customPrompt} from "./custom-dialog";
+
 /**
  * Находит наибольший общий делитель (НОД) для двух чисел.
  * Используется алгоритм Евклида.
@@ -115,7 +117,7 @@ export async function getClipboardText() {
         document.body.removeChild(textarea);
     }
 
-    const userText = prompt("Вставьте текст сюда (CTRL+V):", "");
+    const userText = await customPrompt("Вставьте текст сюда (CTRL+V):", "")
     if (userText) {
         console.log("Текст, введённый пользователем:", userText);
         return userText;
@@ -177,6 +179,33 @@ export function throttle(fn, delay) {
   };
 }
 
+export function isMobileOrTablet() {
+  // 1) Client Hints (Chrome 89+)
+  if (navigator.userAgentData) {
+    if (navigator.userAgentData.mobile) {
+      return true; // точно телефон
+    }
+    // iPadOS 15+ от Apple пока не помечает планшеты как mobile,
+    // но ниже фиче-детекция их “поймает”
+  }
+
+  // 2) UA-фильтры по ключевым словам
+  const ua = navigator.userAgent || '';
+  const phoneRe  = /Mobi|Android.+Mobile|iPhone|IEMobile|Windows Phone/i;
+  const tabletRe = /Tablet|iPad|Nexus 7|Nexus 10|KF[A-Z]{2,}|Silk|PlayBook/i;
+  if (phoneRe.test(ua) || tabletRe.test(ua)) {
+    return true;
+  }
+
+  // 3) Фиче-детекция: touch + “грубый” указатель + нет hover
+  const hasTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+  const isCoarse = window.matchMedia('(pointer: coarse)').matches;
+  const noHover  = window.matchMedia('(hover: none)').matches;
+
+  // Если и тач, и coarse, и без hover — это мобильное устройство (телефон или планшет)
+  return hasTouch && isCoarse && noHover;
+}
+
 export default {
     findLCM,
     findNearestRoots,
@@ -187,7 +216,8 @@ export default {
     copyToClipboard,
     getClipboardText,
     hexToHSL,
-    throttle
+    throttle,
+    isMobileOrTablet
 }
 
 

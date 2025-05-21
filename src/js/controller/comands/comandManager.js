@@ -16,6 +16,7 @@ hotkeys.filter = function(event) {
 };
 export class CommandManager {
     constructor(idRootContainer, breadcrumb, treeNavigation, hotkeysMap = {},) {
+
         this.commandsById = {}
         this.hotkeysMap = hotkeysMap;
         this.rootContainer = document.getElementById(idRootContainer);
@@ -131,6 +132,8 @@ export class CommandManager {
             } else if (target.href.startsWith('http')){
                 window.open(target.href, '_blank')
             }
+        } else if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+            console.log('input click');
         } else {
             const selection = window.getSelection()
             // позволяем выделять текст курсором

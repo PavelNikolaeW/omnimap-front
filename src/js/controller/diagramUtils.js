@@ -308,7 +308,22 @@ export class DiagramUtils {
                         cornerRadius: 5
                     }
                 },
-                label: ""
+                endpoint: {type: 'Dot', options: {radius: 4}},
+                paintStyle: {
+                    stroke: "#516077",
+                    strokeWidth: 2,
+                    outlineStroke: "transparent",
+                    outlineWidth: 10
+                },
+                anchors: ["Continuous", "Continuous"],
+                overlays: [
+                    {type: "Arrow", options: {width: 10, length: 10, location: 1}},
+                    {type: "Label", options: {label: "", location: 0.5, cssClass: "connection-label", id: "label"}}
+                ],
+                endpointStyle: {
+                    "fill": "#456",
+                    "outlineWidth": 0
+                }
             }))
             : [];
 

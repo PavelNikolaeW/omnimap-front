@@ -6,6 +6,8 @@ import {marked} from 'marked';
 import hotkeys from 'hotkeys-js';
 import {gfm} from 'turndown-plugin-gfm';
 import 'emoji-picker-element';
+import {customPrompt} from "../utils/custom-dialog";
+import {isMobileOrTablet} from "../utils/functions";
 
 
 const BLOCK_LINK_PREFIX = 'block:';
@@ -15,6 +17,7 @@ export class NoteEditor {
         this.container = document.getElementById(containerSelector);
         this.editor = null;
         this.blockId = null;
+        this.isMobile = isMobileOrTablet()
 
         this.#setupTurndown();
         this.#setupCustomRenderer();
@@ -33,7 +36,11 @@ export class NoteEditor {
             element: textarea,
             initialValue: markdown,
             toolbar: this.#getToolbar(),
-            spellChecker: false,
+            inputStyle: this.isMobile ? "textarea" : "contenteditable",
+            spellChecker: true,
+            autocorrect: "on",
+            autocapitalize: "sentences",
+            spellcheck: true,
             autofocus: true,
             previewRender: (plainText) =>
                 marked(plainText, {renderer: this.customRenderer, mangle: false}),
@@ -42,6 +49,8 @@ export class NoteEditor {
                 codeSyntaxHighlighting: true,
             },
         });
+
+
 
         this.#setupEditorHotkeys();
         this.#setCursorToEndOnce();
@@ -53,12 +62,10 @@ export class NoteEditor {
         if (save) {
             const markdown = this.editor.value();
             const html = marked(markdown, {renderer: this.customRenderer, mangle: false});
-            console.log('html', html)
             const sanitized = DOMPurify.sanitize(html, {
                 ADD_ATTR: ['block-id', 'style', 'class', 'title', 'alt', 'src', 'href'],
                 ADD_TAGS: ['img', 'a', 'bgImage'],
             });
-            console.log('sanitized', sanitized)
             const highlightedHtml = this.#highlightHtml(sanitized);
 
             const event = new CustomEvent('TextUpdate', {
@@ -101,7 +108,6 @@ export class NoteEditor {
 
         // Кастомизация ссылок
         this.customRenderer.link = (argArray) => {
-            console.log(argArray)
             const {href, text} = argArray
 
             if (typeof href === 'string' && href.startsWith(BLOCK_LINK_PREFIX)) {
@@ -113,8 +119,6 @@ export class NoteEditor {
 
         // Кастомизация картинок
         this.customRenderer.image = ({href, title, text}) => {
-            console.log(href, title, text)
-
             const titleAttr = title ? ` title="${title}"` : '';
             const altAttr = text ? ` alt="${text}"` : ' alt=""';
             return `<img src="${href}"${titleAttr}${altAttr} style="max-width:100%; height:auto; display:block;" />`;
@@ -137,7 +141,16 @@ export class NoteEditor {
 
     #getToolbar() {
         return [
-            this.#getSaveButton(), "bold", "italic", "strikethrough", "heading", "|",
+            this.#getSaveButton(),
+            {
+                name: "newline",
+                action: (editor) => {
+                    editor.codemirror.replaceSelection("\n");
+                    editor.codemirror.focus();
+                },
+                className: "fa fa-level-down",
+                title: "Перенос строки"
+            }, "bold", "italic", "strikethrough", "heading", "|",
             "unordered-list", "ordered-list", "|",
             "image", "link", this.#getBlockLinkButton(), "|",
             this.#getEmojiButton(),
@@ -150,10 +163,11 @@ export class NoteEditor {
         return {
             name: "insertBlockLink",
             action: (editor) => {
-                const id = prompt("Введите ID блока:");
-                if (id) {
-                    editor.codemirror.replaceSelection(`[Блок:](${BLOCK_LINK_PREFIX}${id})`);
-                }
+                customPrompt("Введите ID блока:").then(id => {
+                    if (id) {
+                        editor.codemirror.replaceSelection(`[Блок:](${BLOCK_LINK_PREFIX}${id})`);
+                    }
+                })
             },
             className: "fa fa-link",
             title: "Вставить ссылку на блок"
@@ -210,9 +224,16 @@ export class NoteEditor {
 
     #setupEditorHotkeys() {
         this.editor.codemirror.on('keydown', (cm, e) => {
-            if ((e.key === 'Enter' && !e.shiftKey)) {
-                e.preventDefault();
-                hotkeys.trigger('enter');
+            if (e.key === 'Enter' && !e.shiftKey) {
+                if (this.isMobile) {
+                    // на мобилке просто вставляем перенос строки
+                    e.preventDefault();
+                    cm.replaceSelection('\n');
+                } else {
+                    // на десктопе — сохраняем и закрываем
+                    e.preventDefault();
+                    hotkeys.trigger('enter');
+                }
             } else if (e.key === 'Escape') {
                 e.preventDefault();
                 hotkeys.trigger('esc');

@@ -3,6 +3,7 @@ import { truncate } from "../utils/functions";
 import localforage from "localforage";
 import { BaseController } from "./baseController";
 import { dispatch } from "../utils/utils";
+import {customPrompt} from "../utils/custom-dialog";
 
 export class TreeNavigation extends BaseController {
     constructor() {
@@ -68,10 +69,11 @@ export class TreeNavigation extends BaseController {
         treeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             e.preventDefault();
-            const title = prompt('Введите название')
-            if (title) {
-                dispatch('CreateTree', { title });
-            }
+            customPrompt('Введите название').then(title => {
+                if (title) {
+                    dispatch('CreateTree', { title });
+                }
+            })
         });
         return treeBtn;
     }

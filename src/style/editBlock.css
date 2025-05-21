@@ -87,7 +87,7 @@
 /* SimpleMDE overrides if needed */
 .CodeMirror {
     font-family: monospace;
-    font-size: 14px;
+    font-size: 18px !important;
     height: auto;
     min-height: 300px;
 }

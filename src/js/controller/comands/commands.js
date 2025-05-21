@@ -4,6 +4,8 @@ import {dispatch} from "../../utils/utils";
 import {colorCommands} from "./colorCommands";
 import {arrowManager} from "../arrowManager";
 import api from "../../api/api";
+import {customPrompt} from "../../utils/custom-dialog";
+
 import {
     commandOpenBlock,
     getTreeIds,
@@ -163,12 +165,13 @@ export const commands = [
         execute(ctx) {
             let id = ctx.blockElement?.id.split('*').at(-1)
             if (!id) return
-            const title = prompt('Введите название блока');
-            if (title !== null) {
-                if (validURL(title)) dispatch('IframeCreate', {parentId: id, src: title})
-                else dispatch('CreateBlock', {parentId: id, title});
-            }
-            setCmdOpenBlock(ctx)
+            customPrompt('Введите название блока').then(title => {
+                if (title !== null) {
+                    if (validURL(title)) dispatch('IframeCreate', {parentId: id, src: title})
+                    else dispatch('CreateBlock', {parentId: id, title});
+                }
+                setCmdOpenBlock(ctx)
+            });
         }
     },
     {
@@ -188,16 +191,17 @@ export const commands = [
                 id = ctx.blockLinkElement.getAttribute('blocklink')
             }
             const oldText = ctx.blockElement.querySelector('titleBlock')?.innerText
-            const title = prompt('Введите название блока', oldText ?? '')
-
-            if (title !== null) {
-                if (validURL(title)) {
-                    dispatch('SetIframe', {blockId: id, src: title})
-                } else {
-                    dispatch('TitleUpdate', {blockId: id, title})
+            customPrompt('Введите название блока', oldText ?? '').then(title => {
+                if (title !== null) {
+                    if (validURL(title)) {
+                        dispatch('SetIframe', {blockId: id, src: title})
+                    } else {
+                        dispatch('TitleUpdate', {blockId: id, title})
+                    }
                 }
-            }
-            setCmdOpenBlock(ctx)
+                setCmdOpenBlock(ctx)
+            })
+
         }
     },
     {
@@ -283,7 +287,7 @@ export const commands = [
                 ctx.mode = 'normal'
                 setCmdOpenBlock(ctx)
             } else {
-                const id = ctx.blockId || ctx.blockLinkElement?.getAttribute('blockLink') || ctx.blockElement?.id
+                const id = ctx.blockElement?.id?.split('*').at(-1)
                 const srcId = await getClipboardText()
                 if (!id) return
                 if (isValidUUID(srcId)) {
@@ -298,23 +302,6 @@ export const commands = [
                 }
                 setCmdOpenBlock(ctx)
             }
-        }
-    },
-    {
-        id: 'pasteBlockBefore',
-        mode: ['cutBlock'],
-        defaultHotkey: 'shift+ctrl+v',
-        description: 'Если до этого была команда cutBlock, то производится вставка перед выделенным блоком.',
-        async execute(ctx) {
-            if (ctx.beforeBlockElement) {
-                ctx.cut['new_parent_id'] = ctx.beforeBlockElement.getAttribute('parent_id').split('*').at(-1)
-                ctx.cut['before'] = ctx.beforeBlockElement.getAttribute('block_id')
-                ctx.beforeBlockElement.remove()
-            }
-            dispatch('MoveBlock', ctx.cut)
-            ctx.cut = undefined
-            ctx.mode = 'normal'
-            setCmdOpenBlock(ctx)
         }
     },
     {
@@ -335,6 +322,23 @@ export const commands = [
             if (isValidUUID(srcId)) {
                 dispatch('PasteLinkBlock', {dest: id, src: [srcId]});
             }
+            setCmdOpenBlock(ctx)
+        }
+    },
+    {
+        id: 'pasteBlockBefore',
+        mode: ['cutBlock'],
+        defaultHotkey: 'shift+ctrl+v',
+        description: 'Если до этого была команда cutBlock, то производится вставка перед выделенным блоком.',
+        async execute(ctx) {
+            if (ctx.beforeBlockElement) {
+                ctx.cut['new_parent_id'] = ctx.beforeBlockElement.getAttribute('parent_id').split('*').at(-1)
+                ctx.cut['before'] = ctx.beforeBlockElement.getAttribute('block_id')
+                ctx.beforeBlockElement.remove()
+            }
+            dispatch('MoveBlock', ctx.cut)
+            ctx.cut = undefined
+            ctx.mode = 'normal'
             setCmdOpenBlock(ctx)
         }
     },
@@ -385,7 +389,7 @@ export const commands = [
         defaultHotkey: 'shift+d',
         description: 'Удаляет блок, и все дочерние блоки',
         execute(ctx) {
-            const id = ctx.blockElement?.id.split('*').at(-1)
+            const id = ctx.blockLinkElement?.id || ctx.blockElement.id
             if (!id) return
             dispatch('DeleteTreeBlock', {blockId: id})
             ctx.shiftLock = false
@@ -410,15 +414,33 @@ export const commands = [
         description: 'создать блок-схему',
         execute(ctx) {
             if (ctx.mode !== 'diagram') {
-                ctx.mode = 'diagram'
                 let id = ctx.blockElement?.id?.split('*')?.at(-1)
                 if (!id) return
+                ctx.mode = 'diagram'
                 ctx.diagramUtils.showInputs(id, ctx.blockElement)
-            } else {
+            }
+        },
+        btnExec(ctx) {
+            console.log(ctx)
+            if (ctx.mode === 'diagram') {
                 ctx.mode = 'normal'
                 ctx.diagramUtils.hiddenInputs()
                 setCmdOpenBlock(ctx)
             }
+        }
+    },
+    {
+        id: 'options',
+        mode: ['normal'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Дополнительные функции',
+            classes: ['sidebar-button', 'fas', 'fa-bars', 'fas-lg']
+        },
+        defaultHotkey: 'o',
+        description: 'Открыть дополнительные опции',
+        btnExec(ctx) {
+            ctx.optionManager.openOptions()
         }
     },
     {

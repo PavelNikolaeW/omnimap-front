@@ -1,13 +1,9 @@
 import {UpdateServiceWebSocket} from "./webSocket";
-import {dispatch} from "../utils/utils";
 import localforage from "localforage";
-import {log} from "@jsplumb/browser-ui";
 
 export class SincManager {
     constructor() {
         const wsUrl = SINC_SERVICE_URL || 'wss://localhost:7999/ws';
-        this.subscribed = new Set()
-        this.toSend = []
 
         this.webSocket = new UpdateServiceWebSocket(wsUrl);
         this.webSocket.eventListeners.open.push(this.online.bind(this))
