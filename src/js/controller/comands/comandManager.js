@@ -2,10 +2,10 @@ import {commands} from './commands.js';
 import hotkeys from 'hotkeys-js';
 import {ContextManager} from "./contextManager";
 import {uiManager} from "./uiManager";
-import {throttle} from "../../utils/functions";
+import {isExcludedElement, throttle} from "../../utils/functions";
 import {dispatch} from "../../utils/utils";
 
-hotkeys.filter = function(event) {
+hotkeys.filter = function (event) {
     const target = event.target || event.srcElement;
     const tagName = target.tagName.toUpperCase();
 
@@ -14,6 +14,7 @@ hotkeys.filter = function(event) {
 
     return !(tagName === 'INPUT' || tagName === 'TEXTAREA' || target.isContentEditable);
 };
+
 export class CommandManager {
     constructor(idRootContainer, breadcrumb, treeNavigation, hotkeysMap = {},) {
 
@@ -124,15 +125,15 @@ export class CommandManager {
             event.preventDefault();
             if (target.classList.contains('block-tag-link')) {
                 dispatch('OpenBlock', {
-                    id: target.getAttribute('href').slice(7, ),
+                    id: target.getAttribute('href').slice(7,),
                     parentHsl: [],
                     isIframe: false,
                     links: []
                 });
-            } else if (target.href.startsWith('http')){
+            } else if (target.href.startsWith('http')) {
                 window.open(target.href, '_blank')
             }
-        } else if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        } else if (isExcludedElement(target, ['body', 'textarea', 'input', 'emoji-picker'])) {
             console.log('input click');
         } else {
             const selection = window.getSelection()

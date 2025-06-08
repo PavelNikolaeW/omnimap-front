@@ -3,7 +3,7 @@ import {dispatch} from "../utils/utils";
 import {Painter} from "../painter/painter";
 import api from "../api/api";
 
-import {truncate} from '../utils/functions'
+import {isExcludedElement, truncate} from '../utils/functions'
 import {jsPlumbInstance} from "../controller/arrowManager";
 import {customConfirm} from "../utils/custom-dialog";
 
@@ -166,8 +166,9 @@ export class LocalStateManager {
             this.historyRevert(e.detail)
         })
 
-        window.addEventListener('resize', (e) => {
-            if (!document.activeElement || document.activeElement.tagName !== 'INPUT' || document.activeElement.tagName !== 'TEXTAREA') {
+        window.addEventListener('resize', () => {
+            if (! isExcludedElement(document.activeElement)) {
+                console.log('resize')
                 this.onResize();
             }
         });
@@ -895,8 +896,7 @@ export class LocalStateManager {
     }
 
     // Event handling methods
-    async onResize(e) {
-        console.log(e)
+    async onResize() {
         if (this._pendingResize) return;
         this._pendingResize = true;
 

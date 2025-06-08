@@ -15,6 +15,7 @@ import {
 } from "./cmdUtils";
 import {popupsCommands} from "./popupsCmd";
 import {NoteEditor} from "../noteEditor";
+import {log} from "@jsplumb/browser-ui";
 
 const nodeEditor = new NoteEditor('editor-container')
 
@@ -114,7 +115,7 @@ export const commands = [
                 target.classList.remove('block-selected')
                 ctx.cut = undefined
             }
-            if (ctx.mode !== 'diagram') {
+            if (ctx.mode === 'diagram') {
                 ctx.diagramUtils.hiddenInputs()
             }
             ctx.mode = 'normal'
@@ -289,6 +290,7 @@ export const commands = [
             } else {
                 const id = ctx.blockElement?.id?.split('*').at(-1)
                 const srcId = await getClipboardText()
+                console.log(`id = ${id} src = ${srcId}`)
                 if (!id) return
                 if (isValidUUID(srcId)) {
                     if (ctx.isTree) {

@@ -24,6 +24,7 @@ import {Breadcrumbs} from "./controller/breadcrumds";
 import {TreeNavigation} from "./controller/treeNavigation";
 import {RedoStack, UndoStack} from "./controller/undoStack";
 import Cookies from "js-cookie";
+import {isExcludedElement} from "./utils/functions";
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
     window.addEventListener('load', () => {
@@ -132,7 +133,7 @@ function setInterface() {
         topSidebar.classList.add('hidden')
     }
     localforage.getItem('currentUser', (err, user) => {
-        if (user === 'anonim') {
+        if (!user || user === 'anonim') {
             sidebar.classList.add('hidden')
             topSidebar.classList.add('hidden')
         }
@@ -140,71 +141,47 @@ function setInterface() {
 }
 
 (() => {
-  const TIME_THRESHOLD = 200;   // мс, ниже — быстрый клик
-  const MOVE_THRESHOLD = 5;     // пикселей, ниже — без движения
+    const TIME_THRESHOLD = 200;   // мс, ниже — быстрый клик
+    const MOVE_THRESHOLD = 5;     // пикселей, ниже — без движения
 
-  let clickStartTime = 0;
-  let startX = 0;
-  let startY = 0;
+    let clickStartTime = 0;
+    let startX = 0;
+    let startY = 0;
 
-  /**
-   * Проверяет, что клик произошёл по элементу, где ввод текста нужен:
-   * - <textarea>
-   * - <input type="text|email|password">
-   * - <emoji-picker>
-   * - любой элемент внутри .CodeMirror
-   * - любой элемент с contenteditable="true"
-   */
-  const isExcludedElement = (el) => {
-    const tag = el.tagName.toLowerCase();
+    /**
+     * Проверяет, что клик произошёл по элементу, где ввод текста нужен:
+     * - <textarea>
+     * - <input type="text|email|password">
+     * - <emoji-picker>
+     * - любой элемент внутри .CodeMirror
+     * - любой элемент с contenteditable="true"
+     */
 
-    if (el.isContentEditable) {
-      return true;
-    }
+    document.addEventListener('mousedown', (e) => {
+        clickStartTime = Date.now();
+        startX = e.clientX;
+        startY = e.clientY;
+    });
 
-    if (tag === 'textarea') {
-      return true;
-    }
+    document.addEventListener('mouseup', (e) => {
+        if (isExcludedElement(e.target)) {
+            // стандартное поведение для полей ввода текста
+            return;
+        }
 
-    if (tag === 'input') {
-      return true;
-    }
+        const clickDuration = Date.now() - clickStartTime;
+        const deltaX = e.clientX - startX;
+        const deltaY = e.clientY - startY;
 
-    if (tag === 'emoji-picker') {
-      return true;
-    }
-
-    if (el.closest('.CodeMirror')) {
-      return true;
-    }
-
-    return false;
-  };
-
-  document.addEventListener('mousedown', (e) => {
-    clickStartTime = Date.now();
-    startX = e.clientX;
-    startY = e.clientY;
-  });
-
-  document.addEventListener('mouseup', (e) => {
-    if (isExcludedElement(e.target)) {
-      // стандартное поведение для полей ввода текста
-      return;
-    }
-
-    const clickDuration = Date.now() - clickStartTime;
-    const deltaX = e.clientX - startX;
-    const deltaY = e.clientY - startY;
-
-    if (
-      clickDuration < TIME_THRESHOLD &&
-      Math.hypot(deltaX, deltaY) < MOVE_THRESHOLD
-    ) {
-      const sel = window.getSelection();
-      if (!sel.isCollapsed) {
-        sel.removeAllRanges();
-      }
-    }
-  });
+        if (
+            clickDuration < TIME_THRESHOLD &&
+            Math.hypot(deltaX, deltaY) < MOVE_THRESHOLD
+        ) {
+            const sel = window.getSelection();
+            if (!sel.isCollapsed) {
+                sel.removeAllRanges();
+                console.log('removed')
+            }
+        }
+    });
 })();

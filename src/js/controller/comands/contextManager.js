@@ -36,7 +36,7 @@ export class ContextManager {
 
         this.treeNavigation.addEventListener('mouseover', this.mouseOverTreeHandlerBound)
         this.treeNavigation.addEventListener('touchstart', this.mouseOverTreeHandlerBound)
-        this.treeNavigation.addEventListener('mouseout', this.mouseOutBreadcrumbHandlerBound)
+        this.treeNavigation.addEventListener('mouseout', this.mouseOutTreeHandlerBound)
         this.treeNavigation.addEventListener('touchend', this.mouseOutTreeHandlerBound)
 
         this.breadcrumb.addEventListener('mouseover', this.mouseOverBreadcrumbHandlerBound);

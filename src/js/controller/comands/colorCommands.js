@@ -29,15 +29,15 @@ const baseColorConfigs = {
 // Поправки для вариантов – 4 варианта для каждого базового цвета.
 // Они применяются по порядку к базовым значениям насыщённости и яркости.
 const variantAdjustments = [
-  { deltaS: 0, deltaL: 0 },
-  { deltaS: 0, deltaL: -9 },
-  { deltaS: 0, deltaL: -18 },
-  { deltaS: 0, deltaL: -27 },
-  { deltaS: 0, deltaL: -36 },
-  { deltaS: 0, deltaL: -45 },
-  { deltaS: -10, deltaL: -54 },
-  { deltaS: -20, deltaL: -63 },
-  { deltaS: -40, deltaL: -72 },
+    {deltaS: 0, deltaL: 0},
+    {deltaS: 0, deltaL: -9},
+    {deltaS: 0, deltaL: -18},
+    {deltaS: 0, deltaL: -27},
+    {deltaS: 0, deltaL: -36},
+    {deltaS: 0, deltaL: -45},
+    {deltaS: -10, deltaL: -54},
+    {deltaS: -20, deltaL: -63},
+    {deltaS: -40, deltaL: -72},
 ];
 
 // Ограничивает value между min и max.
@@ -110,3 +110,4 @@ colorCommands.push(createCommand(
     'c+d',
     'dark'
 ))
+

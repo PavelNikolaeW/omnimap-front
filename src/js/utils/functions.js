@@ -206,6 +206,24 @@ export function isMobileOrTablet() {
   return hasTouch && isCoarse && noHover;
 }
 
+export function isExcludedElement(el, excludeArray=['body', 'textarea', 'input', 'emoji-picker', 'button']) {
+        const tag = el.tagName.toLowerCase();
+        console.log(tag)
+        if (el.isContentEditable) {
+            return true;
+        }
+
+        if (excludeArray.includes(tag)) {
+            return true
+        }
+
+        if (el.closest('.CodeMirror')) {
+            return true;
+        }
+
+        return false;
+    }
+
 export default {
     findLCM,
     findNearestRoots,
@@ -217,7 +235,8 @@ export default {
     getClipboardText,
     hexToHSL,
     throttle,
-    isMobileOrTablet
+    isMobileOrTablet,
+    isExcludedElement
 }
 
 

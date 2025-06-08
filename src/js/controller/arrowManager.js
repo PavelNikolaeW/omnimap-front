@@ -66,7 +66,8 @@ class ArrowManager {
             if (this.removeArrow) {
                 this.deleteConnection(info);
             } else {
-                this.handleConnectionLabel(info);
+                // todo переделать добаление лейбла
+                // this.handleConnectionLabel(info);
             }
         });
     }
@@ -126,7 +127,16 @@ class ArrowManager {
      * @param {string} newLabel - Новый лейбл.
      */
     updateConnectionLabel(sourceId, targetId, newLabel) {
-        dispatch('AddConnectionBlock', {sourceId, targetId, arrowType: this.currnetConnector, label: newLabel})
+        dispatch('AddConnectionBlock', {
+            sourceId,
+            targetId,
+            connector,
+            paintStyle,
+            overlays,
+            anchors,
+            endpoint,
+            endpointStyle
+        })
     }
 
     /**
@@ -230,24 +240,25 @@ class ArrowManager {
             connections.forEach(conn => {
                 const src = document.getElementById(conn.sourceId);
                 const tgt = document.getElementById(conn.targetId);
-                if (!src || !tgt) return;
 
-                const connector = this.getConnector(conn.connector, layout);
-                const paintStyle = this.getPaintStyle(conn.paintStyle, layout);
-                const overlays = this.getOverlays(conn.overlays, layout);
-                const endpoint = this.getEndpoint(conn.endpoint, layout);
-                const endpointStyle = conn.endpointStyle;
-                const anchors = conn.anchors || this.defaultAnchors;
-                this.instance.connect({
-                    source: src,
-                    target: tgt,
-                    connector,
-                    paintStyle,
-                    overlays,
-                    endpoint,
-                    endpointStyle,
-                    anchors
-                });
+                if (src && tgt && isVisible(src) && isVisible(tgt)) {
+                    const connector = this.getConnector(conn.connector, layout);
+                    const paintStyle = this.getPaintStyle(conn.paintStyle, layout);
+                    const overlays = this.getOverlays(conn.overlays, layout);
+                    const endpoint = this.getEndpoint(conn.endpoint, layout);
+                    const endpointStyle = conn.endpointStyle;
+                    const anchors = conn.anchors || this.defaultAnchors;
+                    this.instance.connect({
+                        source: src,
+                        target: tgt,
+                        connector,
+                        paintStyle,
+                        overlays,
+                        endpoint,
+                        endpointStyle,
+                        anchors
+                    });
+                }
             });
         });
     }
