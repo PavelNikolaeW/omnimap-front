@@ -167,7 +167,7 @@ export class LocalStateManager {
         })
 
         window.addEventListener('resize', () => {
-            if (! isExcludedElement(document.activeElement)) {
+            if (! isExcludedElement(document.activeElement, 'localStateManager')) {
                 console.log('resize')
                 this.onResize();
             }
@@ -343,7 +343,9 @@ export class LocalStateManager {
         // todo сделать сброс состояния для одного юзера а не для всех.
         localforage.getItem('currentUser').then((user) => {
             localforage.clear().then(() => {
-                dispatch('Login', {user})
+                 localforage.setItem('currentUser', user_id).then(() => {
+                        dispatch('Login', {user: user})
+                    })
             }).catch((err) => {
                 console.error('Произошла ошибка при очистке localForage:', err);
             });

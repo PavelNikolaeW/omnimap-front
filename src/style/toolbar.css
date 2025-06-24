@@ -9,7 +9,7 @@
 
 .active-button-info.hidden {
     opacity: 0;
-    pointer-events: none;
+    /*pointer-events: none;*/
 }
 
 .toolbar-section {

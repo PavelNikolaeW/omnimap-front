@@ -18,6 +18,7 @@ export function registration(block, parent) {
 
     // Поле ввода имени пользователя
     const usernameInput = document.createElement('input');
+    usernameInput.type = 'password'
     usernameInput.type = 'text';
     usernameInput.id = 'reg-username';
     usernameInput.name = 'username';
@@ -32,7 +33,8 @@ export function registration(block, parent) {
 
     // Поле ввода электронной почты
     const emailInput = document.createElement('input');
-    emailInput.type = 'email';
+    emailInput.type = 'password';
+    emailInput.type = 'text';
     emailInput.id = 'email';
     emailInput.name = 'email';
     emailInput.required = true;

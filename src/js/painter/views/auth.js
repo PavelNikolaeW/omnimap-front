@@ -17,7 +17,9 @@ export function auth(block, parent) {
 
     // Поле ввода имени пользователя
     const usernameInput = document.createElement('input');
+    usernameInput.type = 'password';
     usernameInput.type = 'text';
+    usernameInput.autocomplete = 'username'
     usernameInput.id = 'username';
     usernameInput.name = 'username';
     usernameInput.required = true;
@@ -32,10 +34,12 @@ export function auth(block, parent) {
     // Поле ввода пароля
     const passwordInput = document.createElement('input');
     passwordInput.type = 'password';
+    passwordInput.autocomplete="current-password"
     passwordInput.id = 'password';
     passwordInput.name = 'password';
     passwordInput.required = true;
     passwordInput.classList.add('input');
+
 
     // Кнопка отправки
     const submitButton = document.createElement('button');

@@ -206,9 +206,9 @@ export function isMobileOrTablet() {
   return hasTouch && isCoarse && noHover;
 }
 
-export function isExcludedElement(el, excludeArray=['body', 'textarea', 'input', 'emoji-picker', 'button']) {
+export function isExcludedElement(el, meta='kek', excludeArray=['body', 'textarea', 'input', 'emoji-picker', 'button']) {
         const tag = el.tagName.toLowerCase();
-        console.log(tag)
+        console.log(tag, meta)
         if (el.isContentEditable) {
             return true;
         }

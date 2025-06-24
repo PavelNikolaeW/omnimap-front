@@ -88,4 +88,7 @@ export class TreeNavigation extends BaseController {
         treeBtn.textContent = block?.title ? truncate(block.title, 15) : 'Без имени';
         return treeBtn;
     }
+    render() {
+        this.renderTreeNavigation()
+    }
 }

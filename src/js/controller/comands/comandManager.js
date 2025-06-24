@@ -46,6 +46,9 @@ export class CommandManager {
             this.resetAndReRegisterCommands(e.detail)
         })
         uiManager.renderBtn('normal', this.commandsById)
+        window.addEventListener('Login', () => {
+            this.resetAndReRegisterCommands(this.hotkeysMap);
+        } )
 
     }
 
@@ -133,8 +136,7 @@ export class CommandManager {
             } else if (target.href.startsWith('http')) {
                 window.open(target.href, '_blank')
             }
-        } else if (isExcludedElement(target, ['body', 'textarea', 'input', 'emoji-picker'])) {
-            console.log('input click');
+        } else if (isExcludedElement(target, 'commandManager', ['body', 'textarea', 'input', 'emoji-picker'])) {
         } else {
             const selection = window.getSelection()
             // позволяем выделять текст курсором
@@ -145,6 +147,7 @@ export class CommandManager {
             if (this.ctxManager.mode === 'cutBlock') {
                 this.ctxManager.setCmd('pasteBlock')
             }
+            this.ctxManager.isTree = false
             this.executeCommand(this.ctxManager)
         }
     }
@@ -153,6 +156,7 @@ export class CommandManager {
         const target = event.target
         if (target.tagName === 'BUTTON') {
             const cmd = this.commandsById[target.id]
+            this.ctxManager.isTree = false
             this.ctxManager.setCmd(cmd)
         }
     }

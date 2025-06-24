@@ -156,4 +156,7 @@ export class Breadcrumbs extends BaseController {
             this.container.scrollLeft = this.container.scrollWidth;
         }, 150); // или 100 мс, если всё ещё глючит
     }
+    render() {
+        this.drawBreadcrumbs()
+    }
 }

@@ -4,6 +4,7 @@ import {dispatch} from "../utils/utils";
 import {v4 as uuidV4} from 'uuid';
 import {LimitedMapQueue} from "../utils/limitedQueue";
 import {log} from "@jsplumb/browser-ui";
+import localforage from "localforage";
 
 class Api {
     constructor() {
@@ -141,7 +142,9 @@ class Api {
                     const {access, refresh, user_id} = res.data;
                     Cookies.set('access', access, {expires: 30});
                     Cookies.set('refresh', refresh, {expires: 30});
-                    dispatch('Login', {user: user_id})
+                    localforage.setItem('currentUser', user_id).then(() => {
+                        dispatch('Login', {user: user_id})
+                    })
                     return true;
                 }
             }).catch(err => {

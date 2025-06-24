@@ -10,6 +10,9 @@ export class BaseController {
     addListeners() {
         window.addEventListener("Logout", this.setCurrentUser.bind(this));
         window.addEventListener("Login", this.setCurrentUser.bind(this));
+        window.addEventListener("Login", () => {
+            this.render()
+        });
     }
 
     setCurrentUser(callback) {

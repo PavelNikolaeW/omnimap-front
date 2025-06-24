@@ -164,7 +164,7 @@ function setInterface() {
     });
 
     document.addEventListener('mouseup', (e) => {
-        if (isExcludedElement(e.target)) {
+        if (isExcludedElement(e.target, 'index')) {
             // стандартное поведение для полей ввода текста
             return;
         }
@@ -185,3 +185,12 @@ function setInterface() {
         }
     });
 })();
+
+
+window.addEventListener('resize', () => {
+  console.log(
+    'resize',
+    'innerHeight:', window.innerHeight,
+    'visualViewport:', window.visualViewport?.height
+  );
+});

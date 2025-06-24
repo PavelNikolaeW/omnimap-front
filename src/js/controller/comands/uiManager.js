@@ -14,6 +14,7 @@ export class UIManager {
     renderBtn(mode, commandsById) {
         this.mode = mode
         localforage.getItem('currentUser').then(user => {
+            console.log(user)
             if ((user && user !== 'anonim') || window.location.search) {
                 Object.values(commandsById).forEach((cmd) => {
                     if (cmd.mode.includes(mode) && cmd.btn) {

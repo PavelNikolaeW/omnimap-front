@@ -290,17 +290,9 @@ export const commands = [
             } else {
                 const id = ctx.blockElement?.id?.split('*').at(-1)
                 const srcId = await getClipboardText()
-                console.log(`id = ${id} src = ${srcId}`)
                 if (!id) return
                 if (isValidUUID(srcId)) {
-                    if (ctx.isTree) {
-                        getTreePath(id, (err, path) => {
-                            const id = path.at(-1).blockId
-                            dispatch('PasteBlock', {dest: id, src: [srcId]});
-                        })
-                    } else {
-                        dispatch('PasteBlock', {dest: id, src: [srcId]});
-                    }
+                    dispatch('PasteBlock', {dest: id, src: [srcId]});
                 }
                 setCmdOpenBlock(ctx)
             }
