@@ -343,7 +343,7 @@ export class LocalStateManager {
         // todo сделать сброс состояния для одного юзера а не для всех.
         localforage.getItem('currentUser').then((user) => {
             localforage.clear().then(() => {
-                 localforage.setItem('currentUser', user_id).then(() => {
+                 localforage.setItem('currentUser', user).then(() => {
                         dispatch('Login', {user: user})
                     })
             }).catch((err) => {

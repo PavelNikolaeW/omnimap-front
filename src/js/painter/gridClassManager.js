@@ -15,10 +15,51 @@ class GridClassManager {
 
         if (block.data.layout === 'table') {
             return GridClassManager.table(block)
+        } else if (block.data.layout === 'vertical') {
+            return GridClassManager.layoutVertical(block)
+        } else if (block.data.layout === 'horizontal') {
+            return GridClassManager.layoutHorizontal(block)
         }
         const layoutOptions = this.calc_optionsLayout(layout, len, block.data?.groupSizes)
         const rez = GridLayoutCalculator.computeGridLayoutGroups(len, layoutOptions)
         return GridClassManager.returnClasses(block, rez.totalGridRows, rez.gridColumns, rez.rectangles, rez.groupSizes)
+    }
+
+    static layoutVertical(block) {
+        const lenChildren = block.children.length
+        const childrenPosition = {}
+        let startRow = 2
+        for (let i = 0; i < lenChildren; i++) {
+            let childId = block.data.childOrder[i]
+            childrenPosition[childId] = [
+                `grid-column_0__1`,
+                `grid-row_${startRow + i}`
+            ]
+        }
+        return [
+            GridClassManager._setBlockGrid(lenChildren + 1, 1),
+            GridClassManager._setContentPosition(lenChildren + 1, 1),
+            childrenPosition,
+        ]
+    }
+
+    static layoutHorizontal(block) {
+        const lenChildren = block.children.length
+        const childrenPosition = {}
+        let startCol = 0
+        let endCol = 1
+        for (let i = 0; i < lenChildren; i++) {
+            let childId = block.data.childOrder[i]
+            childrenPosition[childId] = [
+                `grid-column_${startCol + i}__${endCol + i}`,
+                `grid-row_2`
+            ]
+        }
+        return [
+            GridClassManager._setBlockGrid(2, lenChildren),
+            GridClassManager._setContentPosition(2, lenChildren),
+            childrenPosition,
+        ]
     }
 
     calcBlockSize(block, parentBlock) {

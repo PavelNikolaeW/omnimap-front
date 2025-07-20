@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "cross-env APP_BACKEND_URL=https://omnimap.ru SINC_SERVICE_URL=wss://omnimap.ru/ws/ws webpack serve --config webpack.dev.js",
+    "start_local": "cross-env APP_BACKEND_URL=http://127.0.0.1:8000/ SINC_SERVICE_URL=ws://0.0.0.0:7999/ws webpack serve --config webpack.dev.js",
     "build": "cross-env APP_BACKEND_URL=https://omnimap.ru SINC_SERVICE_URL=wss://omnimap.ru/ws webpack --config webpack.prod.js",
     "build:debug": "cross-env APP_BACKEND_URL=https://omnimap.ru SINC_SERVICE_URL=wss://omnimap.ru/ws webpack --config webpack.debug.js"
   },
