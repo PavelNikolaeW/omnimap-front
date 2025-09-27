@@ -291,7 +291,8 @@ th {
 
 /* Показываем контейнер, когда добавлен класс .active */
 #editor-container.active {
-    display: block;
+    display: flex;
+    flex-direction: column;
 }
 
 /* Настройки SimpleMDE внутри */
