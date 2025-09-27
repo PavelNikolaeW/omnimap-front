@@ -118,6 +118,9 @@ export const commands = [
             if (ctx.mode === 'diagram') {
                 ctx.diagramUtils.hiddenInputs()
             }
+            if (ctx.mode === 'chat') {
+                window.closeChat(ctx)
+            }
             ctx.mode = 'normal'
             ctx.event = undefined
             ctx.blockId = undefined
@@ -151,6 +154,33 @@ export const commands = [
         defaultHotkey: 'shift+enter',
         mode: ['textEdit'],
         execute(ctx) {
+        }
+    },
+    {
+        id: 'chatClose',
+        mode: ['chat'],
+        defaultHotkey: 'shift+h',
+        description: 'Закрыть чат',
+        execute(ctx) {
+            window.closeChat()
+            console.log('close')
+        }
+    },
+    {
+        id: 'chat',
+        mode: ['normal'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Chat',
+            classes: ['sidebar-button', 'fas', 'fa-chat', 'fas-lg']
+        },
+        defaultHotkey: 'shift+h',
+        description: 'Открыть чат',
+        execute(ctx) {
+            window.openChat(ctx)
+        },
+        btnExec(ctx) {
+            this.execute(ctx)
         }
     },
     {

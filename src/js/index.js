@@ -12,6 +12,7 @@ import '../style/editBlock.css';
 import '../style/historyPopup.css';
 import '../style/solid.css';
 import '../style/fontawesome.css';
+import '../style/chat.css';
 
 import {dispatch} from "./utils/utils";
 import {LocalStateManager} from "./stateLocal/localStateManager";
@@ -25,6 +26,7 @@ import {TreeNavigation} from "./controller/treeNavigation";
 import {RedoStack, UndoStack} from "./controller/undoStack";
 import Cookies from "js-cookie";
 import {isExcludedElement} from "./utils/functions";
+import chat from './controller/popups/chat/chat'
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
     window.addEventListener('load', () => {
