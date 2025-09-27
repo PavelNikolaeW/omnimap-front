@@ -1,101 +1,110 @@
 import { Popup } from "./popup";
-import SimpleMDE from "simplemde";
-import "simplemde/dist/simplemde.min.css";
+import { JsonTextEditor } from "../JsonTextEditor";
 
 export class EditBlockPopup extends Popup {
-    constructor(options = {}) {
-        super({
-            title: options.title || "Редактировать JSON",
-            modal: true,
-            draggable: true,
-            onSubmit: options.onSubmit,
-            onCancel: options.onCancel,
-            inputs: [],
-            classPrefix: options.classPrefix || "edit-json-popup",
-            blockData: options.blockData,
-        });
+  constructor(options = {}) {
+    super({
+      title: options.title || "Редактировать JSON",
+      modal: true,
+      draggable: true,
+      onSubmit: options.onSubmit,
+      onCancel: options.onCancel,
+      inputs: [],
+      classPrefix: options.classPrefix || "edit-json-popup",
+      blockData: options.blockData,
+    });
+  }
 
+  createPopup() {
+    super.createPopup();
+    this.contentArea.innerHTML = "";
 
+    const container = document.createElement("div");
+    container.className = this.getPrefixedClass("json-editor");
+    this.contentArea.appendChild(container);
+
+    const clearObject = {};
+    const blockData = this.options.blockData || {};
+    // если нужно скрывать поля — укажи здесь
+    const deniedFields = []; // ['childOrder','customGrid','text']
+    for (const key of Object.keys(blockData)) {
+      if (!deniedFields.includes(key)) clearObject[key] = blockData[key];
     }
 
-    createPopup() {
-        super.createPopup();
-        this.contentArea.innerHTML = "";
+    // Сообщение об ошибке
+    this.errorMsg = document.createElement("div");
+    this.errorMsg.style.color = "red";
+    this.errorMsg.style.marginTop = "10px";
+    this.errorMsg.style.display = "none";
+    container.appendChild(this.errorMsg);
 
-        const container = document.createElement("div");
-        container.className = this.getPrefixedClass("json-editor");
+    // Монтируем наш JSON-редактор
+    this.editorHost = document.createElement('div');
+    this.editorHost.className = 'note-editor-container'; // для общих стилей (не обязательно)
+    container.appendChild(this.editorHost);
 
-        const textarea = document.createElement("textarea");
-        container.appendChild(textarea);
-        this.contentArea.appendChild(container);
-        const clearObject = {}
-        const blockData = this.options.blockData
+    const initial = JSON.stringify(clearObject, null, 2);
 
-        // const deniedFields = ['childOrder', 'customGrid', 'text'];
-        const deniedFields = [];
-        for (const key of Object.keys(blockData)) {
-            if (!deniedFields.includes(key)) clearObject[key] = blockData[key]
+    this.editor = new JsonTextEditor({
+      container: this.editorHost,
+      initialValue: initial,
+      onValidate: (ok, err) => {
+        if (ok) {
+          this.errorMsg.style.display = "none";
+          this.errorMsg.textContent = "";
+        } else {
+          this.errorMsg.textContent = "Ошибка JSON: " + err;
+          this.errorMsg.style.display = "block";
         }
-        // Init SimpleMDE
-        this.editor = new SimpleMDE({
-            element: textarea,
-            initialValue: JSON.stringify(clearObject, null, 4),
-            spellChecker: false,
-            status: false,
-            autofocus: true,
-            lineWrapping: true,
-            tabSize: 2,
-            renderingConfig: {
-                codeSyntaxHighlighting: true,
-            },
-            toolbar: ["undo", "redo", "|", "guide"],
-        });
+      },
+    });
 
-        this.errorMsg = document.createElement("div");
-        this.errorMsg.style.color = "red";
-        this.errorMsg.style.marginTop = "10px";
-        this.errorMsg.style.display = "none";
-        container.appendChild(this.errorMsg);
+    // хоткей Ctrl/Cmd+S из редактора — трактуем как "Применить"
+    this.editorHost.addEventListener('json-editor-ctrl-s', () => this.handleSubmit());
+  }
+
+  createButtons() {
+    const buttonsContainer = document.createElement("div");
+    buttonsContainer.className = this.getPrefixedClass("buttons");
+
+    this.submitButton = document.createElement("button");
+    this.submitButton.textContent = "Применить";
+    this.submitButton.className = this.getPrefixedClass("button-submit");
+    this.submitButton.addEventListener("click", () => this.handleSubmit());
+    buttonsContainer.appendChild(this.submitButton);
+
+    this.cancelButton = document.createElement("button");
+    this.cancelButton.textContent = "Отмена";
+    this.cancelButton.className = this.getPrefixedClass("button-cancel");
+    this.cancelButton.addEventListener("click", () => this.handleCancel());
+    buttonsContainer.appendChild(this.cancelButton);
+
+    this.popupEl.appendChild(buttonsContainer);
+
+    // Закрытие по Esc (пусть ловит весь попап)
+    this.popupEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this.handleCancel();
+    });
+  }
+
+  handleSubmit() {
+    const value = this.editor.getValue();
+    try {
+      const parsed = JSON.parse(value);
+      if (typeof this.options.onSubmit === "function") {
+        this.options.onSubmit(parsed);
+      }
+      this.close();
+    } catch (err) {
+      this.errorMsg.textContent = "Ошибка JSON: " + err.message;
+      this.errorMsg.style.display = "block";
     }
+  }
 
-    createButtons() {
-        const buttonsContainer = document.createElement("div");
-        buttonsContainer.className = this.getPrefixedClass("buttons");
-
-        this.submitButton = document.createElement("button");
-        this.submitButton.textContent = "Применить";
-        this.submitButton.className = this.getPrefixedClass("button-submit");
-        this.submitButton.addEventListener("click", () => this.handleSubmit());
-        buttonsContainer.appendChild(this.submitButton);
-
-        this.cancelButton = document.createElement("button");
-        this.cancelButton.textContent = "Отмена";
-        this.cancelButton.className = this.getPrefixedClass("button-cancel");
-        this.cancelButton.addEventListener("click", () => this.handleCancel());
-        buttonsContainer.appendChild(this.cancelButton);
-
-        this.popupEl.appendChild(buttonsContainer);
+  handleCancel() {
+    if (typeof this.options.onCancel === "function") {
+      this.options.onCancel();
     }
-
-    handleSubmit() {
-        const value = this.editor.value();
-
-        try {
-            const parsed = JSON.parse(value);
-            if (typeof this.options.onSubmit === "function") {
-                this.options.onSubmit(parsed);
-            }
-            this.close();
-        } catch (err) {
-            this.errorMsg.textContent = "Ошибка JSON: " + err.message;
-            this.errorMsg.style.display = "block";
-        }
-    }
-
-    handleCancel() {
-        if (typeof this.options.onCancel === "function") {
-            this.options.onCancel();
-        }
-        this.close();
-    }
+    this.close();
+  }
 }

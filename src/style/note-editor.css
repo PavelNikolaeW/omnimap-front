@@ -3,20 +3,20 @@
    ───────────────────────────────────────────────────────────── */
 
 :root {
-  --ne-bg:        #fff;
-  --ne-fg:        #111;
-  --ne-muted:     #6b7280;
-  --ne-border:    #e5e7eb;
-  --ne-border-2:  #d1d5db;
-  --ne-accent:    #2563eb;
-  --ne-shadow:    0 1px 2px rgba(0,0,0,.06);
+    --ne-bg: #fff;
+    --ne-fg: #111;
+    --ne-muted: #6b7280;
+    --ne-border: #e5e7eb;
+    --ne-border-2: #d1d5db;
+    --ne-accent: #2563eb;
+    --ne-shadow: 0 1px 2px rgba(0, 0, 0, .06);
 
-  --ne-font:      ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
-  --ne-mono:      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --ne-font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+    --ne-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
-  --ne-pad:       12px;
-  --ne-radius:    10px;
-  --ne-btn:       30px;
+    --ne-pad: 12px;
+    --ne-radius: 10px;
+    --ne-btn: 30px;
 }
 
 /* ⛔️ Убрали prefers-color-scheme: dark полностью */
@@ -28,106 +28,114 @@
 
 /* «Dim» — чуть мягче белого, чтобы меньше контраста, но всё светлое */
 .active.ne-dim {
-  --ne-bg:       #f7f8fa;
-  --ne-fg:       #0f172a;
-  --ne-muted:    #617085;
-  --ne-border:   #e6e8ec;
-  --ne-border-2: #d7dbe2;
-  --ne-accent:   #2457d6;
-  --ne-shadow:   0 1px 2px rgba(15, 23, 42, .06);
+    --ne-bg: #f7f8fa;
+    --ne-fg: #0f172a;
+    --ne-muted: #617085;
+    --ne-border: #e6e8ec;
+    --ne-border-2: #d7dbe2;
+    --ne-accent: #2457d6;
+    --ne-shadow: 0 1px 2px rgba(15, 23, 42, .06);
 }
 
 /* «Sepia» — тёплая бумага */
 .active.ne-sepia {
-  --ne-bg:       #fdf7f2;
-  --ne-fg:       #3b2f25;
-  --ne-muted:    #8b6f5a;
-  --ne-border:   #eedfd2;
-  --ne-border-2: #e5d3c3;
-  --ne-accent:   #b06415;
-  --ne-shadow:   0 1px 2px rgba(80, 60, 40, .08);
+    --ne-bg: #fdf7f2;
+    --ne-fg: #3b2f25;
+    --ne-muted: #8b6f5a;
+    --ne-border: #eedfd2;
+    --ne-border-2: #e5d3c3;
+    --ne-accent: #b06415;
+    --ne-shadow: 0 1px 2px rgba(80, 60, 40, .08);
 }
 
 /* «Dark» — только вручную, если вдруг понадобится */
 .active.ne-dark {
-  --ne-bg:       #0b0b0c;
-  --ne-fg:       #e5e7eb;
-  --ne-muted:    #9ca3af;
-  --ne-border:   #26272b;
-  --ne-border-2: #33353b;
-  --ne-accent:   #60a5fa;
-  --ne-shadow:   0 1px 2px rgba(0,0,0,.35);
+    --ne-bg: #0b0b0c;
+    --ne-fg: #e5e7eb;
+    --ne-muted: #9ca3af;
+    --ne-border: #26272b;
+    --ne-border-2: #33353b;
+    --ne-accent: #60a5fa;
+    --ne-shadow: 0 1px 2px rgba(0, 0, 0, .35);
 }
+
 /* Контейнер редактора (задай своему контейнеру эти базовые стили) */
 .note-editor-container,
 .active {
-  color: var(--ne-fg);
-  background: var(--ne-bg);
-  font-family: var(--ne-font);
+    color: var(--ne-fg);
+    background: var(--ne-bg);
+    font-family: var(--ne-font);
+    width: 100%;
+    display: flex;
+    flex-direction: column;
 }
 
 /* ───── Toolbar ───── */
 .note-editor-toolbar {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  align-items: center;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
 
-  position: sticky;
-  top: 0;
-  z-index: 10;
+    position: sticky;
+    top: 0;
+    z-index: 10;
 
-  padding: 6px;
-  margin-bottom: 8px;
+    padding: 6px;
+    margin-bottom: 8px;
 
-  background: var(--ne-bg);
-  border: 1px solid var(--ne-border);
-  border-radius: var(--ne-radius);
-  box-shadow: var(--ne-shadow);
+    background: var(--ne-bg);
+    border: 1px solid var(--ne-border);
+    border-radius: var(--ne-radius);
+    box-shadow: var(--ne-shadow);
 
-  /* «скромность»: слегка приглушаем по умолчанию */
-  opacity: .9;
-  transition: opacity .15s ease;
+    /* «скромность»: слегка приглушаем по умолчанию */
+    opacity: .9;
+    transition: opacity .15s ease;
 }
+
 .note-editor-toolbar:hover,
 .active:focus-within .note-editor-toolbar {
-  opacity: 1;
+    opacity: 1;
 }
 
 /* Кнопки: компактные, без рамок, иконки только */
 .note-editor-toolbar .btn {
-  width: var(--ne-btn);
-  height: var(--ne-btn);
-  display: inline-grid;
-  place-items: center;
+    width: var(--ne-btn);
+    height: var(--ne-btn);
+    display: inline-grid;
+    place-items: center;
 
-  font-size: 14px;
-  color: var(--ne-muted);
-  background: transparent;
-  border: 0;
-  border-radius: 8px;
-  cursor: pointer;
+    font-size: 14px;
+    color: var(--ne-muted);
+    background: transparent;
+    border: 0;
+    border-radius: 8px;
+    cursor: pointer;
 
-  transition: background-color .12s ease, color .12s ease, transform .04s ease;
+    transition: background-color .12s ease, color .12s ease, transform .04s ease;
 }
+
 .note-editor-toolbar .btn:hover {
-  background: var(--ne-border);
-  color: var(--ne-fg);
+    background: var(--ne-border);
+    color: var(--ne-fg);
 }
+
 .note-editor-toolbar .btn:active {
-  transform: translateY(1px) scale(.99);
+    transform: translateY(1px) scale(.99);
 }
+
 .note-editor-toolbar .btn:focus-visible {
-  outline: 2px solid color-mix(in oklab, var(--ne-accent) 65%, transparent);
-  outline-offset: 2px;
-  background: color-mix(in oklab, var(--ne-accent) 10%, transparent);
+    outline: 2px solid color-mix(in oklab, var(--ne-accent) 65%, transparent);
+    outline-offset: 2px;
+    background: color-mix(in oklab, var(--ne-accent) 10%, transparent);
 }
 
 /* Важные действия — чуть заметнее */
 .note-editor-toolbar .fa-floppy-o,
 .note-editor-toolbar .fa-eye,
 .note-editor-toolbar .fa-columns {
-  color: var(--ne-fg);
+    color: var(--ne-fg);
 }
 
 /* Скрываем «редко используемые» для минимализма.
@@ -138,83 +146,95 @@
 .note-editor-toolbar .fa-quote-right,
 .note-editor-toolbar .fa-minus,
 .note-editor-toolbar .fa-question-circle {
-  display: none;
+    display: none;
 }
 
 /* На широких экранах можно показать ещё пару кнопок, если хочется */
 @media (min-width: 1024px) {
-  .note-editor-toolbar .fa-quote-right,
-  .note-editor-toolbar .fa-minus {
-    display: inline-grid;
-  }
+    .note-editor-toolbar .fa-quote-right,
+    .note-editor-toolbar .fa-minus {
+        display: inline-grid;
+    }
 }
 
 /* ───── Textarea ───── */
 .note-editor-textarea {
-  height: 100%;
-  padding: calc(var(--ne-pad) + 2px) var(--ne-pad);
+    height: 100%;
+    padding: calc(var(--ne-pad) + 2px) var(--ne-pad);
 
-  border: 1px solid var(--ne-border);
-  border-radius: var(--ne-radius);
-  background: var(--ne-bg);
-  color: var(--ne-fg);
+    border: 1px solid var(--ne-border);
+    border-radius: var(--ne-radius);
+    background: var(--ne-bg);
+    color: var(--ne-fg);
 
-  font: 16px/1.6 var(--ne-font);
-  resize: vertical;
+    font: 16px/1.6 var(--ne-font);
+    resize: vertical;
 
-  box-shadow: var(--ne-shadow);
-  transition: border-color .14s ease, box-shadow .14s ease;
+    box-shadow: var(--ne-shadow);
+    transition: border-color .14s ease, box-shadow .14s ease;
 }
+
 .note-editor-textarea:focus {
-  outline: none;
-  border-color: color-mix(in oklab, var(--ne-accent) 60%, var(--ne-border-2));
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ne-accent) 18%, transparent);
+    outline: none;
+    border-color: color-mix(in oklab, var(--ne-accent) 60%, var(--ne-border-2));
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--ne-accent) 18%, transparent);
 }
 
 /* Моноширинные фрагменты прямо в textarea (для fenced hints) */
 .note-editor-textarea::selection {
-  background: color-mix(in oklab, var(--ne-accent) 25%, transparent);
+    background: color-mix(in oklab, var(--ne-accent) 25%, transparent);
 }
 
 /* ───── Preview ───── */
 .note-editor-preview {
-  display: none;             /* JS включает */
-  margin-top: 10px;
-  padding: var(--ne-pad);
-  border: 1px solid var(--ne-border);
-  border-radius: var(--ne-radius);
-  box-shadow: var(--ne-shadow);
-  background: var(--ne-bg);
-  overflow: auto;
+    display: none; /* JS включает */
+    margin-top: 10px;
+    padding: var(--ne-pad);
+    border: 1px solid var(--ne-border);
+    border-radius: var(--ne-radius);
+    box-shadow: var(--ne-shadow);
+    background: var(--ne-bg);
+    overflow: auto;
 }
 
 /* Side-by-side режим */
 .side-by-side .note-editor-textarea,
 .side-by-side .note-editor-preview {
-  display: block;
+    display: block;
 }
+
 .side-by-side {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  align-items: start;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    align-items: start;
 }
+
 @media (max-width: 900px) {
-  .side-by-side {
-    grid-template-columns: 1fr; /* на мобилках — столбцом */
-  }
+    .side-by-side {
+        grid-template-columns: 1fr; /* на мобилках — столбцом */
+    }
 }
 
 /* ───── Типографика превью ───── */
 .note-editor-preview h1,
 .note-editor-preview h2,
 .note-editor-preview h3 {
-  line-height: 1.25;
-  margin: 1.2em 0 .5em;
+    line-height: 1.25;
+    margin: 1.2em 0 .5em;
 }
-.note-editor-preview h1 { font-size: clamp(22px, 3vw, 28px); }
-.note-editor-preview h2 { font-size: clamp(20px, 2.4vw, 24px); }
-.note-editor-preview h3 { font-size: clamp(18px, 2vw, 20px); }
+
+.note-editor-preview h1 {
+    font-size: clamp(22px, 3vw, 28px);
+}
+
+.note-editor-preview h2 {
+    font-size: clamp(20px, 2.4vw, 24px);
+}
+
+.note-editor-preview h3 {
+    font-size: clamp(18px, 2vw, 20px);
+}
 
 .note-editor-preview p,
 .note-editor-preview ul,
@@ -222,104 +242,112 @@
 .note-editor-preview table,
 .note-editor-preview blockquote,
 .note-editor-preview pre {
-  margin: .8em 0;
+    margin: .8em 0;
 }
 
 .note-editor-preview a {
-  color: var(--ne-accent);
-  text-decoration: none;
-  border-bottom: 1px dashed color-mix(in oklab, var(--ne-accent) 60%, transparent);
+    color: var(--ne-accent);
+    text-decoration: none;
+    border-bottom: 1px dashed color-mix(in oklab, var(--ne-accent) 60%, transparent);
 }
+
 .note-editor-preview a:hover {
-  text-decoration: underline;
-  border-bottom-color: transparent;
+    text-decoration: underline;
+    border-bottom-color: transparent;
 }
 
 .note-editor-preview code {
-  font-family: var(--ne-mono);
-  font-size: .95em;
-  padding: .1em .4em;
-  border-radius: 6px;
-  background: color-mix(in oklab, var(--ne-border) 70%, transparent);
-  border: 1px solid var(--ne-border);
+    font-family: var(--ne-mono);
+    font-size: .95em;
+    padding: .1em .4em;
+    border-radius: 6px;
+    background: color-mix(in oklab, var(--ne-border) 70%, transparent);
+    border: 1px solid var(--ne-border);
 }
+
 .note-editor-preview pre code {
-  display: block;
-  padding: 12px;
-  overflow: auto;
-  border-radius: 8px;
-  border: 1px solid var(--ne-border);
-  background: color-mix(in oklab, var(--ne-border) 80%, transparent);
+    display: block;
+    padding: 12px;
+    overflow: auto;
+    border-radius: 8px;
+    border: 1px solid var(--ne-border);
+    background: color-mix(in oklab, var(--ne-border) 80%, transparent);
 }
 
 .note-editor-preview blockquote {
-  padding: .6em .9em;
-  border-left: 3px solid var(--ne-border-2);
-  background: color-mix(in oklab, var(--ne-border) 60%, transparent);
-  border-radius: 6px;
+    padding: .6em .9em;
+    border-left: 3px solid var(--ne-border-2);
+    background: color-mix(in oklab, var(--ne-border) 60%, transparent);
+    border-radius: 6px;
 }
 
 .note-editor-preview table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  overflow: hidden;
-  border: 1px solid var(--ne-border);
-  border-radius: 10px;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    overflow: hidden;
+    border: 1px solid var(--ne-border);
+    border-radius: 10px;
 }
+
 .note-editor-preview th,
 .note-editor-preview td {
-  text-align: left;
-  padding: .6em .7em;
-  border-bottom: 1px solid var(--ne-border);
+    text-align: left;
+    padding: .6em .7em;
+    border-bottom: 1px solid var(--ne-border);
 }
+
 .note-editor-preview thead th {
-  background: color-mix(in oklab, var(--ne-border) 70%, transparent);
+    background: color-mix(in oklab, var(--ne-border) 70%, transparent);
 }
+
 .note-editor-preview tbody tr:last-child td {
-  border-bottom: 0;
+    border-bottom: 0;
 }
 
 /* Картинки — по ширине контейнера */
 .note-editor-preview img {
-  max-width: 100%;
-  height: auto;
-  border-radius: 8px;
-  display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    display: block;
 }
 
 /* Поддержка hljs (легкий «карточный» вид) */
 .hljs {
-  background: transparent;
-  padding: 0;
+    background: transparent;
+    padding: 0;
 }
 
 /* ───── Мобильные штрихи ───── */
 @media (max-width: 640px) {
-  .note-editor-toolbar {
-    gap: 4px;
-    padding: 4px;
-  }
-  .note-editor-toolbar .btn {
-    width: 28px; height: 28px; font-size: 13px;
-  }
+    .note-editor-toolbar {
+        gap: 4px;
+        padding: 4px;
+    }
 
-  /* на мобильных оставим только «ядро» кнопок, остальное скрыть */
-  .note-editor-toolbar .fa-level-down,
-  .note-editor-toolbar .fa-list-ol,
-  .note-editor-toolbar .fa-table {
-    display: none;
-  }
+    .note-editor-toolbar .btn {
+        width: 28px;
+        height: 28px;
+        font-size: 13px;
+    }
 
-  .note-editor-textarea {
-    min-height: 46vh;
-    font-size: 16px; /* предотвращает зум на iOS */
-  }
+    /* на мобильных оставим только «ядро» кнопок, остальное скрыть */
+    .note-editor-toolbar .fa-level-down,
+    .note-editor-toolbar .fa-list-ol,
+    .note-editor-toolbar .fa-table {
+        display: none;
+    }
+
+    .note-editor-textarea {
+        min-height: 46vh;
+        font-size: 16px; /* предотвращает зум на iOS */
+    }
 }
 
 /* ───── Состояния ошибок/подсказок (на будущее) ───── */
 .note-editor-hint {
-  font-size: 12px;
-  color: var(--ne-muted);
-  margin-top: 6px;
+    font-size: 12px;
+    color: var(--ne-muted);
+    margin-top: 6px;
 }

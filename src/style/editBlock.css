@@ -33,7 +33,7 @@
 
 /* Контент */
 .edit-json-popup-content {
-    height: auto;
+    height: 83%;
     overflow-y: auto;
     margin-bottom: 20px;
 }

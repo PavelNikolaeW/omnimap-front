@@ -1,5 +1,4 @@
 import 'highlight.js/styles/github.css';
-import 'simplemde/dist/simplemde.min.css';
 import '../style/index.css';
 import '../style/toolbar.css';
 import '../style/controls.css';
