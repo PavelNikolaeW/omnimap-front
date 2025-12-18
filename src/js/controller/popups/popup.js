@@ -201,6 +201,7 @@ export class Popup {
     createContainer() {
         this.popupEl = document.createElement('div');
         this.popupEl.className = this.getPrefixedClass('container');
+        console.log('kek')
         Object.assign(this.popupEl.style, {
             position: 'fixed',
             zIndex: 9999,
@@ -209,7 +210,6 @@ export class Popup {
             height: this.options.height === 'auto'
                 ? 'auto'
                 : `${this.options.height}px`,
-            boxSizing: 'border-box',
             background: '#fff',
             borderRadius: '8px',
             padding: '1em'
@@ -327,7 +327,7 @@ export class Popup {
 
     positionPopup() {
         this.popupEl.style.visibility = 'hidden';
-        this.popupEl.style.display = 'block';
+        this.popupEl.style.display = 'flex';
 
         requestAnimationFrame(() => {
             const rect = this.popupEl.getBoundingClientRect();

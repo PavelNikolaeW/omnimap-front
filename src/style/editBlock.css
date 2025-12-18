@@ -21,38 +21,38 @@
     width: 95vw;
     height: 95vh;
     overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
 /* Заголовок */
 .edit-json-popup-title {
     font-size: 18px;
     font-weight: bold;
-    margin-bottom: 10px;
     cursor: move;
 }
 
 /* Контент */
 .edit-json-popup-content {
-    height: 83%;
+    height: 100%;
     overflow-y: auto;
-    margin-bottom: 20px;
 }
 
 /* Контейнер редактора */
 .edit-json-popup-json-editor {
-    margin-top: 10px;
+    height: 100%;
 }
 
-/* Ошибки */
+/* Ошибки */E
 .edit-json-popup-json-editor div[style*="color: red"] {
     margin-top: 8px;
-    font-size: 1 4px;
+    font-size: 14px;
 }
 
 /* Кнопки */
 .edit-json-popup-buttons {
     text-align: right;
-    margin-top: 10px;
 }
 
 .edit-json-popup-button-submit,
