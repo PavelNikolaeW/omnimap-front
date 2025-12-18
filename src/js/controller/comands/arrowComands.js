@@ -267,7 +267,7 @@ export const arrowCommands = [
     },
     {
         id: 'minusArrowUp',
-        defaultHotkey: '-+up',
+        defaultHotkey: 'shift+=+up',
         description: 'Сжимает блок вверх внутри диаграммы',
         mode: ['normal'],
         throttleDisable: true,
@@ -277,7 +277,7 @@ export const arrowCommands = [
     },
     {
         id: 'minusArrowDown',
-        defaultHotkey: '-+down',
+        defaultHotkey: 'shift+=+down',
         description: 'Сжимает блок вниз внутри диаграммы',
         mode: ['normal'],
         throttleDisable: true,
@@ -287,7 +287,7 @@ export const arrowCommands = [
     },
     {
         id: 'minusArrowLeft',
-        defaultHotkey: '-+left',
+        defaultHotkey: 'shift+=+left',
         description: 'Сжимает блок влево внутри диаграммы',
         mode: ['normal'],
         throttleDisable: true,
@@ -297,7 +297,7 @@ export const arrowCommands = [
     },
     {
         id: 'minusArrowRight',
-        defaultHotkey: '-+right',
+        defaultHotkey: 'shift+=+right',
         description: 'Сжимает блок вправо внутри диаграммы',
         mode: ['normal'],
         throttleDisable: true,
