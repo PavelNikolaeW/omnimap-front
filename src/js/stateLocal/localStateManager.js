@@ -254,6 +254,7 @@ export class LocalStateManager {
         api.removeTree(blockId)
             .then(async (res) => {
                 if (res.status === 200) {
+                    console.log(res.data.parent)
                     localforage.removeItem(`Path_${blockId}${this.currentUser}`)
                     if (newTreeIds) {
                         await localforage.setItem(`treeIds${this.currentUser}`, newTreeIds)
@@ -299,13 +300,11 @@ export class LocalStateManager {
     }
 
     webSocUpdateBlock(newBlocks) {
-        console.log(newBlocks)
         if (newBlocks.length) {
             newBlocks.forEach((block) => {
                 if (block.deleted) {
                     this.removeOneBlock(block.id)
                 } else {
-                    console.log(block)
                     if (!block.parent_id) {
                         localforage.getItem('currentUser', (err, user) => {
                             localforage.getItem(`treeIds${user}`, (err, treeIds) => {
@@ -738,21 +737,10 @@ export class LocalStateManager {
             const block = this.blocks.get(blockId);
             if (!block) throw new Error(`Block with id ${blockId} not found.`);
 
-            const deniedFields = [
-                // 'childOrder',
-                // 'customGrid',
-                // 'text'
-            ];
-
-            for (const key of Object.keys(data)) {
-                if (!deniedFields.includes(key)) {
-                    block.data[key] = data[key];
-                }
-            }
-
-            api.updateBlock(blockId, {data: block.data}).then(res => {
+            api.updateBlock(blockId, {data: data}).then(res => {
                 if (res.status === 200) {
                     const updatedBlock = res.data;
+                    console.log(updatedBlock)
                     this.saveBlock(updatedBlock).then(() => dispatch('ShowBlocks'));
                 }
             });
@@ -890,7 +878,6 @@ export class LocalStateManager {
             if (response.status === 200) {
                 const updatedBlock = response.data;
                 await this.saveBlock(updatedBlock);
-                // No need to emit 'ShowBlocks' if the UI updates connections separately
             }
         } catch (err) {
             console.error(err);

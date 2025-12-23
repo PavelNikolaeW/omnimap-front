@@ -23,13 +23,7 @@ export class EditBlockPopup extends Popup {
     container.className = this.getPrefixedClass("json-editor");
     this.contentArea.appendChild(container);
 
-    const clearObject = {};
     const blockData = this.options.blockData || {};
-    // если нужно скрывать поля — укажи здесь
-    const deniedFields = []; // ['childOrder','customGrid','text']
-    for (const key of Object.keys(blockData)) {
-      if (!deniedFields.includes(key)) clearObject[key] = blockData[key];
-    }
 
     // Сообщение об ошибке
     this.errorMsg = document.createElement("div");
@@ -43,7 +37,7 @@ export class EditBlockPopup extends Popup {
     this.editorHost.className = 'note-editor-container'; // для общих стилей (не обязательно)
     container.appendChild(this.editorHost);
 
-    const initial = JSON.stringify(clearObject, null, 2);
+    const initial = JSON.stringify(blockData, null, 2);
 
     this.editor = new JsonTextEditor({
       container: this.editorHost,

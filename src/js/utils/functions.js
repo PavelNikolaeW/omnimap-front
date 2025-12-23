@@ -54,6 +54,7 @@ export function validURL(str) {
 }
 
 export function truncate(str, maxLen) {
+    if (!str) return ''
     if (str.length <= maxLen) return str
     return str.slice(0, maxLen) + "."
 }
@@ -208,7 +209,6 @@ export function isMobileOrTablet() {
 
 export function isExcludedElement(el, meta='kek', excludeArray=['body', 'textarea', 'input', 'emoji-picker', 'button']) {
         const tag = el.tagName.toLowerCase();
-        console.log(tag, meta)
         if (el.isContentEditable) {
             return true;
         }

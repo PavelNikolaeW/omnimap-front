@@ -16,6 +16,8 @@ import {
 import {popupsCommands} from "./popupsCmd";
 import {NoteEditor} from "../noteEditor";
 import {log} from "@jsplumb/browser-ui";
+import Cookies from "js-cookie";
+import {LLM_GATEWAY_URL} from "../../index";
 
 const nodeEditor = new NoteEditor('editor-container')
 
@@ -172,12 +174,35 @@ export const commands = [
         btn: {
             containerId: 'control-panel',
             label: 'Chat',
-            classes: ['sidebar-button', 'fas', 'fa-chat', 'fas-lg']
+            classes: ['sidebar-button', 'fas', 'fa-comment', 'fas-lg']
         },
         defaultHotkey: 'shift+h',
         description: 'Открыть чат',
         execute(ctx) {
-            window.openChat(ctx)
+            const token = Cookies.get('access')
+            fetch(`${LLM_GATEWAY_URL}/load_conversations`, {
+                method: "GET",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+            }).then(res => {
+                if (res.ok)
+                    return res.json()
+            }).then(data => {
+                window.openChat({
+                    gatewayUrl: LLM_GATEWAY_URL,
+                    token: token,
+                    enableStreaming: true,
+                    rootElement: document.body,
+                    tools: [{id: 'block_tree'}],
+                    onToolClick: (toolId) => {
+                        console.log(toolId)
+                    }
+                }, {conversations: data})
+            }).catch(err => {
+                console.error(err)
+            })
         },
         btnExec(ctx) {
             this.execute(ctx)
