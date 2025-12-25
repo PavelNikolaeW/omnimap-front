@@ -16,6 +16,8 @@ module.exports = {
     },
     module: {
         rules: [
+            // NOTE: CSS rules are defined in webpack.dev.js and webpack.prod.js
+            // to handle CSS Modules (.module.css) differently from regular CSS
             // Изображения
             {
                 test: /\.(png|svg|jpg|jpeg|gif)$/i,

@@ -17,7 +17,7 @@ module.exports = merge(common, {
     module: {
         rules: [
             {
-                test: /\.(js|jsx)$/, // JS and JSX files
+                test: /\.(js|jsx)$/,
                 include: [
                     path.resolve(__dirname, 'src/js'),
                     path.resolve(__dirname, 'src/llm_chat')
@@ -58,18 +58,15 @@ module.exports = merge(common, {
         ],
     },
     plugins: [
-        // Вынос CSS в отдельный файл
         new MiniCssExtractPlugin({
             filename: '[name].[contenthash].css',
         }),
-        // Настройка Service Worker
         new WorkboxWebpackPlugin.GenerateSW({
             clientsClaim: true,
             skipWaiting: true,
-            cleanupOutdatedCaches: true, // Удаляет старые кэши при обновлении
+            cleanupOutdatedCaches: true,
             exclude: [/\.map$/, /\.txt$/, /service-worker\.js$/],
             maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-            // Не кэшируем index.html в precache - используем только runtime
             navigateFallback: null,
             runtimeCaching: [
                 {
@@ -84,12 +81,11 @@ module.exports = merge(common, {
                     },
                 },
                 {
-                    // HTML всегда сначала сеть
                     urlPattern: ({request}) => request.destination === 'document',
                     handler: 'NetworkFirst',
                     options: {
                         cacheName: 'html-cache',
-                        networkTimeoutSeconds: 3, // Таймаут 3 сек, потом кэш
+                        networkTimeoutSeconds: 3,
                     },
                 },
                 {
@@ -108,23 +104,21 @@ module.exports = merge(common, {
         })
     ],
     optimization: {
-        // Минификация JS и CSS
         minimize: true,
         minimizer: [
             new TerserPlugin({
                 terserOptions: {
                     compress: {
-                        drop_console: true, // Удаляем console.log
+                        drop_console: true,
                     },
                 },
             }),
             new CssMinimizerPlugin(),
         ],
-        // Разделение кода
         splitChunks: {
             chunks: 'all',
-            maxInitialRequests: 5, // Уменьшаем количество одновременных загрузок
-            maxSize: 500000, // Лимит размера чанков (в байтах)
+            maxInitialRequests: 5,
+            maxSize: 500000,
             cacheGroups: {
                 vendors: {
                     test: /[\\/]node_modules[\\/]/,
@@ -139,6 +133,6 @@ module.exports = merge(common, {
                 },
             },
         },
-        runtimeChunk: 'single', // Вынос runtime в отдельный файл
+        runtimeChunk: 'single',
     },
 });

@@ -180,7 +180,7 @@ export const commands = [
             if (window.LLMFullscreenChat) {
                 window.LLMFullscreenChat.close();
             }
-            ctx.mode = MODES.NORMAL
+            ctx.mode = MODES.NORMAL;
         }
     },
     {
@@ -195,21 +195,16 @@ export const commands = [
         description: 'Открыть чат',
         execute(ctx) {
             const token = Cookies.get('access')
-            // Use LLMFullscreenChat from llm_chat submodule
             if (window.LLMFullscreenChat) {
                 if (!window.LLMFullscreenChat.isInitialized()) {
                     window.LLMFullscreenChat.init({
                         apiUrl: LLM_GATEWAY_URL,
                         token: token,
-                        onClose: () => {
-                            ctx.mode = MODES.NORMAL
-                        }
+                        onClose: () => { ctx.mode = MODES.NORMAL }
                     });
                 }
                 window.LLMFullscreenChat.open();
-                ctx.mode = MODES.CHAT
-            } else {
-                console.error('LLMFullscreenChat not loaded');
+                ctx.mode = MODES.CHAT;
             }
         },
         btnExec(ctx) {
