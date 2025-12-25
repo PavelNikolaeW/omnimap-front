@@ -47,12 +47,7 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
     });
 }
 
-
-// LLM_GATEWAY_URL is injected by webpack DefinePlugin as a global constant
-
-// if (typeof window !== "undefined") {
-//   window.openChat = openChat;
-// }
+// LLM_GATEWAY_URL is injected by webpack DefinePlugin
 
 document.addEventListener('DOMContentLoaded', async () => {
     // Проверка поддержки IndexedDB и конфигурация localforage

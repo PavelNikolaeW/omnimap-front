@@ -142,4 +142,3 @@ module.exports = merge(common, {
         runtimeChunk: 'single', // Вынос runtime в отдельный файл
     },
 });
-
