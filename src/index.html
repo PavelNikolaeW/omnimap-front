@@ -111,48 +111,8 @@
     <button class="diagram-btn fas fa-rotate fas-lg" id="reset"></button>
 </div>
 
-<!--
-Vanilla Chat Widget (SSE) — CLASS-BASED VERSION
-- No framework required
-- Styles were moved to your separate CSS file (keep the same class names)
-- This file provides HTML markup + a ChatUI class with open()/close() and other public methods
-- The ChatUI accepts an Api instance via constructor
-- External control: window.openChat() / window.closeChat() / window.getChat() for integration with site buttons
--->
-
-<!-- Markup (keep IDs & classes for script to bind) -->
-<div class="llm-wrap" id="llmWrap" role="dialog" aria-modal="true" aria-label="Чат с ИИ">
-  <div class="llm-grid">
-    <aside class="llm-left" id="llmLeft" aria-label="История чатов">
-      <div class="llm-left-h">
-        <b>История</b>
-        <div>
-          <button class="llm-btn" id="llmNew">Новый</button>
-          <button class="llm-close" id="llmCloseSide" title="Скрыть список">⟨</button>
-        </div>
-      </div>
-      <div class="llm-left-list" id="llmList"></div>
-    </aside>
-<!-- LLM chat -->
-    <section class="llm-right">
-      <header class="llm-hdr">
-        <button class="llm-btn" id="llmMenu" aria-label="Меню">☰</button>
-        <b id="llmTitle">Новый диалог</b>
-        <span class="llm-spacer"></span>
-        <button class="llm-btn" id="llmInsertCtx" title="Вставить выделенный контекст (текст со страницы)">Вставить контекст</button>
-        <button class="llm-close" id="llmClose" aria-label="Закрыть окно">✕</button>
-      </header>
-      <main class="llm-body" id="llmBody" aria-live="polite"></main>
-      <footer class="llm-ftr">
-        <div class="llm-input" id="llmInput" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Напишите сообщение…"></div>
-        <div class="llm-ctrls">
-          <button class="llm-icon" id="llmPaste" title="Вставить (Cmd/Ctrl+V)">📋</button>
-          <button class="llm-btn primary" id="llmSend">Отправить</button>
-        </div>
-      </footer>
-    </section>
-  </div>
-</div>
+<!-- Fullscreen chat container - React will mount here -->
+<div id="fullscreen-chat-root"></div>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>

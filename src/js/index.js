@@ -26,9 +26,13 @@ import {TreeNavigation} from "./controller/treeNavigation";
 import {RedoStack, UndoStack} from "./controller/undoStack";
 import Cookies from "js-cookie";
 import {isExcludedElement} from "./utils/functions";
+// LLM Fullscreen Chat (from submodule)
+import LLMFullscreenChat from '../llm_chat/src/fullscreen/index.jsx';
 
-// LLM Chat Widget (from submodule)
-import LLMGatewayWidget from '../llm_chat/src/widget/index.jsx';
+// Expose fullscreen chat globally for commands
+if (typeof window !== "undefined") {
+    window.LLMFullscreenChat = LLMFullscreenChat;
+}
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
     window.addEventListener('load', () => {
@@ -44,10 +48,11 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
 }
 
 
-// Expose widget to window for commands
-if (typeof window !== "undefined") {
-  window.LLMGatewayWidget = LLMGatewayWidget;
-}
+// LLM_GATEWAY_URL is injected by webpack DefinePlugin as a global constant
+
+// if (typeof window !== "undefined") {
+//   window.openChat = openChat;
+// }
 
 document.addEventListener('DOMContentLoaded', async () => {
     // Проверка поддержки IndexedDB и конфигурация localforage

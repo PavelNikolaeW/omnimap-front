@@ -14,6 +14,8 @@ import {
 import {popupsCommands} from "./popupsCmd";
 import {NoteEditor} from "../noteEditor";
 import Cookies from "js-cookie";
+// LLM_GATEWAY_URL is injected by webpack DefinePlugin
+/* global LLM_GATEWAY_URL */
 
 // Actions
 import {
@@ -130,7 +132,9 @@ export const commands = [
                 ctx.diagramUtils.hiddenInputs()
             }
             if (ctx.mode === MODES.CHAT) {
-                window.closeChat(ctx)
+                if (window.LLMFullscreenChat) {
+                    window.LLMFullscreenChat.close();
+                }
             }
             ctx.mode = MODES.NORMAL
             ctx.event = undefined
@@ -173,8 +177,10 @@ export const commands = [
         defaultHotkey: 'shift+h',
         description: 'Закрыть чат',
         execute(ctx) {
-            window.closeChat()
-            console.log('close')
+            if (window.LLMFullscreenChat) {
+                window.LLMFullscreenChat.close();
+            }
+            ctx.mode = MODES.NORMAL
         }
     },
     {
@@ -189,19 +195,22 @@ export const commands = [
         description: 'Открыть чат',
         execute(ctx) {
             const token = Cookies.get('access')
-
-            // Initialize widget if not already done
-            if (!window.LLMGatewayWidget.isInitialized()) {
-                window.LLMGatewayWidget.init({
-                    apiUrl: LLM_GATEWAY_URL,
-                    token: token,
-                    position: 'bottom-right',
-                    theme: 'dark'
-                });
+            // Use LLMFullscreenChat from llm_chat submodule
+            if (window.LLMFullscreenChat) {
+                if (!window.LLMFullscreenChat.isInitialized()) {
+                    window.LLMFullscreenChat.init({
+                        apiUrl: LLM_GATEWAY_URL,
+                        token: token,
+                        onClose: () => {
+                            ctx.mode = MODES.NORMAL
+                        }
+                    });
+                }
+                window.LLMFullscreenChat.open();
+                ctx.mode = MODES.CHAT
+            } else {
+                console.error('LLMFullscreenChat not loaded');
             }
-
-            // Toggle chat visibility
-            window.LLMGatewayWidget.toggle();
         },
         btnExec(ctx) {
             this.execute(ctx)

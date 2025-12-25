@@ -66,9 +66,11 @@ module.exports = merge(common, {
         new WorkboxWebpackPlugin.GenerateSW({
             clientsClaim: true,
             skipWaiting: true,
-            exclude: [/\.map$/, /\.txt$/], // все еще исключаем лишнее
-            // precache всех файлов, которые попали в output
-            maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // например, до 5МБ
+            cleanupOutdatedCaches: true, // Удаляет старые кэши при обновлении
+            exclude: [/\.map$/, /\.txt$/, /service-worker\.js$/],
+            maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+            // Не кэшируем index.html в precache - используем только runtime
+            navigateFallback: null,
             runtimeCaching: [
                 {
                     urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/,
@@ -77,15 +79,17 @@ module.exports = merge(common, {
                         cacheName: 'images-cache',
                         expiration: {
                             maxEntries: 20,
-                            maxAgeSeconds: 30 * 24 * 60 * 60, // 30 дней
+                            maxAgeSeconds: 30 * 24 * 60 * 60,
                         },
                     },
                 },
                 {
+                    // HTML всегда сначала сеть
                     urlPattern: ({request}) => request.destination === 'document',
                     handler: 'NetworkFirst',
                     options: {
                         cacheName: 'html-cache',
+                        networkTimeoutSeconds: 3, // Таймаут 3 сек, потом кэш
                     },
                 },
                 {

@@ -16,23 +16,6 @@ module.exports = {
     },
     module: {
         rules: [
-            // JavaScript/JSX (for React components in llm_chat submodule)
-            {
-                test: /\.(js|jsx)$/,
-                include: [
-                    path.resolve(__dirname, 'src/js'),
-                    path.resolve(__dirname, 'src/llm_chat')
-                ],
-                use: {
-                    loader: 'babel-loader',
-                    options: {
-                        presets: [
-                            '@babel/preset-env',
-                            ['@babel/preset-react', { runtime: 'automatic' }]
-                        ]
-                    }
-                }
-            },
             // Изображения
             {
                 test: /\.(png|svg|jpg|jpeg|gif)$/i,

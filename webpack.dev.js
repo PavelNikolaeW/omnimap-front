@@ -1,4 +1,5 @@
 const webpack = require('webpack');
+const path = require('path');
 const { merge } = require('webpack-merge');
 const common = require('./webpack.common.js');
 
@@ -15,6 +16,24 @@ module.exports = merge(common, {
     },
     module: {
         rules: [
+            // JavaScript/JSX
+            {
+                test: /\.(js|jsx)$/,
+                include: [
+                    path.resolve(__dirname, 'src/js'),
+                    path.resolve(__dirname, 'src/llm_chat')
+                ],
+                exclude: /node_modules/,
+                use: {
+                    loader: 'babel-loader',
+                    options: {
+                        presets: [
+                            '@babel/preset-env',
+                            ['@babel/preset-react', { runtime: 'automatic' }]
+                        ]
+                    }
+                }
+            },
             // CSS Modules (for *.module.css files)
             {
                 test: /\.module\.css$/,
