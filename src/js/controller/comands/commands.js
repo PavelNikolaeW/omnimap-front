@@ -1,5 +1,5 @@
 import {arrowCommands} from "./arrowComands";
-import {copyToClipboard, getClipboardText, isValidUUID, validURL} from "../../utils/functions";
+import {validURL} from "../../utils/functions";
 import {dispatch} from "../../utils/utils";
 import {colorCommands} from "./colorCommands";
 import {arrowManager} from "../arrowManager";
@@ -8,48 +8,58 @@ import {customPrompt} from "../../utils/custom-dialog";
 
 import {
     commandOpenBlock,
-    getTreeIds,
-    getTreePath,
     openBlock,
-    setCmdOpenBlock, setCurrentTree
+    setCmdOpenBlock
 } from "./cmdUtils";
 import {popupsCommands} from "./popupsCmd";
 import {NoteEditor} from "../noteEditor";
-import {log} from "@jsplumb/browser-ui";
 import Cookies from "js-cookie";
 import {LLM_GATEWAY_URL} from "../../index";
+
+// Actions
+import {
+    copyBlockId,
+    getBlockIdFromClipboard,
+    startCutBlock,
+    completeCutBlock,
+    extractBlockId,
+    extractParentId,
+    MODES
+} from "../../actions/selectionActions";
+import {
+    switchTreeByIndex
+} from "../../actions/navigationActions";
 
 const nodeEditor = new NoteEditor('editor-container')
 
 function createTreeCmd() {
     const cmds = new Array(10)
+    // space+0 переключает на последнюю вкладку
     cmds[0] = {
         id: `openTree0`,
         mode: ['normal'],
         defaultHotkey: `space+0`,
         description: `Переключится на последнею вкладку.`,
-        execute(ctx) {
-            getTreeIds((err, treeIds) => {
-                setCurrentTree(treeIds.at(-1), () => {
-                    dispatch('ShowBlocks')
-                })
-            })
+        async execute(ctx) {
+            const result = await switchTreeByIndex(0)
+            if (result.success) {
+                dispatch('ShowBlocks')
+            }
             setCmdOpenBlock(ctx)
         }
     }
+    // space+1..9 переключает на соответствующую вкладку
     for (let i = 1; i < 10; i++) {
         cmds[i] = {
             id: `openTree${i}`,
             mode: ['normal'],
             defaultHotkey: `space+${i}`,
             description: `Переключится на ${i} вкладку.`,
-            execute(ctx) {
-                getTreeIds((err, treeIds) => {
-                    if (treeIds.length > i - 1)
-                        setCurrentTree(treeIds[i - 1], () => {
-                            dispatch('ShowBlocks')
-                        })
-                })
+            async execute(ctx) {
+                const result = await switchTreeByIndex(i)
+                if (result.success) {
+                    dispatch('ShowBlocks')
+                }
                 setCmdOpenBlock(ctx)
             }
         }
@@ -103,27 +113,27 @@ export const commands = [
         defaultHotkey: 'esc',
         regLink: true,
         execute(ctx) {
-            if (ctx.mode === 'textEdit') {
+            if (ctx.mode === MODES.TEXT_EDIT) {
                 nodeEditor.closeEditor(false)
             }
-            if (ctx.mode === 'connectToBlock') {
+            if (ctx.mode === MODES.CONNECT_TO_BLOCK) {
                 ctx.connect_source_id = undefined
                 ctx.sourceEl.classList.remove('block-selected')
                 ctx.sourceEl = undefined
             }
-            if (ctx.mode === 'cutBlock') {
+            if (ctx.mode === MODES.CUT_BLOCK) {
                 if (ctx.beforeBlockElement) ctx.beforeBlockElement.remove()
                 const target = ctx.blockLinkElement || ctx.blockElement
                 target.classList.remove('block-selected')
                 ctx.cut = undefined
             }
-            if (ctx.mode === 'diagram') {
+            if (ctx.mode === MODES.DIAGRAM) {
                 ctx.diagramUtils.hiddenInputs()
             }
-            if (ctx.mode === 'chat') {
+            if (ctx.mode === MODES.CHAT) {
                 window.closeChat(ctx)
             }
-            ctx.mode = 'normal'
+            ctx.mode = MODES.NORMAL
             ctx.event = undefined
             ctx.blockId = undefined
             ctx.closePopups()
@@ -137,14 +147,14 @@ export const commands = [
         regLink: true,
         mode: ['*'],
         execute(ctx) {
-            if (ctx.mode === 'normal') {
+            if (ctx.mode === MODES.NORMAL) {
                 if (!ctx.blockId) {
                     commandOpenBlock(ctx)
                 }
             }
-            if (ctx.mode === 'textEdit') {
+            if (ctx.mode === MODES.TEXT_EDIT) {
                 nodeEditor.closeEditor(true)
-                ctx.mode = 'normal'
+                ctx.mode = MODES.NORMAL
                 ctx.event = undefined
             }
             ctx.submitPopup()
@@ -276,7 +286,7 @@ export const commands = [
             if (ctx.blockLinkElement?.hasAttribute('blockLink')) {
                 id = ctx.blockLinkElement.getAttribute('blocklink')
             }
-            ctx.mode = 'textEdit'
+            ctx.mode = MODES.TEXT_EDIT
             nodeEditor.openEditor(id, ctx.blockElement.querySelector('contentBlock').innerHTML, ctx)
             setCmdOpenBlock(ctx)
         }
@@ -294,15 +304,15 @@ export const commands = [
         execute(ctx) {
             const target = ctx.blockLinkElement || ctx.blockElement
             if (!target) return
-            const id = target.id.split('*').at(-1)
-            const parentId = target.parentElement.id
-            if (id && parentId && parentId !== 'rootContainer') {
+
+            const blockId = extractBlockId(target)
+            const parentId = extractParentId(target)
+
+            const result = startCutBlock(blockId, parentId)
+            if (result.success) {
                 target.classList.add('block-selected')
-                ctx.mode = 'cutBlock'
-                ctx.cut = {
-                    block_id: id,
-                    old_parent_id: parentId.split('*').at(-1)
-                }
+                ctx.mode = MODES.CUT_BLOCK
+                ctx.cut = result.cutData
             } else {
                 setCmdOpenBlock(ctx)
             }
@@ -318,10 +328,11 @@ export const commands = [
         description: 'Копирует id выбранного блока или ожидает клика по блоку.',
         defaultHotkey: 'shift+c',
         mode: ['normal',],
-        async execute(ctx) {
-            const id = ctx.blockElement?.id?.split('*')?.at(-1)
-            if (!id) return
-            copyToClipboard(id)
+        execute(ctx) {
+            const blockId = extractBlockId(ctx.blockElement)
+            if (!blockId) return
+
+            copyBlockId(blockId)
             setCmdOpenBlock(ctx)
         }
     },
@@ -336,18 +347,25 @@ export const commands = [
         defaultHotkey: 'shift+v',
         description: 'Если скопирован id делает копию блока и дочерних элементов и вставляет в блок.',
         async execute(ctx) {
-            if (ctx.mode === 'cutBlock') {
-                dispatch('MoveBlock', ctx.cut)
+            if (ctx.mode === MODES.CUT_BLOCK) {
+                // Завершаем вырезание — перемещаем блок
+                const newParentId = extractBlockId(ctx.blockElement)
+                const result = completeCutBlock(ctx.cut, newParentId)
+                if (result.success) {
+                    dispatch('MoveBlock', result.moveData)
+                }
                 if (ctx.beforeBlockElement) ctx.beforeBlockElement.remove()
                 ctx.cut = undefined
-                ctx.mode = 'normal'
+                ctx.mode = MODES.NORMAL
                 setCmdOpenBlock(ctx)
             } else {
-                const id = ctx.blockElement?.id?.split('*').at(-1)
-                const srcId = await getClipboardText()
-                if (!id) return
-                if (isValidUUID(srcId)) {
-                    dispatch('PasteBlock', {dest: id, src: [srcId]});
+                // Вставка скопированного блока
+                const destId = extractBlockId(ctx.blockElement)
+                if (!destId) return
+
+                const clipboardResult = await getBlockIdFromClipboard()
+                if (clipboardResult.success) {
+                    dispatch('PasteBlock', {dest: destId, src: [clipboardResult.blockId]});
                 }
                 setCmdOpenBlock(ctx)
             }
@@ -364,13 +382,14 @@ export const commands = [
         defaultHotkey: 'shift+l',
         description: 'Если скопирован id, вставляет блок как ссылку',
         async execute(ctx) {
-            const id = ctx.blockElement?.id?.split('*').at(-1)
-            if (!id) return
-            const srcId = await getClipboardText()
-            if (id === srcId) return
-            if (isValidUUID(srcId)) {
-                dispatch('PasteLinkBlock', {dest: id, src: [srcId]});
-            }
+            const destId = extractBlockId(ctx.blockElement)
+            if (!destId) return
+
+            const clipboardResult = await getBlockIdFromClipboard()
+            if (!clipboardResult.success) return
+            if (destId === clipboardResult.blockId) return
+
+            dispatch('PasteLinkBlock', {dest: destId, src: [clipboardResult.blockId]});
             setCmdOpenBlock(ctx)
         }
     },
@@ -381,13 +400,18 @@ export const commands = [
         description: 'Если до этого была команда cutBlock, то производится вставка перед выделенным блоком.',
         async execute(ctx) {
             if (ctx.beforeBlockElement) {
-                ctx.cut['new_parent_id'] = ctx.beforeBlockElement.getAttribute('parent_id').split('*').at(-1)
-                ctx.cut['before'] = ctx.beforeBlockElement.getAttribute('block_id')
+                const newParentId = ctx.beforeBlockElement.getAttribute('parent_id').split('*').at(-1)
+                const beforeId = ctx.beforeBlockElement.getAttribute('block_id')
+                const result = completeCutBlock(ctx.cut, newParentId, beforeId)
+                if (result.success) {
+                    dispatch('MoveBlock', result.moveData)
+                }
                 ctx.beforeBlockElement.remove()
+            } else {
+                dispatch('MoveBlock', ctx.cut)
             }
-            dispatch('MoveBlock', ctx.cut)
             ctx.cut = undefined
-            ctx.mode = 'normal'
+            ctx.mode = MODES.NORMAL
             setCmdOpenBlock(ctx)
         }
     },
@@ -462,17 +486,16 @@ export const commands = [
         defaultHotkey: 'd',
         description: 'создать блок-схему',
         execute(ctx) {
-            if (ctx.mode !== 'diagram') {
-                let id = ctx.blockElement?.id?.split('*')?.at(-1)
-                if (!id) return
-                ctx.mode = 'diagram'
-                ctx.diagramUtils.showInputs(id, ctx.blockElement)
+            if (ctx.mode !== MODES.DIAGRAM) {
+                const blockId = extractBlockId(ctx.blockElement)
+                if (!blockId) return
+                ctx.mode = MODES.DIAGRAM
+                ctx.diagramUtils.showInputs(blockId, ctx.blockElement)
             }
         },
         btnExec(ctx) {
-            console.log(ctx)
-            if (ctx.mode === 'diagram') {
-                ctx.mode = 'normal'
+            if (ctx.mode === MODES.DIAGRAM) {
+                ctx.mode = MODES.NORMAL
                 ctx.diagramUtils.hiddenInputs()
                 setCmdOpenBlock(ctx)
             }
@@ -503,23 +526,23 @@ export const commands = [
         defaultHotkey: 'a',
         description: 'Создать стрелочку от блока до другого блока',
         execute(ctx) {
-            if (ctx.mode === 'normal' && ctx.blockElement) {
-                ctx.mode = 'connectToBlock'
+            if (ctx.mode === MODES.NORMAL && ctx.blockElement) {
+                ctx.mode = MODES.CONNECT_TO_BLOCK
                 let sourceEl = ctx.blockElement
                 if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
                 ctx.connect_source_id = sourceEl.id
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
-            } else if (ctx.mode === 'connectToBlock' && ctx.blockElement) {
+            } else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
                 let targetEl = ctx.blockElement
                 if (ctx.blockLinkElement) targetEl = ctx.blockLinkElement
                 let targetId = targetEl.id
                 if (ctx.connect_source_id !== targetId) {
                     arrowManager.completeConnectionToElement(ctx.connect_source_id, targetId)
                     ctx.connect_source_id = undefined
-                    ctx.sourceEl.remove('block-selected')
+                    ctx.sourceEl.classList.remove('block-selected')
                     ctx.sourceEl = undefined
-                    ctx.mode = 'normal'
+                    ctx.mode = MODES.NORMAL
                     setTimeout(() => {
                         ctx.setCmd('openBlock')
                     }, 50)

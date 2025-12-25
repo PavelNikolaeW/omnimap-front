@@ -1,36 +1,25 @@
 import {dispatch} from "../../utils/utils";
 import localforage from "localforage";
 import {commands} from "./commands";
+import {
+    extractParentHsl,
+    extractLinkChain,
+    resolveBlockId
+} from "../../actions/navigationActions";
 
+/**
+ * Открыть выбранный блок (используется для Enter и клика)
+ */
 export function commandOpenBlock(ctx) {
     let blockElement = ctx.blockElement
     if (!blockElement) {
         blockElement = ctx.rootContainer.children[0]
     }
-    let parent = blockElement.parentElement
-    let hsl = [];
-    let blockId = blockElement.id;
 
+    const blockId = resolveBlockId(blockElement, ctx.blockLinkElement)
+    const hsl = extractParentHsl(blockElement.parentElement)
+    const links = extractLinkChain(blockElement)
 
-    if (parent.hasAttribute('block')) {
-        hsl = parent.getAttribute('hsl').split(',').map(Number);
-    } else if (parent.hasAttribute('blockLink')) {
-        hsl = parent.parentNode.getAttribute('hsl').split(',').map(Number);
-    }
-
-    if (ctx.blockLinkElement) {
-        blockId = ctx.blockLinkElement.getAttribute('blocklink')
-    }
-    const links = []
-    while (parent) {
-        if (parent.tagName === 'DIV' && parent.hasAttribute('blockLink')) {
-            links.push({
-                linkId: parent?.id,
-                linkSource: parent?.getAttribute('blocklink')
-            })
-        }
-        parent = parent.parentNode
-    }
     dispatch('OpenBlock', {
         id: blockId,
         parentHsl: hsl,
@@ -39,29 +28,14 @@ export function commandOpenBlock(ctx) {
     });
 }
 
+/**
+ * Открыть конкретный блок-элемент
+ */
 export function openBlock(blockEl, ctx) {
-    let parent = blockEl.parentElement
-    let hsl = [];
-    let blockId = blockEl.id;
+    const blockId = resolveBlockId(blockEl, ctx.blockLinkElement)
+    const hsl = extractParentHsl(blockEl.parentElement)
+    const links = extractLinkChain(blockEl)
 
-    if (parent.hasAttribute('block')) {
-        hsl = parent.getAttribute('hsl').split(',').map(Number);
-    } else if (parent.hasAttribute('blockLink')) {
-        hsl = parent.parentNode.getAttribute('hsl').split(',').map(Number);
-    }
-
-    if (ctx.blockLinkElement) blockId = ctx.blockLinkElement.getAttribute('blocklink')
-
-    const links = []
-    while (parent) {
-        if (parent.tagName === 'DIV' && parent.hasAttribute('blockLink')) {
-            links.push({
-                linkId: parent?.id,
-                linkSource: parent?.getAttribute('blocklink')
-            })
-        }
-        parent = parent.parentNode
-    }
     dispatch('OpenBlock', {
         id: blockId,
         parentHsl: hsl,

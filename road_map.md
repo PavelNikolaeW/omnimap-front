@@ -52,7 +52,10 @@
   - [x] `selectionActions.js` — выделение и режимы (16 функций)
   - [x] `index.js` — точка входа, экспорты
   - [x] Тесты для actions (118 тестов)
-- [ ] Рефакторинг `comandManager` → тонкие обёртки над actions
+- [x] Рефакторинг `comandManager` → тонкие обёртки над actions
+  - [x] `commands.js` — использует actions для copy/cut/paste, навигации по деревьям
+  - [x] `cmdUtils.js` — использует navigationActions для извлечения HSL и ссылок
+  - [x] Константы режимов (MODES) вместо строк
 - [ ] Расширить модель блока (см. ниже)
 
 ### Новая модель блока
