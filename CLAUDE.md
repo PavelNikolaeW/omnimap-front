@@ -2,6 +2,27 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Git Workflow
+
+**IMPORTANT: Разработка ведётся в отдельных ветках!**
+
+1. **Создай ветку** для задачи:
+   ```bash
+   git checkout -b feature/название-задачи
+   # или
+   git checkout -b fix/описание-бага
+   ```
+
+2. **Работай в своей ветке** — никогда не коммить напрямую в `main`
+
+3. **После завершения задачи** создай Pull Request:
+   ```bash
+   git push -u origin feature/название-задачи
+   gh pr create --title "Описание" --body "Детали изменений"
+   ```
+
+4. **Дождись ревью** от Claude Code Action перед мержем
+
 ## Project Overview
 
 OmniMap is a web-based visual knowledge mapping application built with JavaScript (ES6+) and Webpack 5. It enables users to create, visualize, and collaborate on hierarchical block-based information structures with real-time synchronization.
