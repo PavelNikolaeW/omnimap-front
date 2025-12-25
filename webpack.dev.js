@@ -18,7 +18,8 @@ module.exports = merge(common, {
     },
     plugins: [
         new webpack.DefinePlugin({
-            APP_BACKEND_URL: JSON.stringify(process.env.APP_BACKEND_URL || 'http://localhost:8000'),
+            APP_BACKEND_URL: JSON.stringify(process.env.APP_BACKEND_URL || 'http://localhost:8000/'),
+            LLM_GATEWAY_URL: JSON.stringify(process.env.LLM_GATEWAY_URL || 'http://localhost:8001'),
             SINC_SERVICE_URL: JSON.stringify(process.env.SINC_SERVICE_URL || 'ws://localhost:7999/ws')
         })
     ]

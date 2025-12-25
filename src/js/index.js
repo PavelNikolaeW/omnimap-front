@@ -11,7 +11,7 @@ import '../style/editBlock.css';
 import '../style/historyPopup.css';
 import '../style/solid.css';
 import '../style/fontawesome.css';
-import '../style/chat.css';
+// import '../style/chat.css';
 import '../style/note-editor.css';
 
 import {dispatch} from "./utils/utils";
@@ -26,7 +26,7 @@ import {TreeNavigation} from "./controller/treeNavigation";
 import {RedoStack, UndoStack} from "./controller/undoStack";
 import Cookies from "js-cookie";
 import {isExcludedElement} from "./utils/functions";
-import {openChat} from "./controller/popups/chat/chat-init";
+// import {openChat} from "./controller/popups/chat/chat-init";
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
     window.addEventListener('load', () => {
@@ -44,9 +44,9 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
 
 export const LLM_GATEWAY_URL = 'http://0.0.0.0:7998'
 
-if (typeof window !== "undefined") {
-  window.openChat = openChat;
-}
+// if (typeof window !== "undefined") {
+//   window.openChat = openChat;
+// }
 
 document.addEventListener('DOMContentLoaded', async () => {
     // Проверка поддержки IndexedDB и конфигурация localforage
