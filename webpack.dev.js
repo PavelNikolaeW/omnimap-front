@@ -13,6 +13,32 @@ module.exports = merge(common, {
         },
         watchFiles: ['src/**/*'], // Отслеживаем только файлы в папке src
     },
+    module: {
+        rules: [
+            // CSS Modules (for *.module.css files)
+            {
+                test: /\.module\.css$/,
+                use: [
+                    'style-loader',
+                    {
+                        loader: 'css-loader',
+                        options: {
+                            modules: {
+                                namedExport: false,
+                                exportLocalsConvention: 'as-is'
+                            }
+                        }
+                    }
+                ],
+            },
+            // Regular CSS (non-module)
+            {
+                test: /\.css$/,
+                exclude: /\.module\.css$/,
+                use: ['style-loader', 'css-loader'],
+            },
+        ],
+    },
     optimization: {
         runtimeChunk: 'single', // Добавляем runtime для разработки
     },

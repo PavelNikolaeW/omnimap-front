@@ -1,0 +1,3 @@
+[submodule "src/llm_chat"]
+	path = src/llm_chat
+	url = https://github.com/PavelNikolaeW/llm_chat.git

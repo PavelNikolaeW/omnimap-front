@@ -14,7 +14,6 @@ import {
 import {popupsCommands} from "./popupsCmd";
 import {NoteEditor} from "../noteEditor";
 import Cookies from "js-cookie";
-import {LLM_GATEWAY_URL} from "../../index";
 
 // Actions
 import {
@@ -190,29 +189,19 @@ export const commands = [
         description: 'Открыть чат',
         execute(ctx) {
             const token = Cookies.get('access')
-            fetch(`${LLM_GATEWAY_URL}/load_conversations`, {
-                method: "GET",
-                headers: {
-                    "Authorization": `Bearer ${token}`,
-                    "Content-Type": "application/json",
-                },
-            }).then(res => {
-                if (res.ok)
-                    return res.json()
-            }).then(data => {
-                window.openChat({
-                    gatewayUrl: LLM_GATEWAY_URL,
+
+            // Initialize widget if not already done
+            if (!window.LLMGatewayWidget.isInitialized()) {
+                window.LLMGatewayWidget.init({
+                    apiUrl: LLM_GATEWAY_URL,
                     token: token,
-                    enableStreaming: true,
-                    rootElement: document.body,
-                    tools: [{id: 'block_tree'}],
-                    onToolClick: (toolId) => {
-                        console.log(toolId)
-                    }
-                }, {conversations: data})
-            }).catch(err => {
-                console.error(err)
-            })
+                    position: 'bottom-right',
+                    theme: 'dark'
+                });
+            }
+
+            // Toggle chat visibility
+            window.LLMGatewayWidget.toggle();
         },
         btnExec(ctx) {
             this.execute(ctx)

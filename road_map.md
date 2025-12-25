@@ -56,25 +56,38 @@
   - [x] `commands.js` — использует actions для copy/cut/paste, навигации по деревьям
   - [x] `cmdUtils.js` — использует navigationActions для извлечения HSL и ссылок
   - [x] Константы режимов (MODES) вместо строк
-- [ ] Расширить модель блока (см. ниже)
 
-### Новая модель блока
+**Фаза 2 завершена!** (225 тестов)
+
+### Модель блока (backend, фиксирована)
+
+```python
+Block:
+  id: UUID (PK)
+  parent: FK → Block
+  creator: FK → User
+  title: string
+  data: JSON              # ← расширения фронта здесь
+  updated_at: auto
+
+BlockPermission:
+  block: FK → Block
+  user: FK → User
+  permission: read | write | admin
+```
+
+### Расширения в data (frontend)
 
 ```javascript
-{
-  id: string,
-  parent_id: string | null,
-  title: string,
-  content: string,
-  children: string[],
-
-  // Новые поля
-  owner_id: string,           // для offline конфликтов
-  block_type: string,         // семантический тип
-  visual_type: string,        // визуальный тип
-  style: object,              // кастомные стили
-  updated_at: timestamp,
-  updated_by: string          // user_id или agent_id
+data: {
+  text: string,           // содержимое блока
+  color: [h, s, l],       // цвет
+  view: 'iframe' | ...,   // тип отображения
+  attributes: [...],      // атрибуты для iframe
+  customGrid: {...},      // настройки сетки
+  connections: [...],     // связи между блоками
+  block_type: string,     // семантический тип (idea, task, etc)
+  visual_type: string     // визуальный тип (card, note, etc)
 }
 ```
 
@@ -84,23 +97,36 @@
 
 **Цель:** Агенты могут читать контекст графа и модифицировать блоки.
 
-### Задачи
+### Этап 3.1: Базовый чат (завершён)
 
-- [ ] Интеграция chat frontend (готов: завтра)
-- [ ] Протокол команд LLM → Actions
-- [ ] Передача контекста блоков агенту
-- [ ] Обработка ответов агента
+- [x] Добавлен llm_chat как git submodule (`src/llm_chat`)
+- [x] Настроен webpack для JSX и CSS Modules
+- [x] Кнопка в боковой панели для открытия чата (Shift+H)
+- [x] Интеграция с LLM_GATEWAY_URL из окружения
+- [x] Виджет чата с потоковой передачей ответов
 
-### Формат команд агента (draft)
+### Этап 3.2: Интеграция с блоками (потом)
+
+- [ ] Маппинг графа в формат для LLM (сериализация дерева блоков)
+- [ ] Системные промпты для работы с блоками
+- [ ] Агенты используют `api/v1/import` для массового создания/обновления блоков
+- [ ] Передача контекста текущего экрана агенту
+- [ ] Обработка ответов агента и применение изменений
+
+### Формат импорта блоков (backend api/v1/import)
 
 ```javascript
+// POST /api/v1/import
 {
-  action: 'createBlock',
-  params: {
-    parentId: 'xxx',
-    title: 'New block',
-    block_type: 'task'
-  }
+  blocks: [
+    {
+      id: 'uuid',           // опционально, для обновления
+      parent_id: 'uuid',
+      title: 'Block title',
+      data: { ... }
+    },
+    // ...
+  ]
 }
 ```
 
@@ -116,8 +142,8 @@
 - [ ] Детекция состояния сети
 - [ ] Reconnect логика в `sincManager`
 - [ ] Стратегия конфликтов:
-  - `owner_id === currentUser` → last-write-wins (автоматически)
-  - shared blocks → показать diff, спросить пользователя
+  - `creator === currentUser` → last-write-wins (автоматически)
+  - shared blocks (через BlockPermission) → показать diff, спросить пользователя
 
 ---
 
@@ -158,11 +184,13 @@
 | 2024-12-23 | Создан roadmap, завершена настройка тестов (Фаза 1 в процессе) |
 | 2024-12-23 | Добавлены тесты для comandManager и contextManager (107 тестов) |
 | 2024-12-25 | Создан Actions Layer: blockActions, navigationActions, selectionActions (118 тестов, всего 225) |
+| 2024-12-25 | Фаза 2 завершена. Уточнена модель блока (backend фиксирован, расширения через data JSON) |
+| 2024-12-25 | Фаза 3.1: Добавлен llm_chat submodule, настроен webpack (JSX, CSS Modules), кнопка чата (Shift+H) |
 
 ---
 
 ## Заметки
 
 - Дедлайнов нет, работаем в спокойном темпе
-- LLM chat frontend будет готов 2024-12-24
 - Типы блоков разработаем совместно
+- LLM агенты будут использовать `api/v1/import` для массового обновления блоков

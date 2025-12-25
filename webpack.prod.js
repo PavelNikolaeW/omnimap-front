@@ -17,18 +17,42 @@ module.exports = merge(common, {
     module: {
         rules: [
             {
-                test: /\.js$/, // Все файлы .js
-                include: path.resolve(__dirname, 'src/js'), // Явно указываем, где искать .js файлы
-                exclude: /node_modules/, // Исключаем папку node_modules
+                test: /\.(js|jsx)$/, // JS and JSX files
+                include: [
+                    path.resolve(__dirname, 'src/js'),
+                    path.resolve(__dirname, 'src/llm_chat')
+                ],
+                exclude: /node_modules/,
                 use: {
                     loader: 'babel-loader',
                     options: {
-                        presets: ['@babel/preset-env'],
+                        presets: [
+                            '@babel/preset-env',
+                            ['@babel/preset-react', { runtime: 'automatic' }]
+                        ],
                     },
                 },
             },
+            // CSS Modules (for *.module.css files)
+            {
+                test: /\.module\.css$/,
+                use: [
+                    MiniCssExtractPlugin.loader,
+                    {
+                        loader: 'css-loader',
+                        options: {
+                            modules: {
+                                namedExport: false,
+                                exportLocalsConvention: 'as-is'
+                            }
+                        }
+                    }
+                ],
+            },
+            // Regular CSS (non-module)
             {
                 test: /\.css$/,
+                exclude: /\.module\.css$/,
                 use: [MiniCssExtractPlugin.loader, 'css-loader'],
             },
         ],
@@ -75,7 +99,8 @@ module.exports = merge(common, {
         }),
         new webpack.DefinePlugin({
             APP_BACKEND_URL: JSON.stringify(process.env.APP_BACKEND_URL || 'https://omnimap.ru'),
-            SINC_SERVICE_URL: JSON.stringify(process.env.SINC_SERVICE_URL || 'wss://omnimap.ru/ws')
+            SINC_SERVICE_URL: JSON.stringify(process.env.SINC_SERVICE_URL || 'wss://omnimap.ru/ws'),
+            LLM_GATEWAY_URL: JSON.stringify(process.env.LLM_GATEWAY_URL || 'https://llm.omnimap.ru')
         })
     ],
     optimization: {

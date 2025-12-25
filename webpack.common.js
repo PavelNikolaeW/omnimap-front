@@ -12,14 +12,26 @@ module.exports = {
         alias: {
             '@js': path.resolve(__dirname, 'src/js'), // Создаем алиас для папки src/js
         },
-        extensions: ['.js', '.json'], // Расширения файлов, которые Webpack будет пытаться найти
+        extensions: ['.js', '.jsx', '.json'], // Расширения файлов, которые Webpack будет пытаться найти
     },
     module: {
         rules: [
-            // CSS
+            // JavaScript/JSX (for React components in llm_chat submodule)
             {
-                test: /\.css$/,
-                use: ['style-loader', 'css-loader'],
+                test: /\.(js|jsx)$/,
+                include: [
+                    path.resolve(__dirname, 'src/js'),
+                    path.resolve(__dirname, 'src/llm_chat')
+                ],
+                use: {
+                    loader: 'babel-loader',
+                    options: {
+                        presets: [
+                            '@babel/preset-env',
+                            ['@babel/preset-react', { runtime: 'automatic' }]
+                        ]
+                    }
+                }
             },
             // Изображения
             {
