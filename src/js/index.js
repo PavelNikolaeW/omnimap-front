@@ -26,6 +26,9 @@ import {TreeNavigation} from "./controller/treeNavigation";
 import {RedoStack, UndoStack} from "./controller/undoStack";
 import Cookies from "js-cookie";
 import {isExcludedElement} from "./utils/functions";
+import {authStateManager} from "./auth/authStateManager";
+import {offlineQueue} from "./sincManager/offlineQueue";
+import {networkStatusUI} from "./sincManager/networkStatusUI";
 // import {openChat} from "./controller/popups/chat/chat-init";
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
@@ -126,23 +129,12 @@ async function checkAuth() {
 
 
 /**
- * TODO Настраиваем интрефейс если в хранилище есть настройки
+ * Настраиваем интерфейс - теперь управляется через AuthStateManager
  */
 function setInterface() {
-    const isLink = window.location.href.indexOf('/?')
-    const sidebar = document.getElementById('sidebar')
-    const topSidebar = document.getElementById('topSidebar')
-
-    if (isLink != -1) {
-        sidebar.classList.add('hidden')
-        topSidebar.classList.add('hidden')
-    }
-    localforage.getItem('currentUser', (err, user) => {
-        if (!user || user === 'anonim') {
-            sidebar.classList.add('hidden')
-            topSidebar.classList.add('hidden')
-        }
-    })
+    // AuthStateManager автоматически управляет видимостью панелей
+    // на основе событий Login/Logout/InitAnonimUser
+    authStateManager.refresh();
 }
 
 (() => {
