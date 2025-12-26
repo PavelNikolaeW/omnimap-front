@@ -18,18 +18,105 @@ function restoreViewport() {
   }
 }
 
-// --- Стили для модального диалога ---
+// --- Стили для модального диалога (unified popup design) ---
 const styleId = 'custom-dialog-style';
 if (!document.getElementById(styleId)) {
   const style = document.createElement('style');
   style.id = styleId;
   style.textContent = `
-  .custom-modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:10000; }
-  .custom-modal { background:#fff; border-radius:5px; padding:20px; max-width:90%; width:400px; box-shadow:0 2px 10px rgba(0,0,0,0.1); font-family:sans-serif; }
-  .custom-modal-message { margin-bottom:15px; font-size:16px; }
-  .custom-modal-input { width:100%; padding:8px; margin-bottom:15px; box-sizing:border-box; font-size:16px; }
-  .custom-modal-buttons { text-align:right; }
-  .custom-modal-buttons button { margin-left:10px; padding:6px 12px; font-size:16px; }
+  .custom-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: custom-modal-fade-in 0.15s ease;
+  }
+  @keyframes custom-modal-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  .custom-modal {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 90%;
+    width: 400px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    animation: custom-modal-scale-in 0.2s ease;
+  }
+  @keyframes custom-modal-scale-in {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  .custom-modal-message {
+    margin-bottom: 16px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1a1a1a;
+  }
+  .custom-modal-input {
+    width: 100%;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    box-sizing: border-box;
+    font-size: 16px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .custom-modal-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  }
+  .custom-modal-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .custom-modal-buttons button {
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .custom-modal-buttons .btn-cancel {
+    background: #6b7280;
+    color: #fff;
+    border: none;
+  }
+  .custom-modal-buttons .btn-cancel:hover {
+    background: #4b5563;
+  }
+  .custom-modal-buttons .btn-ok {
+    background: #3b82f6;
+    color: #fff;
+    border: none;
+  }
+  .custom-modal-buttons .btn-ok:hover {
+    background: #2563eb;
+  }
+  @media (max-width: 640px) {
+    .custom-modal {
+      width: 95%;
+      padding: 20px;
+    }
+    .custom-modal-buttons {
+      flex-direction: column;
+    }
+    .custom-modal-buttons button {
+      width: 100%;
+    }
+  }
   `;
   document.head.appendChild(style);
 }
@@ -62,8 +149,12 @@ function showModal({ message, inputDefault, showInput, okText = 'OK', cancelText
 
     // Кнопки
     const btns = document.createElement('div'); btns.className = 'custom-modal-buttons';
-    const cancelBtn = document.createElement('button'); cancelBtn.textContent = cancelText;
-    const okBtn = document.createElement('button'); okBtn.textContent = okText;
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = cancelText;
+    cancelBtn.className = 'btn-cancel';
+    const okBtn = document.createElement('button');
+    okBtn.textContent = okText;
+    okBtn.className = 'btn-ok';
     btns.append(cancelBtn, okBtn);
     modal.appendChild(btns);
     overlay.appendChild(modal);

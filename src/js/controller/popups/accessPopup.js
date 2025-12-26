@@ -580,10 +580,11 @@ export class AccessPopup extends Popup {
             const row = document.createElement("div");
             row.className = "popup-list-item";
 
-            // Отображаем название группы
+            // Отображаем название группы и тип прав
             const nameSpan = document.createElement("span");
             nameSpan.className = "popup-list-item__content";
-            nameSpan.textContent = group.name;
+            const permissionLabel = this.permissionChoices.find(c => c.value === group.permission)?.label || group.permission || '';
+            nameSpan.textContent = permissionLabel ? `${group.name} (${permissionLabel})` : group.name;
             row.appendChild(nameSpan);
 
             // Кнопка для удаления группы

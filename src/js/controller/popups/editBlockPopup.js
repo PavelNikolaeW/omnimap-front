@@ -5,7 +5,7 @@ export class EditBlockPopup extends Popup {
   constructor(options = {}) {
     super({
       title: options.title || "Редактировать JSON",
-      size: 'lg',
+      size: 'full',
       modal: true,
       draggable: true,
       onSubmit: options.onSubmit,

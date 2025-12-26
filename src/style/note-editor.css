@@ -137,10 +137,11 @@
 }
 
 /* Важные действия — чуть заметнее */
-.note-editor-toolbar .fa-floppy-o,
-.note-editor-toolbar .fa-eye,
-.note-editor-toolbar .fa-columns {
+.note-editor-toolbar .btn.fa-floppy-o,
+.note-editor-toolbar .btn.fa-eye,
+.note-editor-toolbar .btn.fa-columns {
     color: var(--ne-fg);
+    background: var(--ne-border);
 }
 
 /* Скрываем «редко используемые» для минимализма.

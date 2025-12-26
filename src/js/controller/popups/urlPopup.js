@@ -123,12 +123,27 @@ export class UrlPopup extends Popup {
                 contentEl.innerHTML = `<span style="font-weight: 500;">${item.creator}</span> <span style="color: var(--popup-muted);">${item.url}</span>`;
                 urlItem.appendChild(contentEl);
 
+                const actionsDiv = document.createElement("div");
+                actionsDiv.className = "popup-list-item__actions";
+
+                const copyButton = document.createElement("button");
+                copyButton.textContent = "Копировать";
+                copyButton.className = "popup-btn popup-btn--primary popup-btn--sm";
+                copyButton.addEventListener("click", () => {
+                    navigator.clipboard.writeText(item.url).then(() => {
+                        copyButton.textContent = "Скопировано!";
+                        setTimeout(() => { copyButton.textContent = "Копировать"; }, 1500);
+                    });
+                });
+                actionsDiv.appendChild(copyButton);
+
                 const deleteButton = document.createElement("button");
                 deleteButton.textContent = "Удалить";
                 deleteButton.className = "popup-btn popup-btn--danger popup-btn--sm";
                 deleteButton.addEventListener("click", () => this.handleDelete(item, index));
-                urlItem.appendChild(deleteButton);
+                actionsDiv.appendChild(deleteButton);
 
+                urlItem.appendChild(actionsDiv);
                 this.urlsContainer.appendChild(urlItem);
             });
         } else {
