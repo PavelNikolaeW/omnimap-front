@@ -407,7 +407,11 @@ export class LocalStateManager {
     async saveBlock(block) {
         if (block) {
             this.blocks.set(block.id, block)
-            await this.blockRepository.saveBlock(block);
+            if (this.blockRepository) {
+                await this.blockRepository.saveBlock(block);
+            } else {
+                console.warn('BlockRepository not initialized, block saved only in memory:', block.id);
+            }
         } else {
             console.error('Save block undefined')
         }
@@ -578,10 +582,27 @@ export class LocalStateManager {
         this.currentUser = await localforage.getItem('currentUser') || 'anonim';
         this.blockRepository = new BlockRepository(this.currentUser);
 
-        if (window.location.href.indexOf('/?') !== -1) {
+        const isLinkView = window.location.search.length > 0;
+
+        if (isLinkView) {
+            // Просмотр по ссылке
             this.currentTree = await this.initShowLink(window.location.search.slice(1,), this.currentUser)
         } else {
-            this.currentTree = await localforage.getItem('currentTree');
+            // Обычный режим — загружаем деревья пользователя
+            const treeIds = await localforage.getItem(`treeIds${this.currentUser}`);
+            const savedTree = await localforage.getItem('currentTree');
+
+            // Проверяем, что сохранённое дерево принадлежит пользователю
+            if (savedTree && treeIds && treeIds.includes(savedTree)) {
+                this.currentTree = savedTree;
+            } else if (treeIds && treeIds.length > 0) {
+                // Используем первое дерево пользователя
+                this.currentTree = treeIds[0];
+                await localforage.setItem('currentTree', this.currentTree);
+            } else {
+                // Нет деревьев — нужна повторная инициализация
+                this.currentTree = null;
+            }
         }
 
         if (!this.blocks || this.blocks.size === 0) {

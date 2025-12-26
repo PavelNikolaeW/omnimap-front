@@ -1,12 +1,15 @@
 import api from "../../api/api";
 
 /**
- * Создает модальное окно авторизации
- * Полностью изолировано от событий блоков
+ * Создает блок с формой авторизации
+ * Рендерится внутри родительского блока
  */
 export function auth(block, parent) {
-    const overlay = createOverlay();
-    const container = createContainer('login-container');
+    const container = document.createElement('div');
+    container.id = block.id;
+    container.classList.add('auth-block');
+    container.setAttribute('block', '');
+
     const form = createForm('login-form');
 
     // Заголовок
@@ -47,7 +50,14 @@ export function auth(block, parent) {
     form.appendChild(submitButton);
 
     container.appendChild(form);
-    overlay.appendChild(container);
+
+    // Блокируем всплытие событий (клики не должны открывать блок)
+    const stopEvents = ['click', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'pointerdown', 'pointerup'];
+    stopEvents.forEach(eventType => {
+        container.addEventListener(eventType, (e) => {
+            e.stopPropagation();
+        }, true);
+    });
 
     // Обработчик отправки
     form.addEventListener('submit', async (event) => {
@@ -68,7 +78,7 @@ export function auth(block, parent) {
         try {
             const isAuth = await api.login({ username, password });
             if (isAuth) {
-                overlay.remove();
+                // После успешного входа страница перерисуется через событие Login
             } else {
                 showError(errorMessage, 'Неверное имя пользователя или пароль');
             }
@@ -81,52 +91,8 @@ export function auth(block, parent) {
         }
     });
 
-    // Добавляем в документ
-    document.body.appendChild(overlay);
-
-    // Фокус на первое поле
+    // Фокус на первое поле после рендера
     setTimeout(() => usernameGroup.input.focus(), 100);
-
-    return overlay;
-}
-
-/**
- * Создает overlay для блокировки взаимодействия с фоном
- */
-function createOverlay() {
-    const overlay = document.createElement('div');
-    overlay.classList.add('auth-overlay');
-
-    // Блокируем все события от всплытия
-    const stopEvents = ['click', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'pointerdown', 'pointerup'];
-    stopEvents.forEach(eventType => {
-        overlay.addEventListener(eventType, (e) => {
-            e.stopPropagation();
-        }, true);
-    });
-
-    // Закрытие по клику на overlay (не на форму)
-    overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) {
-            // Можно добавить закрытие или оставить пустым
-        }
-    });
-
-    return overlay;
-}
-
-/**
- * Создает контейнер формы
- */
-function createContainer(id) {
-    const container = document.createElement('div');
-    container.id = id;
-    container.classList.add('auth-container');
-
-    // Блокируем всплытие событий
-    container.addEventListener('click', (e) => e.stopPropagation());
-    container.addEventListener('mousedown', (e) => e.stopPropagation());
-    container.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
 
     return container;
 }
