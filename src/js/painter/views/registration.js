@@ -5,6 +5,11 @@ import api from "../../api/api";
  * Рендерится внутри родительского блока
  */
 export function registration(block, parent) {
+    // Если уже есть форма входа - не показываем регистрацию
+    if (document.getElementById('login-form')) {
+        return document.createElement('div'); // пустой элемент
+    }
+
     const container = document.createElement('div');
     container.id = block.id;
     container.classList.add('auth-block');
