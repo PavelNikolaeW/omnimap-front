@@ -132,16 +132,37 @@ data: {
 
 ---
 
-## Фаза 4: Offline + Sync
+## Фаза 4: Offline + Sync + UI Fixes
 
-**Цель:** Приложение работает без сети, синхронизирует изменения при reconnect.
+**Цель:** Исправить баги UI, улучшить синхронизацию, добавить offline режим.
 
-### Задачи
+### Этап 4.1: Auth Forms Refactor (завершён)
 
-- [ ] Очередь операций при offline (расширить `queue.js`)
-- [ ] Детекция состояния сети
-- [ ] Reconnect логика в `sincManager`
-- [ ] Стратегия конфликтов:
+- [x] Переписать формы входа/регистрации
+- [x] stopPropagation для предотвращения кликов по блокам
+- [x] Мобильная адаптация (touch events, viewport)
+- [x] Кроссбраузерная совместимость
+
+### Этап 4.2: Auth State Manager (завершён)
+
+- [x] Создать централизованный AuthStateManager
+- [x] События Login/Logout управляют видимостью панелей
+- [x] Скрытие sidebar, breadcrumbs, tree-navigation при logout
+- [x] Показ панелей при login
+
+### Этап 4.3: Sync UI Updates (завершён)
+
+- [x] TreeNavigation подписывается на WebSocUpdateBlock
+- [x] dispatch('UpdateTreeNavigation') при изменении treeIds
+- [ ] Breadcrumbs обновляется при изменении текущего пути (не требуется — уже работает через ShowedBlocks)
+
+### Этап 4.4: Offline Queue (завершён)
+
+- [x] Очередь операций при offline в IndexedDB (`offlineQueue.js`)
+- [x] Детекция online/offline (navigator.onLine + события)
+- [x] Применение pending операций при reconnect
+- [x] UI индикатор состояния сети (`networkStatusUI.js`)
+- [ ] Стратегия конфликтов (отложено):
   - `creator === currentUser` → last-write-wins (автоматически)
   - shared blocks (через BlockPermission) → показать diff, спросить пользователя
 
@@ -186,6 +207,8 @@ data: {
 | 2024-12-25 | Создан Actions Layer: blockActions, navigationActions, selectionActions (118 тестов, всего 225) |
 | 2024-12-25 | Фаза 2 завершена. Уточнена модель блока (backend фиксирован, расширения через data JSON) |
 | 2024-12-25 | Фаза 3.1: Добавлен llm_chat submodule, настроен webpack (JSX, CSS Modules), кнопка чата (Shift+H) |
+| 2024-12-26 | Фаза 4 расширена: добавлены этапы 4.1-4.3 для исправления багов UI (формы авторизации, видимость панелей, синхронизация) |
+| 2024-12-26 | Фаза 4 завершена: auth forms refactor, AuthStateManager, TreeNavigation sync, OfflineQueue + NetworkStatusUI |
 
 ---
 

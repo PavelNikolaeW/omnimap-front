@@ -404,3 +404,73 @@ button:focus {
 .sidebar::-webkit-scrollbar {
     display: none; /* Safari и Chrome */
 }
+
+/* Network Status Indicator */
+.network-status {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s ease;
+    transform: translateY(100px);
+    opacity: 0;
+}
+
+.network-status.visible {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.network-status.offline {
+    background-color: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+}
+
+.network-status.syncing {
+    background-color: #fffbeb;
+    color: #d97706;
+    border: 1px solid #fcd34d;
+}
+
+.network-status.online {
+    background-color: #ecfdf5;
+    color: #059669;
+    border: 1px solid #a7f3d0;
+}
+
+.network-status-icon {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+.network-status.offline .network-status-icon {
+    background-color: #dc2626;
+}
+
+.network-status.syncing .network-status-icon {
+    background-color: #d97706;
+}
+
+.network-status.online .network-status-icon {
+    background-color: #059669;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}

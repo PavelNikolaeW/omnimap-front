@@ -1,79 +1,198 @@
 import api from "../../api/api";
 
+/**
+ * Создает модальное окно авторизации
+ * Полностью изолировано от событий блоков
+ */
 export function auth(block, parent) {
-    // Создаем главный контейнер
-    const container = document.createElement('div');
-    container.id = 'login-container';
+    const overlay = createOverlay();
+    const container = createContainer('login-container');
+    const form = createForm('login-form');
 
-    // Создаем форму
-    const form = document.createElement('form');
-    form.id = 'login-form';
+    // Заголовок
+    const title = document.createElement('h2');
+    title.textContent = 'Вход';
+    title.classList.add('auth-title');
 
-    // Метка для имени пользователя
-    const usernameLabel = document.createElement('label');
-    usernameLabel.htmlFor = 'username';
-    usernameLabel.innerText = 'Имя пользователя:';
-    usernameLabel.classList.add('label');
+    // Поля формы
+    const usernameGroup = createInputGroup({
+        id: 'username',
+        label: 'Имя пользователя',
+        type: 'text',
+        autocomplete: 'username',
+        required: true
+    });
 
-    // Поле ввода имени пользователя
-    const usernameInput = document.createElement('input');
-    usernameInput.type = 'password';
-    usernameInput.type = 'text';
-    usernameInput.autocomplete = 'username'
-    usernameInput.id = 'username';
-    usernameInput.name = 'username';
-    usernameInput.required = true;
-    usernameInput.classList.add('input');
-
-    // Метка для пароля
-    const passwordLabel = document.createElement('label');
-    passwordLabel.htmlFor = 'password';
-    passwordLabel.innerText = 'Пароль:';
-    passwordLabel.classList.add('label');
-
-    // Поле ввода пароля
-    const passwordInput = document.createElement('input');
-    passwordInput.type = 'password';
-    passwordInput.autocomplete="current-password"
-    passwordInput.id = 'password';
-    passwordInput.name = 'password';
-    passwordInput.required = true;
-    passwordInput.classList.add('input');
-
+    const passwordGroup = createInputGroup({
+        id: 'password',
+        label: 'Пароль',
+        type: 'password',
+        autocomplete: 'current-password',
+        required: true
+    });
 
     // Кнопка отправки
-    const submitButton = document.createElement('button');
-    submitButton.type = 'submit';
-    submitButton.innerText = 'Войти';
-    submitButton.classList.add('button');
+    const submitButton = createButton('Войти', 'submit');
 
-    // Добавляем элементы в форму
-    form.appendChild(usernameLabel);
-    form.appendChild(usernameInput);
-    form.appendChild(passwordLabel);
-    form.appendChild(passwordInput);
+    // Сообщение об ошибке
+    const errorMessage = document.createElement('div');
+    errorMessage.classList.add('auth-error');
+    errorMessage.style.display = 'none';
+
+    // Сборка формы
+    form.appendChild(title);
+    form.appendChild(usernameGroup.wrapper);
+    form.appendChild(passwordGroup.wrapper);
+    form.appendChild(errorMessage);
     form.appendChild(submitButton);
 
-    // Добавляем форму в контейнер
     container.appendChild(form);
+    overlay.appendChild(container);
 
-    // Добавляем контейнер в тело документа
-    document.body.appendChild(container);
+    // Обработчик отправки
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
 
-    // Обработчик отправки формы
-    form.addEventListener('submit', async function (event) {
-        event.preventDefault(); // Предотвращаем перезагрузку страницы
-        const username = usernameInput.value;
-        const password = passwordInput.value;
-        const isAuth = await api.login({username, password})
+        const username = usernameGroup.input.value.trim();
+        const password = passwordGroup.input.value;
 
-        // Пример логики авторизации
-        if (isAuth) {
-            alert('Успешная авторизация!');
-        } else {
-            alert('Неверное имя пользователя или пароль.');
+        if (!username || !password) {
+            showError(errorMessage, 'Заполните все поля');
+            return;
+        }
+
+        submitButton.disabled = true;
+        submitButton.textContent = 'Вход...';
+
+        try {
+            const isAuth = await api.login({ username, password });
+            if (isAuth) {
+                overlay.remove();
+            } else {
+                showError(errorMessage, 'Неверное имя пользователя или пароль');
+            }
+        } catch (error) {
+            showError(errorMessage, 'Ошибка соединения с сервером');
+            console.error('Login error:', error);
+        } finally {
+            submitButton.disabled = false;
+            submitButton.textContent = 'Войти';
         }
     });
 
-    return container
+    // Добавляем в документ
+    document.body.appendChild(overlay);
+
+    // Фокус на первое поле
+    setTimeout(() => usernameGroup.input.focus(), 100);
+
+    return overlay;
+}
+
+/**
+ * Создает overlay для блокировки взаимодействия с фоном
+ */
+function createOverlay() {
+    const overlay = document.createElement('div');
+    overlay.classList.add('auth-overlay');
+
+    // Блокируем все события от всплытия
+    const stopEvents = ['click', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'pointerdown', 'pointerup'];
+    stopEvents.forEach(eventType => {
+        overlay.addEventListener(eventType, (e) => {
+            e.stopPropagation();
+        }, true);
+    });
+
+    // Закрытие по клику на overlay (не на форму)
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            // Можно добавить закрытие или оставить пустым
+        }
+    });
+
+    return overlay;
+}
+
+/**
+ * Создает контейнер формы
+ */
+function createContainer(id) {
+    const container = document.createElement('div');
+    container.id = id;
+    container.classList.add('auth-container');
+
+    // Блокируем всплытие событий
+    container.addEventListener('click', (e) => e.stopPropagation());
+    container.addEventListener('mousedown', (e) => e.stopPropagation());
+    container.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+
+    return container;
+}
+
+/**
+ * Создает форму
+ */
+function createForm(id) {
+    const form = document.createElement('form');
+    form.id = id;
+    form.classList.add('auth-form');
+    form.setAttribute('novalidate', '');
+
+    return form;
+}
+
+/**
+ * Создает группу ввода (label + input)
+ */
+function createInputGroup({ id, label, type, autocomplete, required }) {
+    const wrapper = document.createElement('div');
+    wrapper.classList.add('auth-input-group');
+
+    const labelEl = document.createElement('label');
+    labelEl.htmlFor = id;
+    labelEl.textContent = label;
+    labelEl.classList.add('auth-label');
+
+    const input = document.createElement('input');
+    input.type = type;
+    input.id = id;
+    input.name = id;
+    input.autocomplete = autocomplete;
+    input.required = required;
+    input.classList.add('auth-input');
+
+    // Предотвращаем всплытие событий клавиатуры
+    input.addEventListener('keydown', (e) => e.stopPropagation());
+    input.addEventListener('keyup', (e) => e.stopPropagation());
+    input.addEventListener('keypress', (e) => e.stopPropagation());
+
+    wrapper.appendChild(labelEl);
+    wrapper.appendChild(input);
+
+    return { wrapper, input };
+}
+
+/**
+ * Создает кнопку
+ */
+function createButton(text, type = 'button') {
+    const button = document.createElement('button');
+    button.type = type;
+    button.textContent = text;
+    button.classList.add('auth-button');
+
+    return button;
+}
+
+/**
+ * Показывает сообщение об ошибке
+ */
+function showError(element, message) {
+    element.textContent = message;
+    element.style.display = 'block';
+    setTimeout(() => {
+        element.style.display = 'none';
+    }, 5000);
 }

@@ -18,6 +18,26 @@ export class TreeNavigation extends BaseController {
     init() {
         window.removeEventListener('ShowedBlocks', this.boundShowHandler);
         window.addEventListener('ShowedBlocks', this.boundShowHandler);
+
+        // Подписываемся на обновления через WebSocket
+        window.addEventListener('WebSocUpdateBlock', this.handleWebSocketUpdate.bind(this));
+        window.addEventListener('UpdateTreeNavigation', () => this.renderTreeNavigation());
+    }
+
+    /**
+     * Обрабатывает обновления блоков через WebSocket
+     * Перерисовывает навигацию, если изменились корневые блоки (деревья)
+     */
+    async handleWebSocketUpdate(event) {
+        const updates = event.detail;
+        if (!updates || !updates.length) return;
+
+        // Проверяем, есть ли среди обновлений корневые блоки (без parent_id)
+        const hasTreeUpdate = updates.some(block => !block.parent_id);
+
+        if (hasTreeUpdate) {
+            await this.renderTreeNavigation();
+        }
     }
 
     async handleShowedBlocks() {

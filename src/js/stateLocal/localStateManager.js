@@ -301,15 +301,23 @@ export class LocalStateManager {
 
     webSocUpdateBlock(newBlocks) {
         if (newBlocks.length) {
+            let hasTreeUpdate = false;
+
             newBlocks.forEach((block) => {
                 if (block.deleted) {
                     this.removeOneBlock(block.id)
                 } else {
                     if (!block.parent_id) {
+                        hasTreeUpdate = true;
                         localforage.getItem('currentUser', (err, user) => {
                             localforage.getItem(`treeIds${user}`, (err, treeIds) => {
-                                treeIds.push(block.id)
-                                localforage.setItem(`treeIds${user}`, treeIds)
+                                if (treeIds && !treeIds.includes(block.id)) {
+                                    treeIds.push(block.id)
+                                    localforage.setItem(`treeIds${user}`, treeIds).then(() => {
+                                        // Уведомляем TreeNavigation об обновлении
+                                        dispatch('UpdateTreeNavigation')
+                                    })
+                                }
                             })
                         })
                     }

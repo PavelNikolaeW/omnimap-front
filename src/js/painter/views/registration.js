@@ -1,121 +1,235 @@
 import api from "../../api/api";
 
-
+/**
+ * Создает модальное окно регистрации
+ * Полностью изолировано от событий блоков
+ */
 export function registration(block, parent) {
-    // Создаем главный контейнер
-    const container = document.createElement('div');
-    container.id = 'register-container';
+    const overlay = createOverlay();
+    const container = createContainer('register-container');
+    const form = createForm('register-form');
 
-    // Создаем форму
-    const form = document.createElement('form');
-    form.id = 'register-form';
+    // Заголовок
+    const title = document.createElement('h2');
+    title.textContent = 'Регистрация';
+    title.classList.add('auth-title');
 
-    // Метка для имени пользователя
-    const usernameLabel = document.createElement('label');
-    usernameLabel.htmlFor = 'username';
-    usernameLabel.innerText = 'Имя пользователя:';
-    usernameLabel.classList.add('label');
+    // Поля формы
+    const usernameGroup = createInputGroup({
+        id: 'reg-username',
+        label: 'Имя пользователя',
+        type: 'text',
+        autocomplete: 'username',
+        required: true
+    });
 
-    // Поле ввода имени пользователя
-    const usernameInput = document.createElement('input');
-    usernameInput.type = 'password'
-    usernameInput.type = 'text';
-    usernameInput.id = 'reg-username';
-    usernameInput.name = 'username';
-    usernameInput.required = true;
-    usernameInput.classList.add('input');
+    const emailGroup = createInputGroup({
+        id: 'email',
+        label: 'Электронная почта',
+        type: 'email',
+        autocomplete: 'email',
+        required: true
+    });
 
-    // Метка для электронной почты
-    const emailLabel = document.createElement('label');
-    emailLabel.htmlFor = 'email';
-    emailLabel.innerText = 'Электронная почта:';
-    emailLabel.classList.add('label');
+    const passwordGroup = createInputGroup({
+        id: 'reg-password',
+        label: 'Пароль',
+        type: 'password',
+        autocomplete: 'new-password',
+        required: true
+    });
 
-    // Поле ввода электронной почты
-    const emailInput = document.createElement('input');
-    emailInput.type = 'password';
-    emailInput.type = 'text';
-    emailInput.id = 'email';
-    emailInput.name = 'email';
-    emailInput.required = true;
-    emailInput.classList.add('input');
-
-    // Метка для пароля
-    const passwordLabel = document.createElement('label');
-    passwordLabel.htmlFor = 'password';
-    passwordLabel.innerText = 'Пароль:';
-    passwordLabel.classList.add('label');
-
-    // Поле ввода пароля
-    const passwordInput = document.createElement('input');
-    passwordInput.type = 'password';
-    passwordInput.id = 'req-password';
-    passwordInput.name = 'password';
-    passwordInput.required = true;
-    passwordInput.classList.add('input');
-
-    // Метка для подтверждения пароля
-    const confirmPasswordLabel = document.createElement('label');
-    confirmPasswordLabel.htmlFor = 'confirm-password';
-    confirmPasswordLabel.innerText = 'Подтвердите пароль:';
-    confirmPasswordLabel.classList.add('label');
-
-    // Поле ввода подтверждения пароля
-    const confirmPasswordInput = document.createElement('input');
-    confirmPasswordInput.type = 'password';
-    confirmPasswordInput.id = 'confirm-password';
-    confirmPasswordInput.name = 'confirm-password';
-    confirmPasswordInput.required = true;
-    confirmPasswordInput.classList.add('input');
+    const confirmPasswordGroup = createInputGroup({
+        id: 'confirm-password',
+        label: 'Подтвердите пароль',
+        type: 'password',
+        autocomplete: 'new-password',
+        required: true
+    });
 
     // Кнопка отправки
-    const submitButton = document.createElement('button');
-    submitButton.type = 'submit';
-    submitButton.innerText = 'Зарегистрироваться';
-    submitButton.classList.add('button');
+    const submitButton = createButton('Зарегистрироваться', 'submit');
 
-    // Добавляем элементы в форму
-    form.appendChild(usernameLabel);
-    form.appendChild(usernameInput);
-    form.appendChild(emailLabel);
-    form.appendChild(emailInput);
-    form.appendChild(passwordLabel);
-    form.appendChild(passwordInput);
-    form.appendChild(confirmPasswordLabel);
-    form.appendChild(confirmPasswordInput);
+    // Сообщение об ошибке
+    const errorMessage = document.createElement('div');
+    errorMessage.classList.add('auth-error');
+    errorMessage.style.display = 'none';
+
+    // Сборка формы
+    form.appendChild(title);
+    form.appendChild(usernameGroup.wrapper);
+    form.appendChild(emailGroup.wrapper);
+    form.appendChild(passwordGroup.wrapper);
+    form.appendChild(confirmPasswordGroup.wrapper);
+    form.appendChild(errorMessage);
     form.appendChild(submitButton);
 
-    // Добавляем форму в контейнер
     container.appendChild(form);
+    overlay.appendChild(container);
 
-    // Обработчик отправки формы
-    form.addEventListener('submit', async function (event) {
-        event.preventDefault(); // Предотвращаем перезагрузку страницы
-        const username = usernameInput.value;
-        const email = emailInput.value;
-        const password = passwordInput.value;
-        const confirmPassword = confirmPasswordInput.value;
+    // Обработчик отправки
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
 
-        // Проверка совпадения паролей
-        if (password !== confirmPassword) {
-            alert('Пароли не совпадают.');
+        const username = usernameGroup.input.value.trim();
+        const email = emailGroup.input.value.trim();
+        const password = passwordGroup.input.value;
+        const confirmPassword = confirmPasswordGroup.input.value;
+
+        // Валидация
+        if (!username || !email || !password || !confirmPassword) {
+            showError(errorMessage, 'Заполните все поля');
             return;
         }
 
+        if (password !== confirmPassword) {
+            showError(errorMessage, 'Пароли не совпадают');
+            return;
+        }
+
+        if (password.length < 6) {
+            showError(errorMessage, 'Пароль должен быть не менее 6 символов');
+            return;
+        }
+
+        if (!isValidEmail(email)) {
+            showError(errorMessage, 'Введите корректный email');
+            return;
+        }
+
+        submitButton.disabled = true;
+        submitButton.textContent = 'Регистрация...';
+
         try {
-            const isRegistered = await api.register({username, email, password});
-            console.log(isRegistered)
+            const isRegistered = await api.register({ username, email, password });
             if (isRegistered) {
-                alert('Успешная регистрация!');
-                // Дополнительные действия после успешной регистрации
+                overlay.remove();
             } else {
-                alert('Ошибка регистрации.');
+                showError(errorMessage, 'Ошибка регистрации. Попробуйте другое имя пользователя');
             }
         } catch (error) {
-            console.error('Ошибка при регистрации:', error);
-            alert('Произошла ошибка при регистрации.');
+            showError(errorMessage, 'Ошибка соединения с сервером');
+            console.error('Registration error:', error);
+        } finally {
+            submitButton.disabled = false;
+            submitButton.textContent = 'Зарегистрироваться';
         }
     });
 
+    // Добавляем в документ
+    document.body.appendChild(overlay);
+
+    // Фокус на первое поле
+    setTimeout(() => usernameGroup.input.focus(), 100);
+
+    return overlay;
+}
+
+/**
+ * Создает overlay для блокировки взаимодействия с фоном
+ */
+function createOverlay() {
+    const overlay = document.createElement('div');
+    overlay.classList.add('auth-overlay');
+
+    // Блокируем все события от всплытия
+    const stopEvents = ['click', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'pointerdown', 'pointerup'];
+    stopEvents.forEach(eventType => {
+        overlay.addEventListener(eventType, (e) => {
+            e.stopPropagation();
+        }, true);
+    });
+
+    return overlay;
+}
+
+/**
+ * Создает контейнер формы
+ */
+function createContainer(id) {
+    const container = document.createElement('div');
+    container.id = id;
+    container.classList.add('auth-container');
+
+    // Блокируем всплытие событий
+    container.addEventListener('click', (e) => e.stopPropagation());
+    container.addEventListener('mousedown', (e) => e.stopPropagation());
+    container.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+
     return container;
+}
+
+/**
+ * Создает форму
+ */
+function createForm(id) {
+    const form = document.createElement('form');
+    form.id = id;
+    form.classList.add('auth-form');
+    form.setAttribute('novalidate', '');
+
+    return form;
+}
+
+/**
+ * Создает группу ввода (label + input)
+ */
+function createInputGroup({ id, label, type, autocomplete, required }) {
+    const wrapper = document.createElement('div');
+    wrapper.classList.add('auth-input-group');
+
+    const labelEl = document.createElement('label');
+    labelEl.htmlFor = id;
+    labelEl.textContent = label;
+    labelEl.classList.add('auth-label');
+
+    const input = document.createElement('input');
+    input.type = type;
+    input.id = id;
+    input.name = id;
+    input.autocomplete = autocomplete;
+    input.required = required;
+    input.classList.add('auth-input');
+
+    // Предотвращаем всплытие событий клавиатуры
+    input.addEventListener('keydown', (e) => e.stopPropagation());
+    input.addEventListener('keyup', (e) => e.stopPropagation());
+    input.addEventListener('keypress', (e) => e.stopPropagation());
+
+    wrapper.appendChild(labelEl);
+    wrapper.appendChild(input);
+
+    return { wrapper, input };
+}
+
+/**
+ * Создает кнопку
+ */
+function createButton(text, type = 'button') {
+    const button = document.createElement('button');
+    button.type = type;
+    button.textContent = text;
+    button.classList.add('auth-button');
+
+    return button;
+}
+
+/**
+ * Показывает сообщение об ошибке
+ */
+function showError(element, message) {
+    element.textContent = message;
+    element.style.display = 'block';
+    setTimeout(() => {
+        element.style.display = 'none';
+    }, 5000);
+}
+
+/**
+ * Проверяет валидность email
+ */
+function isValidEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
 }
