@@ -147,6 +147,32 @@ Test files are located in `src/js/__tests__/` mirroring the source structure.
 1. Run `npm test` to verify tests pass
 2. Commit changes with descriptive message
 
+## Cross-Service Changes (ВАЖНО!)
+
+**НИКОГДА не изменяй код других сервисов напрямую!**
+
+Если изменения на фронтенде требуют изменений в других сервисах:
+
+1. **НЕ редактируй** файлы в `omnimap-back`, `llm-gateway` или `omnimap-sync`
+2. **Создай файл задач** `BACKEND_TASKS.md` в корне этого репозитория:
+   ```markdown
+   # Задачи для backend-сервисов
+
+   ## omnimap-back
+   - [ ] Добавить эндпоинт GET /api/v1/example
+   - [ ] Изменить формат ответа в /api/v1/blocks
+
+   ## llm-gateway
+   - [ ] Добавить поддержку нового параметра stream_options
+
+   ## omnimap-sync
+   - [ ] Добавить новый тип сообщения "block_moved"
+   ```
+3. **В PR укажи**, что требуются изменения в других сервисах
+4. Агент, работающий над соответствующим сервисом, выполнит задачи и создаст отдельный PR
+
+**Причина:** Каждый сервис имеет свои тесты. Изменения без прогона тестов ломают CI/CD.
+
 ## Notes
 
 - Code comments are in Russian
