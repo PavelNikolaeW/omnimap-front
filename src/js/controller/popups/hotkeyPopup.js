@@ -3,7 +3,7 @@ import {Popup} from "./popup";
 export class HotkeyPopup extends Popup {
     /**
      * @param {Object} options - Опции для настройки попапа.
-     *   options.comands – массив объектов команд с полями:
+     *   options.commands – массив объектов команд с полями:
      *      id – уникальный идентификатор команды,
      *      description – описание команды,
      *      hotkeys – текущие хоткеи (массив или строка),
@@ -13,15 +13,13 @@ export class HotkeyPopup extends Popup {
      */
     constructor(options = {}) {
         if (!options.commands || !Array.isArray(options.commands)) {
-            throw new Error("Необходимо передать массив команд в опциях { comands: [...] }");
+            throw new Error("Необходимо передать массив команд в опциях { commands: [...] }");
         }
         Object.assign(options, {
             title: options.title || "Настройка хоткеев",
-            width: options.width || 600,
-            height: options.height || "auto",
+            size: 'lg',
             modal: true,
             draggable: true,
-            // Не используем options.inputs — содержимое сформируем кастомно
             inputs: []
         });
         super(options);
@@ -45,17 +43,17 @@ export class HotkeyPopup extends Popup {
 
     createCommandBlock(command) {
         const commandBlock = document.createElement("div");
-        commandBlock.className = "hotkey-command";
+        commandBlock.className = "popup-section";
 
         // Заголовок команды
         const label = document.createElement("div");
-        label.className = "hotkey-command-label";
+        label.className = "popup-section__title";
         label.textContent = command.description;
         commandBlock.appendChild(label);
 
         // Контейнер для инпутов хоткеев
         const inputsContainer = document.createElement("div");
-        inputsContainer.className = "hotkey-inputs-container";
+        inputsContainer.className = "popup-form";
         commandBlock.appendChild(inputsContainer);
 
         // Определяем текущие хоткеи (поддержка массива и строки)
@@ -84,8 +82,8 @@ export class HotkeyPopup extends Popup {
 
         // Кнопка для добавления нового хоткея
         const addBtn = document.createElement("button");
-        addBtn.className = "hotkey-add-btn";
-        addBtn.textContent = "Добавить хоткей";
+        addBtn.className = "popup-btn popup-btn--ghost popup-btn--sm";
+        addBtn.textContent = "+ Добавить хоткей";
         addBtn.addEventListener("click", () => {
             const wrapper = this.createHotkeyInputWrapper(command.id, "", inputsContainer);
             inputsContainer.appendChild(wrapper);
@@ -101,11 +99,11 @@ export class HotkeyPopup extends Popup {
 
     createHotkeyInputWrapper(commandId, hotkeyValue, inputsContainer) {
         const inputWrapper = document.createElement("div");
-        inputWrapper.className = "hotkey-input-wrapper";
+        inputWrapper.className = "popup-form-field popup-form-field--row";
 
         const input = document.createElement("input");
         input.type = "text";
-        input.className = "hotkey-input";
+        input.className = "popup-input hotkey-input";
         input.value = hotkeyValue;
         input.setAttribute("autocomplete", "off");
         // Настраиваем запись комбинации
@@ -116,13 +114,13 @@ export class HotkeyPopup extends Popup {
 
         // Элемент для отображения ошибки
         const errorMsg = document.createElement("div");
-        errorMsg.className = "hotkey-error-msg";
-        errorMsg.style.cssText = "color: red; font-size: 12px; display: none;";
+        errorMsg.className = "popup-message popup-message--error";
+        errorMsg.style.display = "none";
         inputWrapper.appendChild(errorMsg);
 
         // Кнопка удаления
         const removeBtn = document.createElement("button");
-        removeBtn.className = "hotkey-remove-btn";
+        removeBtn.className = "popup-btn popup-btn--danger popup-btn--sm hotkey-remove-btn";
         removeBtn.textContent = "Удалить";
         removeBtn.addEventListener("click", () => {
             inputsContainer.removeChild(inputWrapper);
@@ -160,9 +158,9 @@ export class HotkeyPopup extends Popup {
     }
 
     showError(input, message) {
-        input.classList.add("hotkey-input-error");
+        input.classList.add("popup-input--error");
         const wrapper = input.parentElement;
-        const errorMsg = wrapper.querySelector(".hotkey-error-msg");
+        const errorMsg = wrapper.querySelector(".popup-message--error");
         if (errorMsg) {
             errorMsg.textContent = message;
             errorMsg.style.display = "block";
@@ -170,9 +168,9 @@ export class HotkeyPopup extends Popup {
     }
 
     removeError(input) {
-        input.classList.remove("hotkey-input-error");
+        input.classList.remove("popup-input--error");
         const wrapper = input.parentElement;
-        const errorMsg = wrapper.querySelector(".hotkey-error-msg");
+        const errorMsg = wrapper.querySelector(".popup-message--error");
         if (errorMsg) {
             errorMsg.textContent = "";
             errorMsg.style.display = "none";
@@ -181,7 +179,7 @@ export class HotkeyPopup extends Popup {
 
     updateRemoveButtons(commandId) {
         const {inputsContainer} = this.commandElements[commandId];
-        const wrappers = inputsContainer.querySelectorAll(".hotkey-input-wrapper");
+        const wrappers = inputsContainer.querySelectorAll(".popup-form-field--row");
         wrappers.forEach((wrapper) => {
             const removeBtn = wrapper.querySelector(".hotkey-remove-btn");
             if (removeBtn) {
@@ -194,7 +192,7 @@ export class HotkeyPopup extends Popup {
         // Проверяем наличие ошибок во всех инпутах
         const allInputs = this.getAllHotkeyInputs();
         const hasError = allInputs.some((input) =>
-            input.classList.contains("hotkey-input-error")
+            input.classList.contains("popup-input--error")
         );
         if (hasError) {
             alert("Исправьте ошибки в хоткеях перед сохранением!");

@@ -11,11 +11,10 @@ export class UrlPopup extends Popup {
      *   options.checkName - (опционально) асинхронная функция для проверки доступности имени, принимает (name) и возвращает Promise<boolean>.
      *   Остальные опции передаются базовому классу Popup.
      */
-    constructor(options = {
-
-    }) {
+    constructor(options = {}) {
         // Задаём стандартные опции для окна.
         options.title = options.title || "Ссылки";
+        options.size = 'md';
         options.modal = true;
         options.draggable = true;
         // Окно не использует стандартную форму (inputs)
@@ -48,10 +47,10 @@ export class UrlPopup extends Popup {
 
         // Создаем контейнер для списка ссылок
         this.urlsContainer = document.createElement("div");
-        this.urlsContainer.className = "url-list-container";
+        this.urlsContainer.className = "popup-list";
         this.contentArea.appendChild(this.urlsContainer);
         // Сразу показываем индикатор загрузки
-        this.urlsContainer.innerHTML = "<div>Загрузка...</div>";
+        this.urlsContainer.innerHTML = '<div class="popup-loading"><div class="popup-spinner"></div>Загрузка...</div>';
 
         // Если задана функция асинхронной загрузки списка ссылок, вызываем её
         if (typeof this.options.fetchUrls === "function") {
@@ -63,7 +62,7 @@ export class UrlPopup extends Popup {
                 })
                 .catch((err) => {
                     console.error(err);
-                    this.urlsContainer.innerHTML = "<div>Ошибка загрузки данных.</div>";
+                    this.urlsContainer.innerHTML = '<div class="popup-message popup-message--error">Ошибка загрузки данных.</div>';
                 });
         } else {
             // Если функция не задана, отображаем то, что уже передано в options.urls
@@ -72,28 +71,30 @@ export class UrlPopup extends Popup {
 
         // Создаем секцию для добавления новой ссылки (только поле для ввода имени)
         this.newUrlContainer = document.createElement("div");
-        this.newUrlContainer.className = "new-url-container";
+        this.newUrlContainer.className = "popup-section";
 
         // Метка и поле ввода имени
         const nameLabel = document.createElement("label");
+        nameLabel.className = "popup-form-label";
         nameLabel.textContent = "Название:";
         this.newUrlContainer.appendChild(nameLabel);
 
         this.nameInput = document.createElement("input");
         this.nameInput.type = "text";
+        this.nameInput.className = "popup-input";
         this.nameInput.placeholder = "Название ссылки. Только латинские буквы, цифры, дефисы и подчеркивания.";
         this.newUrlContainer.appendChild(this.nameInput);
 
         // Элемент для отображения ошибки проверки имени
         this.nameError = document.createElement("div");
-        this.nameError.className = "name-error-msg";
-        this.nameError.style.cssText = "color: red; font-size: 12px; display: none;";
+        this.nameError.className = "popup-message popup-message--error";
+        this.nameError.style.display = "none";
         this.newUrlContainer.appendChild(this.nameError);
 
         // Кнопка «Создать» для создания ссылки на основе введённого имени
         this.createButton = document.createElement("button");
         this.createButton.textContent = "Создать";
-        this.createButton.className = "url-create-button";
+        this.createButton.className = "popup-btn popup-btn--primary";
         this.newUrlContainer.appendChild(this.createButton);
 
         this.contentArea.appendChild(this.newUrlContainer);
@@ -115,13 +116,16 @@ export class UrlPopup extends Popup {
         if (this.options.urls.length > 0) {
             this.options.urls.forEach((item, index) => {
                 const urlItem = document.createElement("div");
-                urlItem.className = "url-item";
+                urlItem.className = "popup-list-item";
 
-                urlItem.innerHTML = `<span class="creator">${item.creator}</span> <span class="url-link">${item.url}</span>`;
+                const contentEl = document.createElement("div");
+                contentEl.className = "popup-list-item__content";
+                contentEl.innerHTML = `<span style="font-weight: 500;">${item.creator}</span> <span style="color: var(--popup-muted);">${item.url}</span>`;
+                urlItem.appendChild(contentEl);
 
                 const deleteButton = document.createElement("button");
                 deleteButton.textContent = "Удалить";
-                deleteButton.className = "url-delete-button";
+                deleteButton.className = "popup-btn popup-btn--danger popup-btn--sm";
                 deleteButton.addEventListener("click", () => this.handleDelete(item, index));
                 urlItem.appendChild(deleteButton);
 
@@ -129,7 +133,7 @@ export class UrlPopup extends Popup {
             });
         } else {
             const emptyMsg = document.createElement("div");
-            emptyMsg.className = "url-empty-msg";
+            emptyMsg.className = "popup-list-empty";
             emptyMsg.textContent = "Ссылок пока нет. Добавьте новую ссылку.";
             this.urlsContainer.appendChild(emptyMsg);
         }
@@ -266,19 +270,11 @@ export class UrlPopup extends Popup {
      */
     createButtons() {
         const buttonsContainer = document.createElement("div");
-        buttonsContainer.className = "url-popup-buttons";
+        buttonsContainer.className = "popup-buttons";
 
-        this.cancelButton = this.createCancelButton();
+        this.cancelButton = Popup.createButton("Закрыть", "secondary", () => this.handleCancel());
         buttonsContainer.appendChild(this.cancelButton);
 
         this.popupEl.appendChild(buttonsContainer);
-    }
-
-    createCancelButton() {
-        const btn = document.createElement("button");
-        btn.textContent = "Закрыть";
-        btn.className = "popup-button-close";
-        btn.addEventListener("click", () => this.handleCancel());
-        return btn;
     }
 }

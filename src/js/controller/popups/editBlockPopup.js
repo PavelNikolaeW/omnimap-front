@@ -5,12 +5,12 @@ export class EditBlockPopup extends Popup {
   constructor(options = {}) {
     super({
       title: options.title || "Редактировать JSON",
+      size: 'lg',
       modal: true,
       draggable: true,
       onSubmit: options.onSubmit,
       onCancel: options.onCancel,
       inputs: [],
-      classPrefix: options.classPrefix || "edit-json-popup",
       blockData: options.blockData,
     });
   }
@@ -20,21 +20,23 @@ export class EditBlockPopup extends Popup {
     this.contentArea.innerHTML = "";
 
     const container = document.createElement("div");
-    container.className = this.getPrefixedClass("json-editor");
+    container.className = "popup-json-editor";
     this.contentArea.appendChild(container);
 
     const blockData = this.options.blockData || {};
 
     // Сообщение об ошибке
+    this.errorMsgContainer = document.createElement("div");
+    this.errorMsgContainer.className = "popup-message-container";
+    this.errorMsgContainer.style.display = "none";
     this.errorMsg = document.createElement("div");
-    this.errorMsg.style.color = "red";
-    this.errorMsg.style.marginTop = "10px";
-    this.errorMsg.style.display = "none";
-    container.appendChild(this.errorMsg);
+    this.errorMsg.className = "popup-message popup-message--error";
+    this.errorMsgContainer.appendChild(this.errorMsg);
+    container.appendChild(this.errorMsgContainer);
 
-    // Монтируем наш JSON-редактор
+    // Монтируем JSON-редактор
     this.editorHost = document.createElement('div');
-    this.editorHost.className = 'note-editor-container'; // для общих стилей (не обязательно)
+    this.editorHost.className = 'note-editor-container';
     container.appendChild(this.editorHost);
 
     const initial = JSON.stringify(blockData, null, 2);
@@ -44,11 +46,11 @@ export class EditBlockPopup extends Popup {
       initialValue: initial,
       onValidate: (ok, err) => {
         if (ok) {
-          this.errorMsg.style.display = "none";
+          this.errorMsgContainer.style.display = "none";
           this.errorMsg.textContent = "";
         } else {
           this.errorMsg.textContent = "Ошибка JSON: " + err;
-          this.errorMsg.style.display = "block";
+          this.errorMsgContainer.style.display = "block";
         }
       },
     });
@@ -59,26 +61,14 @@ export class EditBlockPopup extends Popup {
 
   createButtons() {
     const buttonsContainer = document.createElement("div");
-    buttonsContainer.className = this.getPrefixedClass("buttons");
+    buttonsContainer.className = "popup-buttons";
 
-    this.submitButton = document.createElement("button");
-    this.submitButton.textContent = "Применить";
-    this.submitButton.className = this.getPrefixedClass("button-submit");
-    this.submitButton.addEventListener("click", () => this.handleSubmit());
+    this.submitButton = Popup.createButton("Применить", "primary", () => this.handleSubmit());
+    this.cancelButton = Popup.createButton("Отмена", "secondary", () => this.handleCancel());
+
     buttonsContainer.appendChild(this.submitButton);
-
-    this.cancelButton = document.createElement("button");
-    this.cancelButton.textContent = "Отмена";
-    this.cancelButton.className = this.getPrefixedClass("button-cancel");
-    this.cancelButton.addEventListener("click", () => this.handleCancel());
     buttonsContainer.appendChild(this.cancelButton);
-
     this.popupEl.appendChild(buttonsContainer);
-
-    // Закрытие по Esc (пусть ловит весь попап)
-    this.popupEl.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') this.handleCancel();
-    });
   }
 
   handleSubmit() {
@@ -91,7 +81,7 @@ export class EditBlockPopup extends Popup {
       this.close();
     } catch (err) {
       this.errorMsg.textContent = "Ошибка JSON: " + err.message;
-      this.errorMsg.style.display = "block";
+      this.errorMsgContainer.style.display = "block";
     }
   }
 

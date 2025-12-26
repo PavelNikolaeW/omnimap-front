@@ -11,7 +11,7 @@ import {customConfirm} from "../../utils/custom-dialog";
 function showMessage(container, message, type = "error") {
     container.innerHTML = "";
     const msgEl = document.createElement("div");
-    msgEl.className = `popup-message popup-message-${type}`;
+    msgEl.className = `popup-message popup-message--${type}`;
     msgEl.textContent = message;
     container.appendChild(msgEl);
 }
@@ -37,6 +37,7 @@ class GroupMembersPopup extends Popup {
     constructor(options = {}) {
         options.title =
             options.title || `Управление участниками группы "${options.groupName}"`;
+        options.size = 'lg';
         options.modal = true;
         options.draggable = true;
         options.inputs = [];
@@ -62,24 +63,25 @@ class GroupMembersPopup extends Popup {
     createPopupContent() {
         // Секция для участников группы
         const membersSection = document.createElement("div");
-        membersSection.className = "group-members-section";
+        membersSection.className = "popup-section";
 
         const title = document.createElement("div");
-        title.className = 'popup-title'
+        title.className = 'popup-section__title'
         title.textContent = "Участники группы";
         membersSection.appendChild(title);
 
         // Контейнер для списка участников
         this.membersContainer = document.createElement("div");
-        this.membersContainer.className = "group-members-list";
+        this.membersContainer.className = "popup-list";
         membersSection.appendChild(this.membersContainer);
 
         // Форма для добавления нового участника
         const addMemberForm = document.createElement("div");
-        addMemberForm.className = "group-add-member";
+        addMemberForm.className = "popup-form-field popup-form-field--row";
 
         const usernameInput = document.createElement("input");
         usernameInput.type = "text";
+        usernameInput.className = "popup-input";
         usernameInput.placeholder = "Имя пользователя";
         usernameInput.id = "group-member-username-input";
         usernameInput.setAttribute("autocomplete", "off");
@@ -87,7 +89,7 @@ class GroupMembersPopup extends Popup {
 
         const addBtn = document.createElement("button");
         addBtn.textContent = "Добавить участника";
-        addBtn.className = "access-button"
+        addBtn.className = "popup-btn popup-btn--primary"
         addBtn.addEventListener("click", () => {
             clearMessage(this.messageContainer);
             const username = usernameInput.value.trim();
@@ -134,20 +136,24 @@ class GroupMembersPopup extends Popup {
     renderGroupMembers() {
         this.membersContainer.innerHTML = "";
         if (!this.members.length) {
-            this.membersContainer.textContent = "Нет участников.";
+            const emptyEl = document.createElement("div");
+            emptyEl.className = "popup-list-empty";
+            emptyEl.textContent = "Нет участников.";
+            this.membersContainer.appendChild(emptyEl);
             return;
         }
         this.members.forEach((member) => {
             const row = document.createElement("div");
-            row.className = "group-member-row";
+            row.className = "popup-list-item";
 
             const info = document.createElement("span");
+            info.className = "popup-list-item__content";
             info.textContent = `${member.username}${member.email ? " (" + member.email + ")" : ""}`;
             row.appendChild(info);
 
             const removeBtn = document.createElement("button");
             removeBtn.textContent = "Удалить";
-            removeBtn.className = "access-remove-button";
+            removeBtn.className = "popup-btn popup-btn--danger popup-btn--sm";
             removeBtn.addEventListener("click", () => {
                 clearMessage(this.messageContainer);
                 this.removeUserGroup(this.groupId, member.username)
@@ -168,12 +174,9 @@ class GroupMembersPopup extends Popup {
 
     createButtons() {
         const buttonsContainer = document.createElement("div");
-        buttonsContainer.className = this.getPrefixedClass("buttons");
+        buttonsContainer.className = "popup-buttons";
 
-        this.cancelButton = document.createElement("button");
-        this.cancelButton.textContent = "Закрыть";
-        this.cancelButton.className = this.getPrefixedClass("button-cancel");
-        this.cancelButton.addEventListener("click", () => this.handleCancel());
+        this.cancelButton = Popup.createButton("Закрыть", "secondary", () => this.handleCancel());
         buttonsContainer.appendChild(this.cancelButton);
 
         this.popupEl.appendChild(buttonsContainer);
@@ -219,6 +222,7 @@ export class AccessPopup extends Popup {
      */
     constructor(options = {}) {
         options.title = options.title || `Редактирование прав доступа для`;
+        options.size = 'lg';
         options.modal = true;
         options.draggable = true;
         options.inputs = [];
@@ -262,36 +266,39 @@ export class AccessPopup extends Popup {
         // Очищаем контент базового попапа (кроме messageContainer)
         this.contentArea.innerHTML = "";
         this.blockIdContainer = document.createElement('div')
-        this.blockIdContainer.className = 'popup-message-container'
+        this.blockIdContainer.className = 'popup-message popup-message--info'
         this.blockIdContainer.innerText = this.options.blockId
         this.contentArea.appendChild(this.blockIdContainer);
         this.contentArea.appendChild(this.messageContainer);
 
         // --- Секция для пользователей ---
         const userSection = document.createElement("div");
-        userSection.className = "access-popup-section access-popup-users";
+        userSection.className = "popup-section";
 
-        const userTitle = document.createElement("h3");
+        const userTitle = document.createElement("div");
+        userTitle.className = "popup-section__title";
         userTitle.textContent = "Пользователи";
         userSection.appendChild(userTitle);
 
         // Контейнер для списка пользователей с правами
         this.userListContainer = document.createElement("div");
-        this.userListContainer.className = "access-user-list";
+        this.userListContainer.className = "popup-list";
         userSection.appendChild(this.userListContainer);
 
         // Форма добавления нового пользователя
         const addUserForm = document.createElement("div");
-        addUserForm.className = "access-add-user";
+        addUserForm.className = "popup-form-field popup-form-field--row";
 
         const usernameInput = document.createElement("input");
         usernameInput.type = "text";
+        usernameInput.className = "popup-input";
         usernameInput.placeholder = "Введите имя пользователя";
         usernameInput.id = "access-username-input";
         usernameInput.setAttribute("autocomplete", "off");
         addUserForm.appendChild(usernameInput);
         setTimeout(() => usernameInput.focus(), 0)
         const userPermissionSelect = document.createElement("select");
+        userPermissionSelect.className = "popup-select";
         userPermissionSelect.id = "access-user-permission-select";
         this.permissionChoices.forEach((choice) => {
             const option = document.createElement("option");
@@ -308,7 +315,7 @@ export class AccessPopup extends Popup {
 
         const addUserBtn = document.createElement("button");
         addUserBtn.textContent = "Добавить пользователя";
-        addUserBtn.className = "access-button";
+        addUserBtn.className = "popup-btn popup-btn--primary";
         addUserBtn.addEventListener("click", () => {
             this._addUser(usernameInput, userPermissionSelect)
         });
@@ -319,20 +326,21 @@ export class AccessPopup extends Popup {
 
         // --- Секция для групп ---
         const groupSection = document.createElement("div");
-        groupSection.className = "access-popup-section access-popup-groups";
+        groupSection.className = "popup-section";
 
-        const groupTitle = document.createElement("h3");
+        const groupTitle = document.createElement("div");
+        groupTitle.className = "popup-section__title";
         groupTitle.textContent = "Группы";
         groupSection.appendChild(groupTitle);
 
         // Контейнер для списка групп с правами
         this.groupListContainer = document.createElement("div");
-        this.groupListContainer.className = "access-group-list";
+        this.groupListContainer.className = "popup-list";
         groupSection.appendChild(this.groupListContainer);
 
         // Форма создания/редактирования группы
         const groupForm = document.createElement("div");
-        groupForm.className = "access-group-form";
+        groupForm.className = "popup-form";
         groupForm.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 const groupName = groupNameInput.value.trim();
@@ -354,12 +362,14 @@ export class AccessPopup extends Popup {
 
         const groupNameInput = document.createElement("input");
         groupNameInput.type = "text";
+        groupNameInput.className = "popup-input";
         groupNameInput.placeholder = "Название группы";
         groupNameInput.id = "access-group-name-input";
         groupNameInput.setAttribute("autocomplete", "off");
         groupForm.appendChild(groupNameInput);
 
         const groupPermissionSelect = document.createElement("select");
+        groupPermissionSelect.className = "popup-select";
         groupPermissionSelect.id = "access-group-permission-select";
         this.permissionChoices.forEach((choice) => {
             const option = document.createElement("option");
@@ -372,7 +382,7 @@ export class AccessPopup extends Popup {
         // Кнопка для обновления прав уже существующей группы (updateAccess)
         const updateGroupBtn = document.createElement("button");
         updateGroupBtn.textContent = "Применить для группы";
-        updateGroupBtn.className = "access-button";
+        updateGroupBtn.className = "popup-btn popup-btn--primary";
         updateGroupBtn.addEventListener("click", () => {
             clearMessage(this.messageContainer);
             const groupName = groupNameInput.value.trim();
@@ -388,7 +398,7 @@ export class AccessPopup extends Popup {
         // Новая кнопка для создания группы (createGroup)
         const createGroupBtn = document.createElement("button");
         createGroupBtn.textContent = "Создать группу";
-        createGroupBtn.className = "access-button";
+        createGroupBtn.className = "popup-btn popup-btn--success";
         createGroupBtn.addEventListener("click", () => {
             clearMessage(this.messageContainer);
             const groupName = groupNameInput.value.trim();
@@ -493,19 +503,24 @@ export class AccessPopup extends Popup {
     renderAccessList() {
         this.userListContainer.innerHTML = "";
         if (this.accessList.length === 0) {
-            this.userListContainer.textContent = "Нет установленных прав доступа.";
+            const emptyEl = document.createElement("div");
+            emptyEl.className = "popup-list-empty";
+            emptyEl.textContent = "Нет установленных прав доступа.";
+            this.userListContainer.appendChild(emptyEl);
             return;
         }
         this.accessList.forEach((item) => {
             const row = document.createElement("div");
-            row.className = "access-user-row";
+            row.className = "popup-list-item";
 
             const info = document.createElement("span");
+            info.className = "popup-list-item__content";
             info.textContent = `${item.username} (${item.email})`;
             row.appendChild(info);
 
             // Селект для изменения права
             const select = document.createElement("select");
+            select.className = "popup-select";
             this.permissionChoices.forEach((choice) => {
                 const opt = document.createElement("option");
                 opt.value = choice.value;
@@ -555,22 +570,26 @@ export class AccessPopup extends Popup {
     renderGroups() {
         this.groupListContainer.innerHTML = "";
         if (this.groups.length === 0) {
-            this.groupListContainer.textContent = "Нет групп.";
+            const emptyEl = document.createElement("div");
+            emptyEl.className = "popup-list-empty";
+            emptyEl.textContent = "Нет групп.";
+            this.groupListContainer.appendChild(emptyEl);
             return;
         }
         this.groups.forEach((group) => {
             const row = document.createElement("div");
-            row.className = "access-group-row";
+            row.className = "popup-list-item";
 
             // Отображаем название группы
             const nameSpan = document.createElement("span");
+            nameSpan.className = "popup-list-item__content";
             nameSpan.textContent = group.name;
             row.appendChild(nameSpan);
 
             // Кнопка для удаления группы
             const deleteBtn = document.createElement("button");
             deleteBtn.textContent = "Удалить группу";
-            deleteBtn.className = "access-remove-button";
+            deleteBtn.className = "popup-btn popup-btn--danger popup-btn--sm";
             deleteBtn.addEventListener("click", () => {
                 customConfirm(`Вы хотите удалить группу ${group.name}?`).then(ok => {
                     if (ok) {
@@ -595,7 +614,7 @@ export class AccessPopup extends Popup {
             // Кнопка для управления участниками группы
             const manageBtn = document.createElement("button");
             manageBtn.textContent = "Управлять участниками";
-            manageBtn.className = "access-button";
+            manageBtn.className = "popup-btn popup-btn--primary popup-btn--sm";
             manageBtn.addEventListener("click", () => {
                 clearMessage(this.messageContainer);
                 if (typeof this.getGroupMembers !== "function") {
@@ -617,10 +636,11 @@ export class AccessPopup extends Popup {
                     }
                 });
             });
-            const div = document.createElement('div')
-            div.appendChild(deleteBtn)
-            div.appendChild(manageBtn)
-            row.appendChild(div);
+            const actionsDiv = document.createElement('div')
+            actionsDiv.className = "popup-list-item__actions";
+            actionsDiv.appendChild(deleteBtn)
+            actionsDiv.appendChild(manageBtn)
+            row.appendChild(actionsDiv);
 
             this.groupListContainer.appendChild(row);
         });
@@ -628,12 +648,9 @@ export class AccessPopup extends Popup {
 
     createButtons() {
         const buttonsContainer = document.createElement("div");
-        buttonsContainer.className = this.getPrefixedClass("buttons");
+        buttonsContainer.className = "popup-buttons";
 
-        this.cancelButton = document.createElement("button");
-        this.cancelButton.textContent = "Закрыть";
-        this.cancelButton.className = this.getPrefixedClass("button-cancel");
-        this.cancelButton.addEventListener("click", () => this.handleCancel());
+        this.cancelButton = Popup.createButton("Закрыть", "secondary", () => this.handleCancel());
         buttonsContainer.appendChild(this.cancelButton);
 
         this.popupEl.appendChild(buttonsContainer);
