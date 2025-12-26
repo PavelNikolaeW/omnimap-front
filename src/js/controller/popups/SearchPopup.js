@@ -4,6 +4,7 @@ import {copyToClipboard} from "../../utils/functions";
 export class SearchBlocksPopup extends Popup {
     constructor(options = {}) {
         options.title = options.title || "Поиск блоков";
+        options.size = 'full';
         options.modal = true;
         options.draggable = true;
         options.inputs = [];
@@ -20,23 +21,23 @@ export class SearchBlocksPopup extends Popup {
 
         // Контейнер поиска
         this.searchContainer = document.createElement("div");
-        this.searchContainer.className = "search-container";
+        this.searchContainer.className = "popup-search";
 
         // Поле ввода
         this.searchInput = document.createElement("input");
         this.searchInput.type = "text";
         this.searchInput.placeholder = "Введите запрос для поиска...";
-        this.searchInput.className = "search-input";
+        this.searchInput.className = "popup-input";
         this.searchInput.value = this.options.initialState.query || "";
         this.searchContainer.appendChild(this.searchInput);
 
         // Чекбокс
         this.searchEverywhereLabel = document.createElement("label");
-        this.searchEverywhereLabel.className = "search-checkbox-label";
+        this.searchEverywhereLabel.className = "popup-checkbox-label";
 
         this.searchEverywhereCheckbox = document.createElement("input");
         this.searchEverywhereCheckbox.type = "checkbox";
-        this.searchEverywhereCheckbox.className = "search-everywhere";
+        this.searchEverywhereCheckbox.className = "popup-checkbox";
         this.searchEverywhereCheckbox.checked = this.options.initialState.everywhere || false;
 
         this.searchEverywhereLabel.appendChild(this.searchEverywhereCheckbox);
@@ -47,7 +48,7 @@ export class SearchBlocksPopup extends Popup {
 
         // Контейнер для результатов
         this.resultsContainer = document.createElement("div");
-        this.resultsContainer.className = "search-results-container";
+        this.resultsContainer.className = "popup-search-results";
         this.contentArea.appendChild(this.resultsContainer);
 
         // События
@@ -63,12 +64,9 @@ export class SearchBlocksPopup extends Popup {
     }
 
     positionPopup() {
-        this.popupEl.style.width = "90vw";
-        this.popupEl.style.height = "85vh";
         this.popupEl.style.left = "50%";
         this.popupEl.style.top = "50%";
         this.popupEl.style.transform = "translate(-50%, -50%)";
-        this.popupEl.style.position = "fixed"; // фиксированное позиционирование
     }
 
     /**
@@ -105,41 +103,39 @@ export class SearchBlocksPopup extends Popup {
         this.resultsContainer.innerHTML = "";
 
         if (blocks.length === 0) {
-            this.resultsContainer.innerHTML = "<div class='search-empty'>Ничего не найдено</div>";
+            this.resultsContainer.innerHTML = "<div class='popup-search-empty'>Ничего не найдено</div>";
             return;
         }
 
         blocks.forEach((block) => {
             const blockEl = document.createElement("div");
-            blockEl.className = "search-result-item";
+            blockEl.className = "popup-search-result";
 
             const title = document.createElement("div");
-            title.innerHTML = `<strong>${block.title}</strong>`;
+            title.className = "popup-search-result__title";
+            title.textContent = block.title;
 
             const description = document.createElement("div");
+            description.className = "popup-search-result__description";
             description.textContent = block.text || "";
 
             const actions = document.createElement("div");
-            actions.className = "search-result-actions";
+            actions.className = "popup-search-result__actions";
 
             // Кнопка "Открыть"
-            const openBtn = document.createElement("button");
-            openBtn.textContent = "Открыть";
-            openBtn.className = "btn-open";
-            openBtn.addEventListener("click", () => {
+            const openBtn = Popup.createButton("Открыть", "primary", () => {
                 if (typeof this.options.onOpen === "function") {
                     this.options.onOpen(block.id);
-                    this.handleCancel()
+                    this.handleCancel();
                 }
             });
+            openBtn.classList.add('popup-btn--sm');
 
             // Кнопка "Копировать ID"
-            const copyBtn = document.createElement("button");
-            copyBtn.textContent = "Скопировать ID";
-            copyBtn.className = "btn-copy";
-            copyBtn.addEventListener("click", () => {
-                copyToClipboard(block.id)
+            const copyBtn = Popup.createButton("Скопировать ID", "secondary", () => {
+                copyToClipboard(block.id);
             });
+            copyBtn.classList.add('popup-btn--sm');
 
             actions.appendChild(openBtn);
             actions.appendChild(copyBtn);
@@ -155,10 +151,7 @@ export class SearchBlocksPopup extends Popup {
         const buttonsContainer = document.createElement("div");
         buttonsContainer.className = "popup-buttons";
 
-        this.cancelButton = this.createCancelButton();
-        this.cancelButton.textContent = "Закрыть";
-        this.cancelButton.addEventListener("click", () => this.handleCancel());
-
+        this.cancelButton = Popup.createButton("Закрыть", "secondary", () => this.handleCancel());
         buttonsContainer.appendChild(this.cancelButton);
         this.popupEl.appendChild(buttonsContainer);
     }

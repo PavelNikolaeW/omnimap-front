@@ -14,6 +14,7 @@ export class HistoryPopup extends Popup {
     constructor(options = {}) {
         // Задаём некоторые стандартные опции для окна
         options.title = options.title || "История изменений";
+        options.size = 'lg';
         options.modal = true;
         options.draggable = true;
         // Попап не использует стандартную форму (inputs), т.к. он чисто для отображения списка
@@ -36,11 +37,11 @@ export class HistoryPopup extends Popup {
 
         // Контейнер под список изменений
         this.historyContainer = document.createElement("div");
-        this.historyContainer.className = "history-list-container";
+        this.historyContainer.className = "popup-list";
         this.contentArea.appendChild(this.historyContainer);
 
         // Показываем индикатор загрузки перед тем, как fetchHistory отработает
-        this.historyContainer.innerHTML = "<div>Загрузка истории...</div>";
+        this.historyContainer.innerHTML = '<div class="popup-loading"><div class="popup-spinner"></div>Загрузка истории...</div>';
 
         // Вызываем асинхронную функцию, получающую список изменений
         console.log(this.options.blockId)
@@ -54,11 +55,11 @@ export class HistoryPopup extends Popup {
                 })
                 .catch((err) => {
                     console.error(err);
-                    this.historyContainer.innerHTML = "<div>Ошибка загрузки истории.</div>";
+                    this.historyContainer.innerHTML = '<div class="popup-message popup-message--error">Ошибка загрузки истории.</div>';
                 });
         } else {
             // Если не передали fetchHistory или blockId, считаем, что данных нет
-            this.historyContainer.innerHTML = "<div>Нет данных для отображения.</div>";
+            this.historyContainer.innerHTML = '<div class="popup-list-empty">Нет данных для отображения.</div>';
         }
 
         this.positionPopup();
@@ -72,7 +73,7 @@ export class HistoryPopup extends Popup {
         if (!this.historyRecords || this.historyRecords.length === 0) {
             // Если нет записей
             const emptyMsg = document.createElement("div");
-            emptyMsg.className = "history-empty-msg";
+            emptyMsg.className = "popup-list-empty";
             emptyMsg.textContent = "История изменений пуста.";
             this.historyContainer.appendChild(emptyMsg);
             return;
@@ -81,12 +82,11 @@ export class HistoryPopup extends Popup {
         // Если есть записи, выводим их в списке
         this.historyRecords.forEach((record) => {
             const itemEl = document.createElement("div");
-            itemEl.className = "history-item";
+            itemEl.className = "popup-list-item";
 
             // Можно отображать любую нужную информацию о ревизии
-            // Например, дату, пользователя, тип изменения и т.д.
             const infoEl = document.createElement("div");
-            infoEl.className = "history-info";
+            infoEl.className = "popup-list-item__content";
             infoEl.innerHTML = `
                 <div><strong>Дата:</strong> ${record.history_date}</div>
                 <div><strong>Пользователь:</strong> ${record.changed_by || "неизвестно"}</div>
@@ -97,7 +97,7 @@ export class HistoryPopup extends Popup {
 
             // Кнопка «Откатиться» к этой ревизии
             const revertBtn = document.createElement("button");
-            revertBtn.className = "history-revert-button";
+            revertBtn.className = "popup-btn popup-btn--primary popup-btn--sm";
             revertBtn.textContent = "Откатиться";
             revertBtn.addEventListener("click", () => this.handleRevert(record));
             itemEl.appendChild(revertBtn);
@@ -144,20 +144,12 @@ export class HistoryPopup extends Popup {
      */
     createButtons() {
         const buttonsContainer = document.createElement("div");
-        buttonsContainer.className = "history-popup-buttons";
+        buttonsContainer.className = "popup-buttons";
 
-        this.cancelButton = this.createCancelButton();
+        this.cancelButton = Popup.createButton("Закрыть", "secondary", () => this.handleCancel());
         buttonsContainer.appendChild(this.cancelButton);
 
         this.popupEl.appendChild(buttonsContainer);
-    }
-
-    createCancelButton() {
-        const btn = document.createElement("button");
-        btn.textContent = "Закрыть";
-        btn.className = "popup-button-close";
-        btn.addEventListener("click", () => this.handleCancel());
-        return btn;
     }
 
     handleCancel() {
