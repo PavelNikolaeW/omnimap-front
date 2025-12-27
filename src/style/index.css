@@ -474,3 +474,38 @@ button:focus {
         opacity: 0.5;
     }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Mobile Improvements
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Prevent iOS zoom on input focus */
+@media (max-width: 640px) {
+    input, select, textarea {
+        font-size: 16px !important;
+    }
+}
+
+/* Touch-friendly tap targets */
+@media (hover: none) and (pointer: coarse) {
+    button,
+    .sidebar-button,
+    .tree-button,
+    .breadcrumb-item {
+        min-height: 44px;
+        min-width: 44px;
+    }
+}
+
+/* Prevent pull-to-refresh and overscroll on iOS */
+html, body {
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Fix 100vh on mobile browsers */
+@supports (-webkit-touch-callout: none) {
+    .layout {
+        height: -webkit-fill-available;
+    }
+}

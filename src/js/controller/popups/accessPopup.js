@@ -265,9 +265,35 @@ export class AccessPopup extends Popup {
     createPopupContent() {
         // Очищаем контент базового попапа (кроме messageContainer)
         this.contentArea.innerHTML = "";
-        this.blockIdContainer = document.createElement('div')
-        this.blockIdContainer.className = 'popup-message popup-message--info'
-        this.blockIdContainer.innerText = this.options.blockId
+
+        // UUID контейнер с кнопкой копирования
+        this.blockIdContainer = document.createElement('div');
+        this.blockIdContainer.className = 'popup-message popup-message--info';
+        this.blockIdContainer.style.display = 'flex';
+        this.blockIdContainer.style.alignItems = 'center';
+        this.blockIdContainer.style.justifyContent = 'space-between';
+        this.blockIdContainer.style.gap = '8px';
+
+        const uuidText = document.createElement('span');
+        uuidText.textContent = this.options.blockId;
+        uuidText.style.wordBreak = 'break-all';
+        this.blockIdContainer.appendChild(uuidText);
+
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'popup-btn popup-btn--sm popup-btn--ghost';
+        copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
+        copyBtn.title = 'Копировать UUID';
+        copyBtn.style.flexShrink = '0';
+        copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(this.options.blockId).then(() => {
+                showMessage(this.messageContainer, 'UUID скопирован в буфер обмена', 'success');
+            }).catch(() => {
+                showMessage(this.messageContainer, 'Ошибка копирования', 'error');
+            });
+        });
+        this.blockIdContainer.appendChild(copyBtn);
+
         this.contentArea.appendChild(this.blockIdContainer);
         this.contentArea.appendChild(this.messageContainer);
 

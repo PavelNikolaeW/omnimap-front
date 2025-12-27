@@ -605,13 +605,22 @@ export class LocalStateManager {
             }
         }
 
-        if (!this.blocks || this.blocks.size === 0) {
+        // Всегда загружаем блоки из IndexedDB если память пуста или блок текущего дерева отсутствует
+        if (!this.blocks || this.blocks.size === 0 || (this.currentTree && !this.blocks.has(this.currentTree))) {
             await this.getAllBlocksForUser(this.currentUser);
         }
+
         this.path = await localforage.getItem(`Path_${this.currentTree}${this.currentUser}`) || [];
         let screenObj = this.path.at(-1);
+
         if (!screenObj) {
-            const block = this.blocks.get(this.currentTree)
+            const block = this.blocks.get(this.currentTree);
+            // Если блок всё ещё не найден после загрузки, попробуем перезагрузить с сервера
+            if (!block) {
+                console.warn('Block not found in cache, reloading from server...');
+                dispatch('LoadTrees');
+                return;
+            }
             screenObj = {
                 screenName: truncate(block.title, 10),
                 color: block.data?.color && block.data.color !== 'default_color' ? block.data.color : [],
@@ -620,10 +629,20 @@ export class LocalStateManager {
             this.path.push(screenObj)
             await localforage.setItem(`Path_${this.currentTree}${this.currentUser}`, this.path)
         }
-        if (!this.blocks.has(screenObj.blockId)) await this.getAllBlocksForUser(this.currentUser);
+
+        // Проверяем наличие блока и перезагружаем если нужно
+        if (!this.blocks.has(screenObj.blockId)) {
+            await this.getAllBlocksForUser(this.currentUser);
+            // Если блок всё ещё не найден, перезагружаем с сервера
+            if (!this.blocks.has(screenObj.blockId)) {
+                console.warn('Block still not found after cache reload, fetching from server...');
+                dispatch('LoadTrees');
+                return;
+            }
+        }
+
         this.painter.render(this.blocks, screenObj);
         dispatch('ShowedBlocks', {path: this.path, activeId: undefined});
-
     }
 
     async getPathPromise() {

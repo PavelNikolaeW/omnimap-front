@@ -171,16 +171,28 @@ button:focus {
         height: 44px;
         font-size: 1rem;
         padding: 6px;
+        flex-shrink: 0;
     }
 
     .top-navigation-btn {
         width: 44px;
         height: 44px;
         font-size: 1rem;
+        flex-shrink: 0;
     }
 
     .top-navigation {
         padding: 0 10px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        flex-wrap: nowrap;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+
+    .top-navigation::-webkit-scrollbar {
+        display: none;
     }
 
     .active-button-info {
@@ -193,10 +205,18 @@ button:focus {
     .tree-button {
         font-size: 13px;
         padding: 6px 10px;
+        flex-shrink: 0;
     }
 
     .tree-add-button {
         font-size: 16px;
+        flex-shrink: 0;
+    }
+
+    .tree-navigation {
+        flex-shrink: 0;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
     }
 
     .toolbar-section h3 {
@@ -211,6 +231,10 @@ button:focus {
     .sidebar {
         min-width: 48px;
         padding: 0;
+    }
+
+    .top-btn-container {
+        flex-shrink: 0;
     }
 }
 
