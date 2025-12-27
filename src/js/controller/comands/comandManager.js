@@ -147,10 +147,10 @@ export class CommandManager {
 
             // Shift+Click для мульти-выделения блоков
             if (this.ctxManager.shiftLock && this.ctxManager.mode === 'normal') {
-                const blockElement = this.ctxManager.blockElement
-                const blockLinkElement = this.ctxManager.blockLinkElement
-                if (blockElement || blockLinkElement) {
-                    this.ctxManager.toggleBlockSelection(blockElement, blockLinkElement)
+                // Определяем блок из event.target, т.к. при shiftLock mouseOver не обновляет blockElement
+                const {element, link} = this.ctxManager.getRelevantElements(target)
+                if (element || link) {
+                    this.ctxManager.toggleBlockSelection(element, link)
                     return
                 }
             }

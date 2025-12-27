@@ -6,6 +6,7 @@ import api from "../api/api";
 import {isExcludedElement, truncate} from '../utils/functions'
 import {jsPlumbInstance} from "../controller/arrowManager";
 import {customConfirm} from "../utils/custom-dialog";
+import {treeService} from "../services/treeService";
 
 
 class BlockRepository {
@@ -158,6 +159,9 @@ export class LocalStateManager {
         window.addEventListener('DeleteTreeBlock', (e) => {
             this.deleteTreeBlock(e.detail)
         });
+        window.addEventListener('DeleteMultipleTreeBlocks', (e) => {
+            this.deleteMultipleTreeBlocks(e.detail)
+        });
         window.addEventListener('CreateTree', (e) => {
             this.createTree(e.detail)
         });
@@ -222,57 +226,127 @@ export class LocalStateManager {
         })
     }
 
-    createTree({title}) {
-        api.createTree(title)
-            .then(async (res) => {
-                if (res.status === 201) {
-                    const block = res.data
-                    const treeIds = await localforage.getItem(`treeIds${this.currentUser}`)
-                    treeIds.push(block.id)
-                    await localforage.setItem(`treeIds${this.currentUser}`, treeIds)
-                    await this.saveBlock(block)
-                    this.showBlocks()
-                }
-            })
+    /**
+     * Создание нового дерева
+     */
+    async createTree({title}) {
+        try {
+            const res = await api.createTree(title)
+            if (res.status === 201) {
+                const block = res.data
+                await treeService.addTree(block.id)
+                await this.saveBlock(block)
+                this.showBlocks()
+            }
+        } catch (error) {
+            console.error('Failed to create tree:', error)
+        }
     }
 
+    /**
+     * Удаление блока и всех его потомков
+     */
     async deleteTreeBlock({blockId}) {
-        if (!await customConfirm(`Вы уверены, что хотите удалить блок ${blockId} и всех его потомков?`)) return
+        if (!await customConfirm(`Вы уверены, что хотите удалить блок и всех его потомков?`)) return
 
-        const treeIds = await localforage.getItem(`treeIds${this.currentUser}`)
-        let newTreeIds = undefined
-        const currentTree = await localforage.getItem(`currentTree`)
+        await treeService.refresh()
+        const isRootTree = treeService.isRootTree(blockId)
 
-        if (treeIds.includes(blockId)) {
-            newTreeIds = treeIds.filter(el => el !== blockId)
-
-            if (currentTree === blockId && treeIds.length === 1) {
-                alert('Нельзя удалить последнее дерево')
-                return
-            }
+        // Нельзя удалить последнее дерево
+        if (isRootTree && treeService.count === 1) {
+            alert('Нельзя удалить последнее дерево')
+            return
         }
-        api.removeTree(blockId)
-            .then(async (res) => {
-                if (res.status === 200) {
-                    console.log(res.data.parent)
-                    localforage.removeItem(`Path_${blockId}${this.currentUser}`)
-                    if (newTreeIds) {
-                        await localforage.setItem(`treeIds${this.currentUser}`, newTreeIds)
-                    }
-                    if (currentTree === blockId) {
-                        await localforage.setItem(`currentTree`, newTreeIds[0])
-                    }
-                    if (res.data.parent) {
-                        await this.saveBlock(res.data.parent)
-                    }
-                    this.getAllChildIds(this.blocks.get(blockId)).forEach((id) => {
-                        this.blockRepository.deleteBlock(id);
-                        this.blocks.delete(id);
-                    })
-                    this.showBlocks()
-                }
-            })
 
+        const block = this.blocks.get(blockId)
+        if (!block) return
+
+        try {
+            const res = await api.removeTree(blockId)
+            if (res.status === 200) {
+                // Удаляем из treeService если это корневой блок
+                if (isRootTree) {
+                    await treeService.removeTree(blockId)
+                }
+
+                // Обновляем родительский блок
+                if (res.data.parent) {
+                    await this.saveBlock(res.data.parent)
+                }
+
+                // Удаляем блок и всех потомков из кеша
+                this.getAllChildIds(block).forEach((id) => {
+                    this.blockRepository.deleteBlock(id)
+                    this.blocks.delete(id)
+                })
+
+                this.showBlocks()
+            }
+        } catch (error) {
+            console.error('Failed to delete tree block:', error)
+        }
+    }
+
+    /**
+     * Удаление нескольких блоков с одним подтверждением
+     */
+    async deleteMultipleTreeBlocks({blockIds}) {
+        if (!blockIds || blockIds.length === 0) return
+
+        const count = blockIds.length
+        const message = count === 1
+            ? `Вы уверены, что хотите удалить блок и всех его потомков?`
+            : `Вы уверены, что хотите удалить ${count} блоков и всех их потомков?`
+
+        if (!await customConfirm(message)) return
+
+        await treeService.refresh()
+
+        // Собираем ID корневых деревьев для batch-удаления
+        const rootTreeIds = blockIds.filter(id => treeService.isRootTree(id))
+
+        // Удаляем каждый блок с сервера и из кеша
+        for (const blockId of blockIds) {
+            await this._deleteBlockFromServer(blockId)
+        }
+
+        // Batch-удаление корневых деревьев через treeService
+        if (rootTreeIds.length > 0) {
+            await treeService.removeMultipleTrees(rootTreeIds)
+        }
+
+        this.showBlocks()
+    }
+
+    /**
+     * Удаление блока с сервера и из локального кеша
+     * @private
+     */
+    async _deleteBlockFromServer(blockId) {
+        const block = this.blocks.get(blockId)
+        if (!block) return false
+
+        try {
+            const res = await api.removeTree(blockId)
+            if (res.status === 200) {
+                // Обновляем родительский блок
+                if (res.data.parent) {
+                    await this.saveBlock(res.data.parent)
+                }
+
+                // Удаляем блок и всех потомков
+                this.getAllChildIds(block).forEach((id) => {
+                    this.blockRepository.deleteBlock(id)
+                    this.blocks.delete(id)
+                })
+
+                return true
+            }
+        } catch (error) {
+            console.error(`Failed to delete block ${blockId}:`, error)
+        }
+
+        return false
     }
 
 
@@ -300,39 +374,30 @@ export class LocalStateManager {
     }
 
     webSocUpdateBlock(newBlocks) {
-        if (newBlocks.length) {
-            let hasTreeUpdate = false;
+        if (!newBlocks.length) return
 
-            newBlocks.forEach((block) => {
-                if (block.deleted) {
-                    this.removeOneBlock(block.id)
-                } else {
-                    if (!block.parent_id) {
-                        hasTreeUpdate = true;
-                        localforage.getItem('currentUser', (err, user) => {
-                            localforage.getItem(`treeIds${user}`, (err, treeIds) => {
-                                if (treeIds && !treeIds.includes(block.id)) {
-                                    treeIds.push(block.id)
-                                    localforage.setItem(`treeIds${user}`, treeIds).then(() => {
-                                        // Уведомляем TreeNavigation об обновлении
-                                        dispatch('UpdateTreeNavigation')
-                                    })
-                                }
-                            })
-                        })
+        newBlocks.forEach(async (block) => {
+            if (block.deleted) {
+                this.removeOneBlock(block.id)
+            } else {
+                // Если это корневой блок (дерево), добавляем через treeService
+                if (!block.parent_id) {
+                    await treeService.refresh()
+                    if (!treeService.hasTree(block.id)) {
+                        await treeService.addTree(block.id)
                     }
-                    this.saveBlock({
-                        id: block.id,
-                        updated_at: new Date(block.updated_at * 1000).toISOString(),
-                        title: block.title,
-                        data: JSON.parse(block.data),
-                        children: JSON.parse(block.children),
-                        parent_id: block.parent_id
-                    })
                 }
-            })
-            this.updateScreen(newBlocks)
-        }
+                this.saveBlock({
+                    id: block.id,
+                    updated_at: new Date(block.updated_at * 1000).toISOString(),
+                    title: block.title,
+                    data: JSON.parse(block.data),
+                    children: JSON.parse(block.children),
+                    parent_id: block.parent_id
+                })
+            }
+        })
+        this.updateScreen(newBlocks)
     }
 
     updateScreen(newBlocks) {
