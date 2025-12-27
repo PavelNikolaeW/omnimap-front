@@ -1,0 +1,223 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Import Popup Styles
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* JSON Input Area */
+.import-json-input {
+    width: 100%;
+    min-height: 200px;
+    max-height: 300px;
+    font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    resize: vertical;
+}
+
+/* File Input */
+.import-file-section {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: var(--popup-bg-subtle, #f9fafb);
+    border: 1px dashed var(--popup-border, #e5e7eb);
+    border-radius: 8px;
+}
+
+.import-file-input {
+    flex: 1;
+}
+
+.import-file-label {
+    font-size: 13px;
+    color: var(--popup-muted, #6b7280);
+}
+
+/* Progress Section */
+.import-progress-section {
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    background: var(--popup-bg-subtle, #f9fafb);
+    border-radius: 8px;
+}
+
+.import-progress-section.visible {
+    display: flex;
+}
+
+/* Progress Bar */
+.import-progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--popup-border, #e5e7eb);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.import-progress-fill {
+    height: 100%;
+    background: var(--popup-primary, #3b82f6);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+    width: 0%;
+}
+
+.import-progress-fill.success {
+    background: var(--popup-success, #10b981);
+}
+
+.import-progress-fill.error {
+    background: var(--popup-danger, #ef4444);
+}
+
+/* Progress Info */
+.import-progress-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+}
+
+.import-progress-stage {
+    color: var(--popup-fg, #1a1a1a);
+    font-weight: 500;
+}
+
+.import-progress-percent {
+    color: var(--popup-muted, #6b7280);
+}
+
+.import-progress-count {
+    font-size: 12px;
+    color: var(--popup-muted, #6b7280);
+}
+
+/* Results Section */
+.import-results-section {
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.import-results-section.visible {
+    display: flex;
+}
+
+/* Success Results */
+.import-results-success {
+    display: flex;
+    gap: 16px;
+    padding: 12px 16px;
+    background: color-mix(in oklab, var(--popup-success, #10b981) 10%, transparent);
+    border: 1px solid var(--popup-success, #10b981);
+    border-radius: 8px;
+}
+
+.import-result-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.import-result-value {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--popup-success, #10b981);
+}
+
+.import-result-label {
+    font-size: 12px;
+    color: var(--popup-muted, #6b7280);
+}
+
+/* Error List */
+.import-error-list {
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 12px;
+    background: color-mix(in oklab, var(--popup-danger, #ef4444) 5%, transparent);
+    border: 1px solid var(--popup-danger, #ef4444);
+    border-radius: 8px;
+}
+
+.import-error-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--popup-danger, #ef4444);
+    margin-bottom: 8px;
+}
+
+.import-error-item {
+    display: flex;
+    gap: 8px;
+    padding: 6px 0;
+    font-size: 13px;
+    border-bottom: 1px solid color-mix(in oklab, var(--popup-danger, #ef4444) 20%, transparent);
+}
+
+.import-error-item:last-child {
+    border-bottom: none;
+}
+
+.import-error-block-id {
+    font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+    font-size: 11px;
+    color: var(--popup-muted, #6b7280);
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.import-error-code {
+    color: var(--popup-danger, #ef4444);
+}
+
+/* Stage Labels */
+.stage-preparing {
+    color: var(--popup-muted, #6b7280);
+}
+
+.stage-importing {
+    color: var(--popup-primary, #3b82f6);
+}
+
+.stage-notifying {
+    color: var(--popup-success, #10b981);
+}
+
+/* Validation Errors */
+.import-validation-errors {
+    padding: 12px;
+    background: color-mix(in oklab, var(--popup-danger, #ef4444) 5%, transparent);
+    border: 1px solid var(--popup-danger, #ef4444);
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--popup-danger, #ef4444);
+    white-space: pre-wrap;
+}
+
+/* Mobile Responsive */
+@media (max-width: 640px) {
+    .import-json-input {
+        min-height: 150px;
+        font-size: 12px;
+    }
+
+    .import-file-section {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .import-results-success {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .import-result-stat {
+        flex-direction: row;
+        justify-content: space-between;
+    }
+}

@@ -296,6 +296,15 @@ class Api {
             return this.api.post(url, data)
     }
 
+    /**
+     * Импорт блоков (асинхронная задача)
+     * @param {Array} payload - Массив блоков для импорта
+     * @returns {Promise} - { task_id: string }
+     */
+    importBlocks(payload) {
+        return this.api.post('import/', { payload })
+    }
+
 }
 
 const api = new Api()

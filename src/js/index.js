@@ -9,6 +9,7 @@ import '../style/urlPopup.css';
 import '../style/accessPopup.css';
 import '../style/editBlock.css';
 import '../style/historyPopup.css';
+import '../style/importPopup.css';
 import '../style/solid.css';
 import '../style/fontawesome.css';
 // import '../style/chat.css';
