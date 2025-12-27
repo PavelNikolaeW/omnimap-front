@@ -81,6 +81,8 @@ export class ImageUploadPopup extends Popup {
         this.errorContainer = document.createElement("div");
         this.errorContainer.className = "popup-message-container";
         this.errorContainer.style.display = "none";
+        this.errorContainer.setAttribute('role', 'alert');
+        this.errorContainer.setAttribute('aria-live', 'assertive');
         this.errorMsg = document.createElement("div");
         this.errorMsg.className = "popup-message popup-message--error";
         this.errorContainer.appendChild(this.errorMsg);
@@ -90,6 +92,8 @@ export class ImageUploadPopup extends Popup {
         this.successContainer = document.createElement("div");
         this.successContainer.className = "popup-message-container";
         this.successContainer.style.display = "none";
+        this.successContainer.setAttribute('role', 'status');
+        this.successContainer.setAttribute('aria-live', 'polite');
         this.successMsg = document.createElement("div");
         this.successMsg.className = "popup-message popup-message--success";
         this.successContainer.appendChild(this.successMsg);
@@ -103,9 +107,12 @@ export class ImageUploadPopup extends Popup {
         // Drop zone
         this.dropZone = document.createElement("div");
         this.dropZone.className = "image-upload-dropzone";
+        this.dropZone.setAttribute('role', 'button');
+        this.dropZone.setAttribute('tabindex', '0');
+        this.dropZone.setAttribute('aria-label', 'Область для загрузки изображения. Нажмите или перетащите файл');
         this.dropZone.innerHTML = `
             <div class="image-upload-dropzone-content">
-                <i class="fas fa-cloud-upload-alt image-upload-icon"></i>
+                <i class="fas fa-cloud-upload-alt image-upload-icon" aria-hidden="true"></i>
                 <p class="image-upload-text">Перетащите изображение сюда</p>
                 <p class="image-upload-subtext">или нажмите для выбора файла</p>
                 <p class="image-upload-hint">JPEG, PNG, GIF, WebP • до 5 MB • макс. 4096x4096</p>
@@ -118,12 +125,18 @@ export class ImageUploadPopup extends Popup {
         this.fileInput.type = "file";
         this.fileInput.accept = ALLOWED_TYPES.join(",");
         this.fileInput.style.display = "none";
+        this.fileInput.setAttribute('aria-label', 'Выбор файла изображения');
         container.appendChild(this.fileInput);
 
         // Прогресс загрузки
         this.progressContainer = document.createElement("div");
         this.progressContainer.className = "image-upload-progress";
         this.progressContainer.style.display = "none";
+        this.progressContainer.setAttribute('role', 'progressbar');
+        this.progressContainer.setAttribute('aria-valuemin', '0');
+        this.progressContainer.setAttribute('aria-valuemax', '100');
+        this.progressContainer.setAttribute('aria-valuenow', '0');
+        this.progressContainer.setAttribute('aria-label', 'Прогресс загрузки изображения');
         this.progressBar = document.createElement("div");
         this.progressBar.className = "image-upload-progress-bar";
         this.progressText = document.createElement("span");
@@ -143,6 +156,14 @@ export class ImageUploadPopup extends Popup {
         // Click на dropzone
         this.dropZone.addEventListener('click', () => {
             if (!this.isUploading) {
+                this.fileInput.click();
+            }
+        });
+
+        // Keyboard support for dropzone
+        this.dropZone.addEventListener('keydown', (e) => {
+            if ((e.key === 'Enter' || e.key === ' ') && !this.isUploading) {
+                e.preventDefault();
                 this.fileInput.click();
             }
         });
@@ -282,21 +303,42 @@ export class ImageUploadPopup extends Popup {
         // Создаём overlay для полноразмерного просмотра
         const overlay = document.createElement('div');
         overlay.className = 'image-fullsize-overlay';
-        overlay.addEventListener('click', () => overlay.remove());
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-label', 'Просмотр изображения');
+
+        const closeOverlay = () => {
+            overlay.remove();
+            document.removeEventListener('keydown', handleKeydown);
+        };
+
+        const handleKeydown = (e) => {
+            if (e.key === 'Escape') {
+                closeOverlay();
+            }
+        };
+
+        overlay.addEventListener('click', closeOverlay);
+        document.addEventListener('keydown', handleKeydown);
 
         const img = document.createElement('img');
         img.src = this.currentImage.url;
         img.className = 'image-fullsize-img';
+        img.alt = this.currentImage.filename || 'Изображение блока';
         img.addEventListener('click', (e) => e.stopPropagation());
 
         const closeBtn = document.createElement('button');
         closeBtn.className = 'image-fullsize-close';
-        closeBtn.innerHTML = '<i class="fas fa-times"></i>';
-        closeBtn.addEventListener('click', () => overlay.remove());
+        closeBtn.innerHTML = '<i class="fas fa-times" aria-hidden="true"></i>';
+        closeBtn.setAttribute('aria-label', 'Закрыть просмотр');
+        closeBtn.addEventListener('click', closeOverlay);
 
         overlay.appendChild(img);
         overlay.appendChild(closeBtn);
         document.body.appendChild(overlay);
+
+        // Focus on close button for keyboard users
+        closeBtn.focus();
     }
 
     async deleteImage() {
@@ -330,6 +372,7 @@ export class ImageUploadPopup extends Popup {
     updateProgress(percent) {
         this.progressBar.style.width = `${percent}%`;
         this.progressText.textContent = `${percent}%`;
+        this.progressContainer.setAttribute('aria-valuenow', percent);
     }
 
     showError(message) {
