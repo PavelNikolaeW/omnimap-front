@@ -10,6 +10,11 @@ import {EditBlockPopup} from "../popups/editBlockPopup";
 import {SearchBlocksPopup} from "../popups/SearchPopup";
 import {ImportPopup} from "../popups/importPopup";
 import {ImageUploadPopup} from "../popups/imageUploadPopup";
+import {ReminderPopup} from "../popups/reminderPopup";
+import {SubscriptionPopup} from "../popups/subscriptionPopup";
+import {NotificationSettingsPopup} from "../popups/notificationSettingsPopup";
+import {RemindersListPopup} from "../popups/remindersListPopup";
+import {SubscriptionsListPopup} from "../popups/subscriptionsListPopup";
 
 
 export const popupsCommands = [
@@ -387,6 +392,192 @@ export const popupsCommands = [
                 onImageChange(imageData) {
                     // Обновляем данные блока с информацией об изображении
                     dispatch('UpdateBlockImage', { blockId, imageData });
+                },
+                onCancel() {
+                    ctx.mode = 'normal';
+                }
+            });
+        }
+    },
+    {
+        id: "setReminder",
+        mode: ['normal'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Напомнить о блоке',
+            classes: ['sidebar-button', 'fas', 'fa-bell', 'fas-lg']
+        },
+        defaultHotkey: 'r',
+        description: 'Создать напоминание о блоке',
+        async execute(ctx) {
+            const blockId = ctx.blockElement?.id.split('*').at(-1);
+            if (!blockId) return;
+
+            ctx.mode = 'setReminder';
+            ctx.closePopups();
+            setCmdOpenBlock(ctx);
+
+            // Получаем название блока и проверяем существующее напоминание
+            let blockTitle = ctx.blockElement.querySelector('titleBlock')?.innerText || '';
+            let existingReminder = null;
+
+            try {
+                const res = await api.getBlockReminder(blockId);
+                if (res.status === 200 && res.data) {
+                    existingReminder = res.data;
+                }
+            } catch (err) {
+                // 404 = нет напоминания, это нормально
+                if (err.response?.status !== 404) {
+                    console.error('Error fetching reminder:', err);
+                }
+            }
+
+            ctx.popup = new ReminderPopup({
+                blockId: blockId,
+                blockTitle: blockTitle,
+                existingReminder: existingReminder,
+                onSave() {
+                    ctx.mode = 'normal';
+                },
+                onDelete() {
+                    ctx.mode = 'normal';
+                },
+                onCancel() {
+                    ctx.mode = 'normal';
+                }
+            });
+        }
+    },
+    {
+        id: "watchBlock",
+        mode: ['normal'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Следить за изменениями блока',
+            classes: ['sidebar-button', 'fas', 'fa-eye', 'fas-lg']
+        },
+        defaultHotkey: 'shift+w',
+        description: 'Подписаться на изменения блока',
+        async execute(ctx) {
+            const blockId = ctx.blockElement?.id.split('*').at(-1);
+            if (!blockId) return;
+
+            ctx.mode = 'watchBlock';
+            ctx.closePopups();
+            setCmdOpenBlock(ctx);
+
+            let blockTitle = ctx.blockElement.querySelector('titleBlock')?.innerText || '';
+            let existingSubscription = null;
+
+            try {
+                const res = await api.getBlockSubscription(blockId);
+                if (res.status === 200 && res.data) {
+                    existingSubscription = res.data;
+                }
+            } catch (err) {
+                // 404 = нет подписки, это нормально
+                if (err.response?.status !== 404) {
+                    console.error('Error fetching subscription:', err);
+                }
+            }
+
+            // Если подписки нет — создаём быстро с дефолтными настройками
+            if (!existingSubscription) {
+                try {
+                    await api.createSubscription({
+                        block_id: blockId,
+                        depth: 1,
+                        on_text_change: true,
+                        on_data_change: true,
+                        on_move: true,
+                        on_child_add: true,
+                        on_child_delete: true
+                    });
+                    dispatch('SubscriptionUpdated', { blockId });
+                    dispatch('ShowToast', { message: 'Подписка на изменения включена', type: 'success' });
+                    ctx.mode = 'normal';
+                    return;
+                } catch (err) {
+                    console.error('Failed to create subscription:', err);
+                }
+            }
+
+            // Если подписка уже есть — открываем окно настройки
+            ctx.popup = new SubscriptionPopup({
+                blockId: blockId,
+                blockTitle: blockTitle,
+                existingSubscription: existingSubscription,
+                onSave() {
+                    ctx.mode = 'normal';
+                },
+                onDelete() {
+                    ctx.mode = 'normal';
+                },
+                onCancel() {
+                    ctx.mode = 'normal';
+                }
+            });
+        }
+    },
+    {
+        id: "notificationSettings",
+        mode: ['normal'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Настройки уведомлений',
+            classes: ['sidebar-button', 'fas', 'fa-sliders', 'fas-lg']
+        },
+        defaultHotkey: 'shift+n',
+        description: 'Открыть настройки уведомлений',
+        execute(ctx) {
+            ctx.mode = 'notificationSettings';
+            ctx.closePopups();
+            setCmdOpenBlock(ctx);
+
+            ctx.popup = new NotificationSettingsPopup({
+                onCancel() {
+                    ctx.mode = 'normal';
+                },
+                onSave() {
+                    ctx.mode = 'normal';
+                }
+            });
+        }
+    },
+    {
+        id: "myReminders",
+        mode: ['normal'],
+        defaultHotkey: '',
+        description: 'Показать мои напоминания',
+        execute(ctx) {
+            ctx.mode = 'myReminders';
+            ctx.closePopups();
+            setCmdOpenBlock(ctx);
+
+            ctx.popup = new RemindersListPopup({
+                onOpen(blockId) {
+                    dispatch('OpenBlock', { id: blockId });
+                },
+                onCancel() {
+                    ctx.mode = 'normal';
+                }
+            });
+        }
+    },
+    {
+        id: "mySubscriptions",
+        mode: ['normal'],
+        defaultHotkey: '',
+        description: 'Показать мои подписки',
+        execute(ctx) {
+            ctx.mode = 'mySubscriptions';
+            ctx.closePopups();
+            setCmdOpenBlock(ctx);
+
+            ctx.popup = new SubscriptionsListPopup({
+                onOpen(blockId) {
+                    dispatch('OpenBlock', { id: blockId });
                 },
                 onCancel() {
                     ctx.mode = 'normal';

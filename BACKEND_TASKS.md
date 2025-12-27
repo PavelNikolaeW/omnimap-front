@@ -1,174 +1,131 @@
-# Задачи от Backend
+# Задачи для backend-сервисов
 
-## Реализовать взаимодействие с `/api/v1/import/`
+## omnimap-back
 
-### Описание
-Добавить функционал массового импорта блоков через асинхронный API endpoint.
+### Напоминания (Reminders API)
 
-### API Спецификация
+- [ ] Создать модель `Reminder`:
+  ```python
+  class Reminder(models.Model):
+      id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+      user = models.ForeignKey(User, on_delete=models.CASCADE)
+      block = models.ForeignKey(Block, on_delete=models.CASCADE)
+      remind_at = models.DateTimeField()
+      timezone = models.CharField(max_length=50, default='Europe/Moscow')
+      message = models.TextField(blank=True)
+      repeat = models.CharField(max_length=20, choices=[
+          ('none', 'Не повторять'),
+          ('daily', 'Ежедневно'),
+          ('weekly', 'Еженедельно'),
+          ('monthly', 'Ежемесячно'),
+      ], default='none')
+      status = models.CharField(max_length=20, choices=[
+          ('pending', 'Ожидает'),
+          ('sent', 'Отправлено'),
+      ], default='pending')
+      created_at = models.DateTimeField(auto_now_add=True)
+      sent_at = models.DateTimeField(null=True, blank=True)
+  ```
 
-#### 1. Отправка импорта
-```
-POST /api/v1/import/
-Authorization: Bearer <token>
-Content-Type: application/json
-```
+- [ ] Реализовать API endpoints:
+  - `POST /api/v1/reminders/` - создать напоминание
+  - `GET /api/v1/reminders/` - получить все напоминания (опционально `?status=pending|sent`)
+  - `GET /api/v1/blocks/{block_id}/reminder/` - получить напоминание для блока
+  - `PATCH /api/v1/reminders/{id}/` - обновить напоминание
+  - `DELETE /api/v1/reminders/{id}/` - удалить напоминание
 
-**Request:**
-```json
-{
-  "payload": [
-    {
-      "id": "uuid",              // обязательно, генерировать на клиенте
-      "title": "string | null",
-      "data": {
-        "childOrder": ["uuid", ...],
-        "view": "string",
-        ...
-      },
-      "parent_id": "uuid | null", // null = корневой блок
-      "permissions": {
-        "users": [{"user_id": 1, "permission": "view|edit|edit_ac|delete"}],
-        "groups": [{"group_id": 1, "permission": "view|edit|edit_ac|delete"}]
-      }
-    }
-  ]
-}
-```
+- [ ] Добавить Celery задачу для отправки напоминаний
+- [ ] Валидация: remind_at должен быть в будущем, лимит 100 напоминаний на пользователя
 
-**Response (202 Accepted):**
-```json
-{
-  "task_id": "celery-task-uuid"
-}
-```
+### Подписки на изменения (Subscriptions API)
 
-#### 2. Polling статуса задачи
-```
-GET /api/v1/tasks/<task_id>/
-Authorization: Bearer <token>
-```
+- [ ] Создать модель `BlockSubscription`:
+  ```python
+  class BlockSubscription(models.Model):
+      id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+      user = models.ForeignKey(User, on_delete=models.CASCADE)
+      block = models.ForeignKey(Block, on_delete=models.CASCADE)
+      depth = models.IntegerField(default=1)  # 0=только блок, 1,2,3 или -1=все
+      on_text_change = models.BooleanField(default=True)
+      on_data_change = models.BooleanField(default=True)
+      on_move = models.BooleanField(default=True)
+      on_child_add = models.BooleanField(default=True)
+      on_child_delete = models.BooleanField(default=True)
+      created_at = models.DateTimeField(auto_now_add=True)
 
-**Response варианты:**
+      class Meta:
+          unique_together = ['user', 'block']
+  ```
 
-```json
-// PENDING - задача в очереди
-{
-  "task_id": "...",
-  "status": "PENDING",
-  "result": null
-}
+- [ ] Реализовать API endpoints:
+  - `POST /api/v1/subscriptions/` - создать подписку
+  - `GET /api/v1/subscriptions/` - получить все подписки пользователя
+  - `GET /api/v1/blocks/{block_id}/subscription/` - получить подписку на блок
+  - `PATCH /api/v1/subscriptions/{id}/` - обновить подписку
+  - `DELETE /api/v1/subscriptions/{id}/` - удалить подписку
 
-// PROGRESS - выполняется
-{
-  "task_id": "...",
-  "status": "PROGRESS",
-  "progress": {
-    "stage": "starting | importing | notifications",
-    "percent": 0-100,
-    "total_blocks": 50
-  },
-  "result": null
-}
+- [ ] При изменении блока проверять подписки и отправлять уведомления
+- [ ] Лимит 50 подписок на пользователя
 
-// SUCCESS - завершено
-{
-  "task_id": "...",
-  "status": "SUCCESS",
-  "result": {
-    "success": true,
-    "created": ["uuid1", "uuid2"],
-    "updated": ["uuid3"],
-    "unchanged": [],
-    "deleted": [],
-    "errors": [],
-    "problem_blocks": []
-  }
-}
+### Настройки уведомлений (Notification Settings API)
 
-// SUCCESS с проблемами
-{
-  "task_id": "...",
-  "status": "SUCCESS",
-  "result": {
-    "success": false,
-    "created": ["uuid1"],
-    "updated": [],
-    "errors": ["parent_not_found"],
-    "problem_blocks": [
-      {"block_id": "uuid2", "code": "parent_not_found"}
-    ]
-  }
-}
+- [ ] Создать модель `NotificationSettings`:
+  ```python
+  class NotificationSettings(models.Model):
+      user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
+      email_enabled = models.BooleanField(default=False)
+      email_mode = models.CharField(max_length=20, choices=[
+          ('off', 'Выключено'),
+          ('fallback', 'Если Telegram недоступен'),
+          ('always', 'Всегда'),
+      ], default='off')
+      quiet_hours_enabled = models.BooleanField(default=False)
+      quiet_hours_start = models.TimeField(default='23:00')
+      quiet_hours_end = models.TimeField(default='08:00')
+      timezone = models.CharField(max_length=50, default='Europe/Moscow')
+      telegram_chat_id = models.CharField(max_length=100, blank=True, null=True)
+      telegram_username = models.CharField(max_length=100, blank=True, null=True)
+      telegram_linked_at = models.DateTimeField(null=True, blank=True)
+  ```
 
-// FAILURE - ошибка
-{
-  "task_id": "...",
-  "status": "FAILURE",
-  "result": {
-    "success": false,
-    "error": "Database connection failed",
-    "errors": ["exception"]
-  }
-}
-```
+- [ ] Реализовать API endpoints:
+  - `GET /api/v1/notifications/settings/` - получить настройки
+  - `PATCH /api/v1/notifications/settings/` - обновить настройки
 
-### Требования к реализации
+### Telegram интеграция
 
-1. **Сервис импорта** (`services/importService.js` или аналог):
-   ```javascript
-   // Генерация UUID на клиенте
-   const generateBlockId = () => crypto.randomUUID();
+- [ ] Создать Telegram бота (omnimap-back или отдельный сервис)
+- [ ] Реализовать API endpoints:
+  - `GET /api/v1/notifications/telegram/status/` - статус привязки
+  - `POST /api/v1/notifications/telegram/link/` - получить ссылку для привязки (генерирует одноразовый токен)
+  - `POST /api/v1/notifications/telegram/unlink/` - отвязать Telegram
+  - `POST /api/v1/notifications/telegram/test/` - отправить тестовое сообщение
 
-   // Отправка импорта
-   async function importBlocks(blocks) {
-     const response = await fetch('/api/v1/import/', {
-       method: 'POST',
-       headers: {
-         'Content-Type': 'application/json',
-         'Authorization': `Bearer ${getToken()}`
-       },
-       body: JSON.stringify({ payload: blocks })
-     });
-     return response.json(); // { task_id: "..." }
-   }
+- [ ] Telegram бот должен:
+  - Обрабатывать команду /start с токеном для привязки
+  - Сохранять chat_id пользователя
+  - Отправлять напоминания и уведомления об изменениях
 
-   // Polling статуса
-   async function pollTaskStatus(taskId, onProgress) {
-     while (true) {
-       const response = await fetch(`/api/v1/tasks/${taskId}/`, {
-         headers: { 'Authorization': `Bearer ${getToken()}` }
-       });
-       const data = await response.json();
+### Push уведомления (Web Push API)
 
-       if (data.status === 'PROGRESS' && onProgress) {
-         onProgress(data.progress);
-       }
+- [ ] Реализовать API endpoints:
+  - `POST /api/v1/notifications/push/subscribe/` - подписать устройство (принимает PushSubscription объект)
+  - `POST /api/v1/notifications/push/unsubscribe/` - отписать устройство
+  - `POST /api/v1/notifications/push/test/` - отправить тестовое уведомление
 
-       if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
-         return data;
-       }
+- [ ] Хранить VAPID ключи
+- [ ] Поддержка нескольких устройств на пользователя
 
-       await new Promise(r => setTimeout(r, 500)); // poll каждые 500ms
-     }
-   }
-   ```
+## llm-gateway
 
-2. **UI компоненты**:
-   - Прогресс-бар во время импорта
-   - Отображение stage: "Подготовка..." → "Импорт блоков..." → "Отправка уведомлений..."
-   - Отображение ошибок из `problem_blocks`
-   - Успешное завершение: показать количество created/updated
+Изменений не требуется.
 
-3. **Обработка ошибок**:
-   - `parent_not_found` — родительский блок не существует
-   - `creator_missing` — не указан создатель
-   - `cycle_detected` — обнаружен цикл в иерархии
-   - `permission_denied` — нет прав на изменение
+## omnimap-sync
 
-### Лимиты
-- Максимум **1000 блоков** за один запрос (`LIMIT_BLOCKS`)
-- ID блоков должны быть валидными UUID v4/v6/v7
-
-### Связанные PR
-- Backend PR #3: https://github.com/PavelNikolaeW/omnimap-back/pull/3
+- [ ] Добавить WebSocket события:
+  - `reminder_created` - напоминание создано
+  - `reminder_updated` - напоминание обновлено
+  - `reminder_deleted` - напоминание удалено
+  - `subscription_created` - подписка создана
+  - `subscription_updated` - подписка обновлена
+  - `subscription_deleted` - подписка удалена
