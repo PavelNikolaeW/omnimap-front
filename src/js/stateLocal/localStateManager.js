@@ -7,6 +7,7 @@ import {isExcludedElement, truncate} from '../utils/functions'
 import {jsPlumbInstance} from "../controller/arrowManager";
 import {customConfirm} from "../utils/custom-dialog";
 import {treeService} from "../services/treeService";
+import {treeValidator} from "./treeValidator";
 
 
 class BlockRepository {
@@ -226,6 +227,12 @@ export class LocalStateManager {
         })
         window.addEventListener('UpdateBlockImage', (e) => {
             this.updateBlockImage(e.detail)
+        })
+        window.addEventListener('ValidateTree', () => {
+            this.validateTree()
+        })
+        window.addEventListener('RepairTree', () => {
+            this.repairTree()
         })
     }
 
@@ -486,6 +493,80 @@ export class LocalStateManager {
         })
     }
 
+    /**
+     * Валидация дерева блоков без исправления
+     * @returns {Object} результат валидации
+     */
+    validateTree() {
+        const result = treeValidator.validate(this.blocks);
+        const cycles = treeValidator.detectCycles(this.blocks);
+
+        console.group('🔍 Валидация дерева блоков');
+        if (result.valid && cycles.length === 0) {
+            console.log('✓ Дерево валидно');
+        } else {
+            if (result.issues.length > 0) {
+                console.warn(`Найдено проблем: ${result.issues.length}`);
+                console.table(result.issues.map(i => ({
+                    type: i.type,
+                    severity: i.severity,
+                    blockId: i.blockId || '-',
+                    message: i.message
+                })));
+            }
+            if (cycles.length > 0) {
+                console.error(`Найдено циклов: ${cycles.length}`);
+                cycles.forEach((cycle, i) => {
+                    console.error(`  Цикл ${i + 1}: ${cycle.join(' -> ')}`);
+                });
+            }
+        }
+        console.groupEnd();
+
+        return { ...result, cycles };
+    }
+
+    /**
+     * Валидация и автоматическое восстановление дерева блоков
+     * @returns {Promise<Object>} результат восстановления
+     */
+    async repairTree() {
+        console.group('🔧 Восстановление дерева блоков');
+
+        const result = treeValidator.validateAndRepair(this.blocks);
+        console.log(treeValidator.formatReport(result));
+
+        if (result.repaired && result.repairs.modifiedBlocks.size > 0) {
+            // Сохраняем исправленные блоки в IndexedDB
+            console.log('Сохранение исправленных блоков...');
+            for (const blockId of result.repairs.modifiedBlocks) {
+                const block = this.blocks.get(blockId);
+                if (block && this.blockRepository) {
+                    await this.blockRepository.saveBlock(block);
+                }
+            }
+            console.log(`✓ Сохранено ${result.repairs.modifiedBlocks.size} блоков`);
+
+            // Перерисовываем
+            this.showBlocks();
+        }
+
+        console.groupEnd();
+        return result;
+    }
+
+    /**
+     * Автоматическая проверка и восстановление при загрузке
+     * Вызывается в фоне, не блокирует UI
+     */
+    async autoRepairIfNeeded() {
+        const validation = treeValidator.validate(this.blocks);
+        if (!validation.valid) {
+            console.warn(`⚠ Обнаружены проблемы в дереве блоков (${validation.issues.length}). Запускаем автовосстановление...`);
+            await this.repairTree();
+        }
+    }
+
     moveBlock({block_id, old_parent_id, new_parent_id, before}) {
         if (block_id === new_parent_id) return
         const parent = this.blocks.get(new_parent_id)
@@ -735,6 +816,8 @@ export class LocalStateManager {
         // Всегда загружаем блоки из IndexedDB если память пуста или блок текущего дерева отсутствует
         if (!this.blocks || this.blocks.size === 0 || (this.currentTree && !this.blocks.has(this.currentTree))) {
             await this.getAllBlocksForUser(this.currentUser);
+            // Автоматическая проверка и восстановление после загрузки
+            this.autoRepairIfNeeded();
         }
 
         this.path = await localforage.getItem(`Path_${this.currentTree}${this.currentUser}`) || [];
