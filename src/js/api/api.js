@@ -297,6 +297,74 @@ class Api {
     }
 
     /**
+     * Загрузка изображения в блок
+     * @param {string} blockId - ID блока
+     * @param {File} file - Файл изображения
+     * @param {Function} onProgress - Callback для отслеживания прогресса (0-100)
+     * @returns {Promise} - Данные загруженного файла
+     */
+    uploadBlockImage(blockId, file, onProgress) {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            const formData = new FormData();
+            formData.append('file', file);
+
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable && onProgress) {
+                    onProgress(Math.round((e.loaded / e.total) * 100));
+                }
+            });
+
+            xhr.addEventListener('load', () => {
+                if (xhr.status === 201) {
+                    resolve(JSON.parse(xhr.responseText));
+                } else {
+                    try {
+                        const error = JSON.parse(xhr.responseText);
+                        reject(new Error(error.detail || 'Ошибка загрузки'));
+                    } catch {
+                        reject(new Error('Ошибка загрузки'));
+                    }
+                }
+            });
+
+            xhr.addEventListener('error', () => reject(new Error('Ошибка сети')));
+
+            xhr.open('POST', `${this.backendUrl}/api/v1/blocks/${blockId}/file/`);
+            const token = Cookies.get('access');
+            if (token) {
+                xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            }
+            xhr.send(formData);
+        });
+    }
+
+    /**
+     * Получение информации о файле блока
+     * @param {string} blockId - ID блока
+     * @returns {Promise} - Данные файла или null если файл отсутствует
+     */
+    getBlockImage(blockId) {
+        return this.api.get(`blocks/${blockId}/file/`)
+            .then(res => res.data)
+            .catch(err => {
+                if (err.response && err.response.status === 404) {
+                    return null;
+                }
+                throw err;
+            });
+    }
+
+    /**
+     * Удаление файла блока
+     * @param {string} blockId - ID блока
+     * @returns {Promise}
+     */
+    deleteBlockImage(blockId) {
+        return this.api.delete(`blocks/${blockId}/file/`);
+    }
+
+    /**
      * Импорт блоков (асинхронная задача)
      * @param {Array} payload - Массив блоков для импорта
      * @returns {Promise} - { task_id: string }

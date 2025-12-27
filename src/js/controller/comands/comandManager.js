@@ -136,6 +136,15 @@ export class CommandManager {
             } else if (target.href.startsWith('http')) {
                 window.open(target.href, '_blank')
             }
+        } else if (target.classList.contains('block-image') || target.closest('.block-image-container')) {
+            // Клик на изображение - открываем полноразмерный просмотр
+            event.preventDefault();
+            event.stopPropagation();
+            const container = target.closest('.block-image-container') || target.parentElement;
+            const fullsizeUrl = container?.getAttribute('data-fullsize-url');
+            if (fullsizeUrl) {
+                this.openFullsizeImage(fullsizeUrl);
+            }
         } else if (isExcludedElement(target, 'commandManager', ['body', 'textarea', 'input', 'emoji-picker'])) {
         } else {
             const selection = window.getSelection()
@@ -185,6 +194,36 @@ export class CommandManager {
             const cmd = this.commandsById[target.id]
             this.ctxManager.setCmd(cmd)
         }
+    }
+
+    openFullsizeImage(url) {
+        // Создаём overlay для полноразмерного просмотра
+        const overlay = document.createElement('div');
+        overlay.className = 'image-fullsize-overlay';
+        overlay.addEventListener('click', () => overlay.remove());
+
+        const img = document.createElement('img');
+        img.src = url;
+        img.className = 'image-fullsize-img';
+        img.addEventListener('click', (e) => e.stopPropagation());
+
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'image-fullsize-close';
+        closeBtn.innerHTML = '<i class="fas fa-times"></i>';
+        closeBtn.addEventListener('click', () => overlay.remove());
+
+        // Закрытие по Escape
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                overlay.remove();
+                document.removeEventListener('keydown', handleEscape);
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
+
+        overlay.appendChild(img);
+        overlay.appendChild(closeBtn);
+        document.body.appendChild(overlay);
     }
 }
 

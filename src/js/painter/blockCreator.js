@@ -163,7 +163,18 @@ class BlockCreator {
         contentElement.classList.add('defaultContent');
         contentElement.setAttribute('defaultContent', block.title)
         const content = block.data.text ? `<contentBlock>${block.data?.text}</contentBlock>` : '<contentBlock></contentBlock>'
-        contentElement.innerHTML = title + content
+
+        // Добавляем изображение если есть
+        let imageHtml = ''
+        if (block.data?.image?.thumbnail_url) {
+            const imageUrl = block.data.image.url || block.data.image.thumbnail_url
+            const thumbnailUrl = block.data.image.thumbnail_url
+            imageHtml = `<div class="block-image-container" data-fullsize-url="${imageUrl}">
+                <img src="${thumbnailUrl}" alt="${block.data.image.filename || 'Block image'}" class="block-image" loading="lazy" />
+            </div>`
+        }
+
+        contentElement.innerHTML = title + imageHtml + content
 
         block.data.contentAttributes?.forEach(attr => contentElement.setAttribute(attr.name, attr.value))
         block.data.layoutAttributes?.[block.size.layout].forEach(attr => contentElement.setAttribute(attr.name, attr.value))
