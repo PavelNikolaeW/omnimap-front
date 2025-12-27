@@ -289,6 +289,8 @@ export class LocalStateManager {
 
     /**
      * Удаление нескольких блоков с одним подтверждением
+     * @param {Object} params
+     * @param {Array<string>} params.blockIds - массив ID блоков для удаления
      */
     async deleteMultipleTreeBlocks({blockIds}) {
         if (!blockIds || blockIds.length === 0) return
@@ -300,31 +302,57 @@ export class LocalStateManager {
 
         if (!await customConfirm(message)) return
 
-        await treeService.refresh()
+        try {
+            await treeService.refresh()
 
-        // Собираем ID корневых деревьев для batch-удаления
-        const rootTreeIds = blockIds.filter(id => treeService.isRootTree(id))
+            // Собираем ID корневых деревьев для batch-удаления
+            const rootTreeIds = blockIds.filter(id => treeService.isRootTree(id))
 
-        // Удаляем каждый блок с сервера и из кеша
-        for (const blockId of blockIds) {
-            await this._deleteBlockFromServer(blockId)
+            // Отслеживаем успешные и неуспешные удаления
+            const results = {success: [], failed: []}
+
+            // Удаляем каждый блок с сервера и из кеша
+            for (const blockId of blockIds) {
+                const success = await this._deleteBlockFromServer(blockId)
+                if (success) {
+                    results.success.push(blockId)
+                } else {
+                    results.failed.push(blockId)
+                }
+            }
+
+            // Batch-удаление корневых деревьев через treeService
+            // Удаляем только те, которые успешно удалены с сервера
+            const successfulRootTreeIds = rootTreeIds.filter(id => results.success.includes(id))
+            if (successfulRootTreeIds.length > 0) {
+                await treeService.removeMultipleTrees(successfulRootTreeIds)
+            }
+
+            // Логируем результаты
+            if (results.failed.length > 0) {
+                console.warn(`Не удалось удалить ${results.failed.length} блоков:`, results.failed)
+            }
+
+            this.showBlocks()
+        } catch (error) {
+            console.error('Ошибка при batch-удалении блоков:', error)
+            // Показываем блоки в любом случае, чтобы обновить UI
+            this.showBlocks()
         }
-
-        // Batch-удаление корневых деревьев через treeService
-        if (rootTreeIds.length > 0) {
-            await treeService.removeMultipleTrees(rootTreeIds)
-        }
-
-        this.showBlocks()
     }
 
     /**
      * Удаление блока с сервера и из локального кеша
+     * @param {string} blockId - ID блока для удаления
+     * @returns {Promise<boolean>} - true если удаление успешно
      * @private
      */
     async _deleteBlockFromServer(blockId) {
         const block = this.blocks.get(blockId)
-        if (!block) return false
+        // Блок мог быть уже удалён как дочерний другого блока
+        if (!block) {
+            return true // Считаем успехом, так как блока уже нет
+        }
 
         try {
             const res = await api.removeTree(blockId)
@@ -334,139 +362,22 @@ export class LocalStateManager {
                     await this.saveBlock(res.data.parent)
                 }
 
-                // Удаляем блок и всех потомков
-                this.getAllChildIds(block).forEach((id) => {
-                    this.blockRepository.deleteBlock(id)
+                // Удаляем блок и всех потомков из локального кеша
+                const childIds = this.getAllChildIds(block)
+                for (const id of childIds) {
+                    await this.blockRepository.deleteBlock(id)
                     this.blocks.delete(id)
-                })
+                }
 
                 return true
             }
+            console.warn(`Неожиданный статус ответа при удалении блока ${blockId}:`, res.status)
         } catch (error) {
-            console.error(`Failed to delete block ${blockId}:`, error)
+            console.error(`Ошибка при удалении блока ${blockId}:`, error)
         }
 
         return false
     }
-
-    /**
-     * Удаление нескольких блоков с одним подтверждением
-     */
-    async deleteMultipleTreeBlocks({blockIds}) {
-        if (!blockIds || blockIds.length === 0) return
-
-        const count = blockIds.length
-        const message = count === 1
-            ? `Вы уверены, что хотите удалить блок и всех его потомков?`
-            : `Вы уверены, что хотите удалить ${count} блоков и всех их потомков?`
-
-        if (!await customConfirm(message)) return
-
-        // Загружаем treeIds один раз и обновляем в процессе удаления
-        let treeIds = await localforage.getItem(`treeIds${this.currentUser}`) || []
-        let currentTree = await localforage.getItem(`currentTree`)
-        let needSwitchTree = false
-
-        // Удаляем каждый блок без повторного подтверждения
-        for (const blockId of blockIds) {
-            const result = await this.deleteTreeBlockWithoutConfirm({
-                blockId,
-                treeIds,
-                currentTree
-            })
-
-            if (result) {
-                // Обновляем локальные переменные для следующей итерации
-                if (result.newTreeIds !== undefined) {
-                    treeIds = result.newTreeIds
-                }
-                if (result.needSwitchTree) {
-                    needSwitchTree = true
-                }
-            }
-        }
-
-        // Сохраняем финальное состояние treeIds
-        await localforage.setItem(`treeIds${this.currentUser}`, treeIds)
-
-        // Если текущее дерево было удалено, переключаемся на первое доступное
-        if (needSwitchTree && treeIds.length > 0) {
-            await localforage.setItem(`currentTree`, treeIds[0])
-            this.currentTree = treeIds[0]
-        }
-
-        this.showBlocks()
-    }
-
-    /**
-     * Удаление блока без подтверждения (для группового удаления)
-     * @param {string} blockId - ID блока для удаления
-     * @param {Array} treeIds - Текущий массив ID деревьев (опционально, для batch-операций)
-     * @param {string} currentTree - Текущее активное дерево (опционально)
-     * @returns {Object|null} - Результат с обновлённым состоянием или null
-     */
-    async deleteTreeBlockWithoutConfirm({blockId, treeIds: passedTreeIds, currentTree: passedCurrentTree}) {
-        // Проверяем, существует ли блок (может быть уже удалён как дочерний другого блока)
-        const block = this.blocks.get(blockId)
-        if (!block) {
-            return null
-        }
-
-        // Используем переданные значения или загружаем из localforage
-        const treeIds = passedTreeIds || await localforage.getItem(`treeIds${this.currentUser}`) || []
-        const currentTree = passedCurrentTree || await localforage.getItem(`currentTree`)
-
-        let newTreeIds = treeIds
-        let needSwitchTree = false
-        const isRootTree = treeIds.includes(blockId)
-
-        if (isRootTree) {
-            // Нельзя удалить последнее дерево
-            if (treeIds.length === 1) {
-                return null
-            }
-            newTreeIds = treeIds.filter(el => el !== blockId)
-
-            if (currentTree === blockId) {
-                needSwitchTree = true
-            }
-        }
-
-        try {
-            const res = await api.removeTree(blockId)
-            if (res.status === 200) {
-                localforage.removeItem(`Path_${blockId}${this.currentUser}`)
-
-                // Если вызов не из batch-операции, сохраняем сразу
-                if (!passedTreeIds) {
-                    if (isRootTree) {
-                        await localforage.setItem(`treeIds${this.currentUser}`, newTreeIds)
-                    }
-                    if (needSwitchTree && newTreeIds.length > 0) {
-                        await localforage.setItem(`currentTree`, newTreeIds[0])
-                    }
-                }
-
-                if (res.data.parent) {
-                    await this.saveBlock(res.data.parent)
-                }
-                this.getAllChildIds(block).forEach((id) => {
-                    this.blockRepository.deleteBlock(id);
-                    this.blocks.delete(id);
-                })
-
-                return {
-                    newTreeIds: isRootTree ? newTreeIds : undefined,
-                    needSwitchTree
-                }
-            }
-        } catch (error) {
-            console.error(`Failed to delete block ${blockId}:`, error)
-        }
-
-        return null
-    }
-
 
     async WebSocUpdateBlockAccess(message) {
         // if (message.permission === 'deny') {
