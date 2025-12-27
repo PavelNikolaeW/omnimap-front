@@ -1,0 +1,298 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   IMAGE UPLOAD POPUP STYLES
+   Стили для загрузки изображений в блоки
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Container
+   ───────────────────────────────────────────────────────────────────────────── */
+.image-upload-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.image-upload-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--popup-spacing-lg);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Drop Zone
+   ───────────────────────────────────────────────────────────────────────────── */
+.image-upload-dropzone {
+    border: 2px dashed var(--popup-border);
+    border-radius: var(--popup-radius-lg);
+    padding: var(--popup-spacing-xl);
+    text-align: center;
+    cursor: pointer;
+    transition: all var(--popup-transition);
+    background: #fafafa;
+}
+
+.image-upload-dropzone:hover {
+    border-color: var(--popup-primary);
+    background: #f0f7ff;
+}
+
+.image-upload-dropzone.dragover {
+    border-color: var(--popup-primary);
+    background: #e8f4ff;
+    border-style: solid;
+}
+
+.image-upload-dropzone.uploading {
+    opacity: 0.7;
+    cursor: wait;
+    pointer-events: none;
+}
+
+.image-upload-dropzone-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--popup-spacing-sm);
+}
+
+.image-upload-icon {
+    font-size: 48px;
+    color: var(--popup-muted);
+    margin-bottom: var(--popup-spacing-sm);
+}
+
+.image-upload-dropzone:hover .image-upload-icon,
+.image-upload-dropzone.dragover .image-upload-icon {
+    color: var(--popup-primary);
+}
+
+.image-upload-text {
+    font-size: var(--popup-font-size-lg);
+    font-weight: 500;
+    color: var(--popup-fg);
+    margin: 0;
+}
+
+.image-upload-subtext {
+    font-size: var(--popup-font-size-base);
+    color: var(--popup-muted);
+    margin: 0;
+}
+
+.image-upload-hint {
+    font-size: var(--popup-font-size-sm);
+    color: var(--popup-muted);
+    margin: var(--popup-spacing-sm) 0 0;
+    opacity: 0.8;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Progress Bar
+   ───────────────────────────────────────────────────────────────────────────── */
+.image-upload-progress {
+    display: flex;
+    align-items: center;
+    gap: var(--popup-spacing-md);
+    padding: var(--popup-spacing-sm);
+    background: #f0f0f0;
+    border-radius: var(--popup-radius-md);
+}
+
+.image-upload-progress-bar {
+    flex: 1;
+    height: 8px;
+    background: var(--popup-border);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+.image-upload-progress-bar::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: var(--progress, 0%);
+    background: var(--popup-primary);
+    border-radius: 4px;
+    transition: width 0.2s ease;
+}
+
+.image-upload-progress-text {
+    font-size: var(--popup-font-size-sm);
+    font-weight: 500;
+    color: var(--popup-fg);
+    min-width: 40px;
+    text-align: right;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Preview Section
+   ───────────────────────────────────────────────────────────────────────────── */
+.image-upload-preview-section {
+    margin-bottom: var(--popup-spacing-md);
+}
+
+.image-upload-preview {
+    display: flex;
+    align-items: center;
+    gap: var(--popup-spacing-lg);
+    padding: var(--popup-spacing-md);
+    background: #f9fafb;
+    border: 1px solid var(--popup-border);
+    border-radius: var(--popup-radius-md);
+}
+
+.image-upload-thumbnail {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: var(--popup-radius-sm);
+    cursor: pointer;
+    transition: transform var(--popup-transition);
+    border: 1px solid var(--popup-border);
+}
+
+.image-upload-thumbnail:hover {
+    transform: scale(1.05);
+}
+
+.image-upload-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.image-upload-filename {
+    font-weight: 500;
+    color: var(--popup-fg);
+    margin: 0 0 var(--popup-spacing-xs);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.image-upload-dimensions,
+.image-upload-size {
+    font-size: var(--popup-font-size-sm);
+    color: var(--popup-muted);
+    margin: 0;
+}
+
+.image-upload-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--popup-spacing-xs);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Fullsize Overlay
+   ───────────────────────────────────────────────────────────────────────────── */
+.image-fullsize-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.9);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: popup-fade-in 0.2s ease;
+}
+
+.image-fullsize-img {
+    max-width: 90vw;
+    max-height: 90vh;
+    object-fit: contain;
+    border-radius: var(--popup-radius-md);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.image-fullsize-close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    transition: background var(--popup-transition);
+}
+
+.image-fullsize-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Block Image Display
+   ───────────────────────────────────────────────────────────────────────────── */
+.block-image-container {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    border-radius: var(--popup-radius-sm, 4px);
+}
+
+.block-image {
+    width: 100%;
+    height: auto;
+    display: block;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.block-image:hover {
+    transform: scale(1.02);
+}
+
+.block-image-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 60px;
+    background: #f0f0f0;
+    color: #999;
+    font-size: 12px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Mobile Responsive
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    .image-upload-dropzone {
+        padding: var(--popup-spacing-lg);
+    }
+
+    .image-upload-icon {
+        font-size: 36px;
+    }
+
+    .image-upload-text {
+        font-size: var(--popup-font-size-base);
+    }
+
+    .image-upload-preview {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .image-upload-thumbnail {
+        width: 120px;
+        height: 120px;
+    }
+
+    .image-upload-actions {
+        flex-direction: row;
+        width: 100%;
+    }
+
+    .image-upload-actions .popup-btn {
+        flex: 1;
+    }
+}

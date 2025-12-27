@@ -9,6 +9,7 @@ import {UrlPopup} from "../popups/urlPopup";
 import {EditBlockPopup} from "../popups/editBlockPopup";
 import {SearchBlocksPopup} from "../popups/SearchPopup";
 import {ImportPopup} from "../popups/importPopup";
+import {ImageUploadPopup} from "../popups/imageUploadPopup";
 
 
 export const popupsCommands = [
@@ -348,6 +349,45 @@ export const popupsCommands = [
 
             ctx.popup = new ImportPopup({
                 parentBlockId: parentId,
+                onCancel() {
+                    ctx.mode = 'normal';
+                }
+            });
+        }
+    },
+    {
+        id: "uploadBlockImage",
+        mode: ['normal'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Загрузить изображение в блок',
+            classes: ['sidebar-button', 'fas', 'fa-image', 'fas-lg']
+        },
+        defaultHotkey: 'i',
+        description: 'Загрузить изображение в блок',
+        async execute(ctx) {
+            const blockId = ctx.blockElement?.id.split('*').at(-1);
+            if (!blockId) return;
+
+            ctx.mode = 'uploadBlockImage';
+            ctx.closePopups();
+            setCmdOpenBlock(ctx);
+
+            // Загружаем текущее изображение блока (если есть)
+            let currentImage = null;
+            try {
+                currentImage = await api.getBlockImage(blockId);
+            } catch (err) {
+                console.error('Ошибка загрузки информации об изображении:', err);
+            }
+
+            ctx.popup = new ImageUploadPopup({
+                blockId: blockId,
+                currentImage: currentImage,
+                onImageChange(imageData) {
+                    // Обновляем данные блока с информацией об изображении
+                    dispatch('UpdateBlockImage', { blockId, imageData });
+                },
                 onCancel() {
                     ctx.mode = 'normal';
                 }

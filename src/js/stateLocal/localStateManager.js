@@ -220,6 +220,39 @@ export class LocalStateManager {
             })
             this.showBlocks()
         })
+        window.addEventListener('UpdateBlockImage', (e) => {
+            this.updateBlockImage(e.detail)
+        })
+    }
+
+    async updateBlockImage({blockId, imageData}) {
+        try {
+            const block = this.blocks.get(blockId);
+            if (!block) {
+                console.warn(`Block ${blockId} not found`);
+                return;
+            }
+
+            // Обновляем данные блока с информацией об изображении
+            if (imageData) {
+                block.data.image = {
+                    url: imageData.url,
+                    thumbnail_url: imageData.thumbnail_url,
+                    filename: imageData.filename,
+                    width: imageData.width,
+                    height: imageData.height,
+                    size: imageData.size
+                };
+            } else {
+                // Удаляем информацию об изображении
+                delete block.data.image;
+            }
+
+            await this.saveBlock(block);
+            dispatch('ShowBlocks');
+        } catch (err) {
+            console.error('Ошибка обновления изображения блока:', err);
+        }
     }
 
     createTree({title}) {
