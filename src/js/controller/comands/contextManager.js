@@ -112,7 +112,7 @@ export class ContextManager {
         this.blockLinkId = link && link.id
         this.blockId = undefined
         this.addActiveClass()
-        if (this.mode === 'cutBlock') {
+        if (this.mode === 'cutBlock' && !this.cutIsMultiple && this.cut) {
             const target = link || element
             if (target.id !== this.cut.block_id) {
                 if (!this.beforeBlockElement) this.createBeforeBlockElement(target)
@@ -164,7 +164,7 @@ export class ContextManager {
             this.blockId = event.target.getAttribute('blockid')
             this.isTree = true
         }
-        if (this.mode === 'cutBlock') {
+        if (this.mode === 'cutBlock' && !this.cutIsMultiple && this.cut) {
             this.cut['new_parent_id'] = this.blockId
         }
     }
@@ -172,7 +172,7 @@ export class ContextManager {
     mouseOutTreeHandler(event) {
         this.blockId = undefined
         this.isTree = false
-        if (this.mode === 'cutBlock') {
+        if (this.mode === 'cutBlock' && !this.cutIsMultiple && this.cut) {
             this.cut['new_parent_id'] = undefined
         }
     }
@@ -181,14 +181,14 @@ export class ContextManager {
         if (event.target.hasAttribute('blockid')) {
             this.blockId = event.target.getAttribute('blockid')
         }
-        if (this.mode === 'cutBlock') {
+        if (this.mode === 'cutBlock' && !this.cutIsMultiple && this.cut) {
             this.cut['new_parent_id'] = this.blockId
         }
     }
 
     mouseOutBreadcrumbHandler(event) {
         this.blockId = undefined
-        if (this.mode === 'cutBlock') {
+        if (this.mode === 'cutBlock' && !this.cutIsMultiple && this.cut) {
             this.cut['new_parent_id'] = undefined
         }
     }
@@ -339,9 +339,9 @@ export class ContextManager {
         const blockId = extractBlockId(blockElement, blockLinkElement)
         if (!blockId) return false
 
-        // Проверка: нельзя выделить корневой блок
+        // Проверка: нельзя выделить корневой блок (extractParentId возвращает null для rootContainer)
         const parentId = extractParentId(target)
-        if (!parentId || parentId === 'rootContainer') {
+        if (!parentId) {
             return false
         }
 
@@ -404,25 +404,27 @@ export class ContextManager {
     }
 
     /**
-     * Добавить CSS-класс выделения
+     * Добавить CSS-класс и ARIA-атрибут выделения
      */
     addSelectionClass(element, linkElement) {
-        if (linkElement) {
-            linkElement.classList.add('block-multi-selected')
-        } else if (element) {
-            element.classList.add('block-multi-selected')
+        const target = linkElement || element
+        if (target) {
+            target.classList.add('block-multi-selected')
+            target.setAttribute('aria-selected', 'true')
         }
     }
 
     /**
-     * Убрать CSS-класс выделения
+     * Убрать CSS-класс и ARIA-атрибут выделения
      */
     removeSelectionClass(element, linkElement) {
         if (linkElement) {
             linkElement.classList.remove('block-multi-selected')
+            linkElement.removeAttribute('aria-selected')
         }
         if (element) {
             element.classList.remove('block-multi-selected')
+            element.removeAttribute('aria-selected')
         }
     }
 

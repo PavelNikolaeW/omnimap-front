@@ -142,11 +142,12 @@ export const commands = [
                         const linkEl = document.querySelector(`[blocklink="${cutData.block_id}"]`)
                         if (linkEl) linkEl.classList.remove('block-selected')
                     }
-                    ctx.clearSelection()
                 } else {
                     const target = ctx.blockLinkElement || ctx.blockElement
                     if (target) target.classList.remove('block-selected')
                 }
+                // Очистка состояния ПОСЛЕ визуальной очистки
+                ctx.clearSelection()
                 ctx.cut = undefined
                 ctx.cutIsMultiple = false
             }
@@ -405,6 +406,11 @@ export const commands = [
 
                 // Групповое перемещение
                 if (ctx.cutIsMultiple && Array.isArray(ctx.cut)) {
+                    // Проверка на circular reference - нельзя переместить блок внутрь себя
+                    if (ctx.cut.some(cutData => cutData.block_id === newParentId)) {
+                        console.warn('Cannot move block into itself')
+                        return
+                    }
                     for (const cutData of ctx.cut) {
                         const result = completeCutBlock(cutData, newParentId)
                         if (result.success) {

@@ -444,26 +444,31 @@ describe('ContextManager', () => {
             expect(manager.selectedBlocks.size).toBe(0);
         });
 
-        test('addSelectionClass adds class to linkElement if present', () => {
+        test('addSelectionClass adds class and aria-selected to linkElement if present', () => {
             const block = document.createElement('div');
             const link = document.createElement('div');
 
             manager.addSelectionClass(block, link);
 
             expect(link.classList.contains('block-multi-selected')).toBe(true);
+            expect(link.getAttribute('aria-selected')).toBe('true');
             expect(block.classList.contains('block-multi-selected')).toBe(false);
         });
 
-        test('removeSelectionClass removes class from both elements', () => {
+        test('removeSelectionClass removes class and aria-selected from both elements', () => {
             const block = document.createElement('div');
             block.classList.add('block-multi-selected');
+            block.setAttribute('aria-selected', 'true');
             const link = document.createElement('div');
             link.classList.add('block-multi-selected');
+            link.setAttribute('aria-selected', 'true');
 
             manager.removeSelectionClass(block, link);
 
             expect(block.classList.contains('block-multi-selected')).toBe(false);
+            expect(block.hasAttribute('aria-selected')).toBe(false);
             expect(link.classList.contains('block-multi-selected')).toBe(false);
+            expect(link.hasAttribute('aria-selected')).toBe(false);
         });
 
         test('refreshSelectionVisuals updates DOM references', () => {
