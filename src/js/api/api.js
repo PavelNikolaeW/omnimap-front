@@ -373,6 +373,173 @@ class Api {
         return this.api.post('import/', { payload })
     }
 
+    // =====================================================
+    // REMINDERS API - Напоминания
+    // =====================================================
+
+    /**
+     * Создать напоминание
+     * @param {Object} data - { block_id, remind_at, message?, repeat?, timezone? }
+     */
+    createReminder(data) {
+        return this.api.post('reminders/', data)
+    }
+
+    /**
+     * Получить все напоминания пользователя
+     * @param {string} status - 'pending' | 'sent' | undefined (все)
+     */
+    getReminders(status) {
+        const params = status ? `?status=${status}` : ''
+        return this.api.get(`reminders/${params}`)
+    }
+
+    /**
+     * Получить напоминание для конкретного блока
+     * @param {string} blockId
+     */
+    getBlockReminder(blockId) {
+        return this.api.get(`blocks/${blockId}/reminder/`)
+    }
+
+    /**
+     * Обновить напоминание
+     * @param {string} reminderId
+     * @param {Object} data - { remind_at?, message?, repeat?, timezone? }
+     */
+    updateReminder(reminderId, data) {
+        return this.api.patch(`reminders/${reminderId}/`, data)
+    }
+
+    /**
+     * Удалить напоминание
+     * @param {string} reminderId
+     */
+    deleteReminder(reminderId) {
+        return this.api.delete(`reminders/${reminderId}/`)
+    }
+
+    // =====================================================
+    // SUBSCRIPTIONS API - Подписки на изменения блоков
+    // =====================================================
+
+    /**
+     * Создать подписку на блок
+     * @param {Object} data - { block_id, depth, on_text_change, on_data_change, on_move, on_child_add, on_child_delete }
+     */
+    createSubscription(data) {
+        return this.api.post('subscriptions/', data)
+    }
+
+    /**
+     * Получить все подписки пользователя
+     */
+    getSubscriptions() {
+        return this.api.get('subscriptions/')
+    }
+
+    /**
+     * Получить подписку для конкретного блока
+     * @param {string} blockId
+     */
+    getBlockSubscription(blockId) {
+        return this.api.get(`blocks/${blockId}/subscription/`)
+    }
+
+    /**
+     * Обновить подписку
+     * @param {string} subscriptionId
+     * @param {Object} data
+     */
+    updateSubscription(subscriptionId, data) {
+        return this.api.patch(`subscriptions/${subscriptionId}/`, data)
+    }
+
+    /**
+     * Удалить подписку
+     * @param {string} subscriptionId
+     */
+    deleteSubscription(subscriptionId) {
+        return this.api.delete(`subscriptions/${subscriptionId}/`)
+    }
+
+    // =====================================================
+    // NOTIFICATIONS SETTINGS API - Настройки уведомлений
+    // =====================================================
+
+    /**
+     * Получить настройки уведомлений
+     */
+    getNotificationSettings() {
+        return this.api.get('notifications/settings/')
+    }
+
+    /**
+     * Обновить настройки уведомлений
+     * @param {Object} data - { email_enabled, email_mode, quiet_hours_enabled, quiet_hours_start, quiet_hours_end, timezone }
+     */
+    updateNotificationSettings(data) {
+        return this.api.patch('notifications/settings/', data)
+    }
+
+    // =====================================================
+    // TELEGRAM API - Привязка Telegram
+    // =====================================================
+
+    /**
+     * Получить статус привязки Telegram
+     */
+    getTelegramStatus() {
+        return this.api.get('notifications/telegram/status/')
+    }
+
+    /**
+     * Получить ссылку для привязки Telegram
+     */
+    getTelegramLink() {
+        return this.api.post('notifications/telegram/link/')
+    }
+
+    /**
+     * Отвязать Telegram
+     */
+    unlinkTelegram() {
+        return this.api.post('notifications/telegram/unlink/')
+    }
+
+    /**
+     * Отправить тестовое сообщение в Telegram
+     */
+    sendTestTelegram() {
+        return this.api.post('notifications/telegram/test/')
+    }
+
+    // =====================================================
+    // PUSH NOTIFICATIONS API
+    // =====================================================
+
+    /**
+     * Подписаться на push-уведомления
+     * @param {Object} subscription - PushSubscription object
+     */
+    subscribePush(subscription) {
+        return this.api.post('notifications/push/subscribe/', { subscription })
+    }
+
+    /**
+     * Отписаться от push-уведомлений
+     */
+    unsubscribePush() {
+        return this.api.post('notifications/push/unsubscribe/')
+    }
+
+    /**
+     * Отправить тестовое push-уведомление
+     */
+    sendTestPush() {
+        return this.api.post('notifications/push/test/')
+    }
+
 }
 
 const api = new Api()
