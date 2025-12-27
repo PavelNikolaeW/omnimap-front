@@ -674,6 +674,34 @@ export const commands = [
         }
     },
     {
+        id: "validateTree",
+        mode: ['normal'],
+        defaultHotkey: 'shift+v',
+        description: 'Проверить целостность дерева блоков',
+        execute(ctx) {
+            dispatch('ValidateTree')
+            setCmdOpenBlock(ctx)
+        }
+    },
+    {
+        id: "repairTree",
+        mode: ['normal'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Восстановить дерево блоков',
+            classes: ['sidebar-button', 'fas', 'fa-wrench', 'fas-lg'],
+        },
+        defaultHotkey: 'shift+f',
+        description: 'Восстановить целостность дерева блоков',
+        execute(ctx) {
+            dispatch('RepairTree')
+            setCmdOpenBlock(ctx)
+        },
+        btnExec(ctx) {
+            this.execute(ctx)
+        }
+    },
+    {
         id: 'Exit',
         mode: ['normal'],
         btn: {
