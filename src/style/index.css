@@ -85,7 +85,7 @@ h6 {
     overflow: auto;
     box-sizing: border-box;
     /* Отступ для видимости outline/box-shadow выделенных блоков у края контейнера */
-    padding: 8px;
+    padding: 4px;
 }
 
 /* Контейнер хлебных крошек */
