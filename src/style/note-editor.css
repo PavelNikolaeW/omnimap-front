@@ -139,9 +139,17 @@
 /* Важные действия — чуть заметнее */
 .note-editor-toolbar .btn.fa-floppy-o,
 .note-editor-toolbar .btn.fa-eye,
-.note-editor-toolbar .btn.fa-columns {
+.note-editor-toolbar .btn.fa-columns,
+.note-editor-toolbar .btn.fa-magic,
+.note-editor-toolbar .btn.fa-check {
     color: var(--ne-fg);
     background: var(--ne-border);
+}
+
+/* Fix: ensure FA icons are visible */
+.note-editor-toolbar .btn[class*="fa-"]::before {
+    font-family: 'FontAwesome', 'Font Awesome 6 Free', 'Font Awesome 5 Free', sans-serif;
+    font-weight: 900;
 }
 
 /* Скрываем «редко используемые» для минимализма.

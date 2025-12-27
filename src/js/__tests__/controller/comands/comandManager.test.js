@@ -370,7 +370,11 @@ describe('CommandManager', () => {
 
             const button = document.createElement('button');
             button.id = 'testCommand1';
-            manager.commandsById['testCommand1'] = { id: 'testCommand1' };
+            manager.commandsById['testCommand1'] = {
+                id: 'testCommand1',
+                mode: ['normal'],
+                execute: jest.fn()
+            };
 
             const event = { target: button };
 

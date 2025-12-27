@@ -156,8 +156,15 @@ export class CommandManager {
         const target = event.target
         if (target.tagName === 'BUTTON') {
             const cmd = this.commandsById[target.id]
+            if (!cmd) return
             this.ctxManager.isTree = false
             this.ctxManager.setCmd(cmd)
+            // Если есть btnExec, используем его, иначе вызываем execute напрямую
+            if (typeof cmd.btnExec === 'function') {
+                cmd.btnExec(this.ctxManager)
+            } else if (cmd.mode.includes(this.ctxManager.mode) || cmd.mode.includes('*')) {
+                cmd.execute(this.ctxManager)
+            }
         }
     }
 
