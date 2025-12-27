@@ -50,7 +50,15 @@ button:focus {
     background-color: #e9ecef;
     border-right: 1px solid #ccc;
     transition: width 0.3s ease;
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    flex-shrink: 0;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.sidebar::-webkit-scrollbar {
+    display: none;
 }
 
 
@@ -84,11 +92,19 @@ button:focus {
 .top-navigation {
     background-color: #f8f9fa;
     border-bottom: 1px solid #ddd;
-    overflow: scroll;
+    overflow-x: auto;
+    overflow-y: hidden;
     display: flex;
     align-items: center;
     padding: 10px 15px;
     box-sizing: border-box;
+    flex-shrink: 0;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.top-navigation::-webkit-scrollbar {
+    display: none;
 }
 
 /* Кнопки навигации */
@@ -164,7 +180,7 @@ button:focus {
 }
 
 
-/* Адаптивные стили */
+/* Адаптивные стили для мобильных */
 @media (max-width: 600px) {
     .sidebar-button {
         width: 44px;
@@ -183,16 +199,6 @@ button:focus {
 
     .top-navigation {
         padding: 0 10px;
-        overflow-x: auto;
-        overflow-y: hidden;
-        -webkit-overflow-scrolling: touch;
-        flex-wrap: nowrap;
-        scrollbar-width: none;
-        -ms-overflow-style: none;
-    }
-
-    .top-navigation::-webkit-scrollbar {
-        display: none;
     }
 
     .active-button-info {
@@ -215,13 +221,6 @@ button:focus {
 
     .tree-navigation {
         flex-shrink: 0;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    .toolbar-section h3 {
-        font-size: 1rem;
-        margin-bottom: 10px;
     }
 
     .sidebar-content {

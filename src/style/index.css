@@ -4,12 +4,15 @@ body {
     font-family: Arial, sans-serif;
     background-color: #f0f0f0;
     margin: 0;
+    padding: 0;
     display: flex;
     flex-direction: column;
-    overflow: auto;
-    overscroll-behavior-y: contain;
+    overflow: hidden;
+    height: 100%;
+    width: 100%;
     overscroll-behavior: none;
     -webkit-text-size-adjust: 100%;
+    -webkit-overflow-scrolling: touch;
 }
 
 p {
@@ -63,7 +66,9 @@ h6 {
     display: flex;
     flex-direction: column;
     height: calc(var(--vh, 1vh) * 100);
+    max-height: 100%;
     margin: 0;
+    overflow: hidden;
 }
 
 /* Обёртка для sidebar и основного содержимого */
@@ -86,10 +91,12 @@ h6 {
     display: flex;
     border-top: #999 solid;
     align-items: center;
-    white-space: nowrap; /* Запрещаем перенос строк, чтобы получить горизонтальную прокрутку при переполнении */
-    overflow-x: auto; /* Горизонтальная прокрутка */
-    -ms-overflow-style: none; /* Скрываем scrollbar в IE/Edge */
-    scrollbar-width: none; /* Скрываем scrollbar в Firefox */
+    white-space: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-shrink: 0;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
 }
 
 .breadcrumb-nav::-webkit-scrollbar {
@@ -497,13 +504,7 @@ button:focus {
     }
 }
 
-/* Prevent pull-to-refresh and overscroll on iOS */
-html, body {
-    overscroll-behavior: none;
-    -webkit-overflow-scrolling: touch;
-}
-
-/* Fix 100vh on mobile browsers */
+/* Fix 100vh on mobile browsers (address bar issues) */
 @supports (-webkit-touch-callout: none) {
     .layout {
         height: -webkit-fill-available;
