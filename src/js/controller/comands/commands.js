@@ -20,7 +20,9 @@ import Cookies from "js-cookie";
 // Actions
 import {
     copyBlockId,
+    copyMultipleBlockIds,
     getBlockIdFromClipboard,
+    getBlockIdsFromClipboard,
     startCutBlock,
     completeCutBlock,
     extractBlockId,
@@ -114,6 +116,13 @@ export const commands = [
         defaultHotkey: 'esc',
         regLink: true,
         execute(ctx) {
+            // Очистка мульти-выделения
+            if (ctx.hasMultiSelection()) {
+                ctx.clearSelection()
+                setCmdOpenBlock(ctx)
+                return
+            }
+
             if (ctx.mode === MODES.TEXT_EDIT) {
                 nodeEditor.closeEditor(false)
             }
@@ -124,9 +133,22 @@ export const commands = [
             }
             if (ctx.mode === MODES.CUT_BLOCK) {
                 if (ctx.beforeBlockElement) ctx.beforeBlockElement.remove()
-                const target = ctx.blockLinkElement || ctx.blockElement
-                target.classList.remove('block-selected')
+
+                // Очистка при групповом вырезании
+                if (ctx.cutIsMultiple && Array.isArray(ctx.cut)) {
+                    for (const cutData of ctx.cut) {
+                        const el = document.getElementById(cutData.block_id)
+                        if (el) el.classList.remove('block-selected')
+                        const linkEl = document.querySelector(`[blocklink="${cutData.block_id}"]`)
+                        if (linkEl) linkEl.classList.remove('block-selected')
+                    }
+                    ctx.clearSelection()
+                } else {
+                    const target = ctx.blockLinkElement || ctx.blockElement
+                    if (target) target.classList.remove('block-selected')
+                }
                 ctx.cut = undefined
+                ctx.cutIsMultiple = false
             }
             if (ctx.mode === MODES.DIAGRAM) {
                 ctx.diagramUtils.hiddenInputs()
@@ -293,8 +315,35 @@ export const commands = [
             classes: ['sidebar-button', 'fas', 'fa-cut', 'fas-lg']
         },
         defaultHotkey: 'shift+x',
-        description: 'Переместить блок в другое место.',
+        description: 'Переместить блок(и) в другое место.',
         execute(ctx) {
+            // Групповое вырезание
+            if (ctx.hasMultiSelection()) {
+                const cutDataArray = []
+                for (const blockId of ctx.getSelectedBlockIds()) {
+                    const elements = ctx.selectedElements.get(blockId)
+                    if (!elements) continue
+                    const target = elements.linkElement || elements.element
+                    const parentId = extractParentId(target)
+                    if (parentId && parentId !== 'rootContainer') {
+                        cutDataArray.push({
+                            block_id: blockId,
+                            old_parent_id: parentId
+                        })
+                        target.classList.add('block-selected')
+                    }
+                }
+                if (cutDataArray.length > 0) {
+                    ctx.mode = MODES.CUT_BLOCK
+                    ctx.cut = cutDataArray
+                    ctx.cutIsMultiple = true
+                } else {
+                    setCmdOpenBlock(ctx)
+                }
+                return
+            }
+
+            // Одиночное вырезание
             const target = ctx.blockLinkElement || ctx.blockElement
             if (!target) return
 
@@ -306,6 +355,7 @@ export const commands = [
                 target.classList.add('block-selected')
                 ctx.mode = MODES.CUT_BLOCK
                 ctx.cut = result.cutData
+                ctx.cutIsMultiple = false
             } else {
                 setCmdOpenBlock(ctx)
             }
@@ -318,10 +368,20 @@ export const commands = [
             label: 'Копировать id блокa',
             classes: ['sidebar-button', 'fas', 'fa-copy', 'fas-lg'],
         },
-        description: 'Копирует id выбранного блока или ожидает клика по блоку.',
+        description: 'Копирует id выбранного блока(ов).',
         defaultHotkey: 'shift+c',
         mode: ['normal',],
         execute(ctx) {
+            // Групповое копирование
+            if (ctx.hasMultiSelection()) {
+                const selectedIds = ctx.getSelectedBlockIds()
+                copyMultipleBlockIds(selectedIds)
+                ctx.clearSelection()
+                setCmdOpenBlock(ctx)
+                return
+            }
+
+            // Одиночное копирование
             const blockId = extractBlockId(ctx.blockElement)
             if (!blockId) return
 
@@ -338,27 +398,41 @@ export const commands = [
             classes: ['sidebar-button', 'fas', 'fa-paste', 'fas-lg']
         },
         defaultHotkey: 'shift+v',
-        description: 'Если скопирован id делает копию блока и дочерних элементов и вставляет в блок.',
+        description: 'Если скопирован id делает копию блока(ов) и вставляет в блок.',
         async execute(ctx) {
             if (ctx.mode === MODES.CUT_BLOCK) {
-                // Завершаем вырезание — перемещаем блок
                 const newParentId = extractBlockId(ctx.blockElement)
-                const result = completeCutBlock(ctx.cut, newParentId)
-                if (result.success) {
-                    dispatch('MoveBlock', result.moveData)
+
+                // Групповое перемещение
+                if (ctx.cutIsMultiple && Array.isArray(ctx.cut)) {
+                    for (const cutData of ctx.cut) {
+                        const result = completeCutBlock(cutData, newParentId)
+                        if (result.success) {
+                            dispatch('MoveBlock', result.moveData)
+                        }
+                    }
+                    ctx.clearSelection()
+                } else {
+                    // Одиночное перемещение
+                    const result = completeCutBlock(ctx.cut, newParentId)
+                    if (result.success) {
+                        dispatch('MoveBlock', result.moveData)
+                    }
                 }
+
                 if (ctx.beforeBlockElement) ctx.beforeBlockElement.remove()
                 ctx.cut = undefined
+                ctx.cutIsMultiple = false
                 ctx.mode = MODES.NORMAL
                 setCmdOpenBlock(ctx)
             } else {
-                // Вставка скопированного блока
+                // Вставка скопированных блоков
                 const destId = extractBlockId(ctx.blockElement)
                 if (!destId) return
 
-                const clipboardResult = await getBlockIdFromClipboard()
+                const clipboardResult = await getBlockIdsFromClipboard()
                 if (clipboardResult.success) {
-                    dispatch('PasteBlock', {dest: destId, src: [clipboardResult.blockId]});
+                    dispatch('PasteBlock', {dest: destId, src: clipboardResult.blockIds});
                 }
                 setCmdOpenBlock(ctx)
             }
@@ -453,9 +527,22 @@ export const commands = [
             classes: ['sidebar-button', 'fas', 'fa-trash', 'fas-lg'],
         },
         defaultHotkey: 'shift+d',
-        description: 'Удаляет блок, и все дочерние блоки',
+        description: 'Удаляет блок(и), и все дочерние блоки',
         execute(ctx) {
-            const id = ctx.blockLinkElement?.id || ctx.blockElement.id
+            // Групповое удаление
+            if (ctx.hasMultiSelection()) {
+                const selectedIds = ctx.getSelectedBlockIds()
+                for (const blockId of selectedIds) {
+                    dispatch('DeleteTreeBlock', {blockId})
+                }
+                ctx.clearSelection()
+                ctx.shiftLock = false
+                setCmdOpenBlock(ctx)
+                return
+            }
+
+            // Одиночное удаление
+            const id = ctx.blockLinkElement?.id || ctx.blockElement?.id
             if (!id) return
             dispatch('DeleteTreeBlock', {blockId: id})
             ctx.shiftLock = false
