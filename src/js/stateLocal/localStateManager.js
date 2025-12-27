@@ -289,6 +289,8 @@ export class LocalStateManager {
 
     /**
      * Удаление нескольких блоков с одним подтверждением
+     * @param {Object} params
+     * @param {Array<string>} params.blockIds - массив ID блоков для удаления
      */
     async deleteMultipleTreeBlocks({blockIds}) {
         if (!blockIds || blockIds.length === 0) return
@@ -300,31 +302,57 @@ export class LocalStateManager {
 
         if (!await customConfirm(message)) return
 
-        await treeService.refresh()
+        try {
+            await treeService.refresh()
 
-        // Собираем ID корневых деревьев для batch-удаления
-        const rootTreeIds = blockIds.filter(id => treeService.isRootTree(id))
+            // Собираем ID корневых деревьев для batch-удаления
+            const rootTreeIds = blockIds.filter(id => treeService.isRootTree(id))
 
-        // Удаляем каждый блок с сервера и из кеша
-        for (const blockId of blockIds) {
-            await this._deleteBlockFromServer(blockId)
+            // Отслеживаем успешные и неуспешные удаления
+            const results = {success: [], failed: []}
+
+            // Удаляем каждый блок с сервера и из кеша
+            for (const blockId of blockIds) {
+                const success = await this._deleteBlockFromServer(blockId)
+                if (success) {
+                    results.success.push(blockId)
+                } else {
+                    results.failed.push(blockId)
+                }
+            }
+
+            // Batch-удаление корневых деревьев через treeService
+            // Удаляем только те, которые успешно удалены с сервера
+            const successfulRootTreeIds = rootTreeIds.filter(id => results.success.includes(id))
+            if (successfulRootTreeIds.length > 0) {
+                await treeService.removeMultipleTrees(successfulRootTreeIds)
+            }
+
+            // Логируем результаты
+            if (results.failed.length > 0) {
+                console.warn(`Не удалось удалить ${results.failed.length} блоков:`, results.failed)
+            }
+
+            this.showBlocks()
+        } catch (error) {
+            console.error('Ошибка при batch-удалении блоков:', error)
+            // Показываем блоки в любом случае, чтобы обновить UI
+            this.showBlocks()
         }
-
-        // Batch-удаление корневых деревьев через treeService
-        if (rootTreeIds.length > 0) {
-            await treeService.removeMultipleTrees(rootTreeIds)
-        }
-
-        this.showBlocks()
     }
 
     /**
      * Удаление блока с сервера и из локального кеша
+     * @param {string} blockId - ID блока для удаления
+     * @returns {Promise<boolean>} - true если удаление успешно
      * @private
      */
     async _deleteBlockFromServer(blockId) {
         const block = this.blocks.get(blockId)
-        if (!block) return false
+        // Блок мог быть уже удалён как дочерний другого блока
+        if (!block) {
+            return true // Считаем успехом, так как блока уже нет
+        }
 
         try {
             const res = await api.removeTree(blockId)
@@ -334,21 +362,22 @@ export class LocalStateManager {
                     await this.saveBlock(res.data.parent)
                 }
 
-                // Удаляем блок и всех потомков
-                this.getAllChildIds(block).forEach((id) => {
-                    this.blockRepository.deleteBlock(id)
+                // Удаляем блок и всех потомков из локального кеша
+                const childIds = this.getAllChildIds(block)
+                for (const id of childIds) {
+                    await this.blockRepository.deleteBlock(id)
                     this.blocks.delete(id)
-                })
+                }
 
                 return true
             }
+            console.warn(`Неожиданный статус ответа при удалении блока ${blockId}:`, res.status)
         } catch (error) {
-            console.error(`Failed to delete block ${blockId}:`, error)
+            console.error(`Ошибка при удалении блока ${blockId}:`, error)
         }
 
         return false
     }
-
 
     async WebSocUpdateBlockAccess(message) {
         // if (message.permission === 'deny') {
