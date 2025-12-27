@@ -8,6 +8,7 @@ import {AccessPopup} from "../popups/accessPopup";
 import {UrlPopup} from "../popups/urlPopup";
 import {EditBlockPopup} from "../popups/editBlockPopup";
 import {SearchBlocksPopup} from "../popups/SearchPopup";
+import {ImportPopup} from "../popups/importPopup";
 
 
 export const popupsCommands = [
@@ -328,4 +329,29 @@ export const popupsCommands = [
     //         });
     //     }
     // },
+    {
+        id: "importBlocks",
+        mode: ['normal'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Импорт блоков',
+            classes: ['sidebar-button', 'fas', 'fa-file-import', 'fas-lg']
+        },
+        defaultHotkey: 'shift+i',
+        description: 'Импортировать блоки из JSON',
+        execute(ctx) {
+            ctx.mode = 'importBlocks';
+            // Родительский блок - текущий выбранный
+            const parentId = ctx.blockElement?.id.split('*').at(-1) || null;
+            ctx.closePopups();
+            setCmdOpenBlock(ctx);
+
+            ctx.popup = new ImportPopup({
+                parentBlockId: parentId,
+                onCancel() {
+                    ctx.mode = 'normal';
+                }
+            });
+        }
+    },
 ]
