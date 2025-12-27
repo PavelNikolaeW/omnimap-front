@@ -22,7 +22,7 @@ import localforage from "localforage";
 import api from "./api/api";
 import {SincManager} from "./sincManager/sincManager";
 import {CommandManager} from "./controller/comands/comandManager";
-import {Breadcrumbs} from "./controller/breadcrumds";
+import {Breadcrumbs} from "./controller/breadcrumbs";
 import {TreeNavigation} from "./controller/treeNavigation";
 import {RedoStack, UndoStack} from "./controller/undoStack";
 import Cookies from "js-cookie";
