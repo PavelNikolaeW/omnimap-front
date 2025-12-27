@@ -15,6 +15,7 @@ export function commandOpenBlock(ctx) {
     if (!blockElement) {
         blockElement = ctx.rootContainer.children[0]
     }
+    if (!blockElement) return
 
     const blockId = resolveBlockId(blockElement, ctx.blockLinkElement)
     const hsl = extractParentHsl(blockElement.parentElement)
@@ -32,6 +33,8 @@ export function commandOpenBlock(ctx) {
  * Открыть конкретный блок-элемент
  */
 export function openBlock(blockEl, ctx) {
+    if (!blockEl) return
+
     const blockId = resolveBlockId(blockEl, ctx.blockLinkElement)
     const hsl = extractParentHsl(blockEl.parentElement)
     const links = extractLinkChain(blockEl)
