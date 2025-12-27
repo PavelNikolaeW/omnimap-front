@@ -12,7 +12,9 @@ jest.mock('../../utils/functions', () => ({
 import {
     MODES,
     copyBlockId,
+    copyMultipleBlockIds,
     getBlockIdFromClipboard,
+    getBlockIdsFromClipboard,
     startCutBlock,
     completeCutBlock,
     startConnectBlocks,
@@ -69,6 +71,37 @@ describe('selectionActions', () => {
         });
     });
 
+    describe('copyMultipleBlockIds', () => {
+        it('should return error when blockIds array is empty', () => {
+            const result = copyMultipleBlockIds([]);
+
+            expect(result.success).toBe(false);
+            expect(result.error.message).toBe('blockIds array is required');
+        });
+
+        it('should return error when blockIds is null', () => {
+            const result = copyMultipleBlockIds(null);
+
+            expect(result.success).toBe(false);
+            expect(result.error.message).toBe('blockIds array is required');
+        });
+
+        it('should copy multiple block ids as JSON', () => {
+            const result = copyMultipleBlockIds(['wrapper*block-1', 'wrapper*block-2']);
+
+            expect(result.success).toBe(true);
+            expect(result.blockIds).toEqual(['block-1', 'block-2']);
+            expect(copyToClipboard).toHaveBeenCalledWith('["block-1","block-2"]');
+        });
+
+        it('should handle ids without prefix', () => {
+            const result = copyMultipleBlockIds(['block-1', 'block-2']);
+
+            expect(result.success).toBe(true);
+            expect(result.blockIds).toEqual(['block-1', 'block-2']);
+        });
+    });
+
     describe('getBlockIdFromClipboard', () => {
         it('should return error when clipboard is empty', async () => {
             getClipboardText.mockResolvedValue(null);
@@ -103,6 +136,65 @@ describe('selectionActions', () => {
             getClipboardText.mockRejectedValue(error);
 
             const result = await getBlockIdFromClipboard();
+
+            expect(result.success).toBe(false);
+            expect(result.error).toBe(error);
+        });
+    });
+
+    describe('getBlockIdsFromClipboard', () => {
+        it('should return error when clipboard is empty', async () => {
+            getClipboardText.mockResolvedValue(null);
+
+            const result = await getBlockIdsFromClipboard();
+
+            expect(result.success).toBe(false);
+            expect(result.error.message).toBe('Clipboard is empty');
+        });
+
+        it('should parse JSON array of UUIDs', async () => {
+            const uuid1 = '123e4567-e89b-12d3-a456-426614174000';
+            const uuid2 = '223e4567-e89b-12d3-a456-426614174001';
+            getClipboardText.mockResolvedValue(JSON.stringify([uuid1, uuid2]));
+
+            const result = await getBlockIdsFromClipboard();
+
+            expect(result.success).toBe(true);
+            expect(result.blockIds).toEqual([uuid1, uuid2]);
+        });
+
+        it('should fallback to single UUID', async () => {
+            const validUUID = '123e4567-e89b-12d3-a456-426614174000';
+            getClipboardText.mockResolvedValue(validUUID);
+
+            const result = await getBlockIdsFromClipboard();
+
+            expect(result.success).toBe(true);
+            expect(result.blockIds).toEqual([validUUID]);
+        });
+
+        it('should return error when clipboard contains invalid data', async () => {
+            getClipboardText.mockResolvedValue('not-a-uuid-or-json');
+
+            const result = await getBlockIdsFromClipboard();
+
+            expect(result.success).toBe(false);
+            expect(result.error.message).toBe('Clipboard does not contain valid block IDs');
+        });
+
+        it('should return error when JSON array contains invalid UUIDs', async () => {
+            getClipboardText.mockResolvedValue(JSON.stringify(['not-uuid', 'also-not-uuid']));
+
+            const result = await getBlockIdsFromClipboard();
+
+            expect(result.success).toBe(false);
+        });
+
+        it('should handle clipboard error', async () => {
+            const error = new Error('Clipboard access denied');
+            getClipboardText.mockRejectedValue(error);
+
+            const result = await getBlockIdsFromClipboard();
 
             expect(result.success).toBe(false);
             expect(result.error).toBe(error);

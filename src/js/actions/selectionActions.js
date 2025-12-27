@@ -35,6 +35,22 @@ export function copyBlockId(blockId) {
 }
 
 /**
+ * Копирование нескольких ID блоков в буфер обмена (JSON-массив)
+ * @param {Array<string>} blockIds - Массив ID блоков
+ * @returns {{success: boolean, blockIds?: Array<string>, error?: Error}}
+ */
+export function copyMultipleBlockIds(blockIds) {
+    if (!blockIds || blockIds.length === 0) {
+        return { success: false, error: new Error('blockIds array is required') };
+    }
+
+    const cleanIds = blockIds.map(id => id.split('*').at(-1));
+    copyToClipboard(JSON.stringify(cleanIds));
+
+    return { success: true, blockIds: cleanIds };
+}
+
+/**
  * Получение ID блока из буфера обмена
  * @returns {Promise<{success: boolean, blockId?: string, error?: Error}>}
  */
@@ -51,6 +67,40 @@ export async function getBlockIdFromClipboard() {
         }
 
         return { success: true, blockId: text };
+    } catch (error) {
+        return { success: false, error };
+    }
+}
+
+/**
+ * Получение массива ID блоков из буфера обмена
+ * Поддерживает как JSON-массив, так и одиночный UUID
+ * @returns {Promise<{success: boolean, blockIds?: Array<string>, error?: Error}>}
+ */
+export async function getBlockIdsFromClipboard() {
+    try {
+        const text = await getClipboardText();
+
+        if (!text) {
+            return { success: false, error: new Error('Clipboard is empty') };
+        }
+
+        // Попытка распарсить JSON-массив
+        try {
+            const parsed = JSON.parse(text);
+            if (Array.isArray(parsed) && parsed.every(id => isValidUUID(id))) {
+                return { success: true, blockIds: parsed };
+            }
+        } catch (e) {
+            // Не JSON, продолжаем
+        }
+
+        // Fallback: один UUID
+        if (isValidUUID(text)) {
+            return { success: true, blockIds: [text] };
+        }
+
+        return { success: false, error: new Error('Clipboard does not contain valid block IDs') };
     } catch (error) {
         return { success: false, error };
     }

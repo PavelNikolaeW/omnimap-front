@@ -1,4 +1,5 @@
 import {DiagramUtils} from "../diagramUtils";
+import {extractBlockId, extractParentId} from "../../actions/selectionActions";
 
 export class ContextManager {
     constructor(rootContainer, breadcrumb, treeNavigation) {
@@ -13,6 +14,11 @@ export class ContextManager {
         this.blockLinkId = undefined
         this.popup = undefined
         this.cut = undefined
+        this.cutIsMultiple = false
+
+        // Мульти-выделение блоков
+        this.selectedBlocks = new Set()       // Set<blockId>
+        this.selectedElements = new Map()     // Map<blockId, {element, linkElement}>
 
         this.rootContainer = rootContainer
         this.breadcrumb = breadcrumb
@@ -64,6 +70,10 @@ export class ContextManager {
         if (!activeId) activeId = this.blockElement?.id.split('*')[0]
         this.blockElement = undefined
         this.blockLinkElement = undefined
+
+        // Обновить визуальное выделение после ре-рендера
+        this.refreshSelectionVisuals()
+
         if (activeId) {
             let el = document.getElementById(activeId)
             this.blockElement = el
@@ -102,7 +112,7 @@ export class ContextManager {
         this.blockLinkId = link && link.id
         this.blockId = undefined
         this.addActiveClass()
-        if (this.mode === 'cutBlock') {
+        if (this.mode === 'cutBlock' && !this.cutIsMultiple && this.cut) {
             const target = link || element
             if (target.id !== this.cut.block_id) {
                 if (!this.beforeBlockElement) this.createBeforeBlockElement(target)
@@ -154,7 +164,7 @@ export class ContextManager {
             this.blockId = event.target.getAttribute('blockid')
             this.isTree = true
         }
-        if (this.mode === 'cutBlock') {
+        if (this.mode === 'cutBlock' && !this.cutIsMultiple && this.cut) {
             this.cut['new_parent_id'] = this.blockId
         }
     }
@@ -162,7 +172,7 @@ export class ContextManager {
     mouseOutTreeHandler(event) {
         this.blockId = undefined
         this.isTree = false
-        if (this.mode === 'cutBlock') {
+        if (this.mode === 'cutBlock' && !this.cutIsMultiple && this.cut) {
             this.cut['new_parent_id'] = undefined
         }
     }
@@ -171,14 +181,14 @@ export class ContextManager {
         if (event.target.hasAttribute('blockid')) {
             this.blockId = event.target.getAttribute('blockid')
         }
-        if (this.mode === 'cutBlock') {
+        if (this.mode === 'cutBlock' && !this.cutIsMultiple && this.cut) {
             this.cut['new_parent_id'] = this.blockId
         }
     }
 
     mouseOutBreadcrumbHandler(event) {
         this.blockId = undefined
-        if (this.mode === 'cutBlock') {
+        if (this.mode === 'cutBlock' && !this.cutIsMultiple && this.cut) {
             this.cut['new_parent_id'] = undefined
         }
     }
@@ -312,6 +322,135 @@ export class ContextManager {
             this.cut['before'] = undefined;
             this.cut['new_parent_id'] = undefined;
         });
+    }
+
+    // ========== Методы мульти-выделения ==========
+
+    /**
+     * Переключить выделение блока (добавить/убрать из выделения)
+     * @param {HTMLElement} blockElement - DOM-элемент блока
+     * @param {HTMLElement} blockLinkElement - DOM-элемент ссылки (если есть)
+     * @returns {boolean} - true если добавлен, false если удален
+     */
+    toggleBlockSelection(blockElement, blockLinkElement = null) {
+        const target = blockLinkElement || blockElement
+        if (!target) return false
+
+        const blockId = extractBlockId(blockElement, blockLinkElement)
+        if (!blockId) return false
+
+        // Проверка: нельзя выделить корневой блок (extractParentId возвращает null для rootContainer)
+        const parentId = extractParentId(target)
+        if (!parentId) {
+            return false
+        }
+
+        if (this.selectedBlocks.has(blockId)) {
+            this.removeFromSelection(blockId)
+            return false
+        } else {
+            this.addToSelection(blockId, blockElement, blockLinkElement)
+            return true
+        }
+    }
+
+    /**
+     * Добавить блок в выделение
+     */
+    addToSelection(blockId, blockElement, blockLinkElement = null) {
+        this.selectedBlocks.add(blockId)
+        this.selectedElements.set(blockId, {
+            element: blockElement,
+            linkElement: blockLinkElement
+        })
+        this.addSelectionClass(blockElement, blockLinkElement)
+    }
+
+    /**
+     * Убрать блок из выделения
+     */
+    removeFromSelection(blockId) {
+        const elements = this.selectedElements.get(blockId)
+        if (elements) {
+            this.removeSelectionClass(elements.element, elements.linkElement)
+        }
+        this.selectedBlocks.delete(blockId)
+        this.selectedElements.delete(blockId)
+    }
+
+    /**
+     * Очистить все выделение
+     */
+    clearSelection() {
+        for (const [blockId, elements] of this.selectedElements) {
+            this.removeSelectionClass(elements.element, elements.linkElement)
+        }
+        this.selectedBlocks.clear()
+        this.selectedElements.clear()
+    }
+
+    /**
+     * Проверить, есть ли выделенные блоки
+     */
+    hasMultiSelection() {
+        return this.selectedBlocks.size > 0
+    }
+
+    /**
+     * Получить массив ID выделенных блоков
+     */
+    getSelectedBlockIds() {
+        return Array.from(this.selectedBlocks)
+    }
+
+    /**
+     * Добавить CSS-класс и ARIA-атрибут выделения
+     */
+    addSelectionClass(element, linkElement) {
+        const target = linkElement || element
+        if (target) {
+            target.classList.add('block-multi-selected')
+            target.setAttribute('aria-selected', 'true')
+        }
+    }
+
+    /**
+     * Убрать CSS-класс и ARIA-атрибут выделения
+     */
+    removeSelectionClass(element, linkElement) {
+        if (linkElement) {
+            linkElement.classList.remove('block-multi-selected')
+            linkElement.removeAttribute('aria-selected')
+        }
+        if (element) {
+            element.classList.remove('block-multi-selected')
+            element.removeAttribute('aria-selected')
+        }
+    }
+
+    /**
+     * Обновить визуальное выделение после ре-рендера DOM
+     */
+    refreshSelectionVisuals() {
+        for (const [blockId, stored] of this.selectedElements) {
+            // Найти новые DOM-элементы
+            const newElement = document.getElementById(blockId)
+            const newLinkElement = document.querySelector(`[blocklink="${blockId}"]`)
+
+            if (newElement || newLinkElement) {
+                // Обновить ссылки
+                this.selectedElements.set(blockId, {
+                    element: newElement,
+                    linkElement: newLinkElement
+                })
+                // Применить CSS-класс
+                this.addSelectionClass(newElement, newLinkElement)
+            } else {
+                // Элемент больше не в DOM - удалить из выделения
+                this.selectedBlocks.delete(blockId)
+                this.selectedElements.delete(blockId)
+            }
+        }
     }
 
 }

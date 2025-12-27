@@ -197,6 +197,13 @@ h6 {
     outline: 2px solid #bb8fd5;
 }
 
+/* Мульти-выделение блоков (Shift+Click) - двойной селектор для повышения специфичности */
+.block-multi-selected.block-multi-selected {
+    outline: 3px solid #6366f1;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 6px rgba(99, 102, 241, 0.2);
+}
+
 
 iframe {
     width: 100%;

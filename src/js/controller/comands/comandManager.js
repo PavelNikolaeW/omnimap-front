@@ -144,6 +144,17 @@ export class CommandManager {
                 this.selectedText = selection.toString().trim()
                 return
             }
+
+            // Shift+Click для мульти-выделения блоков
+            if (this.ctxManager.shiftLock && this.ctxManager.mode === 'normal') {
+                const blockElement = this.ctxManager.blockElement
+                const blockLinkElement = this.ctxManager.blockLinkElement
+                if (blockElement || blockLinkElement) {
+                    this.ctxManager.toggleBlockSelection(blockElement, blockLinkElement)
+                    return
+                }
+            }
+
             if (this.ctxManager.mode === 'cutBlock') {
                 this.ctxManager.setCmd('pasteBlock')
             }
