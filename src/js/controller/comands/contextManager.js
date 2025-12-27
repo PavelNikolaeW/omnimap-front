@@ -98,9 +98,8 @@ export class ContextManager {
     }
 
     mouseOverBlockHandler(event) {
-        if (!this.shiftLock) {
-            this.setActiveBlock(event.target)
-        }
+        // Обновляем активный блок всегда, включая режим shiftLock для мульти-выделения
+        this.setActiveBlock(event.target)
     }
 
     setActiveBlock(el) {
