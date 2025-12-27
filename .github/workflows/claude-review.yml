@@ -21,9 +21,17 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_tools: |
+            Read
+            Glob
+            Grep
+            Bash(gh:*)
+            mcp__github__create_pull_request_review
           prompt: |
-            Review this pull request for code quality, potential bugs, and best practices.
-            Use 'gh pr diff ${{ github.event.pull_request.number }}' to see the changes.
+            Review PR #${{ github.event.pull_request.number }} for code quality, potential bugs, and best practices.
+
+            First, use 'gh pr diff ${{ github.event.pull_request.number }}' to see the changes.
+            Then read the modified files to understand the context.
 
             Provide constructive feedback on:
             - Code correctness and logic errors
@@ -32,4 +40,4 @@ jobs:
             - Security issues
             - Code style and maintainability
 
-            Leave inline comments on specific lines using the GitHub API or leave a PR review comment summarizing your findings.
+            After reviewing, submit a PR review with your findings using 'gh pr review ${{ github.event.pull_request.number }}'.
