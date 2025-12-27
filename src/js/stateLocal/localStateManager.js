@@ -374,11 +374,17 @@ export class LocalStateManager {
      * Удаление блока без подтверждения (для группового удаления)
      */
     async deleteTreeBlockWithoutConfirm({blockId}) {
+        // Проверяем, существует ли блок (может быть уже удалён как дочерний другого блока)
+        const block = this.blocks.get(blockId)
+        if (!block) {
+            return
+        }
+
         const treeIds = await localforage.getItem(`treeIds${this.currentUser}`)
         let newTreeIds = undefined
         const currentTree = await localforage.getItem(`currentTree`)
 
-        if (treeIds.includes(blockId)) {
+        if (treeIds && treeIds.includes(blockId)) {
             newTreeIds = treeIds.filter(el => el !== blockId)
 
             if (currentTree === blockId && treeIds.length === 1) {
@@ -400,7 +406,7 @@ export class LocalStateManager {
                 if (res.data.parent) {
                     await this.saveBlock(res.data.parent)
                 }
-                this.getAllChildIds(this.blocks.get(blockId)).forEach((id) => {
+                this.getAllChildIds(block).forEach((id) => {
                     this.blockRepository.deleteBlock(id);
                     this.blocks.delete(id);
                 })
