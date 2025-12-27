@@ -175,7 +175,14 @@ export class CommandManager {
     clickOnControlPanel(event) {
         const target = event.target
         if (target.tagName === 'BUTTON') {
-            const cmd = this.commandsById[target.id]
+            const targetId = target.id
+
+            // Проверяем, это клик по подменю
+            if (uiManager.handleSubmenuClick(targetId, this.ctxManager)) {
+                return
+            }
+
+            const cmd = this.commandsById[targetId]
             if (!cmd) return
             this.ctxManager.isTree = false
             this.ctxManager.setCmd(cmd)

@@ -53,7 +53,8 @@ jest.mock('../../../controller/comands/contextManager', () => ({
 jest.mock('../../../controller/comands/uiManager', () => ({
     uiManager: {
         renderBtn: jest.fn(),
-        reRenderBtn: jest.fn()
+        reRenderBtn: jest.fn(),
+        handleSubmenuClick: jest.fn().mockReturnValue(false)
     }
 }));
 
