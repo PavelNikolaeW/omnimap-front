@@ -71,7 +71,12 @@ export class Breadcrumbs extends BaseController {
 
         // Убеждаемся что пользователь загружен
         if (!this.user) {
-            await this.waitForUser();
+            try {
+                await this.waitForUser();
+            } catch (err) {
+                console.error("Не удалось получить пользователя для breadcrumbs:", err);
+                return;
+            }
         }
 
         // Строим и отрисовываем цепочку
@@ -80,11 +85,20 @@ export class Breadcrumbs extends BaseController {
     }
 
     /**
-     * Ожидает загрузки текущего пользователя
+     * Ожидает загрузки текущего пользователя с таймаутом
+     * @param {number} timeout - максимальное время ожидания в мс (по умолчанию 5000)
+     * @returns {Promise<void>}
      */
-    waitForUser() {
-        return new Promise((resolve) => {
-            this.setCurrentUser(() => resolve());
+    waitForUser(timeout = 5000) {
+        return new Promise((resolve, reject) => {
+            const timeoutId = setTimeout(() => {
+                reject(new Error("Timeout waiting for user"));
+            }, timeout);
+
+            this.setCurrentUser(() => {
+                clearTimeout(timeoutId);
+                resolve();
+            });
         });
     }
 
