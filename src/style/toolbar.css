@@ -237,3 +237,29 @@ button:focus {
     }
 }
 
+/* Стили для подменю */
+.submenu-trigger {
+    position: relative;
+}
+
+.submenu-trigger::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 4px solid #666;
+}
+
+.submenu-back {
+    background-color: #e8f4ff;
+    border-color: #4CAF50;
+}
+
+.submenu-back:hover {
+    background-color: #d0e8ff;
+}
+

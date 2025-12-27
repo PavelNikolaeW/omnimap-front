@@ -652,6 +652,138 @@ export const commands = [
             this.execute(ctx)
         }
     },
+    {
+        id: "connectDashed",
+        mode: ['normal', 'connectToBlock'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Пунктирное соединение',
+            classes: ['sidebar-button', 'fas', 'fa-ellipsis', 'fas-lg'],
+        },
+        defaultHotkey: '',
+        description: 'Создать пунктирное соединение между блоками',
+        execute(ctx) {
+            if (ctx.mode === MODES.NORMAL && ctx.blockElement) {
+                ctx.mode = MODES.CONNECT_TO_BLOCK
+                ctx.connectionType = 'dashed'
+                let sourceEl = ctx.blockElement
+                if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
+                ctx.connect_source_id = sourceEl.id
+                sourceEl.classList.add('block-selected')
+                ctx.sourceEl = sourceEl
+            } else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
+                let targetEl = ctx.blockElement
+                if (ctx.blockLinkElement) targetEl = ctx.blockLinkElement
+                let targetId = targetEl.id
+                if (ctx.connect_source_id !== targetId) {
+                    arrowManager.completeConnectionToElement(ctx.connect_source_id, targetId, ctx.connectionType || 'dashed')
+                    ctx.connect_source_id = undefined
+                    ctx.connectionType = undefined
+                    ctx.sourceEl.classList.remove('block-selected')
+                    ctx.sourceEl = undefined
+                    ctx.mode = MODES.NORMAL
+                    setTimeout(() => {
+                        ctx.setCmd('openBlock')
+                    }, 50)
+                }
+            }
+        }
+    },
+    {
+        id: "connectDouble",
+        mode: ['normal', 'connectToBlock'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Двустороннее соединение',
+            classes: ['sidebar-button', 'fas', 'fa-arrows-left-right', 'fas-lg'],
+        },
+        defaultHotkey: '',
+        description: 'Создать двустороннее соединение между блоками',
+        execute(ctx) {
+            if (ctx.mode === MODES.NORMAL && ctx.blockElement) {
+                ctx.mode = MODES.CONNECT_TO_BLOCK
+                ctx.connectionType = 'double'
+                let sourceEl = ctx.blockElement
+                if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
+                ctx.connect_source_id = sourceEl.id
+                sourceEl.classList.add('block-selected')
+                ctx.sourceEl = sourceEl
+            } else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
+                let targetEl = ctx.blockElement
+                if (ctx.blockLinkElement) targetEl = ctx.blockLinkElement
+                let targetId = targetEl.id
+                if (ctx.connect_source_id !== targetId) {
+                    arrowManager.completeConnectionToElement(ctx.connect_source_id, targetId, ctx.connectionType || 'double')
+                    ctx.connect_source_id = undefined
+                    ctx.connectionType = undefined
+                    ctx.sourceEl.classList.remove('block-selected')
+                    ctx.sourceEl = undefined
+                    ctx.mode = MODES.NORMAL
+                    setTimeout(() => {
+                        ctx.setCmd('openBlock')
+                    }, 50)
+                }
+            }
+        }
+    },
+    // Команды для уведомлений
+    {
+        id: "notificationSettings",
+        mode: ['normal'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Настройка уведомлений',
+            classes: ['sidebar-button', 'fas', 'fa-bell', 'fas-lg'],
+        },
+        defaultHotkey: '',
+        description: 'Открыть настройки уведомлений для блока',
+        execute(ctx) {
+            const blockId = ctx.blockElement?.id.split('*').at(-1)
+            if (!blockId) return
+            // TODO: Реализовать popup настроек уведомлений
+            console.log('Notification settings for block:', blockId)
+            dispatch('ShowNotification', {message: 'Настройка уведомлений будет добавлена позже', type: 'info'})
+            setCmdOpenBlock(ctx)
+        }
+    },
+    {
+        id: "blockReminder",
+        mode: ['normal'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Напоминание о блоке',
+            classes: ['sidebar-button', 'fas', 'fa-clock', 'fas-lg'],
+        },
+        defaultHotkey: '',
+        description: 'Установить напоминание для блока',
+        execute(ctx) {
+            const blockId = ctx.blockElement?.id.split('*').at(-1)
+            if (!blockId) return
+            // TODO: Реализовать popup напоминаний
+            console.log('Set reminder for block:', blockId)
+            dispatch('ShowNotification', {message: 'Напоминания будут добавлены позже', type: 'info'})
+            setCmdOpenBlock(ctx)
+        }
+    },
+    {
+        id: "watchBlock",
+        mode: ['normal'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Отслеживать блок',
+            classes: ['sidebar-button', 'fas', 'fa-eye', 'fas-lg'],
+        },
+        defaultHotkey: '',
+        description: 'Включить отслеживание изменений блока',
+        execute(ctx) {
+            const blockId = ctx.blockElement?.id.split('*').at(-1)
+            if (!blockId) return
+            // TODO: Реализовать функционал слежки за блоком
+            console.log('Watch block:', blockId)
+            dispatch('ShowNotification', {message: 'Отслеживание блоков будет добавлено позже', type: 'info'})
+            setCmdOpenBlock(ctx)
+        }
+    },
     ...popupsCommands,
     {
         id: "deleteLocalCache",
