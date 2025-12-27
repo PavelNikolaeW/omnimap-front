@@ -362,9 +362,37 @@ export class LocalStateManager {
 
         if (!await customConfirm(message)) return
 
+        // Загружаем treeIds один раз и обновляем в процессе удаления
+        let treeIds = await localforage.getItem(`treeIds${this.currentUser}`) || []
+        let currentTree = await localforage.getItem(`currentTree`)
+        let needSwitchTree = false
+
         // Удаляем каждый блок без повторного подтверждения
         for (const blockId of blockIds) {
-            await this.deleteTreeBlockWithoutConfirm({blockId})
+            const result = await this.deleteTreeBlockWithoutConfirm({
+                blockId,
+                treeIds,
+                currentTree
+            })
+
+            if (result) {
+                // Обновляем локальные переменные для следующей итерации
+                if (result.newTreeIds !== undefined) {
+                    treeIds = result.newTreeIds
+                }
+                if (result.needSwitchTree) {
+                    needSwitchTree = true
+                }
+            }
+        }
+
+        // Сохраняем финальное состояние treeIds
+        await localforage.setItem(`treeIds${this.currentUser}`, treeIds)
+
+        // Если текущее дерево было удалено, переключаемся на первое доступное
+        if (needSwitchTree && treeIds.length > 0) {
+            await localforage.setItem(`currentTree`, treeIds[0])
+            this.currentTree = treeIds[0]
         }
 
         this.showBlocks()
@@ -372,24 +400,35 @@ export class LocalStateManager {
 
     /**
      * Удаление блока без подтверждения (для группового удаления)
+     * @param {string} blockId - ID блока для удаления
+     * @param {Array} treeIds - Текущий массив ID деревьев (опционально, для batch-операций)
+     * @param {string} currentTree - Текущее активное дерево (опционально)
+     * @returns {Object|null} - Результат с обновлённым состоянием или null
      */
-    async deleteTreeBlockWithoutConfirm({blockId}) {
+    async deleteTreeBlockWithoutConfirm({blockId, treeIds: passedTreeIds, currentTree: passedCurrentTree}) {
         // Проверяем, существует ли блок (может быть уже удалён как дочерний другого блока)
         const block = this.blocks.get(blockId)
         if (!block) {
-            return
+            return null
         }
 
-        const treeIds = await localforage.getItem(`treeIds${this.currentUser}`)
-        let newTreeIds = undefined
-        const currentTree = await localforage.getItem(`currentTree`)
+        // Используем переданные значения или загружаем из localforage
+        const treeIds = passedTreeIds || await localforage.getItem(`treeIds${this.currentUser}`) || []
+        const currentTree = passedCurrentTree || await localforage.getItem(`currentTree`)
 
-        if (treeIds && treeIds.includes(blockId)) {
+        let newTreeIds = treeIds
+        let needSwitchTree = false
+        const isRootTree = treeIds.includes(blockId)
+
+        if (isRootTree) {
+            // Нельзя удалить последнее дерево
+            if (treeIds.length === 1) {
+                return null
+            }
             newTreeIds = treeIds.filter(el => el !== blockId)
 
-            if (currentTree === blockId && treeIds.length === 1) {
-                // Пропускаем последнее дерево
-                return
+            if (currentTree === blockId) {
+                needSwitchTree = true
             }
         }
 
@@ -397,12 +436,17 @@ export class LocalStateManager {
             const res = await api.removeTree(blockId)
             if (res.status === 200) {
                 localforage.removeItem(`Path_${blockId}${this.currentUser}`)
-                if (newTreeIds) {
-                    await localforage.setItem(`treeIds${this.currentUser}`, newTreeIds)
+
+                // Если вызов не из batch-операции, сохраняем сразу
+                if (!passedTreeIds) {
+                    if (isRootTree) {
+                        await localforage.setItem(`treeIds${this.currentUser}`, newTreeIds)
+                    }
+                    if (needSwitchTree && newTreeIds.length > 0) {
+                        await localforage.setItem(`currentTree`, newTreeIds[0])
+                    }
                 }
-                if (currentTree === blockId) {
-                    await localforage.setItem(`currentTree`, newTreeIds[0])
-                }
+
                 if (res.data.parent) {
                     await this.saveBlock(res.data.parent)
                 }
@@ -410,10 +454,17 @@ export class LocalStateManager {
                     this.blockRepository.deleteBlock(id);
                     this.blocks.delete(id);
                 })
+
+                return {
+                    newTreeIds: isRootTree ? newTreeIds : undefined,
+                    needSwitchTree
+                }
             }
         } catch (error) {
             console.error(`Failed to delete block ${blockId}:`, error)
         }
+
+        return null
     }
 
 
