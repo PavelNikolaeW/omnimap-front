@@ -158,6 +158,9 @@ export class LocalStateManager {
         window.addEventListener('DeleteTreeBlock', (e) => {
             this.deleteTreeBlock(e.detail)
         });
+        window.addEventListener('DeleteMultipleTreeBlocks', (e) => {
+            this.deleteMultipleTreeBlocks(e.detail)
+        });
         window.addEventListener('CreateTree', (e) => {
             this.createTree(e.detail)
         });
@@ -273,6 +276,67 @@ export class LocalStateManager {
                 }
             })
 
+    }
+
+    /**
+     * Удаление нескольких блоков с одним подтверждением
+     */
+    async deleteMultipleTreeBlocks({blockIds}) {
+        if (!blockIds || blockIds.length === 0) return
+
+        const count = blockIds.length
+        const message = count === 1
+            ? `Вы уверены, что хотите удалить блок и всех его потомков?`
+            : `Вы уверены, что хотите удалить ${count} блоков и всех их потомков?`
+
+        if (!await customConfirm(message)) return
+
+        // Удаляем каждый блок без повторного подтверждения
+        for (const blockId of blockIds) {
+            await this.deleteTreeBlockWithoutConfirm({blockId})
+        }
+
+        this.showBlocks()
+    }
+
+    /**
+     * Удаление блока без подтверждения (для группового удаления)
+     */
+    async deleteTreeBlockWithoutConfirm({blockId}) {
+        const treeIds = await localforage.getItem(`treeIds${this.currentUser}`)
+        let newTreeIds = undefined
+        const currentTree = await localforage.getItem(`currentTree`)
+
+        if (treeIds.includes(blockId)) {
+            newTreeIds = treeIds.filter(el => el !== blockId)
+
+            if (currentTree === blockId && treeIds.length === 1) {
+                // Пропускаем последнее дерево
+                return
+            }
+        }
+
+        try {
+            const res = await api.removeTree(blockId)
+            if (res.status === 200) {
+                localforage.removeItem(`Path_${blockId}${this.currentUser}`)
+                if (newTreeIds) {
+                    await localforage.setItem(`treeIds${this.currentUser}`, newTreeIds)
+                }
+                if (currentTree === blockId) {
+                    await localforage.setItem(`currentTree`, newTreeIds[0])
+                }
+                if (res.data.parent) {
+                    await this.saveBlock(res.data.parent)
+                }
+                this.getAllChildIds(this.blocks.get(blockId)).forEach((id) => {
+                    this.blockRepository.deleteBlock(id);
+                    this.blocks.delete(id);
+                })
+            }
+        } catch (error) {
+            console.error(`Failed to delete block ${blockId}:`, error)
+        }
     }
 
 

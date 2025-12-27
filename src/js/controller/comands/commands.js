@@ -535,12 +535,10 @@ export const commands = [
         defaultHotkey: 'shift+d',
         description: 'Удаляет блок(и), и все дочерние блоки',
         execute(ctx) {
-            // Групповое удаление
+            // Групповое удаление - одно подтверждение для всех блоков
             if (ctx.hasMultiSelection()) {
                 const selectedIds = ctx.getSelectedBlockIds()
-                for (const blockId of selectedIds) {
-                    dispatch('DeleteTreeBlock', {blockId})
-                }
+                dispatch('DeleteMultipleTreeBlocks', {blockIds: selectedIds})
                 ctx.clearSelection()
                 ctx.shiftLock = false
                 setCmdOpenBlock(ctx)
