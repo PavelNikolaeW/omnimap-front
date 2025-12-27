@@ -22,6 +22,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |
+            --model claude-3-5-haiku-20241022
             --allowedTools "Read" "Glob" "Grep" "Bash(gh pr:*)" "Bash(gh api:*)" "Bash(git:*)"
           prompt: |
             Review PR #${{ github.event.pull_request.number }} for code quality, potential bugs, and best practices.
