@@ -21,4 +21,15 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: "/review-pr REPO: ${{ github.repository }} PR_NUMBER: ${{ github.event.pull_request.number }}"
+          prompt: |
+            Review this pull request for code quality, potential bugs, and best practices.
+            Use 'gh pr diff ${{ github.event.pull_request.number }}' to see the changes.
+
+            Provide constructive feedback on:
+            - Code correctness and logic errors
+            - Potential bugs or edge cases
+            - Performance considerations
+            - Security issues
+            - Code style and maintainability
+
+            Leave inline comments on specific lines using the GitHub API or leave a PR review comment summarizing your findings.
