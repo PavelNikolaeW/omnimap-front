@@ -97,6 +97,10 @@ export class UIManager {
         button.classList.add('sidebar-button', 'fas', config.icon, 'fas-lg', 'submenu-trigger')
         button.setAttribute('title', config.label)
         button.setAttribute('data-submenu', config.id)
+        // ARIA атрибуты для доступности
+        button.setAttribute('aria-haspopup', 'true')
+        button.setAttribute('aria-expanded', 'false')
+        button.setAttribute('aria-label', config.label)
         return button
     }
 
@@ -118,7 +122,12 @@ export class UIManager {
         backBtn.id = 'submenu-back'
         backBtn.classList.add('sidebar-button', 'fas', 'fa-arrow-left', 'fas-lg', 'submenu-back')
         backBtn.setAttribute('title', 'Назад')
+        backBtn.setAttribute('aria-label', 'Вернуться в главное меню')
         container.appendChild(backBtn)
+
+        // Устанавливаем роль меню для контейнера
+        container.setAttribute('role', 'menu')
+        container.setAttribute('aria-label', config.label)
 
         // Рендерим элементы подменю
         config.items.forEach(itemId => {
@@ -144,6 +153,8 @@ export class UIManager {
                         })
                     }
                     element.setAttribute('title', `${cmd.btn.label} [${cmd.currentHotkey || ''}]`)
+                    element.setAttribute('role', 'menuitem')
+                    element.setAttribute('aria-label', cmd.btn.label)
                     container.appendChild(element)
                 }
             }
