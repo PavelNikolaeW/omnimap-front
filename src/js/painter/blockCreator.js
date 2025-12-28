@@ -165,25 +165,7 @@ class BlockCreator {
         const content = block.data.text ? `<contentBlock>${block.data?.text}</contentBlock>` : '<contentBlock></contentBlock>'
 
         // Добавляем изображение если есть
-        let imageHtml = ''
-        const hasImage = block.data?.image?.thumbnail_url
-        if (hasImage) {
-            const imageUrl = block.data.image.url || block.data.image.thumbnail_url
-            const thumbnailUrl = block.data.image.thumbnail_url
-            imageHtml = `<div class="block-image-container" data-fullsize-url="${imageUrl}">
-                <img src="${thumbnailUrl}" alt="${block.data.image.filename || 'Block image'}" class="block-image" loading="lazy" />
-            </div>`
-            // Атрибут для индикации наличия картинки (для маленьких блоков где картинка скрыта)
-            contentElement.setAttribute('data-has-image', 'true')
-        }
-
-        // Определяем режим image-only: есть картинка, но нет заголовка и текста
-        const hasTitle = block.data.titleIsVisible !== false && block.title
-        const hasText = block.data.text
-        const isImageOnly = hasImage && !hasTitle && !hasText
-        if (isImageOnly) {
-            contentElement.classList.add('block-image-only')
-        }
+        const imageHtml = this._createImageHtml(block, contentElement)
 
         contentElement.innerHTML = title + imageHtml + content
 
@@ -191,6 +173,53 @@ class BlockCreator {
         block.data.layoutAttributes?.[block.size.layout].forEach(attr => contentElement.setAttribute(attr.name, attr.value))
 
         return contentElement
+    }
+
+    /**
+     * Создаёт HTML для изображения блока и настраивает режим отображения
+     * @param {Object} block - объект блока с данными изображения
+     * @param {HTMLElement} contentElement - элемент контента для установки атрибутов
+     * @returns {string} HTML строка с изображением или пустая строка
+     */
+    _createImageHtml(block, contentElement) {
+        const image = block.data?.image
+        if (!image?.thumbnail_url) {
+            return ''
+        }
+
+        const imageUrl = image.url || image.thumbnail_url
+        const thumbnailUrl = image.thumbnail_url
+        // Санитизация filename для предотвращения XSS
+        const safeFilename = this._sanitizeText(image.filename || 'Block image')
+
+        // Атрибут для индикации наличия картинки (для маленьких блоков где картинка скрыта)
+        contentElement.setAttribute('data-has-image', 'true')
+
+        // Определяем режим image-only: есть картинка, но нет заголовка и текста
+        const hasTitle = block.data.titleIsVisible !== false && block.title
+        const hasText = block.data.text
+        if (!hasTitle && !hasText) {
+            contentElement.classList.add('block-image-only')
+        }
+
+        return `<div class="block-image-container" data-fullsize-url="${imageUrl}">
+            <img src="${thumbnailUrl}" alt="${safeFilename}" class="block-image" loading="lazy" />
+        </div>`
+    }
+
+    /**
+     * Санитизирует текст для безопасного использования в HTML атрибутах
+     * @param {string} text - исходный текст
+     * @returns {string} безопасный текст
+     */
+    _sanitizeText(text) {
+        if (!text) return ''
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;')
     }
 
     _setAttributes(element, block) {
