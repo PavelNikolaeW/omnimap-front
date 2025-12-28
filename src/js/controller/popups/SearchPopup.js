@@ -63,12 +63,6 @@ export class SearchBlocksPopup extends Popup {
         }
     }
 
-    positionPopup() {
-        this.popupEl.style.left = "50%";
-        this.popupEl.style.top = "50%";
-        this.popupEl.style.transform = "translate(-50%, -50%)";
-    }
-
     /**
      * Метод обработки поиска
      */
