@@ -18,14 +18,14 @@ export const submenuConfig = {
         id: 'submenu-extra',
         label: 'Дополнительно',
         icon: 'fa-bars',
-        items: ['createUrl', 'editBlock', 'editAccessBlock', 'submenu-notifications']
+        items: ['createUrl', 'editBlock', 'editAccessBlock', 'repairTree', 'submenu-notifications']
     },
     // Подменю "Уведомления" - вложено в "Дополнительно"
     notifications: {
         id: 'submenu-notifications',
         label: 'Уведомления',
         icon: 'fa-bell',
-        items: ['notificationSettings', 'blockReminder', 'watchBlock']
+        items: ['setReminder', 'watchBlock', 'notificationSettings']
     }
 };
 
@@ -33,7 +33,8 @@ export const submenuConfig = {
 const hiddenInSubmenu = new Set([
     'connectBlock', 'deleteConnectBlock', 'connectDashed', 'connectDouble',
     'createUrl', 'editBlock', 'editAccessBlock',
-    'notificationSettings', 'blockReminder', 'watchBlock',
+    'notificationSettings', 'setReminder', 'watchBlock',
+    'repairTree', // Перенесено в подменю "Дополнительно"
     'options' // Заменяем старую кнопку options на submenu-extra
 ]);
 
@@ -110,13 +111,27 @@ export class UIManager {
     renderSubmenuButtons() {
         const container = this.elements['control-panel']
 
+        // Находим позицию после основных кнопок работы с блоками
+        // Вставляем подменю после 5-й кнопки (newBlock, editBlockTitle, editBlockText, cutBlock, copyBlock)
+        const existingButtons = container.querySelectorAll('.sidebar-button')
+        const insertPosition = existingButtons.length > 5 ? existingButtons[5] : null
+
         // Кнопка подменю "Соединения"
         const connectionsBtn = this.createSubmenuButton(submenuConfig.connections)
-        container.appendChild(connectionsBtn)
+        if (insertPosition) {
+            container.insertBefore(connectionsBtn, insertPosition)
+        } else {
+            container.appendChild(connectionsBtn)
+        }
 
         // Кнопка подменю "Дополнительно" (заменяет старую options)
         const extraBtn = this.createSubmenuButton(submenuConfig.extra)
-        container.appendChild(extraBtn)
+        // Вставляем после кнопки соединений
+        if (connectionsBtn.nextSibling) {
+            container.insertBefore(extraBtn, connectionsBtn.nextSibling)
+        } else {
+            container.appendChild(extraBtn)
+        }
     }
 
     createSubmenuButton(config) {

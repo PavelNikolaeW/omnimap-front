@@ -726,64 +726,6 @@ export const commands = [
             }
         }
     },
-    // Команды для уведомлений
-    {
-        id: "notificationSettings",
-        mode: ['normal'],
-        btn: {
-            containerId: 'control-panel',
-            label: 'Настройка уведомлений',
-            classes: ['sidebar-button', 'fas', 'fa-bell', 'fas-lg'],
-        },
-        defaultHotkey: '',
-        description: 'Открыть настройки уведомлений для блока',
-        execute(ctx) {
-            const blockId = ctx.blockElement?.id.split('*').at(-1)
-            if (!blockId) return
-            // TODO: Реализовать popup настроек уведомлений
-            console.log('Notification settings for block:', blockId)
-            dispatch('ShowNotification', {message: 'Настройка уведомлений будет добавлена позже', type: 'info'})
-            setCmdOpenBlock(ctx)
-        }
-    },
-    {
-        id: "blockReminder",
-        mode: ['normal'],
-        btn: {
-            containerId: 'control-panel',
-            label: 'Напоминание о блоке',
-            classes: ['sidebar-button', 'fas', 'fa-clock', 'fas-lg'],
-        },
-        defaultHotkey: '',
-        description: 'Установить напоминание для блока',
-        execute(ctx) {
-            const blockId = ctx.blockElement?.id.split('*').at(-1)
-            if (!blockId) return
-            // TODO: Реализовать popup напоминаний
-            console.log('Set reminder for block:', blockId)
-            dispatch('ShowNotification', {message: 'Напоминания будут добавлены позже', type: 'info'})
-            setCmdOpenBlock(ctx)
-        }
-    },
-    {
-        id: "watchBlock",
-        mode: ['normal'],
-        btn: {
-            containerId: 'control-panel',
-            label: 'Отслеживать блок',
-            classes: ['sidebar-button', 'fas', 'fa-eye', 'fas-lg'],
-        },
-        defaultHotkey: '',
-        description: 'Включить отслеживание изменений блока',
-        execute(ctx) {
-            const blockId = ctx.blockElement?.id.split('*').at(-1)
-            if (!blockId) return
-            // TODO: Реализовать функционал слежки за блоком
-            console.log('Watch block:', blockId)
-            dispatch('ShowNotification', {message: 'Отслеживание блоков будет добавлено позже', type: 'info'})
-            setCmdOpenBlock(ctx)
-        }
-    },
     ...popupsCommands,
     {
         id: "deleteLocalCache",

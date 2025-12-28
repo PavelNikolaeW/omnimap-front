@@ -539,13 +539,40 @@ export class LocalStateManager {
         if (result.repaired && result.repairs.modifiedBlocks.size > 0) {
             // Сохраняем исправленные блоки в IndexedDB
             console.log('Сохранение исправленных блоков...');
+            const modifiedBlocks = [];
             for (const blockId of result.repairs.modifiedBlocks) {
                 const block = this.blocks.get(blockId);
-                if (block && this.blockRepository) {
-                    await this.blockRepository.saveBlock(block);
+                if (block) {
+                    if (this.blockRepository) {
+                        await this.blockRepository.saveBlock(block);
+                    }
+                    modifiedBlocks.push(block);
                 }
             }
-            console.log(`✓ Сохранено ${result.repairs.modifiedBlocks.size} блоков`);
+            console.log(`✓ Сохранено ${result.repairs.modifiedBlocks.size} блоков в IndexedDB`);
+
+            // Синхронизируем исправленные блоки с сервером
+            console.log('Синхронизация с сервером...');
+            let syncedCount = 0;
+            let errorCount = 0;
+            for (const block of modifiedBlocks) {
+                try {
+                    const response = await api.updateBlock(block.id, {
+                        data: block.data,
+                        title: block.title
+                    });
+                    if (response.status === 200) {
+                        syncedCount++;
+                    }
+                } catch (err) {
+                    console.error(`Ошибка синхронизации блока ${block.id}:`, err);
+                    errorCount++;
+                }
+            }
+            if (errorCount > 0) {
+                console.warn(`⚠ Не удалось синхронизировать ${errorCount} блоков`);
+            }
+            console.log(`✓ Синхронизировано ${syncedCount} блоков с сервером`);
 
             // Перерисовываем
             this.showBlocks();
