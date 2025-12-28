@@ -300,21 +300,11 @@ export class Popup {
     }
 
     positionPopup() {
-        this.popupEl.style.visibility = 'hidden';
+        // Используем CSS transform для надёжного центрирования
+        this.popupEl.style.left = '50%';
+        this.popupEl.style.top = '50%';
+        this.popupEl.style.transform = 'translate(-50%, -50%)';
         this.popupEl.style.display = 'flex';
-
-        requestAnimationFrame(() => {
-            const rect = this.popupEl.getBoundingClientRect();
-            const w = window.innerWidth;
-            const h = window.innerHeight;
-
-            const left = Math.max(10, (w - rect.width) / 2);
-            const top = Math.max(10, (h - rect.height) / 2);
-
-            this.popupEl.style.left = `${left}px`;
-            this.popupEl.style.top = `${top}px`;
-            this.popupEl.style.visibility = 'visible';
-        });
     }
 
     bindEvents() {
@@ -384,6 +374,11 @@ export class Popup {
         const rect = this.popupEl.getBoundingClientRect();
         this.offsetX = x - rect.left;
         this.offsetY = y - rect.top;
+
+        // Сбрасываем transform и устанавливаем абсолютные координаты для drag
+        this.popupEl.style.transform = 'none';
+        this.popupEl.style.left = `${rect.left}px`;
+        this.popupEl.style.top = `${rect.top}px`;
     }
 
     moveDrag(x, y) {
