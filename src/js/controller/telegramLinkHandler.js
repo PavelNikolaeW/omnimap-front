@@ -1,22 +1,35 @@
 import api from '../api/api.js';
 import { NotificationSettingsPopup } from './popups/notificationSettingsPopup.js';
 
+const LOG_PREFIX = '[TelegramLink]';
+
+/**
+ * Получает текущий URL (выделено для тестируемости)
+ */
+export function getCurrentUrl() {
+    return new URL(window.location.href);
+}
+
 /**
  * Обработчик callback URL для привязки Telegram
  * Обрабатывает URL вида /settings/telegram?link=CODE
+ * @param {URL} [urlOverride] - Опциональный URL для тестирования
  */
-export function handleTelegramLinkCallback() {
-    const url = new URL(window.location.href);
+export function handleTelegramLinkCallback(urlOverride) {
+    const url = urlOverride || getCurrentUrl();
     const path = url.pathname;
 
     // Проверяем, что это URL привязки Telegram
     if (path === '/settings/telegram' || path === '/settings/telegram/') {
         const linkCode = url.searchParams.get('link');
 
+        console.log(LOG_PREFIX, 'Detected telegram settings URL', { path, hasLinkCode: !!linkCode });
+
         if (linkCode) {
             confirmTelegramLink(linkCode);
         } else {
             // Просто открываем настройки уведомлений
+            console.log(LOG_PREFIX, 'Opening notification settings (no link code)');
             openNotificationSettings();
         }
 
@@ -29,13 +42,16 @@ export function handleTelegramLinkCallback() {
  * Подтверждает привязку Telegram по коду
  */
 async function confirmTelegramLink(linkCode) {
+    console.log(LOG_PREFIX, 'Starting link confirmation', { codeLength: linkCode.length });
+
     try {
         // Показываем индикатор загрузки
         showLinkingStatus('Привязка Telegram...');
 
-        await api.confirmTelegramLink(linkCode);
+        const response = await api.confirmTelegramLink(linkCode);
 
         // Успешно привязали
+        console.log(LOG_PREFIX, 'Link confirmed successfully', { response: response?.data });
         showLinkingStatus('Telegram успешно привязан!', 'success');
 
         // Открываем попап настроек через небольшую задержку
@@ -45,7 +61,11 @@ async function confirmTelegramLink(linkCode) {
         }, 1500);
 
     } catch (error) {
-        console.error('Failed to confirm telegram link:', error);
+        const errorMessage = error.response?.data?.detail || error.message || 'Unknown error';
+        console.error(LOG_PREFIX, 'Link confirmation failed', {
+            status: error.response?.status,
+            detail: errorMessage
+        });
 
         const message = error.response?.data?.detail || 'Не удалось привязать Telegram. Попробуйте ещё раз.';
         showLinkingStatus(message, 'error');
@@ -81,68 +101,21 @@ function showLinkingStatus(message, type = 'info') {
     if (!statusEl) {
         statusEl = document.createElement('div');
         statusEl.id = 'telegram-link-status';
-        statusEl.style.cssText = `
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            padding: 20px 32px;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: 500;
-            z-index: 10000;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        `;
+        statusEl.className = 'telegram-link-status';
         document.body.appendChild(statusEl);
     }
 
-    // Стили в зависимости от типа
-    const styles = {
-        info: {
-            background: '#eff6ff',
-            color: '#1e40af',
-            border: '1px solid #bfdbfe'
-        },
-        success: {
-            background: '#ecfdf5',
-            color: '#065f46',
-            border: '1px solid #a7f3d0'
-        },
-        error: {
-            background: '#fef2f2',
-            color: '#991b1b',
-            border: '1px solid #fecaca'
-        }
-    };
-
-    const style = styles[type] || styles.info;
-    statusEl.style.background = style.background;
-    statusEl.style.color = style.color;
-    statusEl.style.border = style.border;
+    // Устанавливаем класс типа
+    statusEl.className = `telegram-link-status telegram-link-status--${type}`;
 
     // Иконки
     const icons = {
-        info: '<div style="width: 20px; height: 20px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite;"></div>',
-        success: '✅',
-        error: '❌'
+        info: '<div class="telegram-link-spinner"></div>',
+        success: '<span class="telegram-link-icon">✅</span>',
+        error: '<span class="telegram-link-icon">❌</span>'
     };
 
-    statusEl.innerHTML = `${icons[type] || ''}<span>${message}</span>`;
-    statusEl.style.display = 'flex';
-
-    // Добавляем анимацию спиннера
-    if (type === 'info') {
-        const styleSheet = document.createElement('style');
-        styleSheet.textContent = `
-            @keyframes spin {
-                to { transform: rotate(360deg); }
-            }
-        `;
-        document.head.appendChild(styleSheet);
-    }
+    statusEl.innerHTML = `${icons[type] || ''}<span class="telegram-link-message">${message}</span>`;
 }
 
 /**
