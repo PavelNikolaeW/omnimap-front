@@ -528,13 +528,16 @@ export class LocalStateManager {
 
     /**
      * Валидация и автоматическое восстановление дерева блоков
-     * @returns {Promise<Object>} результат восстановления
+     * @returns {Promise<Object>} результат восстановления с информацией о синхронизации
      */
     async repairTree() {
         console.group('🔧 Восстановление дерева блоков');
 
         const result = treeValidator.validateAndRepair(this.blocks);
         console.log(treeValidator.formatReport(result));
+
+        // Добавляем результаты синхронизации в результат
+        result.syncResult = { synced: 0, failed: 0, failedBlockIds: [] };
 
         if (result.repaired && result.repairs.modifiedBlocks.size > 0) {
             // Сохраняем исправленные блоки в IndexedDB
@@ -553,8 +556,6 @@ export class LocalStateManager {
 
             // Синхронизируем исправленные блоки с сервером
             console.log('Синхронизация с сервером...');
-            let syncedCount = 0;
-            let errorCount = 0;
             for (const block of modifiedBlocks) {
                 try {
                     const response = await api.updateBlock(block.id, {
@@ -562,20 +563,31 @@ export class LocalStateManager {
                         title: block.title
                     });
                     if (response.status === 200) {
-                        syncedCount++;
+                        result.syncResult.synced++;
+                    } else {
+                        result.syncResult.failed++;
+                        result.syncResult.failedBlockIds.push(block.id);
+                        console.warn(`Неожиданный статус ${response.status} для блока ${block.id}`);
                     }
                 } catch (err) {
-                    console.error(`Ошибка синхронизации блока ${block.id}:`, err);
-                    errorCount++;
+                    result.syncResult.failed++;
+                    result.syncResult.failedBlockIds.push(block.id);
+                    console.error(`Ошибка синхронизации блока ${block.id}:`, err.message || err);
                 }
             }
-            if (errorCount > 0) {
-                console.warn(`⚠ Не удалось синхронизировать ${errorCount} блоков`);
+
+            // Логируем результат синхронизации
+            if (result.syncResult.failed > 0) {
+                console.warn(`⚠ Не удалось синхронизировать ${result.syncResult.failed} блоков:`, result.syncResult.failedBlockIds);
+                dispatch('ShowError', {message: `Восстановлено, но ${result.syncResult.failed} блоков не синхронизированы с сервером`});
+            } else {
+                console.log(`✓ Синхронизировано ${result.syncResult.synced} блоков с сервером`);
             }
-            console.log(`✓ Синхронизировано ${syncedCount} блоков с сервером`);
 
             // Перерисовываем
             this.showBlocks();
+        } else if (!result.repaired) {
+            console.log('✓ Дерево блоков валидно, исправления не требуются');
         }
 
         console.groupEnd();

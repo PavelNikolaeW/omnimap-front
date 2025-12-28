@@ -108,12 +108,22 @@ export class UIManager {
         return element
     }
 
+    /**
+     * Рендерит кнопки подменю в панель управления
+     * Подменю вставляются после основных кнопок работы с блоками для лучшего UX
+     * Fallback: если кнопок недостаточно, подменю добавляются в конец панели
+     */
     renderSubmenuButtons() {
         const container = this.elements['control-panel']
+        if (!container) {
+            console.warn('UIManager: control-panel not found for submenu buttons')
+            return
+        }
 
         // Находим позицию после основных кнопок работы с блоками
         // Вставляем подменю после 5-й кнопки (newBlock, editBlockTitle, editBlockText, cutBlock, copyBlock)
         const existingButtons = container.querySelectorAll('.sidebar-button')
+        // Fallback: если кнопок меньше 5, вставляем в конец
         const insertPosition = existingButtons.length > 5 ? existingButtons[5] : null
 
         // Кнопка подменю "Соединения"
@@ -121,6 +131,7 @@ export class UIManager {
         if (insertPosition) {
             container.insertBefore(connectionsBtn, insertPosition)
         } else {
+            // Fallback: добавляем в конец если позиция не найдена
             container.appendChild(connectionsBtn)
         }
 
