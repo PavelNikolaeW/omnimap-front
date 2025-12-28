@@ -2,6 +2,7 @@ import api from '../api/api.js';
 import { NotificationSettingsPopup } from './popups/notificationSettingsPopup.js';
 
 const LOG_PREFIX = '[TelegramLink]';
+const STORAGE_KEY = 'telegram_link_code';
 
 /**
  * Получает текущий URL (выделено для тестируемости)
@@ -11,30 +12,61 @@ export function getCurrentUrl() {
 }
 
 /**
+ * Выполняет редирект (выделено для тестируемости)
+ */
+export function redirectTo(url) {
+    window.location.href = url;
+}
+
+/**
  * Обработчик callback URL для привязки Telegram
  * Обрабатывает URL вида /settings/telegram?link=CODE
+ *
+ * Логика:
+ * 1. Если URL содержит /settings/telegram - сохраняем код в sessionStorage и редиректим на /
+ * 2. На главной странице проверяем sessionStorage и обрабатываем код
+ *
  * @param {URL} [urlOverride] - Опциональный URL для тестирования
+ * @param {Function} [redirectFn] - Опциональная функция редиректа для тестирования
  */
-export function handleTelegramLinkCallback(urlOverride) {
+export function handleTelegramLinkCallback(urlOverride, redirectFn) {
     const url = urlOverride || getCurrentUrl();
     const path = url.pathname;
+    const doRedirect = redirectFn || redirectTo;
 
-    // Проверяем, что это URL привязки Telegram
+    // Проверяем, что это URL привязки Telegram - сохраняем и редиректим
     if (path === '/settings/telegram' || path === '/settings/telegram/') {
         const linkCode = url.searchParams.get('link');
 
-        console.log(LOG_PREFIX, 'Detected telegram settings URL', { path, hasLinkCode: !!linkCode });
+        console.log(LOG_PREFIX, 'Detected telegram settings URL, redirecting to home', { hasLinkCode: !!linkCode });
 
         if (linkCode) {
-            confirmTelegramLink(linkCode);
+            // Сохраняем код для обработки после редиректа
+            sessionStorage.setItem(STORAGE_KEY, linkCode);
         } else {
-            // Просто открываем настройки уведомлений
-            console.log(LOG_PREFIX, 'Opening notification settings (no link code)');
-            openNotificationSettings();
+            // Просто пометим что нужно открыть настройки
+            sessionStorage.setItem(STORAGE_KEY, 'open_settings');
         }
 
-        // Очищаем URL без перезагрузки страницы
-        cleanUrl();
+        // Редирект на главную
+        doRedirect('/');
+        return;
+    }
+
+    // На главной странице проверяем сохранённый код
+    const savedCode = sessionStorage.getItem(STORAGE_KEY);
+    if (savedCode) {
+        sessionStorage.removeItem(STORAGE_KEY);
+
+        console.log(LOG_PREFIX, 'Processing saved telegram link code');
+
+        if (savedCode === 'open_settings') {
+            // Просто открываем настройки
+            openNotificationSettings();
+        } else {
+            // Подтверждаем привязку
+            confirmTelegramLink(savedCode);
+        }
     }
 }
 
@@ -82,14 +114,6 @@ async function confirmTelegramLink(linkCode) {
  */
 function openNotificationSettings() {
     new NotificationSettingsPopup();
-}
-
-/**
- * Очищает URL без перезагрузки страницы
- */
-function cleanUrl() {
-    const cleanPath = '/';
-    window.history.replaceState({}, document.title, cleanPath);
 }
 
 /**

@@ -59,50 +59,6 @@ module.exports = merge(common, {
             },
         ],
     },
-    module: {
-        rules: [
-            // JavaScript/JSX
-            {
-                test: /\.(js|jsx)$/,
-                include: [
-                    path.resolve(__dirname, 'src/js'),
-                    path.resolve(__dirname, 'src/llm_chat')
-                ],
-                exclude: /node_modules/,
-                use: {
-                    loader: 'babel-loader',
-                    options: {
-                        presets: [
-                            '@babel/preset-env',
-                            ['@babel/preset-react', { runtime: 'automatic' }]
-                        ]
-                    }
-                }
-            },
-            // CSS Modules (for *.module.css files)
-            {
-                test: /\.module\.css$/,
-                use: [
-                    'style-loader',
-                    {
-                        loader: 'css-loader',
-                        options: {
-                            modules: {
-                                namedExport: false,
-                                exportLocalsConvention: 'as-is'
-                            }
-                        }
-                    }
-                ],
-            },
-            // Regular CSS (non-module)
-            {
-                test: /\.css$/,
-                exclude: /\.module\.css$/,
-                use: ['style-loader', 'css-loader'],
-            },
-        ],
-    },
     optimization: {
         runtimeChunk: 'single',
     },
