@@ -6,6 +6,7 @@ module.exports = {
     output: {
         filename: '[name].[contenthash].bundle.js', // Добавили contenthash для кэширования
         path: path.resolve(__dirname, 'dist'),
+        publicPath: '/', // Все ассеты загружаются от корня
         clean: true,
     },
     resolve: {
