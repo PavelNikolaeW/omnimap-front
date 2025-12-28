@@ -232,22 +232,35 @@
    Block Image Display
    Адаптивное отображение изображений в блоках разного размера
    ───────────────────────────────────────────────────────────────────────────── */
+
+/* Базовые стили для контента блока с изображением */
+.defaultContent {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    height: 100%;
+    width: 100%;
+}
+
 .block-image-container {
     position: relative;
     width: 100%;
+    flex: 1;
+    min-height: 0;
     overflow: hidden;
     border-radius: var(--popup-radius-sm, 4px);
-    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .block-image {
     width: 100%;
-    height: auto;
-    max-height: 100%;
+    height: 100%;
     display: block;
     cursor: pointer;
     transition: transform 0.2s ease;
-    object-fit: cover;
+    object-fit: contain;
     object-position: center;
 }
 
@@ -270,71 +283,81 @@
    Адаптивные стили для разных размеров блоков
    ───────────────────────────────────────────────────────────────────────────── */
 
-/* Очень маленькие блоки (xxxs, xxs) - показываем иконку вместо картинки */
-[layout^="xxxs"] .block-image-container,
+/* Очень маленькие блоки (xxxs) - показываем маленькую миниатюру */
+[layout^="xxxs"] .block-image-container {
+    flex: 0 0 auto;
+    max-height: 20px;
+    margin: 1px 0;
+}
+
+[layout^="xxxs"] .block-image {
+    max-height: 20px;
+    object-fit: cover;
+}
+
+/* Маленькие блоки (xxs) - компактная миниатюра */
 [layout^="xxs"] .block-image-container {
-    display: none;
+    flex: 0 0 auto;
+    max-height: 30px;
+    margin: 2px 0;
+}
+
+[layout^="xxs"] .block-image {
+    max-height: 30px;
+    object-fit: cover;
 }
 
 /* Маленькие блоки (xs, s) - компактное отображение */
 [layout^="xs"] .block-image-container,
 [layout^="s-"] .block-image-container {
-    max-height: 40px;
+    flex: 0 0 auto;
+    max-height: 50px;
     margin: 2px 0;
 }
 
 [layout^="xs"] .block-image,
 [layout^="s-"] .block-image {
-    max-height: 40px;
+    max-height: 50px;
     object-fit: cover;
 }
 
-/* Средние блоки (m) - увеличенное отображение */
+/* Средние блоки (m) - картинка занимает доступное пространство */
 [layout^="m-"] .block-image-container {
-    max-height: 80px;
-    margin: 3px 0;
+    flex: 1;
+    min-height: 40px;
 }
 
 [layout^="m-"] .block-image {
-    max-height: 80px;
+    object-fit: contain;
 }
 
-/* Большие блоки (l) - стандартное отображение */
-[layout^="l-"] .block-image-container {
-    max-height: 150px;
-    margin: 4px 0;
-}
-
-[layout^="l-"] .block-image {
-    max-height: 150px;
-}
-
-/* Очень большие блоки (xl) - увеличенное отображение */
-[layout^="xl"] .block-image-container {
-    max-height: 250px;
-    margin: 5px 0;
-}
-
-[layout^="xl"] .block-image {
-    max-height: 250px;
-}
-
-/* Огромные блоки (xxl) - максимальное отображение */
+/* Большие блоки (l, xl, xxl) - картинка занимает все доступное пространство */
+[layout^="l-"] .block-image-container,
+[layout^="xl"] .block-image-container,
 [layout^="xxl"] .block-image-container {
-    max-height: 400px;
-    margin: 6px 0;
+    flex: 1;
+    min-height: 60px;
 }
 
+[layout^="l-"] .block-image,
+[layout^="xl"] .block-image,
 [layout^="xxl"] .block-image {
-    max-height: 400px;
+    object-fit: contain;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Режим image-only: блок только с картинкой без текста
    ───────────────────────────────────────────────────────────────────────────── */
+.block-image-only {
+    padding: 0;
+}
+
 .block-image-only .block-image-container {
+    flex: 1;
     height: 100%;
     max-height: none;
+    margin: 0;
+    border-radius: 0;
 }
 
 .block-image-only .block-image {
@@ -342,6 +365,24 @@
     height: 100%;
     max-height: none;
     object-fit: contain;
+    border-radius: 5px;
+}
+
+/* Для маленьких блоков в режиме image-only используем cover для лучшего заполнения */
+[layout^="xxxs"] .block-image-only .block-image-container,
+[layout^="xxs"] .block-image-only .block-image-container,
+[layout^="xs"] .block-image-only .block-image-container,
+[layout^="s-"] .block-image-only .block-image-container {
+    flex: 1;
+    max-height: none;
+}
+
+[layout^="xxxs"] .block-image-only .block-image,
+[layout^="xxs"] .block-image-only .block-image,
+[layout^="xs"] .block-image-only .block-image,
+[layout^="s-"] .block-image-only .block-image {
+    max-height: none;
+    object-fit: cover;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -369,18 +410,7 @@
     object-fit: cover;
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   Индикатор наличия изображения для скрытых картинок
-   ───────────────────────────────────────────────────────────────────────────── */
-[layout^="xxxs"] .defaultContent[data-has-image]::before,
-[layout^="xxs"] .defaultContent[data-has-image]::before {
-    content: "\f03e";
-    font-family: 'Font Awesome 6 Free';
-    font-weight: 900;
-    font-size: 8px;
-    color: #666;
-    margin-right: 3px;
-}
+/* Индикатор изображения больше не нужен - теперь показываем миниатюру */
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Mobile Responsive
