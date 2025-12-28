@@ -166,12 +166,23 @@ class BlockCreator {
 
         // Добавляем изображение если есть
         let imageHtml = ''
-        if (block.data?.image?.thumbnail_url) {
+        const hasImage = block.data?.image?.thumbnail_url
+        if (hasImage) {
             const imageUrl = block.data.image.url || block.data.image.thumbnail_url
             const thumbnailUrl = block.data.image.thumbnail_url
             imageHtml = `<div class="block-image-container" data-fullsize-url="${imageUrl}">
                 <img src="${thumbnailUrl}" alt="${block.data.image.filename || 'Block image'}" class="block-image" loading="lazy" />
             </div>`
+            // Атрибут для индикации наличия картинки (для маленьких блоков где картинка скрыта)
+            contentElement.setAttribute('data-has-image', 'true')
+        }
+
+        // Определяем режим image-only: есть картинка, но нет заголовка и текста
+        const hasTitle = block.data.titleIsVisible !== false && block.title
+        const hasText = block.data.text
+        const isImageOnly = hasImage && !hasTitle && !hasText
+        if (isImageOnly) {
+            contentElement.classList.add('block-image-only')
         }
 
         contentElement.innerHTML = title + imageHtml + content
