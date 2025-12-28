@@ -133,10 +133,13 @@ function showModal({ message, inputDefault, showInput, okText = 'OK', cancelText
 
     // Создаём оверлей и модалку
     const overlay = document.createElement('div'); overlay.className = 'custom-modal-overlay';
+    overlay.setAttribute('data-testid', 'custom-dialog-overlay');
     const modal = document.createElement('div'); modal.className = 'custom-modal';
+    modal.setAttribute('data-testid', 'custom-dialog');
 
     // Сообщение
     const msg = document.createElement('div'); msg.className = 'custom-modal-message'; msg.textContent = message || '';
+    msg.setAttribute('data-testid', 'custom-dialog-message');
     modal.appendChild(msg);
 
     // Поле ввода (для prompt)
@@ -144,6 +147,7 @@ function showModal({ message, inputDefault, showInput, okText = 'OK', cancelText
     if (showInput) {
       input = document.createElement('input');
       input.className = 'custom-modal-input'; input.type = 'text'; input.value = typeof inputDefault === 'string' ? inputDefault : '';
+      input.setAttribute('data-testid', 'custom-dialog-input');
       modal.appendChild(input);
     }
 
@@ -152,9 +156,11 @@ function showModal({ message, inputDefault, showInput, okText = 'OK', cancelText
     const cancelBtn = document.createElement('button');
     cancelBtn.textContent = cancelText;
     cancelBtn.className = 'btn-cancel';
+    cancelBtn.setAttribute('data-testid', 'custom-dialog-cancel-btn');
     const okBtn = document.createElement('button');
     okBtn.textContent = okText;
     okBtn.className = 'btn-ok';
+    okBtn.setAttribute('data-testid', 'custom-dialog-ok-btn');
     btns.append(cancelBtn, okBtn);
     modal.appendChild(btns);
     overlay.appendChild(modal);

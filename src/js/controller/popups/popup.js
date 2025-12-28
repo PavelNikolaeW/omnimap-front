@@ -146,6 +146,7 @@ export class Popup {
     createContainer() {
         this.popupEl = document.createElement('div');
         this.popupEl.className = 'popup-container';
+        this.popupEl.setAttribute('data-testid', `popup-${this.options.title?.toLowerCase().replace(/\s+/g, '-') || 'dialog'}`);
 
         // Применяем размер
         if (this.options.width) {
@@ -246,6 +247,7 @@ export class Popup {
 
         inputEl.id = inputId;
         inputEl.name = inputName;
+        inputEl.setAttribute('data-testid', `popup-input-${inputName}`);
         if (config.placeholder) inputEl.placeholder = config.placeholder;
         if (config.value && inputEl.tagName !== 'SELECT') inputEl.value = config.value;
         if (config.required) inputEl.required = true;
@@ -287,6 +289,7 @@ export class Popup {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'popup-btn popup-btn--primary';
+        btn.setAttribute('data-testid', 'popup-submit-btn');
         btn.textContent = 'OK';
         return btn;
     }
@@ -295,6 +298,7 @@ export class Popup {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'popup-btn popup-btn--secondary';
+        btn.setAttribute('data-testid', 'popup-cancel-btn');
         btn.textContent = 'Отмена';
         return btn;
     }

@@ -28,6 +28,7 @@ export class SearchBlocksPopup extends Popup {
         this.searchInput.type = "text";
         this.searchInput.placeholder = "Введите запрос для поиска...";
         this.searchInput.className = "popup-input";
+        this.searchInput.setAttribute("data-testid", "search-input");
         this.searchInput.value = this.options.initialState.query || "";
         this.searchContainer.appendChild(this.searchInput);
 
@@ -38,6 +39,7 @@ export class SearchBlocksPopup extends Popup {
         this.searchEverywhereCheckbox = document.createElement("input");
         this.searchEverywhereCheckbox.type = "checkbox";
         this.searchEverywhereCheckbox.className = "popup-checkbox";
+        this.searchEverywhereCheckbox.setAttribute("data-testid", "search-everywhere-checkbox");
         this.searchEverywhereCheckbox.checked = this.options.initialState.everywhere || false;
 
         this.searchEverywhereLabel.appendChild(this.searchEverywhereCheckbox);
@@ -49,6 +51,7 @@ export class SearchBlocksPopup extends Popup {
         // Контейнер для результатов
         this.resultsContainer = document.createElement("div");
         this.resultsContainer.className = "popup-search-results";
+        this.resultsContainer.setAttribute("data-testid", "search-results");
         this.contentArea.appendChild(this.resultsContainer);
 
         // События
@@ -104,6 +107,7 @@ export class SearchBlocksPopup extends Popup {
         blocks.forEach((block) => {
             const blockEl = document.createElement("div");
             blockEl.className = "popup-search-result";
+            blockEl.setAttribute("data-testid", `search-result-${block.id}`);
 
             const title = document.createElement("div");
             title.className = "popup-search-result__title";

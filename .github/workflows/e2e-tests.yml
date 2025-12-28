@@ -1,0 +1,24 @@
+# E2E тесты отключены в CI
+# Причина: требуется полное dev-окружение (backend, PostgreSQL, Redis)
+#
+# Для запуска E2E тестов локально:
+#   1. Запустите backend: make up (из omnimap-platform)
+#   2. Запустите тесты: npm run test:e2e
+#
+# Документация: e2e/README.md (если есть)
+
+name: E2E Tests (disabled)
+
+on:
+  workflow_dispatch:  # Только ручной запуск
+
+jobs:
+  placeholder:
+    name: E2E Tests require dev environment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Info
+        run: |
+          echo "E2E тесты требуют полное dev-окружение"
+          echo "Запускайте локально: npm run test:e2e"
+          echo "После запуска backend через: make up"
