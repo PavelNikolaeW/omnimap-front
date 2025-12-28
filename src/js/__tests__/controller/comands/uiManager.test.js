@@ -54,7 +54,7 @@ describe('UIManager', () => {
             expect(submenuConfig.notifications).toBeDefined();
             expect(submenuConfig.notifications.id).toBe('submenu-notifications');
             expect(submenuConfig.notifications.items).toContain('notificationSettings');
-            expect(submenuConfig.notifications.items).toContain('blockReminder');
+            expect(submenuConfig.notifications.items).toContain('setReminder');
             expect(submenuConfig.notifications.items).toContain('watchBlock');
         });
     });
