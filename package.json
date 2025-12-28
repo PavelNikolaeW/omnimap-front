@@ -10,12 +10,17 @@
     "build:debug": "cross-env APP_BACKEND_URL=https://omnimap.ru LLM_GATEWAY_URL=http://0.0.0.0:7998  SINC_SERVICE_URL=wss://omnimap.ru/ws webpack --config webpack.debug.js",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:headed": "playwright test --headed"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@playwright/test": "^1.40.0",
     "@babel/preset-env": "^7.28.5",
     "@babel/preset-react": "^7.28.5",
     "babel-jest": "^30.2.0",
