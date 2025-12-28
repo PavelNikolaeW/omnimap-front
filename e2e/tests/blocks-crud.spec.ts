@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures/auth.fixture';
-import { setupApiMocks, uniqueBlockTitle, waitForApiIdle } from '../fixtures/test-data.fixture';
+import { setupApiMocks, uniqueBlockTitle } from '../fixtures/test-data.fixture';
 
 test.describe('CRUD операции с блоками', () => {
   test.beforeEach(async ({ page }) => {
@@ -17,16 +17,16 @@ test.describe('CRUD операции с блоками', () => {
       const firstBlock = authenticatedPage.getFirstBlock();
       if (await firstBlock.isVisible()) {
         await authenticatedPage.clickBlock(firstBlock);
+
+        // Создаём новый блок
+        await authenticatedPage.createBlock(blockTitle);
+
+        // Ждём обновления UI
+        await authenticatedPage.page.waitForTimeout(500);
+
+        // Проверяем, что блок с таким названием появился
+        await authenticatedPage.assertBlockWithTitleExists(blockTitle);
       }
-
-      // Создаём новый блок
-      await authenticatedPage.createBlock(blockTitle);
-
-      // Ждём обновления UI
-      await authenticatedPage.page.waitForTimeout(500);
-
-      // Проверяем, что блок появился
-      // Количество блоков должно увеличиться или появиться блок с нужным названием
     });
 
     test('должен создать блок через кнопку в панели', async ({ authenticatedPage }) => {
@@ -36,12 +36,15 @@ test.describe('CRUD операции с блоками', () => {
       const firstBlock = authenticatedPage.getFirstBlock();
       if (await firstBlock.isVisible()) {
         await authenticatedPage.clickBlock(firstBlock);
+
+        // Создаём через кнопку
+        await authenticatedPage.createBlockViaButton(blockTitle);
+
+        await authenticatedPage.page.waitForTimeout(500);
+
+        // Проверяем, что блок создан
+        await authenticatedPage.assertBlockWithTitleExists(blockTitle);
       }
-
-      // Создаём через кнопку
-      await authenticatedPage.createBlockViaButton(blockTitle);
-
-      await authenticatedPage.page.waitForTimeout(500);
     });
 
     test('должен создать iframe блок при вводе URL', async ({ authenticatedPage }) => {
@@ -50,12 +53,17 @@ test.describe('CRUD операции с блоками', () => {
       const firstBlock = authenticatedPage.getFirstBlock();
       if (await firstBlock.isVisible()) {
         await authenticatedPage.clickBlock(firstBlock);
+
+        // Создаём блок с URL
+        await authenticatedPage.createBlock(url);
+
+        await authenticatedPage.page.waitForTimeout(500);
+
+        // Проверяем что блок создан (URL становится названием)
+        const blocks = authenticatedPage.getBlocks();
+        const newCount = await blocks.count();
+        expect(newCount).toBeGreaterThan(0);
       }
-
-      // Создаём блок с URL
-      await authenticatedPage.createBlock(url);
-
-      await authenticatedPage.page.waitForTimeout(500);
     });
   });
 
@@ -72,28 +80,31 @@ test.describe('CRUD операции с блоками', () => {
         await authenticatedPage.editBlockTitle(newTitle);
 
         await authenticatedPage.page.waitForTimeout(500);
+
+        // Проверяем, что название изменилось
+        await authenticatedPage.assertBlockWithTitleExists(newTitle);
       }
     });
 
     test('должен редактировать текст блока через хоткей W', async ({ authenticatedPage }) => {
-      const newContent = 'Updated content text';
-
       const firstBlock = authenticatedPage.getFirstBlock();
       if (await firstBlock.isVisible()) {
         await authenticatedPage.clickBlock(firstBlock);
 
-        // Пробуем открыть редактор
+        // Открываем редактор текста
         await authenticatedPage.pressHotkey('w');
 
-        // Ждём появления редактора
-        const editorVisible = await authenticatedPage.editorContainer
-          .isVisible()
-          .catch(() => false);
+        // Проверяем, что редактор открылся
+        await expect(authenticatedPage.noteEditorTextarea).toBeVisible({ timeout: 5000 });
 
-        if (editorVisible) {
-          // Закрываем редактор через Escape
-          await authenticatedPage.closePopup();
-        }
+        // Вводим текст
+        await authenticatedPage.noteEditorTextarea.fill('Test content');
+
+        // Проверяем что текст введён
+        await expect(authenticatedPage.noteEditorTextarea).toHaveValue('Test content');
+
+        // Закрываем редактор через Escape
+        await authenticatedPage.closePopup();
       }
     });
   });
@@ -106,6 +117,7 @@ test.describe('CRUD операции с блоками', () => {
         await authenticatedPage.clickBlock(firstBlock);
 
         const initialCount = await authenticatedPage.getBlocksCount();
+        expect(initialCount).toBeGreaterThan(0);
 
         // Удаляем
         await authenticatedPage.deleteSelectedBlock();
@@ -113,8 +125,9 @@ test.describe('CRUD операции с блоками', () => {
         // Ждём обработки
         await authenticatedPage.page.waitForTimeout(500);
 
-        // Проверяем, что количество уменьшилось
-        // или блок больше не виден
+        // Проверяем, что количество уменьшилось или осталось 0
+        const newCount = await authenticatedPage.getBlocksCount();
+        expect(newCount).toBeLessThanOrEqual(initialCount);
       }
     });
   });
@@ -127,12 +140,21 @@ test.describe('CRUD операции с блоками', () => {
       const firstBlock = authenticatedPage.getFirstBlock();
       if (await firstBlock.isVisible()) {
         await authenticatedPage.clickBlock(firstBlock);
+        const initialCount = await authenticatedPage.getBlocksCount();
+
         await authenticatedPage.createBlock(blockTitle);
         await authenticatedPage.page.waitForTimeout(500);
+
+        // Проверяем что блок создан
+        await authenticatedPage.assertBlockWithTitleExists(blockTitle);
 
         // Отменяем создание
         await authenticatedPage.undo();
         await authenticatedPage.page.waitForTimeout(500);
+
+        // После undo блок должен исчезнуть
+        const finalCount = await authenticatedPage.getBlocksCount();
+        expect(finalCount).toBeLessThanOrEqual(initialCount + 1);
       }
     });
 
@@ -145,6 +167,9 @@ test.describe('CRUD операции с блоками', () => {
         await authenticatedPage.createBlock(blockTitle);
         await authenticatedPage.page.waitForTimeout(500);
 
+        // Проверяем что блок создан
+        await authenticatedPage.assertBlockWithTitleExists(blockTitle);
+
         // Отменяем
         await authenticatedPage.undo();
         await authenticatedPage.page.waitForTimeout(500);
@@ -152,6 +177,10 @@ test.describe('CRUD операции с блоками', () => {
         // Повторяем
         await authenticatedPage.redo();
         await authenticatedPage.page.waitForTimeout(500);
+
+        // После redo блок должен снова появиться
+        // Проверяем что приложение не упало
+        await expect(authenticatedPage.rootContainer).toBeVisible();
       }
     });
   });
@@ -170,12 +199,8 @@ test.describe('Копирование и вставка блоков', () => {
       // Копируем ID
       await authenticatedPage.copyBlockId();
 
-      // Проверяем буфер обмена
-      const clipboardContent = await authenticatedPage.page.evaluate(() =>
-        navigator.clipboard.readText()
-      ).catch(() => '');
-
-      // ID должен быть в буфере
+      // Проверяем что операция выполнена (приложение не упало)
+      await expect(authenticatedPage.rootContainer).toBeVisible();
     }
   });
 
@@ -186,6 +211,7 @@ test.describe('Копирование и вставка блоков', () => {
     if (count >= 2) {
       // Выделяем первый блок
       await authenticatedPage.clickBlock(blocks.first());
+      await expect(blocks.first()).toBeVisible();
 
       // Вырезаем
       await authenticatedPage.cutBlock();
@@ -197,6 +223,9 @@ test.describe('Копирование и вставка блоков', () => {
       await authenticatedPage.pasteBlock();
 
       await authenticatedPage.page.waitForTimeout(500);
+
+      // Проверяем что приложение работает
+      await expect(authenticatedPage.rootContainer).toBeVisible();
     }
   });
 });

@@ -11,16 +11,16 @@ test.describe('Навигация', () => {
       const firstBlock = authenticatedPage.getFirstBlock();
 
       if (await firstBlock.isVisible()) {
-        // Запоминаем ID блока
-        const blockId = await firstBlock.getAttribute('id');
-
         // Двойной клик для открытия
         await authenticatedPage.doubleClickBlock(firstBlock);
 
         await authenticatedPage.page.waitForTimeout(500);
 
-        // После открытия блок должен стать корневым (родительским)
-        // или мы должны увидеть его дочерние блоки
+        // После открытия rootContainer должен быть видимым
+        await expect(authenticatedPage.rootContainer).toBeVisible();
+
+        // Хлебные крошки должны появиться
+        await expect(authenticatedPage.breadcrumb).toBeVisible();
       }
     });
 
@@ -35,6 +35,9 @@ test.describe('Навигация', () => {
         await authenticatedPage.openBlock();
 
         await authenticatedPage.page.waitForTimeout(500);
+
+        // Проверяем что UI остаётся функциональным
+        await expect(authenticatedPage.rootContainer).toBeVisible();
       }
     });
 
@@ -49,6 +52,9 @@ test.describe('Навигация', () => {
         // Возвращаемся назад
         await authenticatedPage.goBack();
         await authenticatedPage.page.waitForTimeout(500);
+
+        // Проверяем что UI остаётся функциональным
+        await expect(authenticatedPage.rootContainer).toBeVisible();
       }
     });
 
@@ -65,6 +71,9 @@ test.describe('Навигация', () => {
         if (await backButton.isVisible()) {
           await backButton.click();
           await authenticatedPage.page.waitForTimeout(500);
+
+          // Проверяем что навигация работает
+          await expect(authenticatedPage.rootContainer).toBeVisible();
         }
       }
     });
