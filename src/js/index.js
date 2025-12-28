@@ -31,6 +31,7 @@ import {isExcludedElement} from "./utils/functions";
 import {authStateManager} from "./auth/authStateManager";
 import {offlineQueue} from "./sincManager/offlineQueue";
 import {networkStatusUI} from "./sincManager/networkStatusUI";
+import {handleTelegramLinkCallback} from "./controller/telegramLinkHandler";
 // import {openChat} from "./controller/popups/chat/chat-init";
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
@@ -112,6 +113,9 @@ async function initApp() {
     }
 
     setInterface()
+
+    // Обработка callback URL (например, привязка Telegram)
+    handleTelegramLinkCallback()
 }
 
 async function checkAuth() {

@@ -514,6 +514,14 @@ class Api {
         return this.api.post('notifications/telegram/test/')
     }
 
+    /**
+     * Подтвердить привязку Telegram по коду из ссылки
+     * @param {string} linkCode - Код привязки из URL
+     */
+    confirmTelegramLink(linkCode) {
+        return this.api.post('notifications/telegram/confirm/', { link_code: linkCode })
+    }
+
     // =====================================================
     // PUSH NOTIFICATIONS API
     // =====================================================

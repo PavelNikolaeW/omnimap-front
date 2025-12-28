@@ -926,3 +926,64 @@
         --popup-border-focus: #0000ff;
     }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Telegram Link Status - Статус привязки Telegram
+   ───────────────────────────────────────────────────────────────────────────── */
+.telegram-link-status {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: var(--popup-spacing-lg) var(--popup-spacing-xl);
+    border-radius: var(--popup-radius-lg);
+    font-size: var(--popup-font-size-lg);
+    font-weight: 500;
+    z-index: 10000;
+    box-shadow: var(--popup-shadow);
+    display: flex;
+    align-items: center;
+    gap: var(--popup-spacing-md);
+    font-family: var(--popup-font);
+}
+
+.telegram-link-status--info {
+    background: #eff6ff;
+    color: #1e40af;
+    border: 1px solid #bfdbfe;
+}
+
+.telegram-link-status--success {
+    background: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+}
+
+.telegram-link-status--error {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+.telegram-link-spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: telegram-link-spin 1s linear infinite;
+}
+
+.telegram-link-icon {
+    font-size: 20px;
+}
+
+.telegram-link-message {
+    white-space: nowrap;
+}
+
+@keyframes telegram-link-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
