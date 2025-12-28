@@ -10,7 +10,7 @@ jest.mock('../../controller/popups/notificationSettingsPopup.js', () => ({
     NotificationSettingsPopup: jest.fn()
 }));
 
-import { handleTelegramLinkCallback } from '../../controller/telegramLinkHandler.js';
+import { handleTelegramLinkCallback, validateLinkCode } from '../../controller/telegramLinkHandler.js';
 import api from '../../api/api.js';
 import { NotificationSettingsPopup } from '../../controller/popups/notificationSettingsPopup.js';
 
@@ -48,6 +48,49 @@ describe('telegramLinkHandler', () => {
         return new URL(`http://localhost:3000${pathname}${search}`);
     }
 
+    describe('validateLinkCode', () => {
+        test('returns valid numeric code', () => {
+            expect(validateLinkCode('123456')).toBe('123456');
+            expect(validateLinkCode('682531960')).toBe('682531960');
+        });
+
+        test('trims whitespace', () => {
+            expect(validateLinkCode('  123456  ')).toBe('123456');
+            expect(validateLinkCode('\t789\n')).toBe('789');
+        });
+
+        test('rejects empty or null input', () => {
+            expect(validateLinkCode('')).toBeNull();
+            expect(validateLinkCode(null)).toBeNull();
+            expect(validateLinkCode(undefined)).toBeNull();
+            expect(validateLinkCode('   ')).toBeNull();
+        });
+
+        test('rejects non-string input', () => {
+            expect(validateLinkCode(123456)).toBeNull();
+            expect(validateLinkCode({})).toBeNull();
+            expect(validateLinkCode([])).toBeNull();
+        });
+
+        test('rejects codes with non-digit characters', () => {
+            expect(validateLinkCode('abc123')).toBeNull();
+            expect(validateLinkCode('123abc')).toBeNull();
+            expect(validateLinkCode('12-34')).toBeNull();
+            expect(validateLinkCode('12.34')).toBeNull();
+            expect(validateLinkCode('<script>alert(1)</script>')).toBeNull();
+        });
+
+        test('rejects codes exceeding max length', () => {
+            const longCode = '1'.repeat(65);
+            expect(validateLinkCode(longCode)).toBeNull();
+        });
+
+        test('accepts code at max length', () => {
+            const maxLengthCode = '1'.repeat(64);
+            expect(validateLinkCode(maxLengthCode)).toBe(maxLengthCode);
+        });
+    });
+
     describe('handleTelegramLinkCallback - redirect phase', () => {
         test('ignores non-telegram URLs on home page', () => {
             handleTelegramLinkCallback(createUrl('/'), mockRedirect);
@@ -66,7 +109,7 @@ describe('telegramLinkHandler', () => {
             expect(mockRedirect).not.toHaveBeenCalled();
         });
 
-        test('saves code and redirects for /settings/telegram with link code', () => {
+        test('saves code and redirects for /settings/telegram with valid link code', () => {
             handleTelegramLinkCallback(createUrl('/settings/telegram', '?link=123456'), mockRedirect);
 
             expect(sessionStorage.getItem(STORAGE_KEY)).toBe('123456');
@@ -87,10 +130,26 @@ describe('telegramLinkHandler', () => {
             expect(mockRedirect).toHaveBeenCalledWith('/');
         });
 
-        test('handles link with trailing slash and code', () => {
+        test('saves open_settings for invalid link code (non-numeric)', () => {
             handleTelegramLinkCallback(createUrl('/settings/telegram/', '?link=abc789'), mockRedirect);
 
-            expect(sessionStorage.getItem(STORAGE_KEY)).toBe('abc789');
+            // Invalid code should result in open_settings
+            expect(sessionStorage.getItem(STORAGE_KEY)).toBe('open_settings');
+            expect(mockRedirect).toHaveBeenCalledWith('/');
+        });
+
+        test('saves open_settings for XSS attempt in link code', () => {
+            handleTelegramLinkCallback(createUrl('/settings/telegram', '?link=<script>alert(1)</script>'), mockRedirect);
+
+            // XSS attempt should be rejected
+            expect(sessionStorage.getItem(STORAGE_KEY)).toBe('open_settings');
+            expect(mockRedirect).toHaveBeenCalledWith('/');
+        });
+
+        test('saves valid numeric code with trailing slash', () => {
+            handleTelegramLinkCallback(createUrl('/settings/telegram/', '?link=999888777'), mockRedirect);
+
+            expect(sessionStorage.getItem(STORAGE_KEY)).toBe('999888777');
             expect(mockRedirect).toHaveBeenCalledWith('/');
         });
     });
@@ -148,7 +207,7 @@ describe('telegramLinkHandler', () => {
         });
 
         test('shows error status on failure', async () => {
-            sessionStorage.setItem(STORAGE_KEY, 'invalid');
+            sessionStorage.setItem(STORAGE_KEY, '999999');
             api.confirmTelegramLink.mockRejectedValue({
                 response: { data: { detail: 'Invalid code' } }
             });

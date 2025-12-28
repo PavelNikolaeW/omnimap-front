@@ -4,6 +4,43 @@ import { NotificationSettingsPopup } from './popups/notificationSettingsPopup.js
 const LOG_PREFIX = '[TelegramLink]';
 const STORAGE_KEY = 'telegram_link_code';
 
+// Максимальная длина кода привязки (защита от overflow атак)
+const MAX_LINK_CODE_LENGTH = 64;
+// Разрешённые символы в коде привязки (только цифры)
+const LINK_CODE_PATTERN = /^\d+$/;
+
+/**
+ * Валидирует и санитизирует код привязки
+ * @param {string} code - Код привязки
+ * @returns {string|null} - Валидный код или null если невалидный
+ */
+export function validateLinkCode(code) {
+    if (!code || typeof code !== 'string') {
+        console.warn(LOG_PREFIX, 'Invalid link code: empty or not a string');
+        return null;
+    }
+
+    // Обрезаем пробелы
+    const trimmed = code.trim();
+
+    // Проверяем длину
+    if (trimmed.length === 0 || trimmed.length > MAX_LINK_CODE_LENGTH) {
+        console.warn(LOG_PREFIX, 'Invalid link code: length out of bounds', {
+            length: trimmed.length,
+            maxLength: MAX_LINK_CODE_LENGTH
+        });
+        return null;
+    }
+
+    // Проверяем формат (только цифры)
+    if (!LINK_CODE_PATTERN.test(trimmed)) {
+        console.warn(LOG_PREFIX, 'Invalid link code: contains non-digit characters');
+        return null;
+    }
+
+    return trimmed;
+}
+
 /**
  * Получает текущий URL (выделено для тестируемости)
  */
@@ -36,13 +73,22 @@ export function handleTelegramLinkCallback(urlOverride, redirectFn) {
 
     // Проверяем, что это URL привязки Telegram - сохраняем и редиректим
     if (path === '/settings/telegram' || path === '/settings/telegram/') {
-        const linkCode = url.searchParams.get('link');
+        const rawLinkCode = url.searchParams.get('link');
+        const linkCode = rawLinkCode ? validateLinkCode(rawLinkCode) : null;
 
-        console.log(LOG_PREFIX, 'Detected telegram settings URL, redirecting to home', { hasLinkCode: !!linkCode });
+        console.log(LOG_PREFIX, 'Detected telegram settings URL, redirecting to home', {
+            hasLinkCode: !!linkCode,
+            rawCodeLength: rawLinkCode?.length,
+            validatedCode: linkCode ? 'valid' : 'invalid_or_missing'
+        });
 
         if (linkCode) {
-            // Сохраняем код для обработки после редиректа
+            // Сохраняем валидный код для обработки после редиректа
             sessionStorage.setItem(STORAGE_KEY, linkCode);
+        } else if (rawLinkCode) {
+            // Код был передан, но невалиден - логируем и открываем настройки
+            console.warn(LOG_PREFIX, 'Link code validation failed, opening settings without confirmation');
+            sessionStorage.setItem(STORAGE_KEY, 'open_settings');
         } else {
             // Просто пометим что нужно открыть настройки
             sessionStorage.setItem(STORAGE_KEY, 'open_settings');
@@ -74,16 +120,25 @@ export function handleTelegramLinkCallback(urlOverride, redirectFn) {
  * Подтверждает привязку Telegram по коду
  */
 async function confirmTelegramLink(linkCode) {
-    console.log(LOG_PREFIX, 'Starting link confirmation', { codeLength: linkCode.length });
+    const startTime = Date.now();
+    console.log(LOG_PREFIX, 'Starting link confirmation', {
+        codeLength: linkCode.length,
+        timestamp: new Date().toISOString()
+    });
 
     try {
         // Показываем индикатор загрузки
         showLinkingStatus('Привязка Telegram...');
 
         const response = await api.confirmTelegramLink(linkCode);
+        const duration = Date.now() - startTime;
 
         // Успешно привязали
-        console.log(LOG_PREFIX, 'Link confirmed successfully', { response: response?.data });
+        console.log(LOG_PREFIX, 'Link confirmed successfully', {
+            response: response?.data,
+            durationMs: duration,
+            timestamp: new Date().toISOString()
+        });
         showLinkingStatus('Telegram успешно привязан!', 'success');
 
         // Открываем попап настроек через небольшую задержку
@@ -93,10 +148,19 @@ async function confirmTelegramLink(linkCode) {
         }, 1500);
 
     } catch (error) {
+        const duration = Date.now() - startTime;
         const errorMessage = error.response?.data?.detail || error.message || 'Unknown error';
+        const errorCode = error.response?.data?.code || error.code || 'UNKNOWN';
+
         console.error(LOG_PREFIX, 'Link confirmation failed', {
             status: error.response?.status,
-            detail: errorMessage
+            errorCode,
+            detail: errorMessage,
+            durationMs: duration,
+            timestamp: new Date().toISOString(),
+            // Дополнительная информация для отладки
+            hasResponse: !!error.response,
+            isNetworkError: !error.response && error.message === 'Network Error'
         });
 
         const message = error.response?.data?.detail || 'Не удалось привязать Telegram. Попробуйте ещё раз.';
