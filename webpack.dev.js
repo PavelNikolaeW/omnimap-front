@@ -9,6 +9,7 @@ module.exports = merge(common, {
     devServer: {
         static: './dist',
         hot: true,
+        historyApiFallback: true,
         headers: {
             'Cache-Control': 'no-store',
         },
