@@ -65,6 +65,7 @@ class BlockCreator {
             // element.setAttribute('width', `${Math.floor(block.size.width)}`)
             // element.setAttribute('height', `${Math.floor(block.size.height)}`)
             element.id = parentBlock.data?.view === 'link' ? `${parentBlock.id}*${block.id}` : block.id;
+            element.setAttribute('data-testid', `block-${block.id}`);
 
             if (block.data.customGrid && Object.keys(block.data.customGrid).length) element.setAttribute('blockCustomGrid', '')
 
@@ -102,6 +103,7 @@ class BlockCreator {
         gridClassManager.calcBlockSize(block, parentBlock)
 
         element.id = block.id
+        element.setAttribute('data-testid', `block-link-${block.id}`)
         element.setAttribute('blockLink', block.data.source)
         element.setAttribute('layout', block.size.layout)
 
@@ -162,6 +164,7 @@ class BlockCreator {
 
         contentElement.classList.add('defaultContent');
         contentElement.setAttribute('defaultContent', block.title)
+        contentElement.setAttribute('data-testid', `block-content-${block.id}`)
         const content = block.data.text ? `<contentBlock>${block.data?.text}</contentBlock>` : '<contentBlock></contentBlock>'
 
         // Добавляем изображение если есть
@@ -202,8 +205,8 @@ class BlockCreator {
             contentElement.classList.add('block-image-only')
         }
 
-        return `<div class="block-image-container" data-fullsize-url="${imageUrl}">
-            <img src="${thumbnailUrl}" alt="${safeFilename}" class="block-image" loading="lazy" />
+        return `<div class="block-image-container" data-testid="block-image-${block.id}" data-fullsize-url="${imageUrl}">
+            <img src="${thumbnailUrl}" alt="${safeFilename}" class="block-image" data-testid="block-image-tag-${block.id}" loading="lazy" />
         </div>`
     }
 

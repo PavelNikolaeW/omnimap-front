@@ -213,6 +213,7 @@ export class Breadcrumbs extends BaseController {
         crumb.setAttribute("blockId", block.id);
         crumb.setAttribute("parentHsl", parentColor.join(","));
         crumb.setAttribute("title", fullTitle);
+        crumb.setAttribute("data-testid", `breadcrumb-item-${block.id}`);
         return crumb;
     }
 

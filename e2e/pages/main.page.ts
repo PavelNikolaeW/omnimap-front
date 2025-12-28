@@ -5,19 +5,38 @@ import { BasePage } from './base.page';
  * Page Object для главной страницы с блоками
  */
 export class MainPage extends BasePage {
-  readonly promptDialog: Locator;
-  readonly promptInput: Locator;
-  readonly promptOkButton: Locator;
-  readonly promptCancelButton: Locator;
+  // Текстовый редактор (noteEditor)
+  readonly noteEditorTextarea: Locator;
+  readonly noteEditorToolbar: Locator;
+  readonly noteEditorPreview: Locator;
+
+  // Поиск (SearchPopup)
+  readonly searchInput: Locator;
+  readonly searchEverywhereCheckbox: Locator;
+  readonly searchResults: Locator;
+
+  // Загрузка изображений (ImageUploadPopup)
+  readonly imageUploadDropzone: Locator;
+  readonly imageUploadInput: Locator;
+  readonly imageUploadPreview: Locator;
 
   constructor(page: Page) {
     super(page);
 
-    // Кастомный диалог ввода (customPrompt)
-    this.promptDialog = page.locator('.custom-prompt, .prompt-dialog, [role="dialog"]');
-    this.promptInput = page.locator('.custom-prompt input, .prompt-dialog input');
-    this.promptOkButton = page.locator('.custom-prompt .ok-btn, .prompt-dialog button:has-text("OK")');
-    this.promptCancelButton = page.locator('.custom-prompt .cancel-btn, .prompt-dialog button:has-text("Cancel")');
+    // Текстовый редактор с data-testid
+    this.noteEditorTextarea = page.locator('[data-testid="note-editor-textarea"]');
+    this.noteEditorToolbar = page.locator('[data-testid="note-editor-toolbar"]');
+    this.noteEditorPreview = page.locator('[data-testid="note-editor-preview"]');
+
+    // Поиск с data-testid
+    this.searchInput = page.locator('[data-testid="search-input"]');
+    this.searchEverywhereCheckbox = page.locator('[data-testid="search-everywhere-checkbox"]');
+    this.searchResults = page.locator('[data-testid="search-results"]');
+
+    // Загрузка изображений с data-testid
+    this.imageUploadDropzone = page.locator('[data-testid="image-upload-dropzone"]');
+    this.imageUploadInput = page.locator('[data-testid="image-upload-input"]');
+    this.imageUploadPreview = page.locator('[data-testid="image-upload-preview"]');
   }
 
   // ==================== Работа с блоками ====================
@@ -76,14 +95,14 @@ export class MainPage extends BasePage {
     // Нажимаем 'n' для создания нового блока
     await this.pressHotkey('n');
 
-    // Ждём появления диалога
-    await this.promptInput.waitFor({ state: 'visible', timeout: 5000 });
+    // Ждём появления диалога (используем data-testid)
+    await this.customDialogInput.waitFor({ state: 'visible', timeout: 5000 });
 
     // Вводим название
-    await this.promptInput.fill(title);
+    await this.customDialogInput.fill(title);
 
     // Подтверждаем
-    await this.promptOkButton.click();
+    await this.customDialogOkBtn.click();
   }
 
   /**
@@ -91,9 +110,9 @@ export class MainPage extends BasePage {
    */
   async createBlockViaButton(title: string) {
     await this.clickControlButton('newBlock');
-    await this.promptInput.waitFor({ state: 'visible', timeout: 5000 });
-    await this.promptInput.fill(title);
-    await this.promptOkButton.click();
+    await this.customDialogInput.waitFor({ state: 'visible', timeout: 5000 });
+    await this.customDialogInput.fill(title);
+    await this.customDialogOkBtn.click();
   }
 
   // ==================== Редактирование блоков ====================
@@ -103,22 +122,21 @@ export class MainPage extends BasePage {
    */
   async editBlockTitle(newTitle: string) {
     await this.pressHotkey('t');
-    await this.promptInput.waitFor({ state: 'visible', timeout: 5000 });
-    await this.promptInput.clear();
-    await this.promptInput.fill(newTitle);
-    await this.promptOkButton.click();
+    await this.customDialogInput.waitFor({ state: 'visible', timeout: 5000 });
+    await this.customDialogInput.clear();
+    await this.customDialogInput.fill(newTitle);
+    await this.customDialogOkBtn.click();
   }
 
   /**
-   * Редактировать текст блока
+   * Редактировать текст блока (используя noteEditor с data-testid)
    */
   async editBlockText(text: string) {
     await this.pressHotkey('w');
-    await this.editorContainer.waitFor({ state: 'visible', timeout: 5000 });
+    await this.noteEditorTextarea.waitFor({ state: 'visible', timeout: 5000 });
 
-    // Ожидаем редактор
-    const editor = this.editorContainer.locator('.EasyMDEContainer textarea, .CodeMirror');
-    await editor.fill(text);
+    // Вводим текст в редактор
+    await this.noteEditorTextarea.fill(text);
 
     // Закрываем редактор (Enter)
     await this.pressHotkey('Enter');
@@ -230,5 +248,22 @@ export class MainPage extends BasePage {
    */
   async closePopup() {
     await this.pressHotkey('Escape');
+  }
+
+  /**
+   * Получить результат поиска по ID блока
+   */
+  getSearchResult(blockId: string): Locator {
+    return this.page.locator(`[data-testid="search-result-${blockId}"]`);
+  }
+
+  /**
+   * Выполнить поиск
+   */
+  async performSearch(query: string, everywhere: boolean = false) {
+    await this.searchInput.fill(query);
+    if (everywhere) {
+      await this.searchEverywhereCheckbox.check();
+    }
   }
 }

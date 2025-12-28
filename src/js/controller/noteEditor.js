@@ -45,11 +45,13 @@ export class NoteEditor {
         this.editorEl.setAttribute('autocorrect', 'on');
         this.editorEl.setAttribute('autocapitalize', 'sentences');
         this.editorEl.setAttribute('spellcheck', 'true');
+        this.editorEl.setAttribute('data-testid', 'note-editor-textarea');
         this.editorEl.value = markdown;
         this.container.appendChild(this.editorEl);
 
         this.previewEl = document.createElement('div');
         this.previewEl.className = 'note-editor-preview';
+        this.previewEl.setAttribute('data-testid', 'note-editor-preview');
         this.previewEl.style.display = 'none';
         this.container.appendChild(this.previewEl);
 
@@ -149,6 +151,7 @@ export class NoteEditor {
     _buildToolbar() {
         const bar = document.createElement('div');
         bar.className = 'note-editor-toolbar';
+        bar.setAttribute('data-testid', 'note-editor-toolbar');
 
         const addBtn = (title, iconClass, onClick) => {
             const btn = document.createElement('button');

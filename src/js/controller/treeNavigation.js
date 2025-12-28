@@ -133,6 +133,7 @@ export class TreeNavigation {
         button.className = 'tree-button';
         button.dataset.treeId = treeId;
         button.setAttribute('blockId', treeId);
+        button.setAttribute('data-testid', `tree-button-${treeId}`);
         button.id = `treeBtn_${treeId}`;
 
         const title = block?.title || 'Без имени';
@@ -155,6 +156,7 @@ export class TreeNavigation {
         button.textContent = '+';
         button.setAttribute('title', 'Создать новое дерево');
         button.setAttribute('aria-label', 'Создать новое дерево');
+        button.setAttribute('data-testid', 'tree-add-button');
         return button;
     }
 }

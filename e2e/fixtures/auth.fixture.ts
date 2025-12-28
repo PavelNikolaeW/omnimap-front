@@ -1,12 +1,20 @@
-import { test as base, expect } from '@playwright/test';
+import { test as base, expect, Page, BrowserContext } from '@playwright/test';
 import { MainPage } from '../pages/main.page';
 import { LoginPage } from '../pages/login.page';
 
-// Тестовые учетные данные (можно переопределить через env)
+/**
+ * Тестовые учетные данные
+ * Для реальных E2E тестов задайте через переменные окружения:
+ *   E2E_TEST_USERNAME - логин тестового пользователя
+ *   E2E_TEST_PASSWORD - пароль тестового пользователя
+ *   E2E_USE_REAL_AUTH - установите в 'true' для использования реальной авторизации
+ */
 const TEST_USER = {
-  username: process.env.E2E_TEST_USERNAME || 'test_user',
-  password: process.env.E2E_TEST_PASSWORD || 'test_password',
+  username: process.env.E2E_TEST_USERNAME || 'e2e_test_user',
+  password: process.env.E2E_TEST_PASSWORD || 'e2e_test_password',
 };
+
+const USE_REAL_AUTH = process.env.E2E_USE_REAL_AUTH === 'true';
 
 /**
  * Расширенные fixtures с авторизацией и page objects
@@ -41,14 +49,12 @@ export const test = base.extend<AuthFixtures>({
   authenticatedPage: async ({ page, context }, use) => {
     const mainPage = new MainPage(page);
 
-    // Проверяем, есть ли сохраненное состояние сессии
-    const cookies = await context.cookies();
-    const hasAccessToken = cookies.some(c => c.name === 'access');
-
-    if (!hasAccessToken) {
-      // Мокируем авторизацию через установку cookie
-      // В реальных тестах можно выполнить логин через API
-      await setupMockedAuth(page);
+    if (USE_REAL_AUTH) {
+      // Реальная авторизация через API или UI
+      await performRealAuth(page);
+    } else {
+      // Мокированная авторизация для быстрых тестов
+      await setupMockedAuth(page, context);
     }
 
     await mainPage.goto();
@@ -59,12 +65,23 @@ export const test = base.extend<AuthFixtures>({
 });
 
 /**
+ * Реальная авторизация через backend API
+ * Получает настоящие JWT токены
+ */
+async function performRealAuth(page: Page) {
+  const loginPage = new LoginPage(page);
+  await loginPage.goto();
+  await loginPage.login(TEST_USER.username, TEST_USER.password);
+  await loginPage.assertLoginSuccess();
+}
+
+/**
  * Настройка мокированной авторизации
  * Устанавливает необходимые cookies и localStorage
  */
-async function setupMockedAuth(page: any) {
+async function setupMockedAuth(page: Page, context: BrowserContext) {
   // Устанавливаем mock токены
-  await page.context().addCookies([
+  await context.addCookies([
     {
       name: 'access',
       value: 'mock_access_token_for_e2e_tests',
@@ -79,17 +96,19 @@ async function setupMockedAuth(page: any) {
     },
   ]);
 
-  // Устанавливаем mock данные пользователя в IndexedDB
-  // Это делается через evaluate, так как IndexedDB не доступна напрямую
+  // Устанавливаем mock данные пользователя в IndexedDB через localforage
   await page.goto('/');
   await page.evaluate(() => {
-    // Мок данные пользователя
-    const mockUser = {
-      id: 'test-user-id',
-      username: 'test_user',
-      email: 'test@example.com',
-    };
+    // Мок данные пользователя для localforage/IndexedDB
+    const mockUser = 'e2e_test_user';
+
+    // localforage хранит данные асинхронно, используем localStorage как fallback
     localStorage.setItem('currentUser', JSON.stringify(mockUser));
+
+    // Также устанавливаем в IndexedDB если localforage доступен
+    if (typeof (window as any).localforage !== 'undefined') {
+      (window as any).localforage.setItem('currentUser', mockUser);
+    }
   });
 }
 
@@ -110,11 +129,28 @@ export async function performLogin(
 /**
  * Создать состояние сессии для переиспользования
  * Сохраняет cookies и localStorage в файл
+ *
+ * Использование:
+ *   npx playwright test --project=setup
+ *
+ * Затем в других тестах:
+ *   use: { storageState: 'e2e/.auth/user.json' }
  */
-export async function createAuthState(page: any, storageStatePath: string) {
+export async function createAuthState(page: Page, storageStatePath: string) {
   const loginPage = new LoginPage(page);
   await performLogin(loginPage);
   await page.context().storageState({ path: storageStatePath });
+}
+
+/**
+ * Хелпер для получения тестовых учётных данных
+ */
+export function getTestCredentials() {
+  return {
+    username: TEST_USER.username,
+    password: TEST_USER.password,
+    isRealAuth: USE_REAL_AUTH,
+  };
 }
 
 export { expect };

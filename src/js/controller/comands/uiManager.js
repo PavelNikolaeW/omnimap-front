@@ -97,6 +97,7 @@ export class UIManager {
         const element = document.createElement('button')
         element.id = cmd.id
         element.classList.add(...cmd.btn.classes)
+        element.setAttribute('data-testid', `command-btn-${cmd.id}`)
         if (cmd.btn.icons) {
             cmd.btn.icons.forEach((icon) => {
                 const i = document.createElement('i')
@@ -151,6 +152,7 @@ export class UIManager {
         button.classList.add('sidebar-button', 'fas', config.icon, 'fas-lg', 'submenu-trigger')
         button.setAttribute('title', config.label)
         button.setAttribute('data-submenu', config.id)
+        button.setAttribute('data-testid', `submenu-btn-${config.id}`)
         // ARIA атрибуты для доступности
         button.setAttribute('aria-haspopup', 'true')
         button.setAttribute('aria-expanded', 'false')

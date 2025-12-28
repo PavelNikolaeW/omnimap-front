@@ -102,6 +102,7 @@ export class ImageUploadPopup extends Popup {
         // Превью текущего изображения
         this.previewSection = document.createElement("div");
         this.previewSection.className = "image-upload-preview-section";
+        this.previewSection.setAttribute('data-testid', 'image-upload-preview');
         container.appendChild(this.previewSection);
 
         // Drop zone
@@ -110,6 +111,7 @@ export class ImageUploadPopup extends Popup {
         this.dropZone.setAttribute('role', 'button');
         this.dropZone.setAttribute('tabindex', '0');
         this.dropZone.setAttribute('aria-label', 'Область для загрузки изображения. Нажмите или перетащите файл');
+        this.dropZone.setAttribute('data-testid', 'image-upload-dropzone');
         this.dropZone.innerHTML = `
             <div class="image-upload-dropzone-content">
                 <i class="fas fa-cloud-upload-alt image-upload-icon" aria-hidden="true"></i>
@@ -126,6 +128,7 @@ export class ImageUploadPopup extends Popup {
         this.fileInput.accept = ALLOWED_TYPES.join(",");
         this.fileInput.style.display = "none";
         this.fileInput.setAttribute('aria-label', 'Выбор файла изображения');
+        this.fileInput.setAttribute('data-testid', 'image-upload-input');
         container.appendChild(this.fileInput);
 
         // Прогресс загрузки

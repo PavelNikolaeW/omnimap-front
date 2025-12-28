@@ -19,6 +19,13 @@ export class BasePage {
   readonly errorPopup: Locator;
   readonly editorContainer: Locator;
 
+  // Кастомный диалог (custom-dialog.js)
+  readonly customDialogOverlay: Locator;
+  readonly customDialog: Locator;
+  readonly customDialogInput: Locator;
+  readonly customDialogOkBtn: Locator;
+  readonly customDialogCancelBtn: Locator;
+
   constructor(page: Page) {
     this.page = page;
 
@@ -33,6 +40,13 @@ export class BasePage {
     // Попапы
     this.errorPopup = page.locator('#error-popup');
     this.editorContainer = page.locator('#editor-container');
+
+    // Кастомный диалог с data-testid
+    this.customDialogOverlay = page.locator('[data-testid="custom-dialog-overlay"]');
+    this.customDialog = page.locator('[data-testid="custom-dialog"]');
+    this.customDialogInput = page.locator('[data-testid="custom-dialog-input"]');
+    this.customDialogOkBtn = page.locator('[data-testid="custom-dialog-ok-btn"]');
+    this.customDialogCancelBtn = page.locator('[data-testid="custom-dialog-cancel-btn"]');
   }
 
   /**
@@ -74,10 +88,10 @@ export class BasePage {
   }
 
   /**
-   * Получить блок по ID
+   * Получить блок по ID (используя data-testid)
    */
   getBlockById(blockId: string): Locator {
-    return this.page.locator(`#${blockId}`);
+    return this.page.locator(`[data-testid="block-${blockId}"]`);
   }
 
   /**
@@ -102,10 +116,45 @@ export class BasePage {
   }
 
   /**
-   * Кликнуть по кнопке в панели управления
+   * Кликнуть по кнопке в панели управления (используя data-testid)
    */
   async clickControlButton(buttonId: string) {
-    await this.controlPanel.locator(`#${buttonId}`).click();
+    await this.controlPanel.locator(`[data-testid="command-btn-${buttonId}"]`).click();
+  }
+
+  /**
+   * Получить кнопку команды в панели управления
+   */
+  getCommandButton(buttonId: string): Locator {
+    return this.controlPanel.locator(`[data-testid="command-btn-${buttonId}"]`);
+  }
+
+  /**
+   * Получить кнопку подменю
+   */
+  getSubmenuButton(submenuId: string): Locator {
+    return this.controlPanel.locator(`[data-testid="submenu-btn-${submenuId}"]`);
+  }
+
+  /**
+   * Получить кнопку дерева по ID
+   */
+  getTreeButton(treeId: string): Locator {
+    return this.treeNavigation.locator(`[data-testid="tree-button-${treeId}"]`);
+  }
+
+  /**
+   * Получить кнопку добавления дерева
+   */
+  getTreeAddButton(): Locator {
+    return this.treeNavigation.locator('[data-testid="tree-add-button"]');
+  }
+
+  /**
+   * Получить хлебную крошку по ID блока
+   */
+  getBreadcrumbItem(blockId: string): Locator {
+    return this.breadcrumb.locator(`[data-testid="breadcrumb-item-${blockId}"]`);
   }
 
   /**
