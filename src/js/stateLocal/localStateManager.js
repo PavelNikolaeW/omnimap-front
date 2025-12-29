@@ -128,11 +128,20 @@ export class LocalStateManager {
         });
 
         window.addEventListener('Logout', async () => {
-            dispatch('InitAnonimUser')
-            const sidebar = document.getElementById('sidebar')
-            const topSidebar = document.getElementById('topSidebar')
-            sidebar.classList.add('hidden')
-            topSidebar.classList.add('hidden')
+            // Очищаем URL если есть параметры
+            if (window.location.search || window.location.hash) {
+                window.history.replaceState({}, '', window.location.pathname);
+            }
+
+            dispatch('InitAnonimUser');
+
+            const sidebar = document.getElementById('sidebar');
+            const topSidebar = document.getElementById('topSidebar');
+            if (sidebar) sidebar.classList.add('hidden');
+            if (topSidebar) topSidebar.classList.add('hidden');
+
+            // Показываем начальный экран для анонимного пользователя
+            this.showBlocks();
         });
 
         window.addEventListener('PasteBlock', async (e) => {

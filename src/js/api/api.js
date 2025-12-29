@@ -80,18 +80,24 @@ class Api {
                 const originalRequest = error.config;
                 this.setLoading(false)
 
-                if (error.response.status === 401 && !originalRequest._retry) {
+                if (error.response?.status === 401 && !originalRequest._retry) {
                     originalRequest._retry = true;
                     try {
                         const tokenRefreshed = await this.refreshToken();
                         if (tokenRefreshed) {
                             return this.api(originalRequest);
+                        } else {
+                            // Refresh не удался - выходим из системы
+                            this.logout();
+                            return Promise.reject(error);
                         }
                     } catch (refreshError) {
+                        // Ошибка при refresh - выходим из системы
+                        this.logout();
                         return Promise.reject(refreshError);
                     }
                 }
-                if (error.response.status >= 400) {
+                if (error.response?.status >= 400) {
                     dispatch("ShowError", error)
                 }
                 return Promise.reject(error);
