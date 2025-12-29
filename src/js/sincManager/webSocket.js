@@ -1,11 +1,30 @@
 import Cookies from "js-cookie";
 import {dispatch} from "../utils/utils";
 
+/**
+ * Максимальное количество попыток переподключения
+ */
+const MAX_RECONNECT_ATTEMPTS = 10;
+
+/**
+ * Базовый интервал переподключения в мс
+ */
+const BASE_RECONNECT_INTERVAL = 2000;
+
+/**
+ * Максимальный интервал переподключения в мс (2 минуты)
+ */
+const MAX_RECONNECT_INTERVAL = 120000;
+
+/**
+ * Интервал heartbeat в мс (30 секунд)
+ */
+const HEARTBEAT_INTERVAL = 30000;
+
 export class UpdateServiceWebSocket {
     /**
      * Создает экземпляр класса UpdateServiceWebSocket.
      * @param {string} url - URL WebSocket-сервиса.
-     * @param {string} jwtToken - JWT-токен авторизации.
      */
     constructor(url) {
         this.url = url;
@@ -17,12 +36,95 @@ export class UpdateServiceWebSocket {
             error: [],
             close: [],
         };
-        this.reconnectInterval = 2000; // Интервал попыток переподключения в мс
+        this.reconnectAttempts = 0;
         this.shouldReconnect = true;
-        window.addEventListener('Login', () => {
-            this.disconnect()
-            this.connect()
-        })
+        this.heartbeatTimer = null;
+        this.missedPongs = 0;
+
+        this._handleLogin = this._handleLogin.bind(this);
+        this._handleLogout = this._handleLogout.bind(this);
+
+        window.addEventListener('Login', this._handleLogin);
+        window.addEventListener('Logout', this._handleLogout);
+    }
+
+    /**
+     * Обработчик события Login - переподключение с новым токеном
+     */
+    _handleLogin() {
+        this.shouldReconnect = true;
+        this.reconnectAttempts = 0;
+        this._stopHeartbeat();
+        if (this.ws) {
+            this.ws.close();
+        }
+        this.connect();
+    }
+
+    /**
+     * Обработчик события Logout - отключение
+     */
+    _handleLogout() {
+        this.disconnect();
+    }
+
+    /**
+     * Вычисляет интервал переподключения с экспоненциальным backoff
+     * @returns {number} Интервал в миллисекундах
+     */
+    _getReconnectInterval() {
+        const interval = BASE_RECONNECT_INTERVAL * Math.pow(2, this.reconnectAttempts);
+        return Math.min(interval, MAX_RECONNECT_INTERVAL);
+    }
+
+    /**
+     * Запускает heartbeat для проверки соединения
+     */
+    _startHeartbeat() {
+        this._stopHeartbeat();
+        this.missedPongs = 0;
+
+        this.heartbeatTimer = setInterval(() => {
+            if (!this.isConnected || this.ws?.readyState !== WebSocket.OPEN) {
+                return;
+            }
+
+            // Если пропущено 2 pong подряд, считаем соединение разорванным
+            if (this.missedPongs >= 2) {
+                console.warn('WebSocket: heartbeat timeout, reconnecting...');
+                this._stopHeartbeat();
+                this.ws?.close();
+                return;
+            }
+
+            this.missedPongs++;
+            this.sendMessage({ action: 'ping' });
+        }, HEARTBEAT_INTERVAL);
+    }
+
+    /**
+     * Останавливает heartbeat
+     */
+    _stopHeartbeat() {
+        if (this.heartbeatTimer) {
+            clearInterval(this.heartbeatTimer);
+            this.heartbeatTimer = null;
+        }
+        this.missedPongs = 0;
+    }
+
+    /**
+     * Безопасно парсит JSON, возвращает null при ошибке
+     * @param {string} data - JSON строка
+     * @returns {Object|null} Распарсенный объект или null
+     */
+    _safeJsonParse(data) {
+        try {
+            return JSON.parse(data);
+        } catch (error) {
+            console.error('WebSocket: invalid JSON received:', error.message);
+            return null;
+        }
     }
 
     /**
@@ -30,21 +132,43 @@ export class UpdateServiceWebSocket {
      */
     connect() {
         const jwtToken = Cookies.get('access');
+        if (!jwtToken) {
+            console.warn('WebSocket: no access token, skipping connection');
+            return;
+        }
+
+        // Токен передаётся в query string (стандарт для WebSocket)
+        // TODO: рассмотреть передачу через первое сообщение после подключения
         this.ws = new WebSocket(`${this.url}?token=${encodeURIComponent(jwtToken)}`);
+
         this.ws.onopen = () => {
             console.log('WebSocket подключен');
             this.isConnected = true;
+            this.reconnectAttempts = 0;
+            this._startHeartbeat();
             this.eventListeners.open.forEach(callback => callback());
         };
 
         this.ws.onmessage = (event) => {
-            const message = JSON.parse(event.data);
+            const message = this._safeJsonParse(event.data);
+            if (!message) return;
+
+            // Обработка pong от сервера
+            if (message.type === 'pong') {
+                this.missedPongs = 0;
+                return;
+            }
+
             if (message.type === 'block_updates') {
-                dispatch('WebSocUpdateBlock', message.updates)
+                if (Array.isArray(message.updates)) {
+                    dispatch('WebSocUpdateBlock', message.updates);
+                }
             } else if (message.type === 'block_update') {
-                dispatch('WebSocUpdateBlock', [message.data])
+                if (message.data && typeof message.data === 'object') {
+                    dispatch('WebSocUpdateBlock', [message.data]);
+                }
             } else if (message.type === 'block_update_access') {
-                dispatch('WebSocUpdateBlockAccess', message)
+                dispatch('WebSocUpdateBlockAccess', message);
             }
         };
 
@@ -56,12 +180,23 @@ export class UpdateServiceWebSocket {
         this.ws.onclose = (event) => {
             console.warn(`WebSocket отключен: код=${event.code}, причина=${event.reason}`);
             this.isConnected = false;
+            this._stopHeartbeat();
             this.eventListeners.close.forEach(callback => callback(event));
+
             if (this.shouldReconnect) {
+                if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+                    console.error('WebSocket: max reconnect attempts reached');
+                    dispatch('WebSocketDisconnected', { reason: 'max_attempts' });
+                    return;
+                }
+
+                const interval = this._getReconnectInterval();
+                this.reconnectAttempts++;
+                console.log(`WebSocket: reconnecting in ${interval}ms (attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+
                 setTimeout(() => {
-                    console.log('Пытаемся переподключиться...');
                     this.connect();
-                }, this.reconnectInterval);
+                }, interval);
             }
         };
     }
@@ -110,8 +245,30 @@ export class UpdateServiceWebSocket {
      */
     disconnect() {
         this.shouldReconnect = false;
+        this._stopHeartbeat();
         if (this.ws) {
             this.ws.close();
+            this.ws = null;
         }
+        this.isConnected = false;
+        this.reconnectAttempts = 0;
+    }
+
+    /**
+     * Сбрасывает счётчик попыток переподключения
+     * Полезно при ручном восстановлении соединения
+     */
+    resetReconnectAttempts() {
+        this.reconnectAttempts = 0;
+    }
+
+    /**
+     * Очистка ресурсов при уничтожении экземпляра
+     */
+    destroy() {
+        this.disconnect();
+        window.removeEventListener('Login', this._handleLogin);
+        window.removeEventListener('Logout', this._handleLogout);
+        this.eventListeners = { open: [], message: [], error: [], close: [] };
     }
 }
