@@ -80,18 +80,24 @@ class Api {
                 const originalRequest = error.config;
                 this.setLoading(false)
 
-                if (error.response.status === 401 && !originalRequest._retry) {
+                if (error.response?.status === 401 && !originalRequest._retry) {
                     originalRequest._retry = true;
                     try {
                         const tokenRefreshed = await this.refreshToken();
                         if (tokenRefreshed) {
                             return this.api(originalRequest);
+                        } else {
+                            // Refresh не удался - выходим из системы
+                            this.logout();
+                            return Promise.reject(error);
                         }
                     } catch (refreshError) {
+                        // Ошибка при refresh - выходим из системы
+                        this.logout();
                         return Promise.reject(refreshError);
                     }
                 }
-                if (error.response.status >= 400) {
+                if (error.response?.status >= 400) {
                     dispatch("ShowError", error)
                 }
                 return Promise.reject(error);
@@ -100,6 +106,25 @@ class Api {
 
     setLoading(value) {
         dispatch('SetLoading', value);
+    }
+
+    /**
+     * Проверка доступности backend API
+     * @returns {Promise<{status: number}>}
+     */
+    async healthCheck() {
+        try {
+            // Используем простой GET запрос без авторизации
+            const response = await axios.get(`${this.backendUrl}/api/v1/health/`, {
+                timeout: 5000
+            });
+            return { status: response.status };
+        } catch (error) {
+            if (error.response) {
+                return { status: error.response.status };
+            }
+            throw error;
+        }
     }
 
     // Метод для обновления токена

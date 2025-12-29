@@ -1,5 +1,11 @@
 import localforage from "localforage";
 import Cookies from "js-cookie";
+import { dispatch } from "../utils/utils";
+
+/**
+ * Интервал проверки токенов в миллисекундах (30 секунд)
+ */
+const TOKEN_CHECK_INTERVAL = 30000;
 
 /**
  * Централизованный менеджер состояния аутентификации
@@ -10,6 +16,7 @@ class AuthStateManager {
         this.isAuthenticated = false;
         this.currentUser = null;
         this.isLinkView = false;
+        this.tokenCheckTimer = null;
 
         // UI элементы
         this.elements = {
@@ -35,6 +42,9 @@ class AuthStateManager {
 
         // Инициализируем состояние
         await this.checkAuthState();
+
+        // Запускаем периодическую проверку токенов
+        this.startTokenCheck();
     }
 
     cacheElements() {
@@ -145,6 +155,67 @@ class AuthStateManager {
      */
     async refresh() {
         await this.checkAuthState();
+    }
+
+    /**
+     * Запускает периодическую проверку токенов
+     * Если токены были удалены (например, вручную из DevTools),
+     * автоматически выполняет logout
+     */
+    startTokenCheck() {
+        this.stopTokenCheck();
+
+        this.tokenCheckTimer = setInterval(() => {
+            this.verifyTokens();
+        }, TOKEN_CHECK_INTERVAL);
+
+        // Также проверяем при возвращении на вкладку
+        document.addEventListener('visibilitychange', this._handleVisibilityChange.bind(this));
+    }
+
+    /**
+     * Останавливает периодическую проверку токенов
+     */
+    stopTokenCheck() {
+        if (this.tokenCheckTimer) {
+            clearInterval(this.tokenCheckTimer);
+            this.tokenCheckTimer = null;
+        }
+    }
+
+    /**
+     * Обработчик изменения видимости страницы
+     * Проверяет токены при возвращении на вкладку
+     */
+    _handleVisibilityChange() {
+        if (document.visibilityState === 'visible') {
+            this.verifyTokens();
+        }
+    }
+
+    /**
+     * Проверяет наличие токенов и соответствие состоянию авторизации
+     * Если пользователь был авторизован, но токены исчезли - выполняет logout
+     */
+    verifyTokens() {
+        const hasAccessToken = Cookies.get('access') !== undefined;
+        const hasRefreshToken = Cookies.get('refresh') !== undefined;
+
+        // Если пользователь был авторизован, но токены пропали
+        if (this.isAuthenticated && this.currentUser && this.currentUser !== 'anonim') {
+            if (!hasAccessToken && !hasRefreshToken) {
+                console.warn('AuthStateManager: tokens missing, logging out');
+                dispatch('Logout');
+            }
+        }
+    }
+
+    /**
+     * Очистка ресурсов
+     */
+    destroy() {
+        this.stopTokenCheck();
+        document.removeEventListener('visibilitychange', this._handleVisibilityChange);
     }
 }
 

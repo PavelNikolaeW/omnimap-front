@@ -128,11 +128,20 @@ export class LocalStateManager {
         });
 
         window.addEventListener('Logout', async () => {
-            dispatch('InitAnonimUser')
-            const sidebar = document.getElementById('sidebar')
-            const topSidebar = document.getElementById('topSidebar')
-            sidebar.classList.add('hidden')
-            topSidebar.classList.add('hidden')
+            // Очищаем URL если есть параметры
+            if (window.location.search || window.location.hash) {
+                window.history.replaceState({}, '', window.location.pathname);
+            }
+
+            dispatch('InitAnonimUser');
+
+            const sidebar = document.getElementById('sidebar');
+            const topSidebar = document.getElementById('topSidebar');
+            if (sidebar) sidebar.classList.add('hidden');
+            if (topSidebar) topSidebar.classList.add('hidden');
+
+            // Показываем начальный экран для анонимного пользователя
+            this.showBlocks();
         });
 
         window.addEventListener('PasteBlock', async (e) => {
@@ -195,8 +204,8 @@ export class LocalStateManager {
             if (e.detail) document.body.classList.add('loading-cursor');
             else document.body.classList.remove('loading-cursor');
         })
-        window.addEventListener('WebSocUpdateBlock', (e) => {
-            this.webSocUpdateBlock(e.detail)
+        window.addEventListener('WebSocUpdateBlock', async (e) => {
+            await this.webSocUpdateBlock(e.detail);
         })
         window.addEventListener('WebSocUpdateBlockAccess', async (e) => {
             await this.WebSocUpdateBlockAccess(e.detail)
@@ -419,54 +428,98 @@ export class LocalStateManager {
         return false
     }
 
+    /**
+     * Безопасно парсит JSON, возвращает значение по умолчанию при ошибке
+     * @param {string} jsonString - JSON строка
+     * @param {*} defaultValue - Значение по умолчанию
+     * @returns {*} Распарсенный объект или значение по умолчанию
+     */
+    _safeJsonParse(jsonString, defaultValue = null) {
+        if (typeof jsonString !== 'string') {
+            return jsonString ?? defaultValue;
+        }
+        try {
+            return JSON.parse(jsonString);
+        } catch (error) {
+            console.error('LocalStateManager: invalid JSON:', error.message);
+            return defaultValue;
+        }
+    }
+
     async WebSocUpdateBlockAccess(message) {
-        // if (message.permission === 'deny') {
-        //     this.removeChildrenBlocks(message.block_uuids)
-        // }
-        const start_block_ids = message.start_block_ids
-        const newBlocks = new Array(start_block_ids.length)
+        if (!message?.start_block_ids || !Array.isArray(message.start_block_ids)) {
+            console.warn('LocalStateManager: invalid WebSocUpdateBlockAccess message');
+            return;
+        }
+
+        const start_block_ids = message.start_block_ids;
+        const newBlocks = [];
 
         for (let i = 0; i < start_block_ids.length; i++) {
-            const block = start_block_ids[i]
+            const block = start_block_ids[i];
+            if (!block?.id) continue;
+
+            const data = this._safeJsonParse(block.data, {});
+            const children = this._safeJsonParse(block.children, []);
+
             const newBlock = {
                 id: block.id,
                 updated_at: new Date(block.updated_at * 1000).toISOString(),
                 title: block.title,
-                data: JSON.parse(block.data),
-                children: JSON.parse(block.children)
-            }
+                data,
+                children
+            };
 
-            await this.saveBlock(newBlock)
-            newBlocks[i] = newBlock
+            await this.saveBlock(newBlock);
+            newBlocks.push(newBlock);
         }
-        this.updateScreen(newBlocks)
+
+        if (newBlocks.length > 0) {
+            this.updateScreen(newBlocks);
+        }
     }
 
-    webSocUpdateBlock(newBlocks) {
-        if (!newBlocks.length) return
+    async webSocUpdateBlock(newBlocks) {
+        if (!Array.isArray(newBlocks) || newBlocks.length === 0) return;
 
-        newBlocks.forEach(async (block) => {
-            if (block.deleted) {
-                this.removeOneBlock(block.id)
-            } else {
-                // Если это корневой блок (дерево), добавляем через treeService
-                if (!block.parent_id) {
-                    await treeService.refresh()
-                    if (!treeService.hasTree(block.id)) {
-                        await treeService.addTree(block.id)
+        const processedBlocks = [];
+
+        for (const block of newBlocks) {
+            if (!block?.id) continue;
+
+            try {
+                if (block.deleted) {
+                    await this.removeOneBlock(block.id);
+                } else {
+                    // Если это корневой блок (дерево), добавляем через treeService
+                    if (!block.parent_id) {
+                        await treeService.refresh();
+                        if (!treeService.hasTree(block.id)) {
+                            await treeService.addTree(block.id);
+                        }
                     }
+
+                    const data = this._safeJsonParse(block.data, {});
+                    const children = this._safeJsonParse(block.children, []);
+
+                    await this.saveBlock({
+                        id: block.id,
+                        updated_at: new Date(block.updated_at * 1000).toISOString(),
+                        title: block.title,
+                        data,
+                        children,
+                        parent_id: block.parent_id
+                    });
                 }
-                this.saveBlock({
-                    id: block.id,
-                    updated_at: new Date(block.updated_at * 1000).toISOString(),
-                    title: block.title,
-                    data: JSON.parse(block.data),
-                    children: JSON.parse(block.children),
-                    parent_id: block.parent_id
-                })
+                processedBlocks.push(block);
+            } catch (error) {
+                console.error('LocalStateManager: error processing block:', block.id, error);
             }
-        })
-        this.updateScreen(newBlocks)
+        }
+
+        if (processedBlocks.length > 0) {
+            this.updateScreen(processedBlocks);
+        }
     }
 
     updateScreen(newBlocks) {

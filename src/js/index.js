@@ -32,6 +32,8 @@ import {authStateManager} from "./auth/authStateManager";
 import {offlineQueue} from "./sincManager/offlineQueue";
 import {networkStatusUI} from "./sincManager/networkStatusUI";
 import {handleTelegramLinkCallback} from "./controller/telegramLinkHandler";
+import {appLoader} from "./core/appLoader";
+import {initDevCacheManager} from "./core/devCacheManager";
 // import {openChat} from "./controller/popups/chat/chat-init";
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
@@ -52,23 +54,65 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
 import '../llm_chat/src/fullscreen/index.jsx';
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // Проверка поддержки IndexedDB и конфигурация localforage
-    if (!localforage.supports(localforage.INDEXEDDB)) {
-        alert('Ваш браузер не поддерживает IndexedDB. Пожалуйста, обновите браузер для полноценной работы сайта.');
-    } else {
-        if ('storage' in navigator && 'persist' in navigator.storage) {
-            const granted = await navigator.storage.persist();
-            console.log('Persistent storage', granted ? 'granted' : 'denied');
+    // Инициализируем менеджер кэша для dev режима
+    await initDevCacheManager();
+
+    // Показываем загрузочный экран
+    appLoader.show();
+
+    try {
+        // Запускаем проверки здоровья систем
+        const healthStatus = await appLoader.runChecks();
+
+        if (!healthStatus.ready) {
+            // Критические ошибки - показываем ошибку с возможностью повтора
+            appLoader.showError(healthStatus.errors, async () => {
+                // Повторная попытка
+                const retryStatus = await appLoader.runChecks();
+                if (retryStatus.ready) {
+                    await continueInitialization();
+                } else {
+                    appLoader.showError(retryStatus.errors, null);
+                }
+            });
+            return;
         }
-        localforage.config({
-            name: 'omniMap',
-            storeName: 'omniMap',
-            driver: [localforage.INDEXEDDB],
-            version: 1.0,
-            description: ''
+
+        // Предупреждения логируем, но продолжаем
+        if (healthStatus.warnings.length > 0) {
+            console.warn('App initialization warnings:', healthStatus.warnings);
+        }
+
+        await continueInitialization();
+
+    } catch (error) {
+        console.error('Critical initialization error:', error);
+        appLoader.showError([`Критическая ошибка: ${error.message}`], () => {
+            window.location.reload();
         });
-        await localforage.ready()
     }
+});
+
+/**
+ * Продолжение инициализации после успешных проверок
+ */
+async function continueInitialization() {
+    appLoader.setStatus('Настройка хранилища...');
+
+    // Конфигурация localforage
+    if ('storage' in navigator && 'persist' in navigator.storage) {
+        const granted = await navigator.storage.persist();
+        console.log('Persistent storage', granted ? 'granted' : 'denied');
+    }
+
+    localforage.config({
+        name: 'omniMap',
+        storeName: 'omniMap',
+        driver: [localforage.INDEXEDDB],
+        version: 1.0,
+        description: ''
+    });
+    await localforage.ready();
 
     function setRealVh() {
         const vh = window.innerHeight * 0.01;
@@ -79,8 +123,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.addEventListener('orientationchange', setRealVh);
     setRealVh();
 
-    await initApp()
-})
+    appLoader.setStatus('Инициализация приложения...');
+    await initApp();
+
+    // Успешная загрузка
+    appLoader.showSuccess();
+
+    // Скрываем загрузчик с небольшой задержкой для анимации
+    setTimeout(() => {
+        appLoader.hide();
+    }, 500);
+}
 
 
 /**

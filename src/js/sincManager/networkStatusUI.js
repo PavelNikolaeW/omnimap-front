@@ -35,6 +35,10 @@ class NetworkStatusUI {
         window.addEventListener('SyncCompleted', (e) => {
             this.showSyncCompleted(e.detail);
         });
+
+        window.addEventListener('WebSocketDisconnected', (e) => {
+            this.showWebSocketError(e.detail);
+        });
     }
 
     handleNetworkChange(isOnline) {
@@ -97,6 +101,16 @@ class NetworkStatusUI {
         if (this.hideTimeout) {
             clearTimeout(this.hideTimeout);
             this.hideTimeout = null;
+        }
+    }
+
+    showWebSocketError(detail) {
+        this.clearHideTimeout();
+        this.element.className = 'network-status offline visible';
+        if (detail?.reason === 'max_attempts') {
+            this.setText('Не удалось подключиться к серверу');
+        } else {
+            this.setText('Соединение потеряно');
         }
     }
 
