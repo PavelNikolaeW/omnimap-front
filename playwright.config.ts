@@ -8,7 +8,11 @@ import { defineConfig, devices } from '@playwright/test';
  *   npm run test:e2e:ui       - интерактивный режим
  *   npm run test:e2e:debug    - режим отладки
  *   npm run test:e2e:headed   - с отображением браузера
+ *
+ * В CI режиме используется порт 9003 (E2E окружение изолировано)
  */
+const baseURL = process.env.CI ? 'http://localhost:9003' : 'http://localhost:3000';
+
 export default defineConfig({
   testDir: './e2e/tests',
   outputDir: './e2e/test-results',
@@ -21,7 +25,7 @@ export default defineConfig({
     ['list']
   ],
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -48,12 +52,15 @@ export default defineConfig({
       use: { ...devices['Desktop Safari'] },
     },
   ],
-  webServer: {
-    command: 'npm run start_local',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  },
+  // В CI режиме webServer не нужен - используем docker-compose.e2e.yml
+  ...(process.env.CI ? {} : {
+    webServer: {
+      command: 'npm run start_local',
+      url: 'http://localhost:3000',
+      reuseExistingServer: true,
+      timeout: 120 * 1000,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  }),
 });
