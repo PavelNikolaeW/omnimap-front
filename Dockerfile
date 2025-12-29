@@ -5,6 +5,16 @@ RUN apk add --no-cache git
 
 WORKDIR /omnimap
 
+# Build arguments for environment URLs
+ARG APP_BACKEND_URL=https://omnimap.ru
+ARG LLM_GATEWAY_URL=http://0.0.0.0:7998
+ARG SINC_SERVICE_URL=wss://omnimap.ru/ws
+
+# Set as environment variables for webpack build
+ENV APP_BACKEND_URL=$APP_BACKEND_URL
+ENV LLM_GATEWAY_URL=$LLM_GATEWAY_URL
+ENV SINC_SERVICE_URL=$SINC_SERVICE_URL
+
 COPY package.json package-lock.json* ./
 
 RUN npm install
