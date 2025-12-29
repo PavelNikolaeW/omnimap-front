@@ -33,6 +33,7 @@ import {offlineQueue} from "./sincManager/offlineQueue";
 import {networkStatusUI} from "./sincManager/networkStatusUI";
 import {handleTelegramLinkCallback} from "./controller/telegramLinkHandler";
 import {appLoader} from "./core/appLoader";
+import {initDevCacheManager} from "./core/devCacheManager";
 // import {openChat} from "./controller/popups/chat/chat-init";
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
@@ -53,6 +54,9 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
 import '../llm_chat/src/fullscreen/index.jsx';
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // Инициализируем менеджер кэша для dev режима
+    await initDevCacheManager();
+
     // Показываем загрузочный экран
     appLoader.show();
 
