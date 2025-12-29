@@ -3,7 +3,7 @@ import {dispatch} from "../utils/utils";
 import {Painter} from "../painter/painter";
 import api from "../api/api";
 
-import {isExcludedElement, truncate} from '../utils/functions'
+import {isExcludedElement, truncate, normalizeParentId} from '../utils/functions'
 import {jsPlumbInstance} from "../controller/arrowManager";
 import {customConfirm} from "../utils/custom-dialog";
 import {treeService} from "../services/treeService";
@@ -508,7 +508,7 @@ export class LocalStateManager {
                         title: block.title,
                         data,
                         children,
-                        parent_id: block.parent_id
+                        parent_id: normalizeParentId(block.parent_id)
                     });
                 }
                 processedBlocks.push(block);

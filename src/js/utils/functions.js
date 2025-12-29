@@ -224,6 +224,19 @@ export function isExcludedElement(el, meta='kek', excludeArray=['body', 'textare
         return false;
     }
 
+/**
+ * Нормализует parent_id, преобразуя строку "None" или "null" в null.
+ * Backend (Python) иногда отправляет None как строку "None" вместо JSON null.
+ * @param {*} parentId - Значение parent_id
+ * @returns {string|null} Нормализованный parent_id
+ */
+export function normalizeParentId(parentId) {
+    if (parentId === 'None' || parentId === 'null' || parentId === '') {
+        return null;
+    }
+    return parentId || null;
+}
+
 export default {
     findLCM,
     findNearestRoots,
@@ -236,7 +249,8 @@ export default {
     hexToHSL,
     throttle,
     isMobileOrTablet,
-    isExcludedElement
+    isExcludedElement,
+    normalizeParentId
 }
 
 
