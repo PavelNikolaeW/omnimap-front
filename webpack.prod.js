@@ -65,21 +65,65 @@ module.exports = merge(common, {
             clientsClaim: true,
             skipWaiting: true,
             cleanupOutdatedCaches: true,
-            exclude: [/\.map$/, /\.txt$/, /service-worker\.js$/],
+            exclude: [/\.map$/, /\.txt$/, /service-worker\.js$/, /sw-custom\.js$/],
             maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-            navigateFallback: null,
+            // Precaching: index.html будет доступен offline
+            navigateFallback: '/index.html',
+            navigateFallbackDenylist: [/^\/api\//],
+            // Подключаем кастомный код для Background Sync
+            importScripts: ['sw-custom.js'],
             runtimeCaching: [
+                // API кэширование для offline доступа
+                {
+                    urlPattern: /\/api\/v1\/load-trees\/?$/,
+                    handler: 'NetworkFirst',
+                    options: {
+                        cacheName: 'api-trees-cache',
+                        networkTimeoutSeconds: 5,
+                        expiration: {
+                            maxEntries: 10,
+                            maxAgeSeconds: 24 * 60 * 60, // 1 день
+                        },
+                        cacheableResponse: {
+                            statuses: [0, 200],
+                        },
+                    },
+                },
+                {
+                    urlPattern: /\/api\/v1\/block\/.+\/?$/,
+                    handler: 'NetworkFirst',
+                    options: {
+                        cacheName: 'api-blocks-cache',
+                        networkTimeoutSeconds: 5,
+                        expiration: {
+                            maxEntries: 50,
+                            maxAgeSeconds: 24 * 60 * 60, // 1 день
+                        },
+                        cacheableResponse: {
+                            statuses: [0, 200],
+                        },
+                    },
+                },
+                {
+                    urlPattern: /\/api\/v1\/health\/?$/,
+                    handler: 'NetworkOnly',
+                    options: {
+                        cacheName: 'api-health-cache',
+                    },
+                },
+                // Изображения
                 {
                     urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/,
                     handler: 'CacheFirst',
                     options: {
                         cacheName: 'images-cache',
                         expiration: {
-                            maxEntries: 20,
-                            maxAgeSeconds: 30 * 24 * 60 * 60,
+                            maxEntries: 50,
+                            maxAgeSeconds: 30 * 24 * 60 * 60, // 30 дней
                         },
                     },
                 },
+                // HTML документы
                 {
                     urlPattern: ({request}) => request.destination === 'document',
                     handler: 'NetworkFirst',
@@ -88,11 +132,24 @@ module.exports = merge(common, {
                         networkTimeoutSeconds: 3,
                     },
                 },
+                // JS и CSS
                 {
                     urlPattern: ({request}) => request.destination === 'script' || request.destination === 'style',
                     handler: 'StaleWhileRevalidate',
                     options: {
                         cacheName: 'static-resources',
+                    },
+                },
+                // Шрифты
+                {
+                    urlPattern: /\.(?:woff|woff2|ttf|otf|eot)$/,
+                    handler: 'CacheFirst',
+                    options: {
+                        cacheName: 'fonts-cache',
+                        expiration: {
+                            maxEntries: 20,
+                            maxAgeSeconds: 365 * 24 * 60 * 60, // 1 год
+                        },
                     },
                 },
             ],
