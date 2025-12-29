@@ -28,8 +28,11 @@ export class SincManager {
             const username = await localforage.getItem('currentUser');
             if (!username) return;
 
+            // Убедимся, что username - строка (может быть объектом при некорректных данных)
+            const usernameStr = typeof username === 'string' ? username : String(username);
+
             // Экранируем username для защиты от RegExp injection
-            const escapedUsername = escapeRegExp(username);
+            const escapedUsername = escapeRegExp(usernameStr);
             const pattern = new RegExp(`^Block_.*_${escapedUsername}$`);
 
             const keys = await localforage.keys();

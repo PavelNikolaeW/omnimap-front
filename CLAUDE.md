@@ -154,7 +154,7 @@ Test files are located in `src/js/__tests__/` mirroring the source structure.
 Если изменения на фронтенде требуют изменений в других сервисах:
 
 1. **НЕ редактируй** файлы в `omnimap-back`, `llm-gateway` или `omnimap-sync`
-2. **Создай файл задач** `BACKEND_TASKS.md` в корне этого репозитория:
+2. **Создай файл задач** `BACKEND_TASKS.md` в ../omnimap-back:
    ```markdown
    # Задачи для backend-сервисов
 
