@@ -102,6 +102,25 @@ class Api {
         dispatch('SetLoading', value);
     }
 
+    /**
+     * Проверка доступности backend API
+     * @returns {Promise<{status: number}>}
+     */
+    async healthCheck() {
+        try {
+            // Используем простой GET запрос без авторизации
+            const response = await axios.get(`${this.backendUrl}/api/v1/health/`, {
+                timeout: 5000
+            });
+            return { status: response.status };
+        } catch (error) {
+            if (error.response) {
+                return { status: error.response.status };
+            }
+            throw error;
+        }
+    }
+
     // Метод для обновления токена
     async refreshToken() {
         const refresh = Cookies.get('refresh');
