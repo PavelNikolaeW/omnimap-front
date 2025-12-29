@@ -8,18 +8,7 @@
  * 4. Отсутствие циклических ссылок
  */
 
-/**
- * Нормализует parent_id, преобразуя строку "None" или "null" в null
- * Backend (Python) иногда отправляет None как строку
- * @param {*} parentId - Значение parent_id
- * @returns {string|null} Нормализованный parent_id
- */
-function normalizeParentId(parentId) {
-    if (parentId === 'None' || parentId === 'null' || parentId === '') {
-        return null;
-    }
-    return parentId || null;
-}
+import { normalizeParentId } from '../utils/functions';
 
 export class TreeValidator {
     constructor() {

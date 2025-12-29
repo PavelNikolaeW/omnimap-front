@@ -3,7 +3,7 @@ import {dispatch} from "../utils/utils";
 import {Painter} from "../painter/painter";
 import api from "../api/api";
 
-import {isExcludedElement, truncate} from '../utils/functions'
+import {isExcludedElement, truncate, normalizeParentId} from '../utils/functions'
 import {jsPlumbInstance} from "../controller/arrowManager";
 import {customConfirm} from "../utils/custom-dialog";
 import {treeService} from "../services/treeService";
@@ -429,19 +429,6 @@ export class LocalStateManager {
     }
 
     /**
-     * Нормализует parent_id, преобразуя строку "None" в null
-     * Backend (Python) иногда отправляет None как строку "None" вместо null
-     * @param {*} parentId - Значение parent_id
-     * @returns {string|null} Нормализованный parent_id
-     */
-    _normalizeParentId(parentId) {
-        if (parentId === 'None' || parentId === 'null' || parentId === '') {
-            return null;
-        }
-        return parentId || null;
-    }
-
-    /**
      * Безопасно парсит JSON, возвращает значение по умолчанию при ошибке
      * @param {string} jsonString - JSON строка
      * @param {*} defaultValue - Значение по умолчанию
@@ -521,7 +508,7 @@ export class LocalStateManager {
                         title: block.title,
                         data,
                         children,
-                        parent_id: this._normalizeParentId(block.parent_id)
+                        parent_id: normalizeParentId(block.parent_id)
                     });
                 }
                 processedBlocks.push(block);
