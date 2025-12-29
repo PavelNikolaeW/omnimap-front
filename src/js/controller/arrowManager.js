@@ -1,6 +1,12 @@
 import {dispatch} from "../utils/utils";
 import {EVENT_CONNECTION_CLICK, log, newInstance} from "@jsplumb/browser-ui";
 import {customPrompt} from "../utils/custom-dialog";
+import {
+    CONNECTION_TYPES,
+    getConnectionConfig,
+    isValidConnectionType,
+    applyColorToConfig
+} from "./connectionTypes";
 
 
 const SMALL_LAYOUTS = ["xxxs-sq", "xxxs-w", "xxxs-h"];
@@ -156,18 +162,28 @@ class ArrowManager {
      * Завершает создание соединения к целевому элементу.
      * @param {string} sourceId - ID элемента-источника.
      * @param {string} targetId - ID элемента-цели.
+     * @param {string} connectionType - Тип соединения (из CONNECTION_TYPES).
+     * @param {string} color - Цвет соединения (опционально).
      */
-    completeConnectionToElement(sourceId, targetId) {
+    completeConnectionToElement(sourceId, targetId, connectionType = CONNECTION_TYPES.DEFAULT, color = null) {
         if (!sourceId || !targetId || sourceId === targetId) return;
 
         const sourceEl = document.getElementById(sourceId);
-        const layout = sourceEl.getAttribute("data-layout");
+        const layout = sourceEl?.getAttribute("data-layout");
 
-        const connector = this.getConnector(this.defaultConnector, layout);
-        const paintStyle = this.getPaintStyle(this.defaultPaintStyle, layout);
-        const overlays = this.getOverlays(this.defaultOverlays, layout);
+        // Получаем конфигурацию по типу соединения
+        let config = getConnectionConfig(connectionType);
+
+        // Применяем цвет если указан
+        if (color) {
+            config = applyColorToConfig(config, color);
+        }
+
+        const connector = this.getConnector(config.connector || this.defaultConnector, layout);
+        const paintStyle = this.getPaintStyle(config.paintStyle || this.defaultPaintStyle, layout);
+        const overlays = this.getOverlays(config.overlays || this.defaultOverlays, layout);
         const endpoint = this.getEndpoint({type: 'Dot', options: {radius: 4}}, layout);
-        const endpointStyle = {fill: "#456", outlineWidth: 0};
+        const endpointStyle = {fill: paintStyle.stroke || "#456", outlineWidth: 0};
 
         this.instance.connect({
             source: sourceId,
@@ -183,12 +199,14 @@ class ArrowManager {
         this.saveConnection(
             sourceId,
             targetId,
-            this.defaultConnector,
-            this.defaultPaintStyle,
-            this.defaultOverlays,
+            config.connector || this.defaultConnector,
+            config.paintStyle || this.defaultPaintStyle,
+            config.overlays || this.defaultOverlays,
             this.defaultAnchors,
             endpoint,
-            endpointStyle
+            endpointStyle,
+            connectionType,
+            color
         );
     }
 
@@ -197,12 +215,15 @@ class ArrowManager {
      * @param {string} sourceId
      * @param {string} targetId
      * @param {Object} connector
-     * @param {string} label
      * @param {Object} paintStyle
      * @param {Array} overlays
      * @param {Array} anchors
+     * @param {Object} endpoint
+     * @param {Object} endpointStyle
+     * @param {string} connectionType - Тип соединения
+     * @param {string} color - Цвет соединения
      */
-    saveConnection(sourceId, targetId, connector, paintStyle, overlays, anchors, endpoint, endpointStyle) {
+    saveConnection(sourceId, targetId, connector, paintStyle, overlays, anchors, endpoint, endpointStyle, connectionType = null, color = null) {
         dispatch("AddConnectionBlock", {
             sourceId,
             targetId,
@@ -211,7 +232,9 @@ class ArrowManager {
             overlays,
             anchors,
             endpoint,
-            endpointStyle
+            endpointStyle,
+            connectionType,
+            color
         });
     }
 
@@ -242,12 +265,31 @@ class ArrowManager {
                 const tgt = document.getElementById(conn.targetId);
 
                 if (src && tgt && isVisible(src) && isVisible(tgt)) {
-                    const connector = this.getConnector(conn.connector, layout);
-                    const paintStyle = this.getPaintStyle(conn.paintStyle, layout);
-                    const overlays = this.getOverlays(conn.overlays, layout);
+                    // Если есть сохранённый тип соединения, используем его конфигурацию
+                    let config = null;
+                    if (conn.connectionType && isValidConnectionType(conn.connectionType)) {
+                        config = getConnectionConfig(conn.connectionType);
+                        if (conn.color) {
+                            config = applyColorToConfig(config, conn.color);
+                        }
+                    }
+
+                    const connector = this.getConnector(
+                        config?.connector || conn.connector || this.defaultConnector,
+                        layout
+                    );
+                    const paintStyle = this.getPaintStyle(
+                        config?.paintStyle || conn.paintStyle || this.defaultPaintStyle,
+                        layout
+                    );
+                    const overlays = this.getOverlays(
+                        config?.overlays || conn.overlays || this.defaultOverlays,
+                        layout
+                    );
                     const endpoint = this.getEndpoint(conn.endpoint, layout);
                     const endpointStyle = conn.endpointStyle;
                     const anchors = conn.anchors || this.defaultAnchors;
+
                     this.instance.connect({
                         source: src,
                         target: tgt,

@@ -15,6 +15,7 @@ import '../style/solid.css';
 import '../style/fontawesome.css';
 // import '../style/chat.css';
 import '../style/note-editor.css';
+import '../style/layout.css';
 
 import {dispatch} from "./utils/utils";
 import {LocalStateManager} from "./stateLocal/localStateManager";
