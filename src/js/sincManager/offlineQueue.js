@@ -4,25 +4,87 @@ import { dispatch } from "../utils/utils";
 /**
  * Менеджер очереди операций для offline режима
  * Сохраняет операции в IndexedDB при отсутствии сети
- * и синхронизирует их при восстановлении соединения
+ * и синхронизирует их при восстановлении соединения.
+ * Поддерживает Background Sync API для синхронизации в фоне.
  */
 class OfflineQueueManager {
     constructor() {
         this.QUEUE_KEY = 'offlineOperationsQueue';
+        this.SYNC_TAG = 'omnimap-sync';
         this.isOnline = navigator.onLine;
         this.isSyncing = false;
+        this.backgroundSyncSupported = false;
 
         this.init();
     }
 
-    init() {
+    async init() {
         // Слушаем события сети
         window.addEventListener('online', this.handleOnline.bind(this));
         window.addEventListener('offline', this.handleOffline.bind(this));
 
+        // Проверяем поддержку Background Sync
+        this.backgroundSyncSupported = await this.checkBackgroundSyncSupport();
+        if (this.backgroundSyncSupported) {
+            console.log('Background Sync API supported');
+        }
+
+        // Слушаем сообщения от Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('message', this.handleSWMessage.bind(this));
+        }
+
         // Проверяем очередь при старте, если онлайн
         if (this.isOnline) {
             this.processQueue();
+        }
+    }
+
+    /**
+     * Проверяет поддержку Background Sync API
+     */
+    async checkBackgroundSyncSupport() {
+        if (!('serviceWorker' in navigator)) return false;
+        if (!('SyncManager' in window)) return false;
+
+        try {
+            const registration = await navigator.serviceWorker.ready;
+            return 'sync' in registration;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * Регистрирует Background Sync событие
+     */
+    async registerBackgroundSync() {
+        if (!this.backgroundSyncSupported) return false;
+
+        try {
+            const registration = await navigator.serviceWorker.ready;
+            await registration.sync.register(this.SYNC_TAG);
+            console.log('Background Sync registered:', this.SYNC_TAG);
+            return true;
+        } catch (error) {
+            console.warn('Background Sync registration failed:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Обрабатывает сообщения от Service Worker
+     */
+    handleSWMessage(event) {
+        if (event.data && event.data.type === 'SYNC_COMPLETED') {
+            console.log('Background sync completed:', event.data);
+            dispatch('SyncCompleted', {
+                successCount: event.data.successCount,
+                failedCount: event.data.failedCount,
+                remainingCount: event.data.failedCount,
+                background: true
+            });
+            this.isSyncing = false;
         }
     }
 
@@ -60,6 +122,9 @@ class OfflineQueueManager {
         // Если онлайн, пытаемся сразу обработать
         if (this.isOnline && !this.isSyncing) {
             this.processQueue();
+        } else if (!this.isOnline) {
+            // Если offline, регистрируем Background Sync
+            await this.registerBackgroundSync();
         }
     }
 
@@ -130,6 +195,11 @@ class OfflineQueueManager {
             failedCount: failedOperations.length,
             remainingCount: failedOperations.length
         });
+
+        // Если остались неудачные операции, регистрируем Background Sync для повторной попытки
+        if (failedOperations.length > 0) {
+            await this.registerBackgroundSync();
+        }
     }
 
     /**
@@ -199,6 +269,27 @@ class OfflineQueueManager {
      */
     isNetworkOnline() {
         return this.isOnline;
+    }
+
+    /**
+     * Проверяет, поддерживается ли Background Sync
+     */
+    isBackgroundSyncAvailable() {
+        return this.backgroundSyncSupported;
+    }
+
+    /**
+     * Принудительно запускает синхронизацию через Service Worker
+     */
+    async triggerManualSync() {
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+                type: 'TRIGGER_SYNC'
+            });
+        } else {
+            // Fallback на обычную обработку очереди
+            await this.processQueue();
+        }
     }
 }
 

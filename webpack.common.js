@@ -1,5 +1,6 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+const CopyPlugin = require('copy-webpack-plugin');
 
 module.exports = {
     entry: './src/js/index.js',
@@ -51,6 +52,16 @@ module.exports = {
                 minifyCSS: true,
                 minifyURLs: true,
             },
+        }),
+        // Копируем кастомный код для Service Worker
+        new CopyPlugin({
+            patterns: [
+                {
+                    from: 'src/sw-custom.js',
+                    to: 'sw-custom.js',
+                    noErrorOnMissing: true, // Не падать если файла нет (для dev режима)
+                },
+            ],
         }),
     ],
 };

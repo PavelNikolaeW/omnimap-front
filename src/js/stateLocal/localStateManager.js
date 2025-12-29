@@ -9,6 +9,15 @@ import {customConfirm} from "../utils/custom-dialog";
 import {treeService} from "../services/treeService";
 import {treeValidator} from "./treeValidator";
 
+/**
+ * Экранирует специальные символы RegExp в строке
+ * @param {string} string - Исходная строка
+ * @returns {string} Экранированная строка
+ */
+function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 
 class BlockRepository {
     constructor(currentUser) {
@@ -78,8 +87,14 @@ export class LocalStateManager {
         });
 
         window.addEventListener('LoadTrees', async (e) => {
-            // todo разобратся почему блоки удаляются из хранилища
             const treeBlocks = await api.getTreeBlocks();
+
+            // Обновляем treeIds в localforage
+            if (this.currentUser) {
+                await localforage.setItem(`treeIds${this.currentUser}`, treeBlocks.treeIds);
+            }
+
+            // Сохраняем все блоки
             for (const block of treeBlocks.blocks.values()) {
                 await this.saveBlock(block);
             }
@@ -533,17 +548,42 @@ export class LocalStateManager {
         }
     }
 
-    resetState() {
-        // todo сделать сброс состояния для одного юзера а не для всех.
-        localforage.getItem('currentUser').then((user) => {
-            localforage.clear().then(() => {
-                 localforage.setItem('currentUser', user).then(() => {
-                        dispatch('Login', {user: user})
-                    })
-            }).catch((err) => {
-                console.error('Произошла ошибка при очистке localForage:', err);
-            });
-        })
+    async resetState() {
+        try {
+            const user = await localforage.getItem('currentUser');
+            if (!user) {
+                console.warn('No current user found, cannot reset state');
+                return;
+            }
+
+            // Экранируем username для защиты от RegExp injection
+            const escapedUser = escapeRegExp(user);
+
+            // Удаляем только данные текущего пользователя
+            const keys = await localforage.keys();
+
+            // Паттерны ключей для удаления
+            const userPatterns = [
+                new RegExp(`^Block_.*_${escapedUser}$`),     // Блоки пользователя
+                new RegExp(`^Path_.*${escapedUser}$`),       // Пути навигации
+                new RegExp(`^treeIds${escapedUser}$`),       // Список деревьев
+                new RegExp(`^linkSlugTreeId${escapedUser}:`) // Ссылки
+            ];
+
+            const keysToRemove = keys.filter(key =>
+                userPatterns.some(pattern => pattern.test(key))
+            );
+
+            // Удаляем все найденные ключи
+            await Promise.all(keysToRemove.map(key => localforage.removeItem(key)));
+
+            console.log(`Cleared ${keysToRemove.length} keys for user ${user}`);
+
+            // Перезагружаем данные пользователя
+            dispatch('Login', {user: user});
+        } catch (err) {
+            console.error('Ошибка при сбросе состояния:', err);
+        }
     }
 
     /**
@@ -815,15 +855,19 @@ export class LocalStateManager {
         await localforage.setItem('currentTree', this.currentTree)
         await localforage.setItem(`treeIds${user}`, treeIds)
 
-        // Assuming blocks is a Map or an array of block objects
+        // Сохраняем блоки с await для гарантии записи в IndexedDB
         for (const block of blocks.values()) {
-            this.saveBlock(block);
+            await this.saveBlock(block);
         }
 
         // Initialize path with the root block
         for (let i = 0; i < treeIds.length; i++) {
             const tree = treeIds[i]
             const rootBlock = blocks.get(tree);
+            if (!rootBlock) {
+                console.warn(`Root block ${tree} not found in blocks`);
+                continue;
+            }
             const color = rootBlock.data?.color && rootBlock.data.color !== 'default_color' ? rootBlock.data.color : [];
             const titleBlock = rootBlock.title;
 
@@ -836,7 +880,9 @@ export class LocalStateManager {
 
     async getAllBlocksForUser(username) {
         const keys = await localforage.keys();
-        const pattern = new RegExp(`^Block_.*_${username}$`);
+        // Экранируем username для защиты от RegExp injection
+        const escapedUsername = escapeRegExp(username);
+        const pattern = new RegExp(`^Block_.*_${escapedUsername}$`);
         const blockKeys = keys.filter((key) => pattern.test(key));
         const blocks = await Promise.all(
             blockKeys.map(key => localforage.getItem(key))

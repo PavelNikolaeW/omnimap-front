@@ -28,7 +28,8 @@ class Api {
                 const uuid = uuidV4()
                 this.operationChache.set(uuid, {
                     url: config.url,
-                    data: config.data
+                    data: config.data,
+                    timestamp: Date.now()
                 })
                 config.headers['X-Operation-UUID'] = uuid
                 return config
@@ -208,9 +209,46 @@ class Api {
         return {treeIds, blocks}
     }
 
-    sendHistoryOperations() {
-        console.log('надо реализовать меня')
-        // return this.api.post('/')
+    /**
+     * Отправляет историю недавних операций на сервер для диагностики
+     * Вызывается при получении ошибки 500 от сервера
+     * Помогает восстановить состояние и отладить проблемы
+     */
+    async sendHistoryOperations() {
+        try {
+            // Собираем последние операции из кэша
+            const operations = this.operationChache.entries().map(([uuid, operation]) => ({
+                uuid,
+                url: operation.url,
+                data: operation.data,
+                isFail: operation.isFail,
+                timestamp: operation.timestamp || Date.now()
+            }));
+
+            if (operations.length === 0) {
+                console.log('No operations to send');
+                return;
+            }
+
+            // Отправляем на специальный эндпоинт для диагностики
+            // Используем отдельный axios вызов чтобы не попасть в бесконечный цикл
+            await axios.post(`${this.backendUrl}/api/v1/operations-history/`, {
+                operations,
+                userAgent: navigator.userAgent,
+                timestamp: Date.now()
+            }, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${Cookies.get('access')}`
+                },
+                timeout: 5000
+            });
+
+            console.log(`Sent ${operations.length} operations to server for diagnostics`);
+        } catch (error) {
+            // Не показываем ошибку пользователю, это диагностический вызов
+            console.warn('Failed to send operations history:', error.message);
+        }
     }
 
     removeTree(blockId) {
