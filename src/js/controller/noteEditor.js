@@ -31,7 +31,9 @@ export class NoteEditor {
         this.blockId = blockId;
         this.ctx = ctx;
 
-        const markdown = this.turndownService.turndown(html);
+        // Конвертируем HTML в Markdown и нормализуем
+        let markdown = this.turndownService.turndown(html);
+        markdown = this._normalizeMarkdown(markdown);
 
         // Очистим контейнер и разметим UI
         this.container.innerHTML = '';
@@ -63,13 +65,16 @@ export class NoteEditor {
         if (!this.editorEl) return;
 
         if (save) {
-            const markdown = this._getMarkdown();
-            const html = marked(markdown, { renderer: this.customRenderer, mangle: false });
+            // Нормализуем markdown перед конвертацией
+            const markdown = this._normalizeMarkdown(this._getMarkdown());
+            const html = marked(markdown, this.markedOptions);
             const sanitized = DOMPurify.sanitize(html, {
                 ADD_ATTR: ['block-id', 'style', 'class', 'title', 'alt', 'src', 'href'],
                 ADD_TAGS: ['img', 'a', 'bgImage'],
             });
-            const highlightedHtml = this._highlightHtml(sanitized);
+            // Нормализуем HTML и подсвечиваем код
+            const normalizedHtml = this._normalizeHtml(sanitized);
+            const highlightedHtml = this._highlightHtml(normalizedHtml);
 
             const event = new CustomEvent('TextUpdate', {
                 detail: { blockId: this.blockId, text: highlightedHtml },
@@ -98,14 +103,57 @@ export class NoteEditor {
         this.turndownService = new TurndownService({
             headingStyle: 'atx',
             codeBlockStyle: 'fenced',
+            // Сохраняем пустые элементы как пустые строки
+            blankReplacement: (content, node) => {
+                // Для div/p без контента — добавляем перенос строки
+                if (node.nodeName === 'P' || node.nodeName === 'DIV') {
+                    return '\n\n';
+                }
+                return '';
+            },
+            // Сохраняем br как переносы строк
+            br: '  \n',
         });
         this.turndownService.use(gfm);
 
+        // Правило для <br> тегов — конвертируем в markdown line break
+        this.turndownService.addRule('lineBreaks', {
+            filter: 'br',
+            replacement: () => '  \n',
+        });
+
+        // Правило для пустых параграфов
+        this.turndownService.addRule('emptyParagraph', {
+            filter: (node) => {
+                return node.nodeName === 'P' &&
+                       (!node.textContent || node.textContent.trim() === '') &&
+                       !node.querySelector('img, br');
+            },
+            replacement: () => '\n\n',
+        });
+
+        // Правило для block-ссылок
         this.turndownService.addRule('customBlockLink', {
             filter: (node) => node.nodeName === 'A' && node.classList.contains('block-tag-link'),
             replacement: (content, node) => {
                 const id = node.getAttribute('href').slice(BLOCK_LINK_PREFIX.length);
                 return `[${content}](${BLOCK_LINK_PREFIX}${id})`;
+            },
+        });
+
+        // Улучшенное правило для code блоков с подсветкой
+        this.turndownService.addRule('highlightedCodeBlock', {
+            filter: (node) => {
+                return node.nodeName === 'PRE' && node.querySelector('code');
+            },
+            replacement: (content, node) => {
+                const codeEl = node.querySelector('code');
+                // Извлекаем язык из класса hljs (class="hljs language-javascript")
+                const langMatch = codeEl.className.match(/language-(\w+)/);
+                const lang = langMatch ? langMatch[1] : '';
+                // Получаем чистый текст без HTML тегов подсветки
+                const code = codeEl.textContent || '';
+                return `\n\n\`\`\`${lang}\n${code}\n\`\`\`\n\n`;
             },
         });
     }
@@ -132,6 +180,14 @@ export class NoteEditor {
             const titleAttr = title ? ` title="${title}"` : '';
             const altAttr = text ? ` alt="${text}"` : ' alt=""';
             return `<img src="${href}"${titleAttr}${altAttr} style="max-width:100%; height:auto; display:block;" />`;
+        };
+
+        // Настройки marked для корректной обработки переносов строк
+        this.markedOptions = {
+            renderer: this.customRenderer,
+            mangle: false,
+            breaks: true, // Конвертировать \n в <br>
+            gfm: true,    // GitHub Flavored Markdown
         };
     }
 
@@ -227,7 +283,7 @@ export class NoteEditor {
         const showing = this.previewEl.style.display !== 'none';
         const willShow = !showing;
         if (willShow) {
-            const html = marked(this._getMarkdown(), { renderer: this.customRenderer, mangle: false });
+            const html = marked(this._getMarkdown(), this.markedOptions);
             const sanitized = DOMPurify.sanitize(html, {
                 ADD_ATTR: ['block-id', 'style', 'class', 'title', 'alt', 'src', 'href'],
                 ADD_TAGS: ['img', 'a', 'bgImage'],
@@ -284,6 +340,56 @@ export class NoteEditor {
         this.editorEl.focus();
         const val = this.editorEl.value;
         this.editorEl.setSelectionRange(val.length, val.length);
+    }
+
+    // ---------- Нормализация ----------
+    /**
+     * Нормализует markdown текст:
+     * - Сохраняет все пустые строки как есть
+     * - Сохраняет структуру code блоков
+     * - Убирает trailing whitespace в конце строк (кроме markdown line breaks)
+     */
+    _normalizeMarkdown(text) {
+        if (!text) return '';
+
+        // Защищаем code блоки от нормализации
+        const codeBlocks = [];
+        let normalized = text.replace(/```[\s\S]*?```/g, (match) => {
+            codeBlocks.push(match);
+            return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
+        });
+
+        // Убираем trailing whitespace, но сохраняем markdown line breaks (два пробела + \n)
+        normalized = normalized.replace(/[ \t]+$/gm, (match) => {
+            // Если это ровно 2 пробела — это markdown line break, сохраняем
+            return match === '  ' ? '  ' : '';
+        });
+
+        // Восстанавливаем code блоки
+        codeBlocks.forEach((block, i) => {
+            normalized = normalized.replace(`__CODE_BLOCK_${i}__`, block);
+        });
+
+        return normalized.trim();
+    }
+
+    /**
+     * Нормализует HTML после конвертации из Markdown:
+     * - Убирает пустые параграфы <p></p> (но не <p><br></p> — они нужны для пустых строк)
+     */
+    _normalizeHtml(html) {
+        if (!html) return '';
+
+        let normalized = html;
+
+        // Убираем только полностью пустые параграфы <p></p> без содержимого
+        normalized = normalized.replace(/<p>\s*<\/p>/gi, '');
+
+        // Убираем <br> в начале и конце документа
+        normalized = normalized.replace(/^(\s*<br\s*\/?>\s*)+/gi, '');
+        normalized = normalized.replace(/(\s*<br\s*\/?>\s*)+$/gi, '');
+
+        return normalized.trim();
     }
 
     // ---------- Операции редактирования ----------
