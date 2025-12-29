@@ -32,9 +32,8 @@ import {authStateManager} from "./auth/authStateManager";
 import {offlineQueue} from "./sincManager/offlineQueue";
 import {networkStatusUI} from "./sincManager/networkStatusUI";
 import {handleTelegramLinkCallback} from "./controller/telegramLinkHandler";
-import {appLoader} from "./core/appLoader";
+import {statusIndicators} from "./core/statusIndicators";
 import {initDevCacheManager} from "./core/devCacheManager";
-// import {openChat} from "./controller/popups/chat/chat-init";
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
     window.addEventListener('load', () => {
@@ -57,54 +56,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Инициализируем менеджер кэша для dev режима
     await initDevCacheManager();
 
-    // Показываем загрузочный экран
-    appLoader.show();
-
+    // Быстрая инициализация без блокирующего экрана загрузки
     try {
-        // Запускаем проверки здоровья систем
-        const healthStatus = await appLoader.runChecks();
-
-        if (!healthStatus.ready) {
-            // Критические ошибки - показываем ошибку с возможностью повтора
-            appLoader.showError(healthStatus.errors, async () => {
-                // Повторная попытка
-                const retryStatus = await appLoader.runChecks();
-                if (retryStatus.ready) {
-                    await continueInitialization();
-                } else {
-                    appLoader.showError(retryStatus.errors, null);
-                }
-            });
-            return;
-        }
-
-        // Предупреждения логируем, но продолжаем
-        if (healthStatus.warnings.length > 0) {
-            console.warn('App initialization warnings:', healthStatus.warnings);
-        }
-
-        await continueInitialization();
-
+        await fastInitialization();
     } catch (error) {
         console.error('Critical initialization error:', error);
-        appLoader.showError([`Критическая ошибка: ${error.message}`], () => {
-            window.location.reload();
-        });
+        // При критической ошибке показываем сообщение в консоль и пробуем продолжить
+        alert(`Ошибка инициализации: ${error.message}`);
     }
 });
 
 /**
- * Продолжение инициализации после успешных проверок
+ * Быстрая инициализация приложения
+ * Сразу рендерит данные из localforage без блокирующего экрана загрузки
  */
-async function continueInitialization() {
-    appLoader.setStatus('Настройка хранилища...');
-
+async function fastInitialization() {
     // Конфигурация localforage
-    if ('storage' in navigator && 'persist' in navigator.storage) {
-        const granted = await navigator.storage.persist();
-        console.log('Persistent storage', granted ? 'granted' : 'denied');
-    }
-
     localforage.config({
         name: 'omniMap',
         storeName: 'omniMap',
@@ -114,6 +81,14 @@ async function continueInitialization() {
     });
     await localforage.ready();
 
+    // Запрашиваем persistent storage в фоне
+    if ('storage' in navigator && 'persist' in navigator.storage) {
+        navigator.storage.persist().then(granted => {
+            console.log('Persistent storage', granted ? 'granted' : 'denied');
+        });
+    }
+
+    // Настройка viewport
     function setRealVh() {
         const vh = window.innerHeight * 0.01;
         document.documentElement.style.setProperty('--vh', `${vh}px`);
@@ -123,16 +98,11 @@ async function continueInitialization() {
     window.addEventListener('orientationchange', setRealVh);
     setRealVh();
 
-    appLoader.setStatus('Инициализация приложения...');
+    // Инициализируем приложение
     await initApp();
 
-    // Успешная загрузка
-    appLoader.showSuccess();
-
-    // Скрываем загрузчик с небольшой задержкой для анимации
-    setTimeout(() => {
-        appLoader.hide();
-    }, 500);
+    // Инициализируем статус-индикаторы после того как интерфейс готов
+    statusIndicators.init('top-btn-container');
 }
 
 
