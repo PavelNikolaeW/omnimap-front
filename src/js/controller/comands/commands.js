@@ -2,6 +2,7 @@ import {arrowCommands} from "./arrowComands";
 import {validURL} from "../../utils/functions";
 import {dispatch} from "../../utils/utils";
 import {colorCommands} from "./colorCommands";
+import {layoutCommands} from "./layoutCommands";
 import {arrowManager} from "../arrowManager";
 import api from "../../api/api";
 import {customPrompt} from "../../utils/custom-dialog";
@@ -796,5 +797,6 @@ export const commands = [
     ...treeCommands,
     ...arrowCommands,
     ...colorCommands,
+    ...layoutCommands,
 
 ];

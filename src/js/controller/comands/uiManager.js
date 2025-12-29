@@ -6,6 +6,13 @@ import localforage from "localforage";
  * @type {Object.<string, {id: string, label: string, icon: string, items: string[]}>}
  */
 export const submenuConfig = {
+    // Подменю "Раскладка" - управление layout блока
+    layout: {
+        id: 'submenu-layout',
+        label: 'Раскладка',
+        icon: 'fa-th-large',
+        items: ['layoutDefault', 'layoutRows', 'layoutColumns', 'layoutGrid', 'layoutMasonry', 'layoutTable']
+    },
     // Подменю "Соединения" - объединяет работу со стрелками
     connections: {
         id: 'submenu-connections',
@@ -31,7 +38,11 @@ export const submenuConfig = {
 
 // Команды, которые теперь скрыты в подменю (не показываются в основной панели)
 const hiddenInSubmenu = new Set([
+    // Layout команды
+    'layoutDefault', 'layoutRows', 'layoutColumns', 'layoutGrid', 'layoutMasonry', 'layoutTable',
+    // Connections команды
     'connectBlock', 'deleteConnectBlock', 'connectDashed', 'connectDouble',
+    // Extra команды
     'createUrl', 'editBlock', 'editAccessBlock',
     'notificationSettings', 'setReminder', 'watchBlock',
     'repairTree', // Перенесено в подменю "Дополнительно"
@@ -127,12 +138,19 @@ export class UIManager {
         // Fallback: если кнопок меньше 5, вставляем в конец
         const insertPosition = existingButtons.length > 5 ? existingButtons[5] : null
 
+        // Кнопка подменю "Раскладка"
+        const layoutBtn = this.createSubmenuButton(submenuConfig.layout)
+        if (insertPosition) {
+            container.insertBefore(layoutBtn, insertPosition)
+        } else {
+            container.appendChild(layoutBtn)
+        }
+
         // Кнопка подменю "Соединения"
         const connectionsBtn = this.createSubmenuButton(submenuConfig.connections)
-        if (insertPosition) {
-            container.insertBefore(connectionsBtn, insertPosition)
+        if (layoutBtn.nextSibling) {
+            container.insertBefore(connectionsBtn, layoutBtn.nextSibling)
         } else {
-            // Fallback: добавляем в конец если позиция не найдена
             container.appendChild(connectionsBtn)
         }
 

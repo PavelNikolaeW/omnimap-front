@@ -1,0 +1,222 @@
+/**
+ * Стили для визуальной индикации типов layout
+ * Показывают пользователю какой layout применён к блоку
+ */
+
+/* Базовый индикатор layout */
+.layout-indicator {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    background-color: rgba(81, 96, 119, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    color: #516077;
+    opacity: 0.6;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.block:hover .layout-indicator {
+    opacity: 1;
+}
+
+/* Иконки для разных типов layout */
+.layout-indicator--default::before {
+    content: 'A';
+    font-weight: bold;
+}
+
+.layout-indicator--rows::before {
+    content: '';
+    width: 10px;
+    height: 8px;
+    background:
+        linear-gradient(#516077 0%, #516077 30%, transparent 30%, transparent 35%,
+                       #516077 35%, #516077 65%, transparent 65%, transparent 70%,
+                       #516077 70%, #516077 100%);
+}
+
+.layout-indicator--columns::before {
+    content: '';
+    width: 10px;
+    height: 8px;
+    background:
+        linear-gradient(90deg, #516077 0%, #516077 30%, transparent 30%, transparent 35%,
+                       #516077 35%, #516077 65%, transparent 65%, transparent 70%,
+                       #516077 70%, #516077 100%);
+}
+
+.layout-indicator--grid::before {
+    content: '';
+    width: 10px;
+    height: 10px;
+    background:
+        linear-gradient(#516077 0%, #516077 45%, transparent 45%, transparent 55%, #516077 55%, #516077 100%),
+        linear-gradient(90deg, #516077 0%, #516077 45%, transparent 45%, transparent 55%, #516077 55%, #516077 100%);
+    background-size: 100% 100%;
+}
+
+.layout-indicator--table::before {
+    content: '';
+    width: 10px;
+    height: 10px;
+    border: 1px solid #516077;
+    background:
+        linear-gradient(#516077 0%, #516077 1px, transparent 1px, transparent 50%, #516077 50%, #516077 calc(50% + 1px), transparent calc(50% + 1px)),
+        linear-gradient(90deg, #516077 0%, #516077 1px, transparent 1px, transparent 50%, #516077 50%, #516077 calc(50% + 1px), transparent calc(50% + 1px));
+}
+
+.layout-indicator--masonry::before {
+    content: '';
+    width: 10px;
+    height: 10px;
+    background:
+        linear-gradient(#516077 0%, #516077 3px, transparent 3px, transparent 5px, #516077 5px, #516077 8px, transparent 8px) 0 0,
+        linear-gradient(#516077 0%, #516077 5px, transparent 5px, transparent 7px, #516077 7px, #516077 10px, transparent 10px) 5px 0;
+    background-size: 5px 100%;
+    background-repeat: no-repeat;
+}
+
+.layout-indicator--template::before {
+    content: 'T';
+    font-weight: bold;
+    font-size: 9px;
+}
+
+/* Бейдж с названием layout (показывается при наведении) */
+.layout-badge {
+    position: absolute;
+    top: 24px;
+    right: 4px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background-color: rgba(81, 96, 119, 0.9);
+    color: white;
+    font-size: 10px;
+    font-weight: 500;
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: none;
+    z-index: 11;
+}
+
+.block:hover .layout-badge {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Стили для блоков с разными layout */
+[data-layout="rows"] {
+    --layout-accent: #28a745;
+}
+
+[data-layout="columns"] {
+    --layout-accent: #007bff;
+}
+
+[data-layout="grid"],
+[data-layout^="grid-"] {
+    --layout-accent: #6f42c1;
+}
+
+[data-layout="table"] {
+    --layout-accent: #fd7e14;
+}
+
+[data-layout="masonry"] {
+    --layout-accent: #17a2b8;
+}
+
+[data-layout^="template:"] {
+    --layout-accent: #e83e8c;
+}
+
+/* Цветной индикатор для активного layout */
+.block[data-layout]:not([data-layout=""]):not([data-layout="default"]) .layout-indicator {
+    background-color: var(--layout-accent, rgba(81, 96, 119, 0.15));
+    color: white;
+}
+
+.block[data-layout]:not([data-layout=""]):not([data-layout="default"]) .layout-indicator::before {
+    filter: brightness(10);
+}
+
+/* Подсветка границы блока при hover для блоков с custom layout */
+.block[data-layout]:not([data-layout=""]):not([data-layout="default"]):hover {
+    box-shadow: 0 0 0 2px var(--layout-accent, #516077);
+}
+
+/* Стили для подменю layout */
+.submenu-layout-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.submenu-layout-item .layout-preview {
+    width: 24px;
+    height: 18px;
+    border: 1px solid currentColor;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.7;
+}
+
+/* Превью для разных layout в меню */
+.layout-preview--rows {
+    flex-direction: column;
+    gap: 2px;
+}
+
+.layout-preview--rows::before,
+.layout-preview--rows::after {
+    content: '';
+    width: 80%;
+    height: 3px;
+    background: currentColor;
+    border-radius: 1px;
+}
+
+.layout-preview--columns {
+    flex-direction: row;
+    gap: 2px;
+}
+
+.layout-preview--columns::before,
+.layout-preview--columns::after {
+    content: '';
+    width: 6px;
+    height: 80%;
+    background: currentColor;
+    border-radius: 1px;
+}
+
+.layout-preview--grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 2px;
+    padding: 2px;
+}
+
+.layout-preview--grid > span {
+    background: currentColor;
+    border-radius: 1px;
+}
+
+/* Стили для активного layout в подменю */
+.sidebar-button.layout-active {
+    background-color: var(--layout-accent, rgba(81, 96, 119, 0.3));
+    border-color: var(--layout-accent, #516077);
+}

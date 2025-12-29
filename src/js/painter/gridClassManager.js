@@ -1,6 +1,13 @@
 import {getElementSizeClass, measurePerformance} from "../utils/utils"
 import {styleConfig} from "./styles";
 import {GridLayoutCalculator} from "./gridLayoutCalculator";
+import {
+    LAYOUT_TYPES,
+    parseLayoutType,
+    DEFAULT_GRID_CONFIG,
+    DEFAULT_MASONRY_CONFIG
+} from "./layoutTypes";
+import { layoutTemplateService } from "../services/layoutTemplateService";
 
 
 class GridClassManager {
@@ -10,19 +17,39 @@ class GridClassManager {
 
     manager(block, parentBlock) {
         this.calcBlockSize(block, parentBlock)
-        const layout = block.size.layout
+        const sizeLayout = block.size.layout
         const len = block.children.length
+        const blockLayout = block.data?.layout || 'default'
 
-        if (block.data.layout === 'table') {
-            return GridClassManager.table(block)
-        } else if (block.data.layout === 'vertical') {
-            return GridClassManager.layoutVertical(block)
-        } else if (block.data.layout === 'horizontal') {
-            return GridClassManager.layoutHorizontal(block)
+        // Парсим тип layout и конфигурацию
+        const { type, config } = parseLayoutType(blockLayout)
+
+        switch (type) {
+            case LAYOUT_TYPES.TABLE:
+                return GridClassManager.table(block)
+
+            case LAYOUT_TYPES.ROWS:
+                return GridClassManager.layoutVertical(block)
+
+            case LAYOUT_TYPES.COLUMNS:
+                return GridClassManager.layoutHorizontal(block)
+
+            case LAYOUT_TYPES.GRID:
+                return this.layoutGrid(block, config)
+
+            case LAYOUT_TYPES.MASONRY:
+                return this.layoutMasonry(block, config)
+
+            case LAYOUT_TYPES.TEMPLATE:
+                return this.layoutFromTemplate(block, config, parentBlock)
+
+            case LAYOUT_TYPES.DEFAULT:
+            default:
+                // Авто-расчёт (существующая логика)
+                const layoutOptions = this.calc_optionsLayout(sizeLayout, len, block.data?.groupSizes)
+                const rez = GridLayoutCalculator.computeGridLayoutGroups(len, layoutOptions)
+                return GridClassManager.returnClasses(block, rez.totalGridRows, rez.gridColumns, rez.rectangles, rez.groupSizes)
         }
-        const layoutOptions = this.calc_optionsLayout(layout, len, block.data?.groupSizes)
-        const rez = GridLayoutCalculator.computeGridLayoutGroups(len, layoutOptions)
-        return GridClassManager.returnClasses(block, rez.totalGridRows, rez.gridColumns, rez.rectangles, rez.groupSizes)
     }
 
     static layoutVertical(block) {
@@ -60,6 +87,134 @@ class GridClassManager {
             GridClassManager._setContentPosition(2, lenChildren),
             childrenPosition,
         ]
+    }
+
+    /**
+     * Раскладка grid-NxM - фиксированная сетка с заданным числом строк и колонок
+     * @param {Object} block - блок
+     * @param {Object} config - конфигурация {rows, columns}
+     */
+    layoutGrid(block, config) {
+        const gridConfig = config || block.data?.gridConfig || DEFAULT_GRID_CONFIG
+        const { rows, columns } = gridConfig
+        const lenChildren = block.children.length
+        const childrenPosition = {}
+
+        // Рассчитываем реальное число строк (может быть больше чем задано, если детей много)
+        const actualRows = Math.max(rows, Math.ceil(lenChildren / columns))
+
+        let childIndex = 0
+        for (let r = 0; r < actualRows && childIndex < lenChildren; r++) {
+            for (let c = 0; c < columns && childIndex < lenChildren; c++) {
+                const childId = block.data.childOrder[childIndex]
+                childrenPosition[childId] = [
+                    `grid-column_${c + 1}__${c + 2}`,
+                    `grid-row_${r + 2}`
+                ]
+                childIndex++
+            }
+        }
+
+        const totalRows = actualRows + 1 // +1 для контента
+
+        return [
+            GridClassManager._setBlockGrid(totalRows, columns),
+            GridClassManager._setContentPosition(totalRows, columns),
+            childrenPosition
+        ]
+    }
+
+    /**
+     * Раскладка masonry - умное заполнение пустот (как Pinterest)
+     * Дети распределяются по колонкам, заполняя самую короткую
+     * @param {Object} block - блок
+     * @param {Object} config - конфигурация {minChildWidth, maxColumns}
+     */
+    layoutMasonry(block, config) {
+        const masonryConfig = config || block.data?.masonryConfig || DEFAULT_MASONRY_CONFIG
+        const { minChildWidth, maxColumns } = masonryConfig
+        const lenChildren = block.children.length
+        const childrenPosition = {}
+
+        // Рассчитываем оптимальное число колонок на основе ширины блока
+        const blockWidth = block.size?.width || 400
+        const calculatedColumns = Math.max(1, Math.floor(blockWidth / minChildWidth))
+        const columns = Math.min(maxColumns, calculatedColumns, lenChildren)
+
+        // Отслеживаем высоту каждой колонки для masonry эффекта
+        const columnHeights = new Array(columns).fill(0)
+
+        for (let i = 0; i < lenChildren; i++) {
+            const childId = block.data.childOrder[i]
+
+            // Находим самую короткую колонку
+            const minHeight = Math.min(...columnHeights)
+            const minCol = columnHeights.indexOf(minHeight)
+
+            // Размещаем ребёнка в самой короткой колонке
+            const startRow = columnHeights[minCol] + 2 // +2 для контента
+
+            childrenPosition[childId] = [
+                `grid-column_${minCol + 1}__${minCol + 2}`,
+                `grid-row_${startRow}`
+            ]
+
+            // Увеличиваем высоту колонки
+            columnHeights[minCol]++
+        }
+
+        const totalRows = Math.max(...columnHeights) + 1 // +1 для контента
+
+        return [
+            GridClassManager._setBlockGrid(totalRows, columns),
+            GridClassManager._setContentPosition(totalRows, columns),
+            childrenPosition
+        ]
+    }
+
+    /**
+     * Раскладка из шаблона
+     * @param {Object} block - блок
+     * @param {Object} config - конфигурация {templateId}
+     * @param {Object} parentBlock - родительский блок
+     */
+    layoutFromTemplate(block, config, parentBlock) {
+        const templateId = config?.templateId;
+
+        if (!templateId) {
+            // Fallback на default если templateId не указан
+            return this.layoutDefault(block);
+        }
+
+        const blockSize = {
+            width: block.size?.width || 400,
+            height: block.size?.height || 300
+        };
+
+        const result = layoutTemplateService.applyTemplate(templateId, block, blockSize);
+
+        if (!result) {
+            // Если шаблон не найден или не применился, fallback на default
+            return this.layoutDefault(block);
+        }
+
+        return [
+            result.grid,
+            result.contentPosition,
+            result.childrenPositions
+        ];
+    }
+
+    /**
+     * Fallback метод для default layout
+     * @param {Object} block - блок
+     */
+    layoutDefault(block) {
+        const sizeLayout = block.size.layout;
+        const len = block.children.length;
+        const layoutOptions = this.calc_optionsLayout(sizeLayout, len, block.data?.groupSizes);
+        const rez = GridLayoutCalculator.computeGridLayoutGroups(len, layoutOptions);
+        return GridClassManager.returnClasses(block, rez.totalGridRows, rez.gridColumns, rez.rectangles, rez.groupSizes);
     }
 
     calcBlockSize(block, parentBlock) {
