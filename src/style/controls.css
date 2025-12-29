@@ -288,3 +288,80 @@
     overflow-y: auto;
     z-index: 3;
 }
+
+
+/* Статус-индикаторы систем */
+.status-indicators {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-right: 12px;
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: 12px;
+}
+
+.status-indicators.hidden {
+    display: none;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: help;
+}
+
+.status-led {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #888;
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
+    transition: background-color 0.3s, box-shadow 0.3s;
+}
+
+.status-led.ok {
+    background-color: #4caf50;
+    box-shadow: 0 0 4px rgba(76, 175, 80, 0.6);
+}
+
+.status-led.warning {
+    background-color: #ff9800;
+    box-shadow: 0 0 4px rgba(255, 152, 0, 0.6);
+    animation: blink-warning 1.5s ease-in-out infinite;
+}
+
+.status-led.error {
+    background-color: #f44336;
+    box-shadow: 0 0 4px rgba(244, 67, 54, 0.6);
+}
+
+.status-led.checking {
+    background-color: #888;
+    animation: blink-checking 0.8s ease-in-out infinite;
+}
+
+@keyframes blink-warning {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+@keyframes blink-checking {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+}
+
+/* Адаптивные стили для мобильных */
+@media (max-width: 600px) {
+    .status-indicators {
+        gap: 4px;
+        margin-right: 8px;
+        padding: 3px 6px;
+    }
+
+    .status-led {
+        width: 6px;
+        height: 6px;
+    }
+}
