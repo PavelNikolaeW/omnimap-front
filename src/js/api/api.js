@@ -8,7 +8,8 @@ import localforage from "localforage";
 
 class Api {
     constructor() {
-        this.backendUrl = APP_BACKEND_URL || 'http://localhost:8000';
+        // Убираем trailing slash для предотвращения двойных слэшей в URL
+        this.backendUrl = (APP_BACKEND_URL || 'http://localhost:8000').replace(/\/+$/, '');
 
         // Настройка базового URL и создание экземпляра axios
         this.operationChache = new LimitedMapQueue(50)
