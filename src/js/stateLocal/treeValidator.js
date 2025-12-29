@@ -8,6 +8,19 @@
  * 4. Отсутствие циклических ссылок
  */
 
+/**
+ * Нормализует parent_id, преобразуя строку "None" или "null" в null
+ * Backend (Python) иногда отправляет None как строку
+ * @param {*} parentId - Значение parent_id
+ * @returns {string|null} Нормализованный parent_id
+ */
+function normalizeParentId(parentId) {
+    if (parentId === 'None' || parentId === 'null' || parentId === '') {
+        return null;
+    }
+    return parentId || null;
+}
+
 export class TreeValidator {
     constructor() {
         this.issues = [];
@@ -50,23 +63,25 @@ export class TreeValidator {
         }
 
         // 1. Проверка parent_id -> родитель должен иметь этот блок в children
-        if (block.parent_id) {
-            const parent = blocks.get(block.parent_id);
+        // Нормализуем parent_id: строка "None" считается как отсутствие родителя
+        const parentId = normalizeParentId(block.parent_id);
+        if (parentId) {
+            const parent = blocks.get(parentId);
             if (!parent) {
                 this.issues.push({
                     type: 'ORPHAN_PARENT_REF',
                     severity: 'warning',
                     blockId: block.id,
-                    parentId: block.parent_id,
-                    message: `Блок ${block.id} ссылается на несуществующего родителя ${block.parent_id}`
+                    parentId: parentId,
+                    message: `Блок ${block.id} ссылается на несуществующего родителя ${parentId}`
                 });
             } else if (!parent.children?.includes(block.id)) {
                 this.issues.push({
                     type: 'PARENT_CHILD_MISMATCH',
                     severity: 'error',
                     blockId: block.id,
-                    parentId: block.parent_id,
-                    message: `Блок ${block.id} имеет parent_id=${block.parent_id}, но родитель не имеет его в children`
+                    parentId: parentId,
+                    message: `Блок ${block.id} имеет parent_id=${parentId}, но родитель не имеет его в children`
                 });
             }
         }
@@ -83,15 +98,19 @@ export class TreeValidator {
                         childId: childId,
                         message: `Блок ${block.id} имеет в children несуществующий блок ${childId}`
                     });
-                } else if (child.parent_id !== block.id) {
-                    this.issues.push({
-                        type: 'CHILD_PARENT_MISMATCH',
-                        severity: 'error',
-                        blockId: block.id,
-                        childId: childId,
-                        actualParentId: child.parent_id,
-                        message: `Блок ${childId} указан в children блока ${block.id}, но его parent_id=${child.parent_id}`
-                    });
+                } else {
+                    // Нормализуем parent_id ребёнка
+                    const childParentId = normalizeParentId(child.parent_id);
+                    if (childParentId !== block.id) {
+                        this.issues.push({
+                            type: 'CHILD_PARENT_MISMATCH',
+                            severity: 'error',
+                            blockId: block.id,
+                            childId: childId,
+                            actualParentId: childParentId,
+                            message: `Блок ${childId} указан в children блока ${block.id}, но его parent_id=${childParentId}`
+                        });
+                    }
                 }
             }
         }
@@ -231,14 +250,17 @@ export class TreeValidator {
                 const child = blocks.get(childId);
                 if (!child) continue;
 
+                // Нормализуем parent_id ребёнка
+                const childParentId = normalizeParentId(child.parent_id);
+
                 // Если parent_id совпадает — всё ок
-                if (child.parent_id === blockId) {
+                if (childParentId === blockId) {
                     resolvedParents.set(childId, { correctParentId: blockId, reason: 'match' });
                     continue;
                 }
 
                 // Конфликт: блок в children родителя, но child.parent_id указывает на другого
-                const claimedParent = blocks.get(child.parent_id);
+                const claimedParent = childParentId ? blocks.get(childParentId) : null;
                 const parentTimestamp = getTimestamp(block);
                 const childTimestamp = getTimestamp(child);
                 const claimedParentTimestamp = claimedParent ? getTimestamp(claimedParent) : 0;
@@ -247,13 +269,13 @@ export class TreeValidator {
                 let reason;
 
                 // Если claimed parent не существует — доверяем текущему родителю
-                if (!claimedParent && child.parent_id) {
+                if (!claimedParent && childParentId) {
                     correctParentId = blockId;
                     reason = 'claimed_parent_missing';
                 }
                 // Если child свежее родителя — доверяем child.parent_id
                 else if (childTimestamp > parentTimestamp) {
-                    correctParentId = child.parent_id;
+                    correctParentId = childParentId;
                     reason = `child_newer (child: ${child.updated_at}, parent: ${block.updated_at})`;
                 }
                 // Если родитель свежее ребёнка — доверяем children родителя
@@ -263,12 +285,12 @@ export class TreeValidator {
                 }
                 // Если claimed parent свежее всех — доверяем ему
                 else if (claimedParentTimestamp > parentTimestamp && claimedParentTimestamp > childTimestamp) {
-                    correctParentId = child.parent_id;
+                    correctParentId = childParentId;
                     reason = `claimed_parent_newest`;
                 }
                 // По умолчанию — доверяем parent_id ребёнка (он обычно обновляется при перемещении)
                 else {
-                    correctParentId = child.parent_id;
+                    correctParentId = childParentId;
                     reason = 'default_trust_child_parent_id';
                 }
 
@@ -278,7 +300,7 @@ export class TreeValidator {
                     repaired.decisions.push({
                         childId,
                         inChildrenOf: blockId,
-                        childParentId: child.parent_id,
+                        childParentId: childParentId,
                         resolved: correctParentId,
                         reason
                     });
@@ -304,10 +326,12 @@ export class TreeValidator {
 
                 // Проверяем решение
                 const resolution = resolvedParents.get(childId);
+                // Нормализуем parent_id ребёнка
+                const childParentId = normalizeParentId(child.parent_id);
                 if (resolution && resolution.correctParentId === blockId) {
                     newChildren.push(childId);
                     // Если parent_id ребёнка неправильный — исправляем
-                    if (child.parent_id !== blockId) {
+                    if (childParentId !== blockId) {
                         child.parent_id = blockId;
                         repaired.parentIdFixed++;
                         repaired.modifiedBlocks.add(childId);
@@ -316,10 +340,10 @@ export class TreeValidator {
                     // Этот блок не должен быть в наших children
                     repaired.childParentFixed++;
                     modified = true;
-                } else if (!resolution && child.parent_id === blockId) {
+                } else if (!resolution && childParentId === blockId) {
                     // Нет конфликта, связь корректна
                     newChildren.push(childId);
-                } else if (!resolution && child.parent_id !== blockId) {
+                } else if (!resolution && childParentId !== blockId) {
                     // Блок указывает на другого родителя — удаляем из наших children
                     repaired.childParentFixed++;
                     modified = true;
@@ -328,7 +352,8 @@ export class TreeValidator {
 
             // 2. Добавляем блоки, которые ссылаются на нас как родителя, но не в children
             for (const [childId, child] of blocks) {
-                if (child.parent_id === blockId && !newChildren.includes(childId)) {
+                const childParentId = normalizeParentId(child.parent_id);
+                if (childParentId === blockId && !newChildren.includes(childId)) {
                     const resolution = resolvedParents.get(childId);
                     // Добавляем если нет конфликта или мы — правильный родитель
                     if (!resolution || resolution.correctParentId === blockId) {

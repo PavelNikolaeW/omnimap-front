@@ -429,6 +429,19 @@ export class LocalStateManager {
     }
 
     /**
+     * Нормализует parent_id, преобразуя строку "None" в null
+     * Backend (Python) иногда отправляет None как строку "None" вместо null
+     * @param {*} parentId - Значение parent_id
+     * @returns {string|null} Нормализованный parent_id
+     */
+    _normalizeParentId(parentId) {
+        if (parentId === 'None' || parentId === 'null' || parentId === '') {
+            return null;
+        }
+        return parentId || null;
+    }
+
+    /**
      * Безопасно парсит JSON, возвращает значение по умолчанию при ошибке
      * @param {string} jsonString - JSON строка
      * @param {*} defaultValue - Значение по умолчанию
@@ -508,7 +521,7 @@ export class LocalStateManager {
                         title: block.title,
                         data,
                         children,
-                        parent_id: block.parent_id
+                        parent_id: this._normalizeParentId(block.parent_id)
                     });
                 }
                 processedBlocks.push(block);

@@ -2,6 +2,25 @@
 
 ---
 
+## СРОЧНО: Исправить parent_id "None" строка вместо null
+
+### omnimap-sync
+
+- [ ] **Исправить сериализацию `parent_id` в WebSocket сообщениях**
+  - При отправке блоков через WebSocket `parent_id` со значением Python `None` сериализуется как строка `"None"` вместо JSON `null`
+  - Это приводит к ошибкам валидации дерева блоков на фронтенде
+  - **Причина**: вероятно `str(block.parent_id)` или сериализация без обработки None
+  - **Исправление**: перед JSON сериализацией проверять `if parent_id is None` → `parent_id = None` (не `"None"`)
+  - Фронтенд временно нормализует `"None"` → `null`, но источник проблемы на backend
+
+### omnimap-back
+
+- [ ] **Проверить сериализацию блоков в REST API**
+  - Аналогично проверить все места где блоки возвращаются в JSON
+  - `parent_id: None` должен стать `parent_id: null` в JSON, не `parent_id: "None"`
+
+---
+
 ## СРОЧНО: PR #21 - Security & Health Check
 
 ### omnimap-back
