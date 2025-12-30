@@ -67,7 +67,9 @@ export class NoteEditor {
         if (save) {
             // Нормализуем markdown перед конвертацией
             const markdown = this._normalizeMarkdown(this._getMarkdown());
-            const html = marked(markdown, this.markedOptions);
+            // Сохраняем множественные пустые строки перед конвертацией
+            const markdownWithBlanks = this._preserveBlankLines(markdown);
+            const html = marked(markdownWithBlanks, this.markedOptions);
             const sanitized = DOMPurify.sanitize(html, {
                 ADD_ATTR: ['block-id', 'style', 'class', 'title', 'alt', 'src', 'href'],
                 ADD_TAGS: ['img', 'a', 'bgImage'],
@@ -314,15 +316,19 @@ export class NoteEditor {
 
             if (e.key === 'Enter' && !e.shiftKey) {
                 if (this.isMobile) {
-                    // на мобилке просто перенос строки
+                    // на мобилке — продолжение списка или просто перенос
                     e.preventDefault();
-                    this._insertText('\n');
+                    this._handleEnterKey();
                 } else {
                     // на десктопе — сохранить и закрыть
                     e.preventDefault();
                     try { hotkeys.trigger('enter'); } catch {}
                     this.closeEditor(true);
                 }
+            } else if (e.key === 'Enter' && e.shiftKey) {
+                // Shift+Enter — новая строка с продолжением списка
+                e.preventDefault();
+                this._handleEnterKey();
             } else if (e.key === 'Escape') {
                 e.preventDefault();
                 try { hotkeys.trigger('esc'); } catch {}
@@ -335,11 +341,68 @@ export class NoteEditor {
         // а значит и сам элемент с обработчиком будет удалён
     }
 
+    /**
+     * Обработка Enter в редакторе:
+     * - Если курсор на строке со списком, продолжить список
+     * - Иначе просто вставить перенос строки
+     */
+    _handleEnterKey() {
+        const el = this.editorEl;
+        const { selectionStart, value } = el;
+
+        // Найти начало текущей строки
+        const lineStart = value.lastIndexOf('\n', selectionStart - 1) + 1;
+        const currentLine = value.slice(lineStart, selectionStart);
+
+        // Проверяем нумерованный список (например "1. ", "12. ")
+        const orderedMatch = currentLine.match(/^(\s*)(\d+)\.\s/);
+        if (orderedMatch) {
+            const indent = orderedMatch[1];
+            const num = parseInt(orderedMatch[2], 10);
+            // Если строка пустая после номера — убрать маркер списка
+            const textAfterMarker = currentLine.slice(orderedMatch[0].length);
+            if (!textAfterMarker.trim()) {
+                // Убираем пустой маркер списка
+                const newValue = value.slice(0, lineStart) + value.slice(selectionStart);
+                this._setMarkdown(newValue);
+                el.setSelectionRange(lineStart, lineStart);
+            } else {
+                // Продолжить список со следующим номером
+                this._insertText(`\n${indent}${num + 1}. `);
+            }
+            return;
+        }
+
+        // Проверяем маркированный список (например "- ", "* ", "+ ")
+        const unorderedMatch = currentLine.match(/^(\s*)([-*+])\s/);
+        if (unorderedMatch) {
+            const indent = unorderedMatch[1];
+            const marker = unorderedMatch[2];
+            // Если строка пустая после маркера — убрать маркер
+            const textAfterMarker = currentLine.slice(unorderedMatch[0].length);
+            if (!textAfterMarker.trim()) {
+                const newValue = value.slice(0, lineStart) + value.slice(selectionStart);
+                this._setMarkdown(newValue);
+                el.setSelectionRange(lineStart, lineStart);
+            } else {
+                this._insertText(`\n${indent}${marker} `);
+            }
+            return;
+        }
+
+        // Обычный перенос строки
+        this._insertText('\n');
+    }
+
     _setCursorToEndOnce() {
-        // фокус и каретка в конец
-        this.editorEl.focus();
-        const val = this.editorEl.value;
-        this.editorEl.setSelectionRange(val.length, val.length);
+        // Откладываем фокус на следующий тик, чтобы символ горячей клавиши
+        // (например 'w') не попал в поле ввода
+        setTimeout(() => {
+            if (!this.editorEl) return;
+            this.editorEl.focus();
+            const val = this.editorEl.value;
+            this.editorEl.setSelectionRange(val.length, val.length);
+        }, 0);
     }
 
     // ---------- Нормализация ----------
@@ -371,6 +434,41 @@ export class NoteEditor {
         });
 
         return normalized.trim();
+    }
+
+    /**
+     * Сохраняет множественные пустые строки:
+     * Каждую последовательность из 3+ переносов строки (\n\n\n...)
+     * конвертируем в специальные маркеры, которые потом станут <br> тегами
+     */
+    _preserveBlankLines(text) {
+        if (!text) return '';
+
+        // Защищаем code блоки
+        const codeBlocks = [];
+        let result = text.replace(/```[\s\S]*?```/g, (match) => {
+            codeBlocks.push(match);
+            return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
+        });
+
+        // Заменяем 3+ последовательных переноса на маркер с <br>
+        // \n\n = один параграф (нормально для markdown)
+        // \n\n\n = параграф + 1 пустая строка
+        // \n\n\n\n = параграф + 2 пустые строки, и т.д.
+        result = result.replace(/\n{3,}/g, (match) => {
+            // Количество дополнительных пустых строк (сверх стандартных \n\n)
+            const extraLines = match.length - 2;
+            // Создаём строку с <br> для каждой дополнительной пустой строки
+            const breaks = '<br>'.repeat(extraLines);
+            return `\n\n${breaks}\n\n`;
+        });
+
+        // Восстанавливаем code блоки
+        codeBlocks.forEach((block, i) => {
+            result = result.replace(`__CODE_BLOCK_${i}__`, block);
+        });
+
+        return result;
     }
 
     /**
