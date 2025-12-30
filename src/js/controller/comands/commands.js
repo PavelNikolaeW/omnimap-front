@@ -222,6 +222,7 @@ export const commands = [
             const token = Cookies.get('access')
             if (window.LLMFullscreenChat) {
                 if (!window.LLMFullscreenChat.isInitialized()) {
+                    // При первой инициализации autoOpen=true, чат откроется сразу
                     window.LLMFullscreenChat.init({
                         apiUrl: LLM_GATEWAY_URL,
                         backendUrl: APP_BACKEND_URL,
@@ -229,8 +230,10 @@ export const commands = [
                         initialTab: 'dm',
                         onClose: () => { ctx.mode = MODES.NORMAL }
                     });
+                } else {
+                    // Если уже инициализирован - просто открываем
+                    window.LLMFullscreenChat.open();
                 }
-                window.LLMFullscreenChat.open();
                 ctx.mode = MODES.CHAT;
             }
         },
@@ -247,6 +250,7 @@ export const commands = [
             const token = Cookies.get('access')
             if (window.LLMFullscreenChat) {
                 if (!window.LLMFullscreenChat.isInitialized()) {
+                    // При первой инициализации autoOpen=true, чат откроется сразу
                     window.LLMFullscreenChat.init({
                         apiUrl: LLM_GATEWAY_URL,
                         backendUrl: APP_BACKEND_URL,
@@ -254,8 +258,10 @@ export const commands = [
                         initialTab: 'ai',
                         onClose: () => { ctx.mode = MODES.NORMAL }
                     });
+                } else {
+                    // Если уже инициализирован - открываем на вкладке AI
+                    window.LLMFullscreenChat.open({ tab: 'ai' });
                 }
-                window.LLMFullscreenChat.open({ tab: 'ai' });
                 ctx.mode = MODES.CHAT;
             }
         }
