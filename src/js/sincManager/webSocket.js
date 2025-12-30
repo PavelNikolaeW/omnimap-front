@@ -1,5 +1,6 @@
 import Cookies from "js-cookie";
 import {dispatch} from "../utils/utils";
+import chatSync from "./chatSync";
 
 /**
  * Максимальное количество попыток переподключения
@@ -146,6 +147,9 @@ export class UpdateServiceWebSocket {
             this.isConnected = true;
             this.reconnectAttempts = 0;
             this._startHeartbeat();
+            // Инициализация ChatSync и подписка на чат-события
+            chatSync.init(this);
+            chatSync.subscribe();
             this.eventListeners.open.forEach(callback => callback());
         };
 
@@ -156,6 +160,11 @@ export class UpdateServiceWebSocket {
             // Обработка pong от сервера
             if (message.type === 'pong') {
                 this.missedPongs = 0;
+                return;
+            }
+
+            // Попытка обработки chat событий
+            if (chatSync.handleMessage(message)) {
                 return;
             }
 
