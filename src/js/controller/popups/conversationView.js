@@ -164,7 +164,8 @@ export class ConversationView extends Popup {
     }
 
     createMessageElement(message) {
-        const isOwn = message.sender_id === this.currentUserId;
+        // Приводим к числу для корректного сравнения (sender_id из API всегда число)
+        const isOwn = Number(message.sender_id) === Number(this.currentUserId);
 
         const container = document.createElement('div');
         container.className = `p2p-message ${isOwn ? 'p2p-message--own' : 'p2p-message--other'}`;
@@ -288,7 +289,7 @@ export class ConversationView extends Popup {
             const tempMessage = {
                 id: 'temp-' + Date.now(),
                 content,
-                sender_id: this.currentUserId,
+                sender_id: Number(this.currentUserId),
                 created_at: new Date().toISOString(),
                 read: false
             };

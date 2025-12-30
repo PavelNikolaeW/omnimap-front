@@ -151,6 +151,15 @@ export class LocalStateManager {
                 window.history.replaceState({}, '', window.location.pathname);
             }
 
+            // Очищаем данные текущего пользователя из памяти
+            this.blocks.clear();
+            this.currentUser = null;
+            this.currentTree = null;
+            this.path = [];
+
+            // Очищаем currentTree из localStorage чтобы не показывать блоки предыдущего пользователя
+            await localforage.removeItem('currentTree');
+
             dispatch('InitAnonimUser');
 
             const sidebar = document.getElementById('sidebar');

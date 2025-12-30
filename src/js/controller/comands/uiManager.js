@@ -70,6 +70,11 @@ export class UIManager {
         this.commandsById = commandsById
         localforage.getItem('currentUser').then(user => {
             if ((user && user !== 'anonim') || window.location.search) {
+                // Очищаем контейнеры перед рендерингом, чтобы избежать дублирования кнопок
+                Object.values(this.elements).forEach(element => {
+                    if (element) element.innerHTML = ''
+                })
+
                 // Используем DocumentFragment для оптимизации DOM-операций
                 const fragment = document.createDocumentFragment()
 
