@@ -81,7 +81,15 @@ class Api {
                 const originalRequest = error.config;
                 this.setLoading(false)
 
-                if (error.response?.status === 401 && !originalRequest._retry) {
+                // Guard against missing config (network errors)
+                if (!originalRequest) {
+                    return Promise.reject(error);
+                }
+
+                // Skip retry for token refresh endpoint to prevent infinite loop
+                const isRefreshRequest = originalRequest.url?.includes('/token/refresh/');
+
+                if (error.response?.status === 401 && !originalRequest._retry && !isRefreshRequest) {
                     originalRequest._retry = true;
                     try {
                         const tokenRefreshed = await this.refreshToken();

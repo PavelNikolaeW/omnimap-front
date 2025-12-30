@@ -152,7 +152,7 @@ function showReloadNotification() {
         <div class="title">Обнаружено обновление</div>
         <div class="message">Код приложения изменился. Рекомендуется перезагрузить страницу для применения изменений.</div>
         <div class="buttons">
-            <button class="reload-btn" onclick="window.location.reload(true)">Перезагрузить</button>
+            <button class="reload-btn" onclick="window.__clearAllCaches()">Перезагрузить</button>
             <button class="dismiss-btn" onclick="this.closest('#dev-cache-notification').remove()">Позже</button>
         </div>
     `;
@@ -187,11 +187,40 @@ export async function initDevCacheManager() {
  * Можно вызвать из консоли: window.__clearAllCaches()
  */
 export async function clearAllCaches() {
+    console.log('DevCacheManager: starting full cache clear...');
+
     await clearBrowserCaches();
     await unregisterServiceWorkers();
-    localStorage.removeItem(BUILD_VERSION_KEY);
+
+    // Clear localStorage completely
+    localStorage.clear();
+
+    // Clear sessionStorage
+    sessionStorage.clear();
+
+    // Clear auth cookies to force re-login with fresh tokens
+    document.cookie.split(';').forEach(cookie => {
+        const name = cookie.split('=')[0].trim();
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+    });
+
+    // Clear IndexedDB (localforage uses it)
+    if ('indexedDB' in window) {
+        try {
+            const databases = await indexedDB.databases();
+            for (const db of databases) {
+                if (db.name) {
+                    indexedDB.deleteDatabase(db.name);
+                    console.log('DevCacheManager: deleted IndexedDB:', db.name);
+                }
+            }
+        } catch (e) {
+            console.warn('DevCacheManager: could not clear IndexedDB:', e);
+        }
+    }
+
     console.log('DevCacheManager: all caches cleared, reloading...');
-    window.location.reload(true);
+    window.location.href = window.location.origin;
 }
 
 // Экспортируем в window для отладки

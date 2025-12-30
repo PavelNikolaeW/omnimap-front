@@ -15,6 +15,9 @@ import {treeValidator} from "./treeValidator";
  * @returns {string} Экранированная строка
  */
 function escapeRegExp(string) {
+    if (typeof string !== 'string') {
+        return String(string ?? '');
+    }
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
