@@ -1,6 +1,6 @@
 import {commands} from './commands.js';
 import hotkeys from 'hotkeys-js';
-import {ContextManager} from "./contextManager";
+import {ContextManager, setContextManager} from "./contextManager";
 import {uiManager} from "./uiManager";
 import {isExcludedElement, throttle} from "../../utils/functions";
 import {dispatch} from "../../utils/utils";
@@ -26,6 +26,8 @@ export class CommandManager {
         this.controlPanel = document.getElementById('control-panel')
         this.topSidebar = document.getElementById('topSidebar')
         this.ctxManager = new ContextManager(this.rootContainer, this.breadcrumb, this.treeNavigation)
+        // Регистрируем singleton для использования в других модулях
+        setContextManager(this.ctxManager)
         this.isLink = window.location.href.indexOf('/?') !== -1
         this.selectedText = ''
         this.init()

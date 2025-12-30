@@ -2,6 +2,7 @@ import localforage from "localforage";
 import {dispatch} from "../utils/utils";
 import {diagramEditor} from "./diagramEditor";
 import {blockStyleManager, connectionStyleManager} from "./blockStyleManager";
+import {contextManager} from "./comands/contextManager";
 
 export class DiagramUtils {
     constructor() {
@@ -31,7 +32,15 @@ export class DiagramUtils {
 
         // Кнопки панелей стилей и соединений
         this.openStylePanelBtn?.addEventListener('click', () => {
-            this.blockStyleManager.toggle(this.blockId, this.element)
+            // Получить выбранный блок из contextManager
+            const selectedBlockId = this.getSelectedChildBlockId()
+            if (selectedBlockId) {
+                const selectedElement = document.getElementById(selectedBlockId)
+                this.blockStyleManager.toggle(selectedBlockId, selectedElement)
+            } else {
+                // Если нет выбранного блока, показать уведомление
+                console.warn('Выберите блок для применения стилей')
+            }
             this.connectionStyleManager.hide()
         })
         this.openConnectionPanelBtn?.addEventListener('click', () => {
@@ -126,6 +135,37 @@ export class DiagramUtils {
     updateGridDisplay(rows, cols) {
         if (this.rowDisplay) this.rowDisplay.textContent = `R: ${rows}`
         if (this.colDisplay) this.colDisplay.textContent = `C: ${cols}`
+    }
+
+    /**
+     * Получить ID выбранного дочернего блока внутри диаграммы
+     * Возвращает ID активного блока, если он является дочерним текущего блока диаграммы
+     */
+    getSelectedChildBlockId() {
+        const ctx = contextManager.getContext()
+        const activeBlockId = ctx.blockId
+
+        // Проверить, что активный блок является дочерним блоком диаграммы
+        if (activeBlockId && this.element) {
+            const activeElement = document.getElementById(activeBlockId)
+            if (activeElement && this.element.contains(activeElement)) {
+                return activeBlockId
+            }
+        }
+
+        // Проверить мульти-выделение
+        const selectedBlocks = ctx.selectedBlocks
+        if (selectedBlocks && selectedBlocks.length > 0) {
+            // Взять первый выбранный блок, который является дочерним диаграммы
+            for (const blockId of selectedBlocks) {
+                const el = document.getElementById(blockId)
+                if (el && this.element?.contains(el)) {
+                    return blockId
+                }
+            }
+        }
+
+        return null
     }
 
     async resetHandler() {

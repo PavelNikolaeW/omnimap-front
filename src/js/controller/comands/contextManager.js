@@ -453,3 +453,16 @@ export class ContextManager {
     }
 
 }
+
+// Singleton instance для использования в других модулях
+// Инициализируется в CommandManager, здесь - заглушка для импорта
+let contextManagerInstance = null;
+
+export function setContextManager(instance) {
+    contextManagerInstance = instance;
+}
+
+export const contextManager = {
+    getContext: () => contextManagerInstance?.getContext() || {},
+    getInstance: () => contextManagerInstance
+};
