@@ -678,10 +678,9 @@ export class UnifiedChatPanel {
             return;
         }
 
-        // Abort any ongoing AI stream before switching
-        if (this.abortController) {
-            this.abortController.abort();
-            this.abortController = null;
+        // Don't abort ongoing AI stream - let it finish in background
+        // so the message is saved on the server
+        if (this.isStreaming) {
             this.isStreaming = false;
             this.updateSendButton();
         }
