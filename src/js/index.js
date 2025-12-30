@@ -17,6 +17,7 @@ import '../style/chat.css';
 import '../style/note-editor.css';
 import '../style/layout.css';
 import '../style/p2p-chat.css';
+import '../style/diagram-editor.css';
 
 import {dispatch} from "./utils/utils";
 import {LocalStateManager} from "./stateLocal/localStateManager";
