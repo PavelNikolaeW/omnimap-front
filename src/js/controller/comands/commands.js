@@ -16,8 +16,8 @@ import {popupsCommands} from "./popupsCmd";
 import {NoteEditor} from "../noteEditor";
 import Cookies from "js-cookie";
 import { openChatPanel } from "../popups/chatPanel";
-// LLM_GATEWAY_URL is injected by webpack DefinePlugin
-/* global LLM_GATEWAY_URL */
+// LLM_GATEWAY_URL and APP_BACKEND_URL are injected by webpack DefinePlugin
+/* global LLM_GATEWAY_URL, APP_BACKEND_URL */
 
 // Actions
 import {
@@ -209,22 +209,24 @@ export const commands = [
         }
     },
     {
-        id: 'llmChat',
+        id: 'unifiedChat',
         mode: ['normal'],
         btn: {
             containerId: 'control-panel',
-            label: 'AI Chat',
-            classes: ['sidebar-button', 'fas', 'fa-robot', 'fas-lg']
+            label: 'Чаты',
+            classes: ['sidebar-button', 'fas', 'fa-comments', 'fas-lg']
         },
-        defaultHotkey: 'shift+h',
-        description: 'Открыть AI чат',
+        defaultHotkey: 'shift+m',
+        description: 'Открыть чаты (личные, группы, AI)',
         execute(ctx) {
             const token = Cookies.get('access')
             if (window.LLMFullscreenChat) {
                 if (!window.LLMFullscreenChat.isInitialized()) {
                     window.LLMFullscreenChat.init({
                         apiUrl: LLM_GATEWAY_URL,
+                        backendUrl: APP_BACKEND_URL,
                         token: token,
+                        initialTab: 'dm',
                         onClose: () => { ctx.mode = MODES.NORMAL }
                     });
                 }
@@ -237,20 +239,25 @@ export const commands = [
         }
     },
     {
-        id: 'p2pChat',
+        id: 'openAiChat',
         mode: ['normal'],
-        btn: {
-            containerId: 'control-panel',
-            label: 'Чаты',
-            classes: ['sidebar-button', 'fas', 'fa-comments', 'fas-lg', 'p2p-chat-btn']
-        },
-        defaultHotkey: 'shift+m',
-        description: 'Открыть личные и групповые чаты',
+        defaultHotkey: 'shift+h',
+        description: 'Открыть AI чат',
         execute(ctx) {
-            openChatPanel();
-        },
-        btnExec(ctx) {
-            this.execute(ctx)
+            const token = Cookies.get('access')
+            if (window.LLMFullscreenChat) {
+                if (!window.LLMFullscreenChat.isInitialized()) {
+                    window.LLMFullscreenChat.init({
+                        apiUrl: LLM_GATEWAY_URL,
+                        backendUrl: APP_BACKEND_URL,
+                        token: token,
+                        initialTab: 'ai',
+                        onClose: () => { ctx.mode = MODES.NORMAL }
+                    });
+                }
+                window.LLMFullscreenChat.open({ tab: 'ai' });
+                ctx.mode = MODES.CHAT;
+            }
         }
     },
     {

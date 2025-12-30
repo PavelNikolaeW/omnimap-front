@@ -860,3 +860,104 @@
 .llm-chat-model-info span {
     display: block;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Unified Chat - Additional styles for combined P2P + AI chat
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Unified chat container variant */
+.llm-chat-container.unified-chat .llm-chat-header {
+    padding: 0;
+}
+
+.llm-chat-container.unified-chat .llm-chat-header-top {
+    padding: 12px 20px;
+    border-top: 1px solid #2b2e36;
+}
+
+/* CSS Variables for theming */
+.llm-chat-container.unified-chat {
+    --chat-bg: #0f1117;
+    --chat-header-bg: #1a1d24;
+    --chat-border: #2b2e36;
+    --chat-text-primary: #f9fafb;
+    --chat-text-secondary: #9ca3af;
+    --chat-hover-bg: #1f2933;
+    --chat-active-bg: #2d6cdf55;
+    --chat-accent: #3b82f6;
+    --chat-group-accent: #22c55e;
+    --chat-input-bg: #020617;
+    --chat-input-area-bg: #050712;
+    --chat-own-message-bg: #2563eb;
+    --chat-own-message-text: #f9fafb;
+    --chat-other-message-bg: #23252c;
+}
+
+/* Chat tabs integration */
+.llm-chat-container.unified-chat .llm-chat-sidebar {
+    display: flex;
+    flex-direction: column;
+}
+
+/* P2P specific styles within unified chat */
+.llm-chat-container.unified-chat .llm-chat-main {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Empty state for P2P */
+.llm-chat-container.unified-chat .llm-chat-message-system .llm-chat-welcome h3 {
+    color: #e5e7eb;
+}
+
+/* Group chat avatar distinction */
+.llm-chat-container.unified-chat .p2p-group-avatar {
+    border-radius: 12px;
+    background: var(--chat-group-accent);
+}
+
+/* Typing indicator animation */
+@keyframes typingPulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+}
+
+.llm-chat-container.unified-chat .typing-dot {
+    animation: typingPulse 1.4s infinite;
+}
+
+.llm-chat-container.unified-chat .typing-dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.llm-chat-container.unified-chat .typing-dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+/* Responsive adjustments for unified chat */
+@media (max-width: 768px) {
+    .llm-chat-container.unified-chat .llm-chat-sidebar {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 280px;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        z-index: 100;
+    }
+
+    .llm-chat-container.unified-chat .llm-chat-sidebar.open {
+        transform: translateX(0);
+    }
+
+    .llm-chat-container.unified-chat .llm-chat-header-top {
+        padding: 10px 12px;
+    }
+}
+
+@media (max-width: 480px) {
+    .llm-chat-container.unified-chat .llm-chat-sidebar {
+        width: 100%;
+    }
+}
