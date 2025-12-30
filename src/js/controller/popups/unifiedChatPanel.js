@@ -343,10 +343,18 @@ export class UnifiedChatPanel {
                 this.aiDialogs = aiDialogs.value || [];
             }
             if (conversations.status === 'fulfilled') {
-                this.dmConversations = conversations.value.data || [];
+                // Handle both array response and paginated response
+                const convData = conversations.value.data;
+                this.dmConversations = Array.isArray(convData)
+                    ? convData
+                    : (convData?.results || convData?.conversations || []);
             }
             if (groups.status === 'fulfilled') {
-                this.groups = groups.value.data || [];
+                // Handle both array response and paginated response
+                const groupsData = groups.value.data;
+                this.groups = Array.isArray(groupsData)
+                    ? groupsData
+                    : (groupsData?.results || groupsData?.groups || []);
             }
             if (unread.status === 'fulfilled') {
                 this.unreadCount = unread.value.data || { dm: 0, groups: 0 };
@@ -497,6 +505,7 @@ export class UnifiedChatPanel {
                     subtitle: c.last_message?.content || '',
                     time: c.last_message?.created_at,
                     unread: c.unread_count,
+                    avatarUrl: c.avatar_url || c.avatar || null,
                     data: c
                 }));
                 break;
@@ -546,12 +555,19 @@ export class UnifiedChatPanel {
                            item.type === CHAT_TYPES.AI ? 'unified-chat-avatar unified-chat-avatar--ai' :
                            'unified-chat-avatar';
 
-        const avatarIcon = item.type === CHAT_TYPES.AI ? '🤖' :
-                          item.type === CHAT_TYPES.GROUP ? '👥' :
-                          item.title.charAt(0).toUpperCase();
+        // Use image avatar if available, otherwise fallback to icon/letter
+        let avatarContent;
+        if (item.avatarUrl) {
+            avatarContent = `<img src="${this.escapeHtml(item.avatarUrl)}" alt="" class="unified-chat-avatar-img" />`;
+        } else {
+            const avatarIcon = item.type === CHAT_TYPES.AI ? '🤖' :
+                              item.type === CHAT_TYPES.GROUP ? '👥' :
+                              item.title.charAt(0).toUpperCase();
+            avatarContent = avatarIcon;
+        }
 
         el.innerHTML = `
-            <div class="${avatarClass}">${avatarIcon}</div>
+            <div class="${avatarClass}">${avatarContent}</div>
             <div class="llm-chat-conversation-info">
                 <div class="llm-chat-conversation-title">${this.escapeHtml(item.title)}</div>
                 <div class="llm-chat-conversation-meta">
