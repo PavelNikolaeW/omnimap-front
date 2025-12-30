@@ -305,15 +305,20 @@ export class UnifiedChatPanel {
         }
 
         this.isOpen = false;
-        this.overlay.classList.remove('open');
-        this.container.classList.remove('open');
+
+        if (this.overlay) {
+            this.overlay.classList.remove('open');
+        }
+        if (this.container) {
+            this.container.classList.remove('open');
+        }
         document.body.style.overflow = '';
 
         // Cleanup
         setTimeout(() => {
             this.unbindEvents();
-            this.overlay.remove();
-            this.container.remove();
+            this.overlay?.remove();
+            this.container?.remove();
             unifiedChatInstance = null;
         }, 300);
     }
