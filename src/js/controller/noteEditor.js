@@ -290,7 +290,6 @@ export class NoteEditor {
         addBtn('Горизонтальная линия', 'fa fa-minus', () => this._insertText('\n\n---\n\n'));
 
         addBtn('Превью', 'fa fa-eye', () => this._setPreviewMode('preview'));
-        addBtn('Side-by-side', 'fa fa-columns', () => this._setPreviewMode('side-by-side'));
 
         addBtn('Справка', 'fa fa-circle-question', () => {
             alert(
@@ -307,7 +306,7 @@ export class NoteEditor {
     }
 
     // ---------- Превью ----------
-    // Режимы: 'edit' (только редактор), 'preview' (адаптивно), 'side-by-side' (всегда сбоку)
+    // Режимы: 'edit' (только редактор), 'preview' (показываем превью)
     _currentPreviewMode = 'edit';
 
     _setPreviewMode(mode) {
@@ -317,18 +316,17 @@ export class NoteEditor {
         }
         this._currentPreviewMode = mode;
 
-        const showPreview = mode !== 'edit';
+        const showPreview = mode === 'preview';
 
         if (showPreview) {
             this._updatePreviewContent();
         }
 
         this.previewEl.style.display = showPreview ? 'block' : 'none';
-        this.container.classList.toggle('preview-active', mode === 'preview');
-        this.container.classList.toggle('side-by-side', mode === 'side-by-side');
+        this.container.classList.toggle('preview-active', showPreview);
 
-        // Обновляем активное состояние кнопок
-        this._updatePreviewButtons(mode);
+        // Обновляем активное состояние кнопки
+        this._updatePreviewButton(showPreview);
     }
 
     _updatePreviewContent() {
@@ -340,16 +338,10 @@ export class NoteEditor {
         this.previewEl.innerHTML = this._highlightHtml(sanitized);
     }
 
-    _updatePreviewButtons(mode) {
-        // Находим кнопки превью и side-by-side
+    _updatePreviewButton(isActive) {
         const eyeBtn = this.toolbarEl?.querySelector('.fa-eye');
-        const columnsBtn = this.toolbarEl?.querySelector('.fa-columns');
-
         if (eyeBtn) {
-            eyeBtn.classList.toggle('active', mode === 'preview');
-        }
-        if (columnsBtn) {
-            columnsBtn.classList.toggle('active', mode === 'side-by-side');
+            eyeBtn.classList.toggle('active', isActive);
         }
     }
 
