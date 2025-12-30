@@ -104,7 +104,7 @@ async function fastInitialization() {
     await initApp();
 
     // Инициализируем статус-индикаторы после того как интерфейс готов
-    statusIndicators.init('top-btn-container');
+    statusIndicators.init();
 }
 
 

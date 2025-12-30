@@ -193,6 +193,56 @@ async function checkWebSocketService() {
 }
 
 /**
+ * Проверяет состояние LLM Gateway сервиса
+ * @returns {Promise<HealthCheckResult>}
+ */
+async function checkLLMGateway() {
+    const name = 'LLM Gateway';
+
+    // Если офлайн - это не критическая ошибка
+    if (!navigator.onLine) {
+        return {
+            ok: true,
+            name,
+            error: 'Офлайн режим'
+        };
+    }
+
+    try {
+        const llmUrl = typeof LLM_API_URL !== 'undefined'
+            ? LLM_API_URL
+            : 'http://localhost:8001';
+
+        const healthUrl = `${llmUrl}/health`;
+
+        const response = await withTimeout(
+            fetch(healthUrl, { method: 'GET' }),
+            CHECK_TIMEOUT,
+            name
+        );
+
+        if (response.ok) {
+            return { ok: true, name };
+        }
+
+        return {
+            ok: false,
+            name,
+            error: `LLM Gateway вернул статус ${response.status}`,
+            critical: false
+        };
+    } catch (error) {
+        // LLM Gateway недоступен - не критично
+        return {
+            ok: false,
+            name,
+            error: error.message,
+            critical: false
+        };
+    }
+}
+
+/**
  * Проверяет наличие необходимых API браузера
  * @returns {Promise<HealthCheckResult>}
  */
@@ -252,7 +302,8 @@ export async function runHealthChecks() {
         checkIndexedDB(),
         checkNetwork(),
         checkBackendAPI(),
-        checkWebSocketService()
+        checkWebSocketService(),
+        checkLLMGateway()
     ]);
 
     const errors = checks
