@@ -331,7 +331,20 @@ export class UnifiedChatPanel {
         this.isOpen = true;
         this.overlay.classList.add('open');
         this.container.classList.add('open');
+
+        // Lock body scroll (mobile fix)
+        this.savedBodyStyles = {
+            overflow: document.body.style.overflow,
+            position: document.body.style.position,
+            top: document.body.style.top,
+            width: document.body.style.width
+        };
+        this.savedScrollY = window.scrollY;
+
         document.body.style.overflow = 'hidden';
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${this.savedScrollY}px`;
+        document.body.style.width = '100%';
 
         // Load data
         await this.loadData();
@@ -350,7 +363,17 @@ export class UnifiedChatPanel {
         if (this.container) {
             this.container.classList.remove('open');
         }
-        document.body.style.overflow = '';
+
+        // Restore body scroll (mobile fix)
+        if (this.savedBodyStyles) {
+            document.body.style.overflow = this.savedBodyStyles.overflow;
+            document.body.style.position = this.savedBodyStyles.position;
+            document.body.style.top = this.savedBodyStyles.top;
+            document.body.style.width = this.savedBodyStyles.width;
+            window.scrollTo(0, this.savedScrollY || 0);
+        } else {
+            document.body.style.overflow = '';
+        }
 
         // Cleanup
         setTimeout(() => {
@@ -650,6 +673,19 @@ export class UnifiedChatPanel {
             return;
         }
 
+        // Skip if already selected (same chat)
+        if (this.activeChat?.id === item.id && this.activeChat?.type === item.type) {
+            return;
+        }
+
+        // Abort any ongoing AI stream before switching
+        if (this.abortController) {
+            this.abortController.abort();
+            this.abortController = null;
+            this.isStreaming = false;
+            this.updateSendButton();
+        }
+
         this.activeChat = item;
         this.messages = [];
         this.hasMoreMessages = true;
@@ -663,7 +699,7 @@ export class UnifiedChatPanel {
         if (welcomeEl) welcomeEl.style.display = 'none';
         this.toggleMobileSidebar(false);
 
-        // Load messages
+        // Load messages (force reload)
         await this.loadMessages();
 
         // Mark as read for P2P chats (silently ignore errors)
