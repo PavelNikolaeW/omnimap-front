@@ -166,7 +166,11 @@ async function checkWebSocketService() {
             .replace('/ws', '/health');
 
         const response = await withTimeout(
-            fetch(httpUrl, { method: 'GET' }),
+            fetch(httpUrl, {
+                method: 'GET',
+                mode: 'cors',
+                credentials: 'omit'
+            }),
             CHECK_TIMEOUT,
             name
         );
@@ -216,7 +220,11 @@ async function checkLLMGateway() {
         const healthUrl = `${llmUrl}/health`;
 
         const response = await withTimeout(
-            fetch(healthUrl, { method: 'GET' }),
+            fetch(healthUrl, {
+                method: 'GET',
+                mode: 'cors',
+                credentials: 'omit'
+            }),
             CHECK_TIMEOUT,
             name
         );

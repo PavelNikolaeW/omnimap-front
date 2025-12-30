@@ -53,20 +53,27 @@ class Api {
             async response => {
                 const operation = this.operationChache.get(response.headers['x-operation-uuid'])
 
-                operation['isFail'] = false
-                operation['responseData'] = JSON.parse(JSON.stringify(response.data))
+                if (operation) {
+                    operation['isFail'] = false
+                    operation['responseData'] = JSON.parse(JSON.stringify(response.data))
 
-                if (response.headers['x-copy-block-id']) {
-                    operation['copyId'] = response.headers['x-copy-block-id']
+                    if (response.headers['x-copy-block-id']) {
+                        operation['copyId'] = response.headers['x-copy-block-id']
+                    }
+
+                    dispatch("UndoStackAdd", {operation})
                 }
-
-                dispatch("UndoStackAdd", {operation})
 
                 return response
             }, async error => {
-                const operation = this.operationChache.get(error.response.headers['x-operation-uuid'])
-                operation['isFail'] = error.response.status >= 400
-                if (error.response.status >= 500) this.sendHistoryOperations()
+                // Guard against network errors where response is undefined
+                if (error.response?.headers) {
+                    const operation = this.operationChache.get(error.response.headers['x-operation-uuid'])
+                    if (operation) {
+                        operation['isFail'] = error.response.status >= 400
+                    }
+                    if (error.response.status >= 500) this.sendHistoryOperations()
+                }
                 return Promise.reject(error);
             })
 
@@ -91,6 +98,14 @@ class Api {
 
                 if (error.response?.status === 401 && !originalRequest._retry && !isRefreshRequest) {
                     originalRequest._retry = true;
+
+                    // Если нет refresh токена - сразу logout
+                    const hasRefreshToken = !!Cookies.get('refresh');
+                    if (!hasRefreshToken) {
+                        this.logout();
+                        return Promise.reject(error);
+                    }
+
                     try {
                         const tokenRefreshed = await this.refreshToken();
                         if (tokenRefreshed) {
