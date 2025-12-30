@@ -218,22 +218,22 @@ dispatch('OpenGroupChat', { groupId });
 ## Задачи
 
 ### Фаза 1 — Базовый UI
-- [ ] Создать `chatApi.js` с API вызовами
-- [ ] Создать `ChatPanel` popup с табами
-- [ ] Список диалогов (conversations list)
-- [ ] Базовый `ConversationView`
-- [ ] Кнопка в sidebar с badge
+- [x] Создать `chatApi.js` с API вызовами
+- [x] Создать `ChatPanel` popup с табами
+- [x] Список диалогов (conversations list)
+- [x] Базовый `ConversationView`
+- [x] Кнопка в sidebar с badge
 
 ### Фаза 2 — Групповые чаты
-- [ ] `GroupChatView`
-- [ ] Интеграция с `PermissionsPopup`
-- [ ] Создание группы из окна прав
+- [x] `GroupChatView`
+- [x] Интеграция с `PermissionsPopup`
+- [x] Создание группы из окна прав
 
 ### Фаза 3 — Real-time
-- [ ] Интеграция с WebSocket (`chatSync.js`)
-- [ ] Typing indicators
-- [ ] Real-time обновление списка
-- [ ] Уведомления о новых сообщениях
+- [x] Интеграция с WebSocket (`chatSync.js`)
+- [x] Typing indicators
+- [x] Real-time обновление списка
+- [x] Уведомления о новых сообщениях
 
 ### Фаза 4 — Улучшения
 - [ ] Поиск по сообщениям

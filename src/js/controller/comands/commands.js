@@ -15,6 +15,7 @@ import {
 import {popupsCommands} from "./popupsCmd";
 import {NoteEditor} from "../noteEditor";
 import Cookies from "js-cookie";
+import { openChatPanel } from "../popups/chatPanel";
 // LLM_GATEWAY_URL is injected by webpack DefinePlugin
 /* global LLM_GATEWAY_URL */
 
@@ -208,15 +209,15 @@ export const commands = [
         }
     },
     {
-        id: 'chat',
+        id: 'llmChat',
         mode: ['normal'],
         btn: {
             containerId: 'control-panel',
-            label: 'Chat',
-            classes: ['sidebar-button', 'fas', 'fa-comment', 'fas-lg']
+            label: 'AI Chat',
+            classes: ['sidebar-button', 'fas', 'fa-robot', 'fas-lg']
         },
         defaultHotkey: 'shift+h',
-        description: 'Открыть чат',
+        description: 'Открыть AI чат',
         execute(ctx) {
             const token = Cookies.get('access')
             if (window.LLMFullscreenChat) {
@@ -230,6 +231,23 @@ export const commands = [
                 window.LLMFullscreenChat.open();
                 ctx.mode = MODES.CHAT;
             }
+        },
+        btnExec(ctx) {
+            this.execute(ctx)
+        }
+    },
+    {
+        id: 'p2pChat',
+        mode: ['normal'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Чаты',
+            classes: ['sidebar-button', 'fas', 'fa-comments', 'fas-lg', 'p2p-chat-btn']
+        },
+        defaultHotkey: 'shift+m',
+        description: 'Открыть личные и групповые чаты',
+        execute(ctx) {
+            openChatPanel();
         },
         btnExec(ctx) {
             this.execute(ctx)
