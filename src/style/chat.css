@@ -212,7 +212,6 @@
     border-radius: 10px;
     font-size: 13px;
     line-height: 1.3;
-    white-space: pre-wrap;
     word-break: break-word;
 }
 
@@ -285,6 +284,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 4px;
 }
 
 .llm-chat-send-btn:hover {
@@ -294,6 +294,14 @@
 .llm-chat-send-btn:disabled {
     opacity: 0.5;
     cursor: default;
+}
+
+.llm-chat-send-btn .send-btn-icon {
+    font-size: 14px;
+}
+
+.llm-chat-send-btn .send-btn-text {
+    font-size: 13px;
 }
 
 .llm-chat-footer-row {
@@ -394,27 +402,49 @@
 @media (max-width: 480px) {
     /* Safe area for iOS notch/home indicator */
     .llm-chat-container {
-        padding-bottom: env(safe-area-inset-bottom, 0);
         /* Ensure full height on mobile with scaled viewport */
         height: 100%;
         height: 100dvh;
+        height: -webkit-fill-available;
         max-height: 100dvh;
+        max-height: -webkit-fill-available;
+        padding-top: env(safe-area-inset-top, 0);
+        padding-bottom: 0; /* Input area handles safe area */
+        overflow: hidden;
+    }
+
+    /* Body layout on mobile */
+    .llm-chat-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
     }
 
     /* Header adjustments */
     .llm-chat-header {
-        padding: 10px 12px;
-        padding-top: calc(10px + env(safe-area-inset-top, 0));
-        gap: 6px;
+        padding: 8px 12px;
+        gap: 4px;
         flex-shrink: 0;
+        min-height: 48px;
+    }
+
+    .llm-chat-header-top {
+        min-height: 40px;
     }
 
     .llm-chat-title {
-        font-size: 16px;
+        font-size: 15px;
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .llm-chat-header-right {
-        gap: 6px;
+        gap: 4px;
+        flex-shrink: 0;
     }
 
     .llm-chat-header-bottom {
@@ -444,6 +474,7 @@
         align-items: center;
         justify-content: center;
         font-size: 24px;
+        -webkit-tap-highlight-color: transparent;
     }
 
     .llm-chat-settings-btn {
@@ -453,12 +484,21 @@
         align-items: center;
         justify-content: center;
         font-size: 18px;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .llm-chat-mobile-menu-btn {
+        min-width: 44px;
+        min-height: 44px;
+        margin-right: 4px;
+        -webkit-tap-highlight-color: transparent;
     }
 
     .llm-chat-newchat-btn {
         min-height: 36px;
         padding: 6px 12px;
         font-size: 12px;
+        -webkit-tap-highlight-color: transparent;
     }
 
     /* Settings panel - fullscreen on mobile */
@@ -471,11 +511,12 @@
         top: 0;
         right: 0;
         border-radius: 0;
-        z-index: 10001;
+        z-index: 10002;
+        padding-top: env(safe-area-inset-top, 0);
     }
 
     .llm-chat-settings-header {
-        padding: 16px;
+        padding: 12px 16px;
         position: sticky;
         top: 0;
         background: #ffffff;
@@ -497,7 +538,8 @@
 
     .llm-chat-settings-content {
         padding: 16px;
-        padding-bottom: 32px;
+        padding-bottom: calc(32px + env(safe-area-inset-bottom, 0));
+        overflow-y: auto;
     }
 
     /* Main area on mobile */
@@ -506,22 +548,25 @@
         display: flex;
         flex-direction: column;
         min-height: 0;
-        height: 100%;
+        overflow: hidden;
     }
 
     /* Messages area */
     .llm-chat-messages {
         flex: 1;
-        padding: 12px;
-        gap: 8px;
+        padding: 10px;
+        gap: 6px;
         overflow-y: auto;
+        overflow-x: hidden;
         -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
     }
 
     .llm-chat-message {
-        max-width: 90%;
-        padding: 10px 12px;
-        font-size: 14px;
+        max-width: 88%;
+        padding: 8px 12px;
+        font-size: 15px;
+        line-height: 1.4;
     }
 
     .llm-chat-message-system {
@@ -529,41 +574,56 @@
         font-size: 12px;
     }
 
-    /* Input area - fixed at bottom */
+    /* Input area - fixed at bottom with safe area */
     .llm-chat-input-area {
         flex-shrink: 0;
-        padding: 8px 12px;
+        padding: 8px 10px;
         padding-bottom: calc(8px + env(safe-area-inset-bottom, 0));
-        gap: 6px;
+        gap: 4px;
         background: #f8fafc;
         border-top: 1px solid #e2e8f0;
     }
 
     .llm-chat-input-row {
-        gap: 6px;
+        gap: 8px;
+        align-items: flex-end;
     }
 
     .llm-chat-textarea {
-        min-height: 44px;
-        max-height: 100px;
+        min-height: 40px;
+        max-height: 120px;
         padding: 10px 12px;
         font-size: 16px; /* Prevents iOS zoom on focus */
+        border-radius: 20px;
+        line-height: 1.4;
     }
 
     .llm-chat-send-btn {
-        min-width: 60px;
+        min-width: 44px;
+        width: 44px;
         min-height: 44px;
-        padding: 0 12px;
-        font-size: 14px;
+        height: 44px;
+        padding: 0;
+        border-radius: 50%;
+        flex-shrink: 0;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .llm-chat-send-btn .send-btn-icon {
+        font-size: 18px;
+    }
+
+    .llm-chat-send-btn .send-btn-text {
+        display: none; /* Hide text on mobile */
     }
 
     .llm-chat-footer-row {
-        font-size: 9px;
+        display: none; /* Hide hints on mobile to save space */
     }
 
     /* Welcome message */
     .llm-chat-welcome {
-        padding: 16px;
+        padding: 20px 16px;
     }
 
     .llm-chat-welcome h3 {
@@ -571,7 +631,7 @@
     }
 
     .llm-chat-welcome p {
-        font-size: 12px;
+        font-size: 13px;
     }
 
     /* Settings inputs */
@@ -588,6 +648,12 @@
     .llm-chat-setting-group input[type="range"]::-webkit-slider-thumb {
         width: 24px;
         height: 24px;
+    }
+
+    /* Typing indicator */
+    .llm-chat-typing-indicator {
+        padding: 4px 10px;
+        font-size: 11px;
     }
 }
 
@@ -1361,23 +1427,59 @@
     .unified-chat-tab {
         padding: 10px 6px;
         font-size: 11px;
+        -webkit-tap-highlight-color: transparent;
     }
 
     .llm-chat-container.unified-chat .llm-chat-sidebar {
         position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 300px;
+        max-width: 85vw;
         z-index: 10001;
+        transform: translateX(-100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        background: #f1f5f9;
+        box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .llm-chat-container.unified-chat .llm-chat-sidebar.mobile-open {
+        transform: translateX(0);
     }
 
     .llm-chat-container.unified-chat .llm-chat-sidebar-overlay {
         position: fixed;
         inset: 0;
-        background: rgba(0, 0, 0, 0.3);
+        background: rgba(0, 0, 0, 0.4);
         z-index: 10000;
         display: none;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .llm-chat-container.unified-chat .llm-chat-sidebar-overlay.visible {
+        display: block;
+        opacity: 1;
     }
 
     .llm-chat-container.unified-chat .llm-chat-mobile-menu-btn {
         display: flex;
+    }
+
+    /* Better touch targets for conversation items */
+    .llm-chat-container.unified-chat .llm-chat-conversation-item {
+        padding: 12px;
+        margin: 4px 8px;
+        min-height: 60px;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .llm-chat-container.unified-chat .llm-chat-conv-delete-btn {
+        min-width: 32px;
+        min-height: 32px;
+        padding: 4px 8px;
+        font-size: 12px;
     }
 }
 
@@ -1387,34 +1489,98 @@
 
 @media (max-width: 480px) {
     .unified-chat-tabs {
-        padding: 0 4px;
+        padding: 0;
+        flex-shrink: 0;
     }
 
     .unified-chat-tab {
-        padding: 10px 4px;
-        font-size: 10px;
-        gap: 2px;
+        padding: 12px 6px;
+        font-size: 11px;
+        gap: 3px;
+        min-height: 44px;
+    }
+
+    .unified-chat-tab-badge {
+        min-width: 18px;
+        height: 18px;
+        font-size: 11px;
     }
 
     .unified-chat-avatar {
-        width: 32px;
-        height: 32px;
-        font-size: 12px;
+        width: 40px;
+        height: 40px;
+        font-size: 14px;
     }
 
     .unified-chat-avatar--ai {
+        font-size: 18px;
+    }
+
+    .unified-chat-avatar--group {
         font-size: 16px;
     }
 
+    /* Sidebar takes full width on small screens */
+    .llm-chat-container.unified-chat .llm-chat-sidebar {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .llm-chat-container.unified-chat .llm-chat-sidebar-header {
+        padding: 10px 12px;
+        min-height: 48px;
+    }
+
     .llm-chat-container.unified-chat .llm-chat-conversation-title {
+        font-size: 14px;
+    }
+
+    .llm-chat-container.unified-chat .llm-chat-conv-subtitle {
         font-size: 12px;
+        margin-top: 2px;
+    }
+
+    .llm-chat-container.unified-chat .llm-chat-conversation-item {
+        padding: 12px;
+        margin: 4px 8px;
+        min-height: 64px;
     }
 
     .llm-chat-container.unified-chat .llm-chat-messages {
-        padding: 10px;
+        padding: 8px;
     }
 
     .llm-chat-container.unified-chat .llm-chat-input-area {
+        padding: 8px;
+        padding-bottom: calc(8px + env(safe-area-inset-bottom, 0));
+    }
+
+    .llm-chat-container.unified-chat .llm-chat-header-top {
         padding: 8px 10px;
+        min-height: 48px;
+    }
+
+    /* Welcome message centered */
+    .llm-chat-container.unified-chat .llm-chat-welcome {
+        padding: 30px 20px;
+    }
+
+    .llm-chat-container.unified-chat .llm-chat-welcome h3 {
+        font-size: 17px;
+    }
+
+    .llm-chat-container.unified-chat .llm-chat-welcome p {
+        font-size: 14px;
+    }
+
+    /* Date separator */
+    .unified-chat-date-separator {
+        font-size: 10px;
+        padding: 8px 0;
+    }
+
+    /* Message sender name */
+    .llm-chat-message-sender {
+        font-size: 12px;
     }
 }

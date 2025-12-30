@@ -178,11 +178,12 @@ export class UnifiedChatPanel {
                             <textarea
                                 class="llm-chat-textarea"
                                 id="message-input"
-                                placeholder="Введите сообщение..."
-                                rows="2"
+                                placeholder="Сообщение..."
+                                rows="1"
                             ></textarea>
-                            <button class="llm-chat-send-btn" id="send-btn">
-                                ➤ Отправить
+                            <button class="llm-chat-send-btn" id="send-btn" title="Отправить">
+                                <span class="send-btn-icon">➤</span>
+                                <span class="send-btn-text">Отправить</span>
                             </button>
                         </div>
                         <div class="llm-chat-footer-row">
@@ -275,6 +276,35 @@ export class UnifiedChatPanel {
 
         this.unreadHandler = (e) => this.updateUnreadBadges(e.detail);
         window.addEventListener('ChatUnreadCountUpdate', this.unreadHandler);
+
+        // Mobile keyboard handling
+        this.setupMobileKeyboardHandling();
+    }
+
+    setupMobileKeyboardHandling() {
+        // Handle virtual keyboard on iOS/Android
+        if (window.visualViewport) {
+            this.viewportHandler = () => {
+                const viewport = window.visualViewport;
+                const keyboardHeight = window.innerHeight - viewport.height;
+
+                if (keyboardHeight > 100) {
+                    // Keyboard is open
+                    this.container.style.height = `${viewport.height}px`;
+                    this.scrollToBottom();
+                } else {
+                    // Keyboard is closed
+                    this.container.style.height = '';
+                }
+            };
+            window.visualViewport.addEventListener('resize', this.viewportHandler);
+        }
+
+        // Focus/blur handlers for input
+        this.inputFocusHandler = () => {
+            setTimeout(() => this.scrollToBottom(), 300);
+        };
+        this.messageInput.addEventListener('focus', this.inputFocusHandler);
     }
 
     unbindEvents() {
@@ -283,6 +313,14 @@ export class UnifiedChatPanel {
         window.removeEventListener('TypingIndicator', this.typingHandler);
         window.removeEventListener('GroupTypingIndicator', this.typingHandler);
         window.removeEventListener('ChatUnreadCountUpdate', this.unreadHandler);
+
+        // Mobile keyboard cleanup
+        if (window.visualViewport && this.viewportHandler) {
+            window.visualViewport.removeEventListener('resize', this.viewportHandler);
+        }
+        if (this.messageInput && this.inputFocusHandler) {
+            this.messageInput.removeEventListener('focus', this.inputFocusHandler);
+        }
     }
 
     // =====================================================
@@ -498,16 +536,22 @@ export class UnifiedChatPanel {
                 }));
                 break;
             case CHAT_TYPES.DM:
-                items = this.dmConversations.map(c => ({
-                    type: CHAT_TYPES.DM,
-                    id: c.user_id,
-                    title: c.username || `User ${c.user_id}`,
-                    subtitle: c.last_message?.content || '',
-                    time: c.last_message?.created_at,
-                    unread: c.unread_count,
-                    avatarUrl: c.avatar_url || c.avatar || null,
-                    data: c
-                }));
+                items = this.dmConversations.map(c => {
+                    // Handle different API response formats
+                    // Backend may return user_id, id, or nested user.id
+                    const userId = c.user_id || c.id || c.user?.id;
+                    const username = c.username || c.user?.username || `User ${userId}`;
+                    return {
+                        type: CHAT_TYPES.DM,
+                        id: userId,
+                        title: username,
+                        subtitle: c.last_message?.content || '',
+                        time: c.last_message?.created_at,
+                        unread: c.unread_count,
+                        avatarUrl: c.avatar_url || c.avatar || c.user?.avatar_url || c.user?.avatar || null,
+                        data: c
+                    };
+                });
                 break;
             case CHAT_TYPES.GROUP:
                 items = this.groups.map(g => ({
@@ -521,6 +565,9 @@ export class UnifiedChatPanel {
                 }));
                 break;
         }
+
+        // Filter out items with invalid ids
+        items = items.filter(item => item.id !== null && item.id !== undefined);
 
         if (items.length === 0) {
             const empty = document.createElement('div');
@@ -597,6 +644,12 @@ export class UnifiedChatPanel {
     // =====================================================
 
     async selectChat(item) {
+        // Validate item has required id
+        if (!item || item.id === null || item.id === undefined) {
+            console.error('selectChat: Invalid item or missing id', item);
+            return;
+        }
+
         this.activeChat = item;
         this.messages = [];
         this.hasMoreMessages = true;
@@ -1015,11 +1068,16 @@ export class UnifiedChatPanel {
 
     updateSendButton() {
         const btn = this.container.querySelector('#send-btn');
+        const iconEl = btn.querySelector('.send-btn-icon');
+        const textEl = btn.querySelector('.send-btn-text');
+
         if (this.isStreaming) {
-            btn.textContent = '⏹ Стоп';
+            if (iconEl) iconEl.textContent = '⏹';
+            if (textEl) textEl.textContent = 'Стоп';
             btn.onclick = () => this.abortController?.abort();
         } else {
-            btn.textContent = '➤ Отправить';
+            if (iconEl) iconEl.textContent = '➤';
+            if (textEl) textEl.textContent = 'Отправить';
             btn.onclick = () => this.sendMessage();
         }
     }
