@@ -403,6 +403,8 @@
     /* Safe area for iOS notch/home indicator */
     .llm-chat-container {
         /* Ensure full height on mobile with scaled viewport */
+        position: fixed;
+        inset: 0;
         height: 100%;
         height: 100dvh;
         height: -webkit-fill-available;
@@ -411,6 +413,17 @@
         padding-top: env(safe-area-inset-top, 0);
         padding-bottom: 0; /* Input area handles safe area */
         overflow: hidden;
+        touch-action: none; /* Prevent pull-to-refresh */
+    }
+
+    /* Restore touch-action for scrollable areas */
+    .llm-chat-container .llm-chat-messages,
+    .llm-chat-container .llm-chat-sidebar,
+    .llm-chat-container .llm-chat-conversation-list,
+    .llm-chat-container .llm-chat-settings-content {
+        touch-action: pan-y;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
     }
 
     /* Body layout on mobile */
