@@ -23,6 +23,7 @@
     inset: 0;
     width: 100vw;
     height: 100vh;
+    height: 100dvh; /* Dynamic viewport height for mobile browsers */
     background: #0f1117;
     color: #f9fafb;
     display: flex;
@@ -32,6 +33,7 @@
     transform: translateY(20px);
     opacity: 0;
     transition: transform 0.25s ease, opacity 0.25s ease;
+    overflow: hidden; /* Prevent body scroll */
 }
 
 .llm-chat-container.open {
@@ -125,6 +127,8 @@
     flex: 1;
     display: flex;
     min-height: 0;
+    overflow: hidden;
+    position: relative;
 }
 
 .llm-chat-sidebar {
@@ -188,6 +192,8 @@
     display: flex;
     flex-direction: column;
     min-width: 0;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .llm-chat-messages {
@@ -303,20 +309,98 @@
 /* Tablet breakpoint */
 @media (max-width: 768px) {
     .llm-chat-sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 280px;
+        z-index: 10001;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+    }
+
+    .llm-chat-sidebar.mobile-open {
+        transform: translateX(0);
+    }
+
+    .llm-chat-sidebar-overlay {
         display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 10000;
+    }
+
+    .llm-chat-sidebar-overlay.visible {
+        display: block;
     }
 
     .llm-chat-container {
         border-radius: 0;
     }
+
+    /* Mobile menu button */
+    .llm-chat-mobile-menu-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        background: transparent;
+        border: 1px solid rgba(75, 85, 99, 0.5);
+        border-radius: 8px;
+        color: #9ca3af;
+        font-size: 20px;
+        cursor: pointer;
+        margin-right: 8px;
+    }
+
+    .llm-chat-mobile-menu-btn:hover {
+        background: rgba(75, 85, 99, 0.3);
+        color: #fff;
+    }
+
+    /* Show close button in sidebar on mobile */
+    #mobile-close-sidebar {
+        display: block !important;
+    }
+
+    /* Main takes full width when sidebar is hidden */
+    .llm-chat-main {
+        width: 100%;
+        flex: 1;
+        min-height: 0;
+    }
+}
+
+/* Hide mobile menu button on desktop */
+@media (min-width: 769px) {
+    .llm-chat-mobile-menu-btn {
+        display: none;
+    }
+
+    .llm-chat-sidebar-overlay {
+        display: none !important;
+    }
 }
 
 /* Mobile breakpoint */
 @media (max-width: 480px) {
+    /* Safe area for iOS notch/home indicator */
+    .llm-chat-container {
+        padding-bottom: env(safe-area-inset-bottom, 0);
+        /* Ensure full height on mobile with scaled viewport */
+        height: 100%;
+        height: 100dvh;
+        max-height: 100dvh;
+    }
+
     /* Header adjustments */
     .llm-chat-header {
         padding: 10px 12px;
+        padding-top: calc(10px + env(safe-area-inset-top, 0));
         gap: 6px;
+        flex-shrink: 0;
     }
 
     .llm-chat-title {
@@ -410,10 +494,22 @@
         padding-bottom: 32px;
     }
 
+    /* Main area on mobile */
+    .llm-chat-main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        height: 100%;
+    }
+
     /* Messages area */
     .llm-chat-messages {
+        flex: 1;
         padding: 12px;
         gap: 8px;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
     }
 
     .llm-chat-message {
@@ -427,10 +523,14 @@
         font-size: 12px;
     }
 
-    /* Input area */
+    /* Input area - fixed at bottom */
     .llm-chat-input-area {
+        flex-shrink: 0;
         padding: 8px 12px;
+        padding-bottom: calc(8px + env(safe-area-inset-bottom, 0));
         gap: 6px;
+        background: #050712;
+        border-top: 1px solid #2b2e36;
     }
 
     .llm-chat-input-row {
@@ -959,5 +1059,348 @@
 @media (max-width: 480px) {
     .llm-chat-container.unified-chat .llm-chat-sidebar {
         width: 100%;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Unified Chat Tabs
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.unified-chat-tabs {
+    display: flex;
+    border-bottom: 1px solid #2b2e36;
+    background: #14161c;
+    flex-shrink: 0;
+}
+
+.unified-chat-tab {
+    flex: 1;
+    padding: 12px 8px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #9ca3af;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    position: relative;
+}
+
+.unified-chat-tab:hover {
+    color: #e5e7eb;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.unified-chat-tab.active {
+    color: #3b82f6;
+    border-bottom-color: #3b82f6;
+}
+
+.unified-chat-tab-badge {
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    background: #ef4444;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 600;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Unified Chat Avatars
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.unified-chat-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 600;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.unified-chat-avatar--ai {
+    background: linear-gradient(135deg, #8b5cf6, #ec4899);
+    font-size: 18px;
+}
+
+.unified-chat-avatar--group {
+    background: linear-gradient(135deg, #10b981, #06b6d4);
+    border-radius: 10px;
+    font-size: 16px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Unified Chat List Items
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.llm-chat-container.unified-chat .llm-chat-conversation-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    margin: 2px 6px;
+}
+
+.llm-chat-container.unified-chat .llm-chat-conversation-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.llm-chat-container.unified-chat .llm-chat-conversation-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: #e5e7eb;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.llm-chat-container.unified-chat .llm-chat-conv-subtitle {
+    font-size: 11px;
+    color: #6b7280;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+}
+
+.unified-chat-unread-badge {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    background: #3b82f6;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 600;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.llm-chat-empty-list {
+    padding: 24px 16px;
+    text-align: center;
+    color: #6b7280;
+    font-size: 13px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Unified Chat Date Separator
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.unified-chat-date-separator {
+    text-align: center;
+    color: #6b7280;
+    font-size: 11px;
+    padding: 12px 0;
+    position: relative;
+}
+
+.unified-chat-date-separator::before,
+.unified-chat-date-separator::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 25%;
+    height: 1px;
+    background: #2b2e36;
+}
+
+.unified-chat-date-separator::before {
+    left: 10%;
+}
+
+.unified-chat-date-separator::after {
+    right: 10%;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Unified Chat Message Sender
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.llm-chat-message-sender {
+    font-size: 11px;
+    color: #8b5cf6;
+    margin-bottom: 4px;
+    font-weight: 500;
+}
+
+.llm-chat-message-content {
+    word-break: break-word;
+}
+
+.llm-chat-message-content pre {
+    background: #1a1d24;
+    border-radius: 6px;
+    padding: 10px;
+    overflow-x: auto;
+    margin: 8px 0;
+}
+
+.llm-chat-message-content code {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 12px;
+}
+
+.llm-chat-message-content pre code {
+    background: transparent;
+    padding: 0;
+}
+
+.llm-chat-message-status {
+    font-size: 11px;
+    color: #6b7280;
+}
+
+.llm-chat-message-status.read {
+    color: #10b981;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Unified Chat Typing Indicator
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.llm-chat-typing-indicator {
+    padding: 8px 16px;
+    font-size: 12px;
+    color: #9ca3af;
+    background: rgba(0, 0, 0, 0.2);
+    border-top: 1px solid #2b2e36;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Unified Chat Mobile Sidebar
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.llm-chat-container.unified-chat .llm-chat-sidebar.mobile-open {
+    transform: translateX(0);
+}
+
+.llm-chat-container.unified-chat .llm-chat-sidebar-overlay.visible {
+    display: block;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Unified Chat Welcome Message
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.llm-chat-container.unified-chat .llm-chat-welcome {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 40px 20px;
+    text-align: center;
+}
+
+.llm-chat-container.unified-chat .llm-chat-welcome h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #e5e7eb;
+    margin: 0 0 12px 0;
+}
+
+.llm-chat-container.unified-chat .llm-chat-welcome p {
+    font-size: 14px;
+    color: #9ca3af;
+    margin: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Unified Chat Header Adjustments
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.llm-chat-container.unified-chat .llm-chat-header {
+    border-bottom: 1px solid #2b2e36;
+}
+
+.llm-chat-container.unified-chat .llm-chat-header-top {
+    border-top: none;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Unified Chat Responsive - Tablet
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+    .unified-chat-tab {
+        padding: 10px 6px;
+        font-size: 11px;
+    }
+
+    .llm-chat-container.unified-chat .llm-chat-sidebar {
+        position: fixed;
+        z-index: 10001;
+    }
+
+    .llm-chat-container.unified-chat .llm-chat-sidebar-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 10000;
+        display: none;
+    }
+
+    .llm-chat-container.unified-chat .llm-chat-mobile-menu-btn {
+        display: flex;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Unified Chat Responsive - Mobile
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 480px) {
+    .unified-chat-tabs {
+        padding: 0 4px;
+    }
+
+    .unified-chat-tab {
+        padding: 10px 4px;
+        font-size: 10px;
+        gap: 2px;
+    }
+
+    .unified-chat-avatar {
+        width: 32px;
+        height: 32px;
+        font-size: 12px;
+    }
+
+    .unified-chat-avatar--ai {
+        font-size: 16px;
+    }
+
+    .llm-chat-container.unified-chat .llm-chat-conversation-title {
+        font-size: 12px;
+    }
+
+    .llm-chat-container.unified-chat .llm-chat-messages {
+        padding: 10px;
+    }
+
+    .llm-chat-container.unified-chat .llm-chat-input-area {
+        padding: 8px 10px;
     }
 }

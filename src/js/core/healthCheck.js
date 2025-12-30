@@ -209,8 +209,8 @@ async function checkLLMGateway() {
     }
 
     try {
-        const llmUrl = typeof LLM_API_URL !== 'undefined'
-            ? LLM_API_URL
+        const llmUrl = typeof LLM_GATEWAY_URL !== 'undefined'
+            ? LLM_GATEWAY_URL
             : 'http://localhost:8001';
 
         const healthUrl = `${llmUrl}/health`;

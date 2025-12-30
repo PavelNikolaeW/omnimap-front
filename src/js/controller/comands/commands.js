@@ -15,9 +15,7 @@ import {
 import {popupsCommands} from "./popupsCmd";
 import {NoteEditor} from "../noteEditor";
 import Cookies from "js-cookie";
-import { openChatPanel } from "../popups/chatPanel";
-// LLM_GATEWAY_URL and APP_BACKEND_URL are injected by webpack DefinePlugin
-/* global LLM_GATEWAY_URL, APP_BACKEND_URL */
+import { openUnifiedChat } from "../popups/unifiedChatPanel";
 
 // Actions
 import {
@@ -156,11 +154,6 @@ export const commands = [
             if (ctx.mode === MODES.DIAGRAM) {
                 ctx.diagramUtils.hiddenInputs()
             }
-            if (ctx.mode === MODES.CHAT) {
-                if (window.LLMFullscreenChat) {
-                    window.LLMFullscreenChat.close();
-                }
-            }
             ctx.mode = MODES.NORMAL
             ctx.event = undefined
             ctx.blockId = undefined
@@ -197,18 +190,6 @@ export const commands = [
         }
     },
     {
-        id: 'chatClose',
-        mode: ['chat'],
-        defaultHotkey: 'shift+h',
-        description: 'Закрыть чат',
-        execute(ctx) {
-            if (window.LLMFullscreenChat) {
-                window.LLMFullscreenChat.close();
-            }
-            ctx.mode = MODES.NORMAL;
-        }
-    },
-    {
         id: 'unifiedChat',
         mode: ['normal'],
         btn: {
@@ -219,51 +200,10 @@ export const commands = [
         defaultHotkey: 'shift+m',
         description: 'Открыть чаты (личные, группы, AI)',
         execute(ctx) {
-            const token = Cookies.get('access')
-            if (window.LLMFullscreenChat) {
-                if (!window.LLMFullscreenChat.isInitialized()) {
-                    // При первой инициализации autoOpen=true, чат откроется сразу
-                    window.LLMFullscreenChat.init({
-                        apiUrl: LLM_GATEWAY_URL,
-                        backendUrl: APP_BACKEND_URL,
-                        token: token,
-                        initialTab: 'dm',
-                        onClose: () => { ctx.mode = MODES.NORMAL }
-                    });
-                } else {
-                    // Если уже инициализирован - просто открываем
-                    window.LLMFullscreenChat.open();
-                }
-                ctx.mode = MODES.CHAT;
-            }
+            openUnifiedChat();
         },
         btnExec(ctx) {
             this.execute(ctx)
-        }
-    },
-    {
-        id: 'openAiChat',
-        mode: ['normal'],
-        defaultHotkey: 'shift+h',
-        description: 'Открыть AI чат',
-        execute(ctx) {
-            const token = Cookies.get('access')
-            if (window.LLMFullscreenChat) {
-                if (!window.LLMFullscreenChat.isInitialized()) {
-                    // При первой инициализации autoOpen=true, чат откроется сразу
-                    window.LLMFullscreenChat.init({
-                        apiUrl: LLM_GATEWAY_URL,
-                        backendUrl: APP_BACKEND_URL,
-                        token: token,
-                        initialTab: 'ai',
-                        onClose: () => { ctx.mode = MODES.NORMAL }
-                    });
-                } else {
-                    // Если уже инициализирован - открываем на вкладке AI
-                    window.LLMFullscreenChat.open({ tab: 'ai' });
-                }
-                ctx.mode = MODES.CHAT;
-            }
         }
     },
     {

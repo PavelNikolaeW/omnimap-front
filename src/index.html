@@ -9,8 +9,8 @@
                 const meta = document.createElement('meta');
                 meta.name = 'viewport';
                 if (isMobile) {
-                    // Для мобильных: уменьшаем масштаб, например initial-scale=0.7
-                    meta.content = 'width=device-width, initial-scale=0.75, maximum-scale=1.0';
+                    // Для мобильных: уменьшаем масштаб, viewport-fit=cover для iOS safe-area
+                    meta.content = 'width=device-width, initial-scale=0.75, maximum-scale=1.0, viewport-fit=cover';
                 } else {
                     // Для десктопов: стандартная вёрстка без масштабирования
                     meta.content = 'width=device-width, initial-scale=1.0';

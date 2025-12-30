@@ -39,20 +39,13 @@ module.exports = merge(common, {
         rules: [
             // JavaScript/JSX
             {
-                test: /\.(js|jsx)$/,
-                include: [
-                    path.resolve(__dirname, 'src/js'),
-                    path.resolve(__dirname, 'src/llm_chat')
-                ],
+                test: /\.js$/,
+                include: path.resolve(__dirname, 'src/js'),
                 exclude: /node_modules/,
                 use: {
                     loader: 'babel-loader',
                     options: {
-                        presets: [
-                            '@babel/preset-env',
-                            ['@babel/preset-react', { runtime: 'automatic' }]
-                        ],
-                        // Кэширование babel для ускорения пересборки
+                        presets: ['@babel/preset-env'],
                         cacheDirectory: true,
                     }
                 }

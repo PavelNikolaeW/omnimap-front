@@ -13,7 +13,7 @@ import '../style/importPopup.css';
 import '../style/imageUpload.css';
 import '../style/solid.css';
 import '../style/fontawesome.css';
-// import '../style/chat.css';
+import '../style/chat.css';
 import '../style/note-editor.css';
 import '../style/layout.css';
 import '../style/p2p-chat.css';
@@ -50,9 +50,6 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
     });
 }
 
-
-// Import LLMFullscreenChat to expose it to window
-import '../llm_chat/src/fullscreen/index.jsx';
 
 document.addEventListener('DOMContentLoaded', async () => {
     // Инициализируем менеджер кэша для dev режима
