@@ -226,8 +226,8 @@ dispatch('OpenGroupChat', { groupId });
 
 ### Фаза 2 — Групповые чаты
 - [x] `GroupChatView`
-- [ ] Интеграция с `PermissionsPopup`
-- [ ] Создание группы из окна прав
+- [x] Интеграция с `PermissionsPopup`
+- [x] Создание группы из окна прав
 
 ### Фаза 3 — Real-time
 - [x] Интеграция с WebSocket (`chatSync.js`)
