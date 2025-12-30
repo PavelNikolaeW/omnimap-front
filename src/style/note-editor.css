@@ -202,7 +202,6 @@
 /* ───── Preview ───── */
 .note-editor-preview {
     display: none; /* JS включает */
-    margin-top: 10px;
     padding: var(--ne-pad);
     border: 1px solid var(--ne-border);
     border-radius: var(--ne-radius);
@@ -211,7 +210,50 @@
     overflow: auto;
 }
 
-/* Side-by-side режим */
+/* Preview-active режим (адаптивный: сбоку на широком, снизу на узком) */
+.preview-active {
+    display: grid;
+    gap: 12px;
+    align-items: start;
+    grid-template-rows: auto 1fr; /* toolbar + content area */
+}
+
+/* На широких экранах (>900px) - превью сбоку */
+@media (min-width: 901px) {
+    .preview-active {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto 1fr;
+    }
+
+    .preview-active .note-editor-toolbar {
+        grid-column: 1 / -1; /* toolbar на всю ширину */
+    }
+
+    .preview-active .note-editor-textarea,
+    .preview-active .note-editor-preview {
+        display: block;
+        height: 100%;
+        min-height: 0;
+    }
+}
+
+/* На узких экранах (<=900px) - превью снизу */
+@media (max-width: 900px) {
+    .preview-active {
+        grid-template-columns: 1fr;
+    }
+
+    .preview-active .note-editor-textarea {
+        display: block;
+    }
+
+    .preview-active .note-editor-preview {
+        display: block;
+        max-height: 40vh;
+    }
+}
+
+/* Side-by-side режим (принудительно сбоку) */
 .side-by-side .note-editor-textarea,
 .side-by-side .note-editor-preview {
     display: block;
@@ -220,13 +262,22 @@
 .side-by-side {
     display: grid;
     grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto 1fr;
     gap: 12px;
     align-items: start;
+}
+
+.side-by-side .note-editor-toolbar {
+    grid-column: 1 / -1;
 }
 
 @media (max-width: 900px) {
     .side-by-side {
         grid-template-columns: 1fr; /* на мобилках — столбцом */
+    }
+
+    .side-by-side .note-editor-toolbar {
+        grid-column: 1;
     }
 }
 
