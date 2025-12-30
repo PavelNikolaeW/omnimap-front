@@ -13,9 +13,14 @@
 
 import Cookies from 'js-cookie';
 
+// LLM_GATEWAY_URL is injected by webpack DefinePlugin
+/* global LLM_GATEWAY_URL */
+
 class LlmApi {
     constructor() {
-        this.baseUrl = window.LLM_GATEWAY_URL || 'https://llm.omnimap.ru';
+        this.baseUrl = typeof LLM_GATEWAY_URL !== 'undefined'
+            ? LLM_GATEWAY_URL
+            : 'http://localhost:8001';
     }
 
     /**
