@@ -202,6 +202,8 @@ export class ConnectionStyleManager {
         this.typeSelect = document.getElementById('connectorType');
         this.colorInput = document.getElementById('connectorColor');
         this.widthInput = document.getElementById('connectorWidth');
+        this.sourceAnchorSelect = document.getElementById('connectorSourceAnchor');
+        this.targetAnchorSelect = document.getElementById('connectorTargetAnchor');
         this.arrowStartCheckbox = document.getElementById('connectorArrowStart');
         this.arrowEndCheckbox = document.getElementById('connectorArrowEnd');
         this.dashedCheckbox = document.getElementById('connectorDashed');
@@ -267,6 +269,9 @@ export class ConnectionStyleManager {
      * Получить настройки стиля соединения
      */
     getConnectionStyle() {
+        const sourceAnchor = this.sourceAnchorSelect?.value || 'Continuous';
+        const targetAnchor = this.targetAnchorSelect?.value || 'Continuous';
+
         return {
             connector: {
                 type: this.typeSelect?.value || 'Flowchart',
@@ -284,7 +289,7 @@ export class ConnectionStyleManager {
                 outlineWidth: 10
             },
             overlays: this.buildOverlays(),
-            anchors: ['Continuous', 'Continuous'],
+            anchors: [sourceAnchor, targetAnchor],
             endpoint: { type: 'Dot', options: { radius: 4 } },
             endpointStyle: {
                 fill: this.colorInput?.value || '#516077',
