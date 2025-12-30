@@ -588,8 +588,10 @@ export class UnifiedChatPanel {
 
         // Update UI
         this.renderChatList();
-        this.container.querySelector('#chat-title').textContent = item.title;
-        this.container.querySelector('#welcome-message').style.display = 'none';
+        const titleEl = this.container?.querySelector('#chat-title');
+        if (titleEl) titleEl.textContent = item.title;
+        const welcomeEl = this.container?.querySelector('#welcome-message');
+        if (welcomeEl) welcomeEl.style.display = 'none';
         this.toggleMobileSidebar(false);
 
         // Load messages
@@ -656,7 +658,10 @@ export class UnifiedChatPanel {
                         dmOptions.before = this.oldestMessageId;
                     }
                     const dmResponse = await chatApi.getMessages(this.activeChat.id, dmOptions);
-                    newMessages = dmResponse.data || [];
+                    // Handle both array response and paginated response
+                    newMessages = Array.isArray(dmResponse.data)
+                        ? dmResponse.data
+                        : (dmResponse.data?.results || dmResponse.data?.messages || []);
                     if (newMessages.length < 50) this.hasMoreMessages = false;
                     break;
 
@@ -666,7 +671,10 @@ export class UnifiedChatPanel {
                         groupOptions.before = this.oldestMessageId;
                     }
                     const groupResponse = await chatApi.getGroupMessages(this.activeChat.id, groupOptions);
-                    newMessages = groupResponse.data || [];
+                    // Handle both array response and paginated response
+                    newMessages = Array.isArray(groupResponse.data)
+                        ? groupResponse.data
+                        : (groupResponse.data?.results || groupResponse.data?.messages || []);
                     if (newMessages.length < 50) this.hasMoreMessages = false;
                     break;
             }
@@ -702,6 +710,7 @@ export class UnifiedChatPanel {
     }
 
     renderMessages() {
+        if (!this.messagesContainer) return;
         this.messagesContainer.innerHTML = '';
 
         if (this.messages.length === 0) {
