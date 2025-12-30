@@ -595,11 +595,15 @@ export class UnifiedChatPanel {
         // Load messages
         await this.loadMessages();
 
-        // Mark as read for P2P chats
-        if (item.type === CHAT_TYPES.DM) {
-            await chatApi.markAsRead(item.id);
-        } else if (item.type === CHAT_TYPES.GROUP) {
-            await chatApi.markGroupAsRead(item.id);
+        // Mark as read for P2P chats (silently ignore errors)
+        try {
+            if (item.type === CHAT_TYPES.DM) {
+                await chatApi.markAsRead(item.id);
+            } else if (item.type === CHAT_TYPES.GROUP) {
+                await chatApi.markGroupAsRead(item.id);
+            }
+        } catch (err) {
+            console.warn('Failed to mark as read:', err);
         }
 
         // Load AI settings if applicable
@@ -768,7 +772,9 @@ export class UnifiedChatPanel {
     }
 
     renderWelcomeMessage() {
-        const welcome = this.container.querySelector('#welcome-message');
+        const welcome = this.container?.querySelector('#welcome-message');
+        if (!welcome) return;
+
         welcome.style.display = '';
 
         if (!this.activeChat) {
@@ -1156,18 +1162,18 @@ export class UnifiedChatPanel {
     handleChatEvent(detail) {
         const { type, data } = detail || {};
 
-        if (type === 'dm' && this.activeChat?.type === CHAT_TYPES.DM && data.sender_id === this.activeChat.id) {
+        if (type === 'dm' && this.activeChat?.type === CHAT_TYPES.DM && data?.sender_id === this.activeChat.id) {
             this.messages.push(data.message);
             this.renderMessages();
             this.scrollToBottom();
-            chatApi.markAsRead(this.activeChat.id);
+            chatApi.markAsRead(this.activeChat.id).catch(() => {});
         }
 
-        if (type === 'group_message' && this.activeChat?.type === CHAT_TYPES.GROUP && data.group_id === this.activeChat.id) {
+        if (type === 'group_message' && this.activeChat?.type === CHAT_TYPES.GROUP && data?.group_id === this.activeChat.id) {
             this.messages.push(data.message);
             this.renderMessages();
             this.scrollToBottom();
-            chatApi.markGroupAsRead(this.activeChat.id);
+            chatApi.markGroupAsRead(this.activeChat.id).catch(() => {});
         }
     }
 
