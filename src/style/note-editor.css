@@ -130,6 +130,12 @@
     transform: translateY(1px) scale(.99);
 }
 
+/* Активное состояние для кнопок превью */
+.note-editor-toolbar .btn.active {
+    color: var(--ne-accent);
+    background: color-mix(in oklab, var(--ne-accent) 15%, var(--ne-border));
+}
+
 .note-editor-toolbar .btn:focus-visible {
     outline: 2px solid color-mix(in oklab, var(--ne-accent) 65%, transparent);
     outline-offset: 2px;
@@ -137,7 +143,7 @@
 }
 
 /* Важные действия — чуть заметнее */
-.note-editor-toolbar .btn.fa-floppy-o,
+.note-editor-toolbar .btn.fa-floppy-disk,
 .note-editor-toolbar .btn.fa-eye,
 .note-editor-toolbar .btn.fa-columns,
 .note-editor-toolbar .btn.fa-magic,
@@ -155,11 +161,11 @@
 /* Скрываем «редко используемые» для минимализма.
    Убрать эти строки, если хочешь видеть всё. */
 .note-editor-toolbar .fa-strikethrough,
-.note-editor-toolbar .fa-header,
-.note-editor-toolbar .fa-picture-o,
+.note-editor-toolbar .fa-heading,
+.note-editor-toolbar .fa-image,
 .note-editor-toolbar .fa-quote-right,
 .note-editor-toolbar .fa-minus,
-.note-editor-toolbar .fa-question-circle {
+.note-editor-toolbar .fa-circle-question {
     display: none;
 }
 
@@ -398,7 +404,7 @@
     }
 
     /* на мобильных оставим только «ядро» кнопок, остальное скрыть */
-    .note-editor-toolbar .fa-level-down,
+    .note-editor-toolbar .fa-turn-down,
     .note-editor-toolbar .fa-list-ol,
     .note-editor-toolbar .fa-table {
         display: none;

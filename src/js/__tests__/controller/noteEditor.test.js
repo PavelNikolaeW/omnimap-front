@@ -59,13 +59,14 @@ describe('NoteEditor', () => {
             expect(result).toBe('Строка 1\n\n\n\nСтрока 2');
         });
 
-        it('должен сохранять markdown line breaks (два пробела)', () => {
+        it('должен удалять trailing whitespace (включая markdown line breaks)', () => {
+            // С breaks:true в marked, line breaks не нужны, используем обычные \n
             const input = 'Строка 1  \nСтрока 2';
             const result = editor._normalizeMarkdown(input);
-            expect(result).toBe('Строка 1  \nСтрока 2');
+            expect(result).toBe('Строка 1\nСтрока 2');
         });
 
-        it('должен удалять trailing whitespace (больше 2 пробелов)', () => {
+        it('должен удалять любой trailing whitespace', () => {
             const input = 'Строка 1   \nСтрока 2';
             const result = editor._normalizeMarkdown(input);
             expect(result).toBe('Строка 1\nСтрока 2');
