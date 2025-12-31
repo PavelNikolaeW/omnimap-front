@@ -111,14 +111,12 @@ export class GroupChatView extends Popup {
         membersBtn.title = 'Участники';
         membersBtn.addEventListener('click', () => this.toggleMembersSidebar());
 
-        // Admin menu
-        if (this.isAdmin) {
-            const menuBtn = document.createElement('button');
-            menuBtn.className = 'p2p-group-menu-btn';
-            menuBtn.innerHTML = '&#8942;'; // Vertical dots
-            menuBtn.addEventListener('click', (e) => this.showAdminMenu(e));
-            rightSection.appendChild(menuBtn);
-        }
+        // Group menu (leave for all, more options for admin)
+        const menuBtn = document.createElement('button');
+        menuBtn.className = 'p2p-group-menu-btn';
+        menuBtn.innerHTML = '&#8942;'; // Vertical dots
+        menuBtn.addEventListener('click', (e) => this.showGroupMenu(e));
+        rightSection.appendChild(menuBtn);
 
         rightSection.appendChild(membersBtn);
 
@@ -283,7 +281,13 @@ export class GroupChatView extends Popup {
 
         const avatar = document.createElement('div');
         avatar.className = 'p2p-chat-avatar p2p-chat-avatar--small';
-        avatar.textContent = (member.username || 'U').charAt(0).toUpperCase();
+
+        // Use avatar_url if available, otherwise show initial
+        if (member.avatar_url) {
+            avatar.innerHTML = `<img src="${this.escapeHtml(member.avatar_url)}" alt="" class="p2p-avatar-img" />`;
+        } else {
+            avatar.textContent = (member.username || 'U').charAt(0).toUpperCase();
+        }
 
         const info = document.createElement('div');
         info.className = 'p2p-group-member-info';
@@ -292,20 +296,37 @@ export class GroupChatView extends Popup {
         name.className = 'p2p-group-member-name';
         name.textContent = member.username;
 
-        if (member.is_admin) {
+        // Show role badge
+        if (member.role === 'admin' || member.is_admin) {
             const adminBadge = document.createElement('span');
             adminBadge.className = 'p2p-group-admin-badge';
             adminBadge.textContent = 'Админ';
             name.appendChild(adminBadge);
         }
 
+        // Show "You" indicator
+        if (Number(member.user_id) === Number(this.currentUserId)) {
+            const youBadge = document.createElement('span');
+            youBadge.className = 'p2p-group-you-badge';
+            youBadge.textContent = '(вы)';
+            name.appendChild(youBadge);
+        }
+
         info.appendChild(name);
+
+        // Show join date if available
+        if (member.joined_at) {
+            const joinDate = document.createElement('span');
+            joinDate.className = 'p2p-group-member-joined';
+            joinDate.textContent = `с ${this.formatJoinDate(member.joined_at)}`;
+            info.appendChild(joinDate);
+        }
 
         item.appendChild(avatar);
         item.appendChild(info);
 
         // Remove button for admins (can't remove themselves)
-        if (this.isAdmin && member.user_id !== this.currentUserId) {
+        if (this.isAdmin && Number(member.user_id) !== Number(this.currentUserId)) {
             const removeBtn = document.createElement('button');
             removeBtn.className = 'p2p-group-member-remove-btn';
             removeBtn.innerHTML = '&times;';
@@ -318,6 +339,28 @@ export class GroupChatView extends Popup {
         }
 
         return item;
+    }
+
+    /**
+     * Format join date for display
+     * @param {string} isoDate - ISO date string
+     * @returns {string}
+     */
+    formatJoinDate(isoDate) {
+        if (!isoDate) return '';
+        const date = new Date(isoDate);
+        return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+    }
+
+    /**
+     * Escape HTML special characters
+     * @param {string} text
+     * @returns {string}
+     */
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     groupMessagesByDate(messages) {
@@ -484,7 +527,7 @@ export class GroupChatView extends Popup {
         }
     }
 
-    showAdminMenu(e) {
+    showGroupMenu(e) {
         e.stopPropagation();
 
         // Remove existing menu
@@ -497,31 +540,44 @@ export class GroupChatView extends Popup {
         const menu = document.createElement('div');
         menu.className = 'p2p-group-admin-menu';
 
-        const renameBtn = document.createElement('button');
-        renameBtn.textContent = 'Переименовать';
-        renameBtn.addEventListener('click', () => {
-            menu.remove();
-            this.renameGroup();
-        });
+        // Admin-only options
+        if (this.isAdmin) {
+            const renameBtn = document.createElement('button');
+            renameBtn.textContent = 'Переименовать';
+            renameBtn.addEventListener('click', () => {
+                menu.remove();
+                this.renameGroup();
+            });
 
-        const addMemberBtn = document.createElement('button');
-        addMemberBtn.textContent = 'Добавить участника';
-        addMemberBtn.addEventListener('click', () => {
-            menu.remove();
-            this.showAddMemberDialog();
-        });
+            const addMemberBtn = document.createElement('button');
+            addMemberBtn.textContent = 'Добавить участника';
+            addMemberBtn.addEventListener('click', () => {
+                menu.remove();
+                this.showAddMemberDialog();
+            });
 
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'danger';
-        deleteBtn.textContent = 'Удалить группу';
-        deleteBtn.addEventListener('click', () => {
-            menu.remove();
-            this.deleteGroup();
-        });
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'danger';
+            deleteBtn.textContent = 'Удалить группу';
+            deleteBtn.addEventListener('click', () => {
+                menu.remove();
+                this.deleteGroup();
+            });
 
-        menu.appendChild(renameBtn);
-        menu.appendChild(addMemberBtn);
-        menu.appendChild(deleteBtn);
+            menu.appendChild(renameBtn);
+            menu.appendChild(addMemberBtn);
+            menu.appendChild(deleteBtn);
+        }
+
+        // Leave group - available for all members
+        const leaveBtn = document.createElement('button');
+        leaveBtn.className = this.isAdmin ? '' : 'danger';
+        leaveBtn.textContent = 'Покинуть группу';
+        leaveBtn.addEventListener('click', () => {
+            menu.remove();
+            this.leaveGroup();
+        });
+        menu.appendChild(leaveBtn);
 
         // Position menu
         const rect = e.target.getBoundingClientRect();
@@ -604,6 +660,32 @@ export class GroupChatView extends Popup {
         } catch (error) {
             console.error('Failed to delete group:', error);
             alert('Не удалось удалить группу');
+        }
+    }
+
+    /**
+     * Leave the group chat
+     */
+    async leaveGroup() {
+        if (!confirm('Вы уверены, что хотите покинуть группу?')) return;
+
+        try {
+            const response = await chatApi.leaveChatGroup(this.groupId);
+            const result = response.data;
+
+            if (result.group_deleted) {
+                dispatch('ChatGroupDeleted', { groupId: this.groupId });
+            } else {
+                dispatch('ChatGroupMemberRemoved', {
+                    groupId: this.groupId,
+                    userId: this.currentUserId
+                });
+            }
+
+            this.goBack();
+        } catch (error) {
+            console.error('Failed to leave group:', error);
+            alert('Не удалось покинуть группу');
         }
     }
 
