@@ -150,6 +150,8 @@ export class UpdateServiceWebSocket {
             // Инициализация ChatSync и подписка на чат-события
             chatSync.init(this);
             chatSync.subscribe();
+            // Оповещаем о подключении для statusIndicators и других компонентов
+            dispatch('WebSocketConnected');
             this.eventListeners.open.forEach(callback => callback());
         };
 

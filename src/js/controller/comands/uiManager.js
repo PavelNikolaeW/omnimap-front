@@ -91,10 +91,39 @@ export class UIManager {
         this.diagramBlockId = null
         this.diagramElement = null
         this.pendingDiagramSubmenu = false  // Ожидает выбора блока
+        this.isOffline = !navigator.onLine
 
         // Обработчик ESC для выхода из режимов
         this.handleEscKey = this.handleEscKey.bind(this)
         document.addEventListener('keydown', this.handleEscKey)
+
+        // Слушаем изменения статуса сети
+        window.addEventListener('NetworkStatusChange', (e) => {
+            this.isOffline = !e.detail.online
+            this.updateOfflineButtons()
+        })
+    }
+
+    /**
+     * Обновляет состояние кнопок, недоступных в офлайн режиме
+     */
+    updateOfflineButtons() {
+        if (!this.commandsById) return
+
+        Object.values(this.commandsById).forEach((cmd) => {
+            if (cmd.offlineDisabled && cmd.btn) {
+                const button = document.getElementById(cmd.id)
+                if (button) {
+                    if (this.isOffline) {
+                        button.classList.add('offline-disabled')
+                        button.setAttribute('title', `${cmd.btn.label} [только онлайн]`)
+                    } else {
+                        button.classList.remove('offline-disabled')
+                        button.setAttribute('title', `${cmd.btn.label} [${cmd.currentHotkey || ''}]`)
+                    }
+                }
+            }
+        })
     }
 
     /**
@@ -157,6 +186,9 @@ export class UIManager {
 
                 // Добавляем кнопки подменю
                 this.renderSubmenuButtons()
+
+                // Обновляем состояние кнопок для офлайн режима
+                this.updateOfflineButtons()
             }
         })
     }

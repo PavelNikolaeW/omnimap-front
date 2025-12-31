@@ -365,6 +365,7 @@ export const commands = [
     {
         id: 'pasteBlock',
         mode: ['normal', 'cutBlock'],
+        offlineDisabled: true, // Копирование недоступно офлайн
         btn: {
             containerId: 'control-panel',
             label: 'Вставить копию блока',
@@ -419,6 +420,7 @@ export const commands = [
     {
         id: "pasteBlockLink",
         mode: ['normal'],
+        offlineDisabled: true, // Создание ссылок недоступно офлайн
         btn: {
             containerId: 'control-panel',
             label: 'Вставить блок как ссылку',
