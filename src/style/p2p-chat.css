@@ -740,6 +740,31 @@
 }
 
 /* =====================================================
+   MEMBER AVATARS AND BADGES
+   ===================================================== */
+
+.p2p-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+.p2p-group-you-badge {
+    font-size: 11px;
+    color: var(--text-muted, #6b7280);
+    font-weight: normal;
+    margin-left: 4px;
+}
+
+.p2p-group-member-joined {
+    display: block;
+    font-size: 11px;
+    color: var(--text-muted, #6b7280);
+    margin-top: 2px;
+}
+
+/* =====================================================
    CSS VARIABLES (fallbacks)
    ===================================================== */
 
