@@ -39,6 +39,7 @@ export class DiagramEditor {
         this.connectionSourceAnchor = null;
         this.connectionLine = null;
         this.connectionType = 'default';  // Тип соединения
+        this.justFinishedConnection = false;  // Флаг для предотвращения клика после соединения
 
         // Shift+drag quick mode state
         this.quickModeActive = false;
@@ -1067,6 +1068,12 @@ export class DiagramEditor {
      */
     endConnection(e) {
         if (!this.isConnecting) return;
+
+        // Установить флаг для предотвращения последующего клика
+        this.justFinishedConnection = true;
+        setTimeout(() => {
+            this.justFinishedConnection = false;
+        }, 100);
 
         // Найти anchor point под курсором
         const targetAnchor = this.getAnchorAtPoint(e.clientX, e.clientY);

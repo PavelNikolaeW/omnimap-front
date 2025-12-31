@@ -4,6 +4,7 @@ import {ContextManager, setContextManager} from "./contextManager";
 import {uiManager} from "./uiManager";
 import {isExcludedElement, throttle} from "../../utils/functions";
 import {dispatch} from "../../utils/utils";
+import {diagramEditor} from "../diagramEditor";
 
 hotkeys.filter = function (event) {
     const target = event.target || event.srcElement;
@@ -149,6 +150,12 @@ export class CommandManager {
             }
         } else if (isExcludedElement(target, 'commandManager', ['body', 'textarea', 'input', 'emoji-picker'])) {
         } else {
+            // Если только что завершили создание соединения - игнорируем клик
+            if (diagramEditor.justFinishedConnection) {
+                event.preventDefault()
+                return
+            }
+
             // В режиме диаграммы - не открывать дочерние блоки при клике
             if (this.ctxManager.mode === 'diagram') {
                 const diagramBlock = this.ctxManager.diagramUtils?.element
