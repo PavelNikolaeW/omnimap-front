@@ -1830,3 +1830,79 @@
         color: var(--text-secondary, #aaa);
     }
 }
+
+/* =====================================================
+   DRAG AND DROP ZONE
+   ===================================================== */
+
+.chat-drop-zone {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(59, 130, 246, 0.1);
+    border: 2px dashed var(--accent-color, #3b82f6);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    pointer-events: none;
+}
+
+.chat-drop-zone-text {
+    font-size: 14px;
+    color: var(--accent-color, #3b82f6);
+    font-weight: 500;
+}
+
+/* =====================================================
+   UPLOAD PROGRESS INDICATOR
+   ===================================================== */
+
+.chat-upload-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--bg-secondary, #f5f5f5);
+    border-radius: 6px;
+    margin-bottom: 8px;
+}
+
+.chat-upload-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border-color, #e0e0e0);
+    border-top-color: var(--accent-color, #3b82f6);
+    border-radius: 50%;
+    animation: chat-spin 0.8s linear infinite;
+}
+
+@keyframes chat-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.chat-upload-text {
+    font-size: 13px;
+    color: var(--text-secondary, #666);
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+    .chat-drop-zone {
+        background: rgba(59, 130, 246, 0.15);
+    }
+
+    .chat-upload-progress {
+        background: var(--bg-secondary, #2d2d2d);
+    }
+
+    .chat-upload-spinner {
+        border-color: var(--border-color, #404040);
+        border-top-color: var(--accent-color, #3b82f6);
+    }
+}

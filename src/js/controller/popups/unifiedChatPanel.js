@@ -57,8 +57,10 @@ export class UnifiedChatPanel {
         this.currentUserId = null;
         this.typingUsers = new Map(); // userId -> timeout
         this.pendingFiles = []; // Files to be attached to next message
-        this.maxFiles = 5; // Max files per message
-        this.maxFileSize = 10 * 1024 * 1024; // 10MB
+        this.maxFiles = 5; // Max files per message (backend constraint)
+        this.maxFileSize = 5 * 1024 * 1024; // 5MB per file (backend constraint)
+        this.allowedFileTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        this.isUploading = false; // Track upload state for loading indicator
 
         // UI state
         this.isMobileSidebarOpen = false;
@@ -197,20 +199,28 @@ export class UnifiedChatPanel {
                     </div>
 
                     <div class="llm-chat-input-area" id="input-area">
+                        <div class="chat-drop-zone" id="drop-zone" style="display: none;">
+                            <span class="chat-drop-zone-text">Перетащите изображения сюда</span>
+                        </div>
                         <div class="chat-attachments-preview" id="attachments-preview" style="display: none;"></div>
+                        <div class="chat-upload-progress" id="upload-progress" style="display: none;">
+                            <span class="chat-upload-spinner"></span>
+                            <span class="chat-upload-text">Загрузка...</span>
+                        </div>
                         <div class="llm-chat-input-row">
-                            <button class="chat-attach-btn" id="attach-btn" title="Прикрепить изображение" style="display: none;">
-                                <span>📎</span>
+                            <button class="chat-attach-btn" id="attach-btn" title="Прикрепить изображение (JPEG, PNG, GIF, WebP до 5MB)" aria-label="Прикрепить изображение" style="display: none;">
+                                <span aria-hidden="true">📎</span>
                             </button>
-                            <input type="file" id="file-input" accept="image/jpeg,image/png,image/gif,image/webp" multiple style="display: none;" />
+                            <input type="file" id="file-input" accept="image/jpeg,image/png,image/gif,image/webp" multiple style="display: none;" aria-label="Выбрать файлы для загрузки" />
                             <textarea
                                 class="llm-chat-textarea"
                                 id="message-input"
                                 placeholder="Сообщение..."
                                 rows="1"
+                                aria-label="Текст сообщения"
                             ></textarea>
-                            <button class="llm-chat-send-btn" id="send-btn" title="Отправить">
-                                <span class="send-btn-icon">➤</span>
+                            <button class="llm-chat-send-btn" id="send-btn" title="Отправить сообщение" aria-label="Отправить сообщение">
+                                <span class="send-btn-icon" aria-hidden="true">➤</span>
                                 <span class="send-btn-text">Отправить</span>
                             </button>
                         </div>
@@ -299,9 +309,14 @@ export class UnifiedChatPanel {
         this.attachBtn = this.container.querySelector('#attach-btn');
         this.fileInput = this.container.querySelector('#file-input');
         this.attachmentsPreview = this.container.querySelector('#attachments-preview');
+        this.dropZone = this.container.querySelector('#drop-zone');
+        this.uploadProgress = this.container.querySelector('#upload-progress');
 
         this.attachBtn.addEventListener('click', () => this.fileInput.click());
         this.fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
+
+        // Drag and drop support
+        this.setupDragAndDrop();
 
         // Scroll for infinite loading
         this.messagesContainer.addEventListener('scroll', () => this.handleScroll());
@@ -1150,6 +1165,11 @@ export class UnifiedChatPanel {
         const files = [...this.pendingFiles];
         this.clearPendingFiles();
 
+        // Show upload progress if files attached
+        if (files.length > 0) {
+            this.showUploadProgress(true, `Загрузка ${files.length} файл(ов)...`);
+        }
+
         // Optimistic update
         const tempMessage = {
             id: 'temp-' + Date.now(),
@@ -1186,6 +1206,11 @@ export class UnifiedChatPanel {
             // Restore files on error
             this.pendingFiles = files;
             this.renderAttachmentsPreview();
+
+            // Show detailed error message
+            this.showUploadError(error, 'личное сообщение');
+        } finally {
+            this.showUploadProgress(false);
         }
     }
 
@@ -1193,6 +1218,11 @@ export class UnifiedChatPanel {
         // Get pending files
         const files = [...this.pendingFiles];
         this.clearPendingFiles();
+
+        // Show upload progress if files attached
+        if (files.length > 0) {
+            this.showUploadProgress(true, `Загрузка ${files.length} файл(ов)...`);
+        }
 
         // Optimistic update
         const tempMessage = {
@@ -1229,7 +1259,43 @@ export class UnifiedChatPanel {
             // Restore files on error
             this.pendingFiles = files;
             this.renderAttachmentsPreview();
+
+            // Show detailed error message
+            this.showUploadError(error, 'сообщение в группу');
+        } finally {
+            this.showUploadProgress(false);
         }
+    }
+
+    /**
+     * Show detailed upload error message
+     * @param {Error} error - The error object
+     * @param {string} context - Context description (e.g., 'личное сообщение')
+     */
+    showUploadError(error, context) {
+        let message = `Не удалось отправить ${context}.`;
+
+        // Parse error for more details
+        if (error.response) {
+            const status = error.response.status;
+            const data = error.response.data;
+
+            if (status === 413) {
+                message = 'Файл слишком большой. Максимальный размер: 5 MB.';
+            } else if (status === 415) {
+                message = 'Неподдерживаемый формат файла. Допустимые: JPEG, PNG, GIF, WebP.';
+            } else if (status === 400 && data?.files) {
+                message = `Ошибка загрузки файлов: ${data.files.join(', ')}`;
+            } else if (status === 400 && data?.detail) {
+                message = data.detail;
+            } else if (status >= 500) {
+                message = 'Ошибка сервера. Попробуйте позже.';
+            }
+        } else if (error.message === 'Network Error') {
+            message = 'Ошибка сети. Проверьте подключение к интернету.';
+        }
+
+        alert(message);
     }
 
     updateSendButton() {
@@ -1625,6 +1691,128 @@ export class UnifiedChatPanel {
     // =====================================================
 
     /**
+     * Setup drag and drop handlers for file upload
+     */
+    setupDragAndDrop() {
+        const inputArea = this.container.querySelector('#input-area');
+        if (!inputArea) return;
+
+        let dragCounter = 0;
+
+        inputArea.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dragCounter++;
+
+            // Only show for P2P chats
+            if (this.activeTab === CHAT_TYPES.DM || this.activeTab === CHAT_TYPES.GROUP) {
+                this.dropZone.style.display = '';
+            }
+        });
+
+        inputArea.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dragCounter--;
+
+            if (dragCounter === 0) {
+                this.dropZone.style.display = 'none';
+            }
+        });
+
+        inputArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        inputArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dragCounter = 0;
+            this.dropZone.style.display = 'none';
+
+            // Only process for P2P chats
+            if (this.activeTab !== CHAT_TYPES.DM && this.activeTab !== CHAT_TYPES.GROUP) {
+                return;
+            }
+
+            const files = Array.from(e.dataTransfer.files);
+            this.processFiles(files);
+        });
+    }
+
+    /**
+     * Validate a single file
+     * @param {File} file - File to validate
+     * @returns {{ valid: boolean, error?: string }}
+     */
+    validateFile(file) {
+        // Check file type
+        if (!this.allowedFileTypes.includes(file.type)) {
+            return {
+                valid: false,
+                error: `Файл "${file.name}" имеет недопустимый формат. Поддерживаются: JPEG, PNG, GIF, WebP`
+            };
+        }
+
+        // Check file size
+        if (file.size > this.maxFileSize) {
+            const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+            return {
+                valid: false,
+                error: `Файл "${file.name}" (${sizeMB} MB) превышает лимит 5 MB`
+            };
+        }
+
+        return { valid: true };
+    }
+
+    /**
+     * Process and validate files for upload
+     * @param {File[]} files - Array of files
+     */
+    processFiles(files) {
+        const errors = [];
+        let addedCount = 0;
+
+        for (const file of files) {
+            // Check max files limit
+            if (this.pendingFiles.length >= this.maxFiles) {
+                errors.push(`Достигнут лимит: максимум ${this.maxFiles} файлов за сообщение`);
+                break;
+            }
+
+            const validation = this.validateFile(file);
+            if (!validation.valid) {
+                errors.push(validation.error);
+                continue;
+            }
+
+            this.pendingFiles.push(file);
+            addedCount++;
+        }
+
+        // Show errors if any
+        if (errors.length > 0) {
+            this.showFileErrors(errors);
+        }
+
+        // Render preview if files were added
+        if (addedCount > 0) {
+            this.renderAttachmentsPreview();
+        }
+    }
+
+    /**
+     * Show file validation errors
+     * @param {string[]} errors - Array of error messages
+     */
+    showFileErrors(errors) {
+        const uniqueErrors = [...new Set(errors)];
+        alert(uniqueErrors.join('\n'));
+    }
+
+    /**
      * Handle file selection from input
      * @param {Event} e - Change event
      */
@@ -1632,27 +1820,24 @@ export class UnifiedChatPanel {
         const files = Array.from(e.target.files);
         if (!files.length) return;
 
-        // Validate and add files
-        for (const file of files) {
-            if (this.pendingFiles.length >= this.maxFiles) {
-                alert(`Максимум ${this.maxFiles} файлов за раз`);
-                break;
-            }
-            if (file.size > this.maxFileSize) {
-                alert(`Файл "${file.name}" слишком большой. Максимум 10 MB`);
-                continue;
-            }
-            if (!file.type.match(/^image\/(jpeg|png|gif|webp)$/)) {
-                alert(`Файл "${file.name}" не поддерживается. Допустимые форматы: JPEG, PNG, GIF, WebP`);
-                continue;
-            }
-            this.pendingFiles.push(file);
-        }
+        this.processFiles(files);
 
         // Clear input for re-selection
         e.target.value = '';
+    }
 
-        this.renderAttachmentsPreview();
+    /**
+     * Show/hide upload progress indicator
+     * @param {boolean} show
+     * @param {string} text - Optional custom text
+     */
+    showUploadProgress(show, text = 'Загрузка...') {
+        if (this.uploadProgress) {
+            this.uploadProgress.style.display = show ? '' : 'none';
+            const textEl = this.uploadProgress.querySelector('.chat-upload-text');
+            if (textEl) textEl.textContent = text;
+        }
+        this.isUploading = show;
     }
 
     /**
@@ -1670,11 +1855,12 @@ export class UnifiedChatPanel {
         this.attachmentsPreview.style.display = '';
         this.attachmentsPreview.innerHTML = this.pendingFiles.map((file, index) => {
             const url = URL.createObjectURL(file);
+            const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
             return `
                 <div class="chat-attachment-preview-item" data-index="${index}">
-                    <img src="${url}" alt="${this.escapeHtml(file.name)}" />
-                    <button class="chat-attachment-remove" data-index="${index}" title="Удалить">✕</button>
-                    <span class="chat-attachment-name">${this.escapeHtml(file.name)}</span>
+                    <img src="${url}" alt="Превью: ${this.escapeHtml(file.name)}" loading="lazy" />
+                    <button class="chat-attachment-remove" data-index="${index}" title="Удалить файл" aria-label="Удалить ${this.escapeHtml(file.name)}">✕</button>
+                    <span class="chat-attachment-name" title="${this.escapeHtml(file.name)} (${sizeMB} MB)">${this.escapeHtml(file.name)}</span>
                 </div>
             `;
         }).join('');
