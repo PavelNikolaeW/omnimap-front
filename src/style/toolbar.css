@@ -263,3 +263,29 @@ button:focus {
     background-color: #d0e8ff;
 }
 
+/* Стили для кнопок, недоступных в офлайн режиме */
+.sidebar-button.offline-disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background-color: #f0f0f0;
+    border-color: #ccc;
+    position: relative;
+}
+
+.sidebar-button.offline-disabled::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background-color: #999;
+    transform: rotate(-45deg);
+}
+
+.sidebar-button.offline-disabled:hover {
+    background-color: #f0f0f0;
+    border-color: #ccc;
+    transform: none;
+}
+
