@@ -5,18 +5,29 @@
  * - GET /api/v1/chat/dm/contacts/ - Контакты (пользователи с общими блоками)
  * - GET /api/v1/chat/dm/conversations/ - Список диалогов
  * - GET /api/v1/chat/dm/{user_id}/messages/ - История сообщений
- * - POST /api/v1/chat/dm/{user_id}/messages/ - Отправить сообщение
+ * - POST /api/v1/chat/dm/{user_id}/messages/ - Отправить сообщение (JSON или multipart/form-data)
  * - POST /api/v1/chat/dm/{user_id}/read/ - Отметить как прочитанные
  * - GET /api/v1/chat/unread/ - Количество непрочитанных
+ * - GET /api/v1/chat/users/search/?q= - Поиск пользователей среди контактов
  * - GET /api/v1/chat/groups/ - Список групповых чатов
  * - POST /api/v1/chat/groups/ - Создать группу
+ * - GET /api/v1/chat/groups/{id}/ - Информация о группе
+ * - PATCH /api/v1/chat/groups/{id}/ - Обновить группу
+ * - DELETE /api/v1/chat/groups/{id}/ - Удалить группу
  * - GET /api/v1/chat/groups/{id}/messages/ - Сообщения группы
  * - POST /api/v1/chat/groups/{id}/messages/ - Отправить в группу
+ * - POST /api/v1/chat/groups/{id}/messages/read/ - Отметить сообщения группы как прочитанные
  * - GET /api/v1/chat/groups/{id}/members/ - Участники группы
  * - POST /api/v1/chat/groups/{id}/members/ - Добавить участника
  * - DELETE /api/v1/chat/groups/{id}/members/{user_id}/ - Удалить участника
  * - POST /api/v1/chat/groups/{id}/leave/ - Покинуть группу
- * - GET /api/v1/users/search/?q= - Поиск пользователей
+ * - GET /api/v1/chat/blocks/{block_id}/ - Получить чат для блока
+ * - GET /api/v1/chat/me/avatar/ - Получить аватар текущего пользователя
+ * - POST /api/v1/chat/me/avatar/ - Загрузить аватар
+ * - DELETE /api/v1/chat/me/avatar/ - Удалить аватар
+ * - GET /api/v1/chat/groups/{id}/avatar/ - Получить аватар группы
+ * - POST /api/v1/chat/groups/{id}/avatar/ - Загрузить аватар группы
+ * - DELETE /api/v1/chat/groups/{id}/avatar/ - Удалить аватар группы
  */
 
 import api from './api';
@@ -66,9 +77,20 @@ class ChatApi {
      * Отправить личное сообщение
      * @param {number} userId - ID получателя
      * @param {string} content - Текст сообщения
+     * @param {File[]} files - Массив файлов (опционально, макс. 5 файлов по 10MB)
      * @returns {Promise<Object>} - Созданное сообщение
      */
-    sendMessage(userId, content) {
+    sendMessage(userId, content, files = null) {
+        if (files && files.length > 0) {
+            const formData = new FormData();
+            formData.append('content', content);
+            files.forEach((file) => {
+                formData.append('files', file);
+            });
+            return this.axios.post(`chat/dm/${userId}/messages/`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+        }
         return this.axios.post(`chat/dm/${userId}/messages/`, { content });
     }
 
@@ -155,9 +177,20 @@ class ChatApi {
      * Отправить сообщение в группу
      * @param {string} groupId - ID группы
      * @param {string} content - Текст сообщения
+     * @param {File[]} files - Массив файлов (опционально, макс. 5 файлов по 10MB)
      * @returns {Promise<Object>} - Созданное сообщение
      */
-    sendGroupMessage(groupId, content) {
+    sendGroupMessage(groupId, content, files = null) {
+        if (files && files.length > 0) {
+            const formData = new FormData();
+            formData.append('content', content);
+            files.forEach((file) => {
+                formData.append('files', file);
+            });
+            return this.axios.post(`chat/groups/${groupId}/messages/`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+        }
         return this.axios.post(`chat/groups/${groupId}/messages/`, { content });
     }
 
@@ -202,10 +235,10 @@ class ChatApi {
     /**
      * Отметить сообщения группы как прочитанные
      * @param {string} groupId - ID группы
-     * @returns {Promise}
+     * @returns {Promise<Object>} - { marked_as_read: number }
      */
     markGroupAsRead(groupId) {
-        return this.axios.post(`chat/groups/${groupId}/read/`);
+        return this.axios.post(`chat/groups/${groupId}/messages/read/`);
     }
 
     // =====================================================
@@ -226,16 +259,85 @@ class ChatApi {
      * @returns {Promise<Object>} - { has_chat, chat }
      */
     getBlockChat(blockId) {
-        return this.axios.get(`blocks/${blockId}/chat/`);
+        return this.axios.get(`chat/blocks/${blockId}/`);
     }
 
     /**
      * Поиск пользователей (только среди shared blocks)
-     * @param {string} query - Поисковый запрос
+     * @param {string} query - Поисковый запрос (минимум 2 символа)
      * @returns {Promise<Array>} - Список пользователей
      */
     searchUsers(query) {
-        return this.axios.get(`users/search/?q=${encodeURIComponent(query)}`);
+        return this.axios.get(`chat/users/search/?q=${encodeURIComponent(query)}`);
+    }
+
+    // =====================================================
+    // АВАТАРЫ ПОЛЬЗОВАТЕЛЯ
+    // =====================================================
+
+    /**
+     * Получить аватар текущего пользователя
+     * @returns {Promise<Object>} - { image_url, thumbnail_url, updated_at } или { avatar: null }
+     */
+    getMyAvatar() {
+        return this.axios.get('chat/me/avatar/');
+    }
+
+    /**
+     * Загрузить/обновить аватар текущего пользователя
+     * @param {File} file - Файл изображения (JPEG, PNG, GIF, WebP, макс. 5MB)
+     * @returns {Promise<Object>} - { image_url, thumbnail_url, updated_at }
+     */
+    uploadMyAvatar(file) {
+        const formData = new FormData();
+        formData.append('avatar', file);
+        return this.axios.post('chat/me/avatar/', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    }
+
+    /**
+     * Удалить аватар текущего пользователя
+     * @returns {Promise}
+     */
+    deleteMyAvatar() {
+        return this.axios.delete('chat/me/avatar/');
+    }
+
+    // =====================================================
+    // АВАТАРЫ ГРУПП
+    // =====================================================
+
+    /**
+     * Получить аватар группы
+     * @param {string} groupId - ID группы
+     * @returns {Promise<Object>} - { image_url, thumbnail_url, updated_at } или { avatar: null }
+     */
+    getGroupAvatar(groupId) {
+        return this.axios.get(`chat/groups/${groupId}/avatar/`);
+    }
+
+    /**
+     * Загрузить/обновить аватар группы (только для админов)
+     * @param {string} groupId - ID группы
+     * @param {File} file - Файл изображения (JPEG, PNG, GIF, WebP, макс. 5MB)
+     * @returns {Promise<Object>} - { image_url, thumbnail_url, updated_at }
+     */
+    uploadGroupAvatar(groupId, file) {
+        const formData = new FormData();
+        formData.append('avatar', file);
+        return this.axios.post(`chat/groups/${groupId}/avatar/`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    }
+
+    /**
+     * Удалить аватар группы (только для админов)
+     * @param {string} groupId - ID группы
+     * @returns {Promise}
+     */
+    deleteGroupAvatar(groupId) {
+        return this.axios.delete(`chat/groups/${groupId}/avatar/`);
     }
 }
 

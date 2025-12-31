@@ -1597,3 +1597,236 @@
         font-size: 12px;
     }
 }
+
+/* =====================================================
+   CHAT ATTACHMENTS
+   ===================================================== */
+
+/* Attachments in messages */
+.chat-attachments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.chat-attachment {
+    position: relative;
+    max-width: 200px;
+}
+
+.chat-attachment-link {
+    display: block;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.chat-attachment-image {
+    display: block;
+    max-width: 100%;
+    max-height: 200px;
+    object-fit: cover;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.chat-attachment-image:hover {
+    opacity: 0.9;
+}
+
+.chat-attachment-info {
+    font-size: 10px;
+    color: var(--text-secondary, #888);
+    margin-top: 4px;
+    text-align: center;
+}
+
+/* Attachments preview (before sending) */
+.chat-attachments-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px;
+    background: var(--bg-secondary, #f5f5f5);
+    border-radius: 8px 8px 0 0;
+    border-bottom: 1px solid var(--border-color, #e0e0e0);
+}
+
+.chat-attachment-preview-item {
+    position: relative;
+    width: 60px;
+    height: 60px;
+}
+
+.chat-attachment-preview-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 6px;
+}
+
+.chat-attachment-remove {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--error-color, #ef4444);
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.chat-attachment-remove:hover {
+    background: #dc2626;
+}
+
+.chat-attachment-name {
+    display: none;
+}
+
+/* Attach button */
+.chat-attach-btn {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    border-radius: 50%;
+    background: var(--bg-secondary, #f5f5f5);
+    border: 1px solid var(--border-color, #e0e0e0);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    transition: background 0.2s;
+    margin-right: 8px;
+}
+
+.chat-attach-btn:hover {
+    background: var(--bg-tertiary, #e0e0e0);
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .chat-attachments-preview {
+        background: var(--bg-secondary, #2d2d2d);
+        border-color: var(--border-color, #404040);
+    }
+
+    .chat-attach-btn {
+        background: var(--bg-secondary, #2d2d2d);
+        border-color: var(--border-color, #404040);
+    }
+
+    .chat-attach-btn:hover {
+        background: var(--bg-tertiary, #404040);
+    }
+}
+
+/* =====================================================
+   AVATAR EDITOR
+   ===================================================== */
+
+.chat-avatar-section {
+    margin-bottom: 16px;
+}
+
+.chat-avatar-editor {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background: var(--bg-secondary, #f5f5f5);
+    border-radius: 8px;
+}
+
+.chat-avatar-preview {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: var(--bg-tertiary, #e0e0e0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.chat-avatar-preview img.chat-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.chat-avatar-placeholder {
+    font-size: 32px;
+    opacity: 0.5;
+}
+
+.chat-avatar-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.chat-avatar-upload-btn,
+.chat-avatar-delete-btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.2s;
+}
+
+.chat-avatar-upload-btn {
+    background: var(--accent-color, #3b82f6);
+    color: white;
+}
+
+.chat-avatar-upload-btn:hover {
+    background: var(--accent-color-hover, #2563eb);
+}
+
+.chat-avatar-upload-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.chat-avatar-delete-btn {
+    background: var(--bg-tertiary, #e0e0e0);
+    color: var(--text-secondary, #666);
+}
+
+.chat-avatar-delete-btn:hover {
+    background: var(--error-color, #ef4444);
+    color: white;
+}
+
+.chat-avatar-hint {
+    font-size: 11px;
+    color: var(--text-secondary, #888);
+    margin: 0;
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+    .chat-avatar-editor {
+        background: var(--bg-secondary, #2d2d2d);
+    }
+
+    .chat-avatar-preview {
+        background: var(--bg-tertiary, #404040);
+    }
+
+    .chat-avatar-delete-btn {
+        background: var(--bg-tertiary, #404040);
+        color: var(--text-secondary, #aaa);
+    }
+}

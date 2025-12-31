@@ -56,6 +56,9 @@ export class UnifiedChatPanel {
         // P2P specific
         this.currentUserId = null;
         this.typingUsers = new Map(); // userId -> timeout
+        this.pendingFiles = []; // Files to be attached to next message
+        this.maxFiles = 5; // Max files per message
+        this.maxFileSize = 10 * 1024 * 1024; // 10MB
 
         // UI state
         this.isMobileSidebarOpen = false;
@@ -138,25 +141,45 @@ export class UnifiedChatPanel {
 
                 <div class="llm-chat-settings-panel" id="settings-panel" style="display: none;">
                     <div class="llm-chat-settings-header">
-                        <h3>Настройки AI</h3>
+                        <h3 id="settings-title">Настройки AI</h3>
                         <button id="close-settings-btn">✕</button>
                     </div>
                     <div class="llm-chat-settings-content">
-                        <div class="llm-chat-setting-group">
-                            <label>Модель</label>
-                            <select id="model-select"></select>
+                        <!-- Profile section (shown for P2P chats) -->
+                        <div id="profile-settings" style="display: none;">
+                            <div class="llm-chat-setting-group chat-avatar-section">
+                                <label>Ваш аватар</label>
+                                <div class="chat-avatar-editor">
+                                    <div class="chat-avatar-preview" id="avatar-preview">
+                                        <span class="chat-avatar-placeholder">👤</span>
+                                    </div>
+                                    <div class="chat-avatar-actions">
+                                        <button class="chat-avatar-upload-btn" id="avatar-upload-btn">Загрузить</button>
+                                        <button class="chat-avatar-delete-btn" id="avatar-delete-btn" style="display: none;">Удалить</button>
+                                        <input type="file" id="avatar-input" accept="image/jpeg,image/png,image/gif,image/webp" style="display: none;" />
+                                    </div>
+                                    <p class="chat-avatar-hint">JPEG, PNG, GIF или WebP. Макс. 5 MB</p>
+                                </div>
+                            </div>
                         </div>
-                        <div class="llm-chat-setting-group">
-                            <label>Temperature: <span id="temp-value">0.7</span></label>
-                            <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.7">
-                        </div>
-                        <div class="llm-chat-setting-group">
-                            <label>Max Tokens: <span id="tokens-value">4096</span></label>
-                            <input type="range" id="max-tokens" min="256" max="16384" step="256" value="4096">
-                        </div>
-                        <div class="llm-chat-setting-group">
-                            <label>System Prompt</label>
-                            <textarea id="system-prompt" placeholder="Вы - полезный ассистент..." rows="4"></textarea>
+                        <!-- AI settings (shown for AI chats) -->
+                        <div id="ai-settings">
+                            <div class="llm-chat-setting-group">
+                                <label>Модель</label>
+                                <select id="model-select"></select>
+                            </div>
+                            <div class="llm-chat-setting-group">
+                                <label>Temperature: <span id="temp-value">0.7</span></label>
+                                <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.7">
+                            </div>
+                            <div class="llm-chat-setting-group">
+                                <label>Max Tokens: <span id="tokens-value">4096</span></label>
+                                <input type="range" id="max-tokens" min="256" max="16384" step="256" value="4096">
+                            </div>
+                            <div class="llm-chat-setting-group">
+                                <label>System Prompt</label>
+                                <textarea id="system-prompt" placeholder="Вы - полезный ассистент..." rows="4"></textarea>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -174,7 +197,12 @@ export class UnifiedChatPanel {
                     </div>
 
                     <div class="llm-chat-input-area" id="input-area">
+                        <div class="chat-attachments-preview" id="attachments-preview" style="display: none;"></div>
                         <div class="llm-chat-input-row">
+                            <button class="chat-attach-btn" id="attach-btn" title="Прикрепить изображение" style="display: none;">
+                                <span>📎</span>
+                            </button>
+                            <input type="file" id="file-input" accept="image/jpeg,image/png,image/gif,image/webp" multiple style="display: none;" />
                             <textarea
                                 class="llm-chat-textarea"
                                 id="message-input"
@@ -228,6 +256,16 @@ export class UnifiedChatPanel {
         this.container.querySelector('#settings-btn').addEventListener('click', () => this.toggleSettings());
         this.container.querySelector('#close-settings-btn').addEventListener('click', () => this.toggleSettings(false));
 
+        // Avatar settings
+        this.avatarInput = this.container.querySelector('#avatar-input');
+        this.avatarPreview = this.container.querySelector('#avatar-preview');
+        this.avatarUploadBtn = this.container.querySelector('#avatar-upload-btn');
+        this.avatarDeleteBtn = this.container.querySelector('#avatar-delete-btn');
+
+        this.avatarUploadBtn.addEventListener('click', () => this.avatarInput.click());
+        this.avatarInput.addEventListener('change', (e) => this.handleAvatarSelect(e));
+        this.avatarDeleteBtn.addEventListener('click', () => this.deleteAvatar());
+
         // Settings inputs
         this.container.querySelector('#model-select').addEventListener('change', (e) => {
             this.aiSettings.model = e.target.value;
@@ -256,6 +294,14 @@ export class UnifiedChatPanel {
 
         // Send button
         this.container.querySelector('#send-btn').addEventListener('click', () => this.sendMessage());
+
+        // File attachment (only for P2P chats)
+        this.attachBtn = this.container.querySelector('#attach-btn');
+        this.fileInput = this.container.querySelector('#file-input');
+        this.attachmentsPreview = this.container.querySelector('#attachments-preview');
+
+        this.attachBtn.addEventListener('click', () => this.fileInput.click());
+        this.fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
 
         // Scroll for infinite loading
         this.messagesContainer.addEventListener('scroll', () => this.handleScroll());
@@ -529,6 +575,12 @@ export class UnifiedChatPanel {
         };
         this.container.querySelector('#new-chat-btn').textContent = newBtnTexts[tab];
 
+        // Show/hide attach button (only for P2P chats)
+        this.updateAttachButtonVisibility();
+
+        // Clear pending files when switching tabs
+        this.clearPendingFiles();
+
         // Update UI
         this.updateTokenBalance();
         this.updateModelHint();
@@ -537,6 +589,16 @@ export class UnifiedChatPanel {
 
         // Close mobile sidebar
         this.toggleMobileSidebar(false);
+    }
+
+    /**
+     * Update visibility of attach button based on current tab
+     */
+    updateAttachButtonVisibility() {
+        const isP2P = this.activeTab === CHAT_TYPES.DM || this.activeTab === CHAT_TYPES.GROUP;
+        if (this.attachBtn) {
+            this.attachBtn.style.display = isP2P ? '' : 'none';
+        }
     }
 
     // =====================================================
@@ -870,18 +932,61 @@ export class UnifiedChatPanel {
                 senderName = `<div class="llm-chat-message-sender">${this.escapeHtml(message.sender_username || 'Участник')}</div>`;
             }
 
+            // Render attachments if present
+            const attachmentsHtml = this.renderAttachments(message.attachments);
+
             el.innerHTML = `
                 ${senderName}
-                <div class="llm-chat-message-content">${this.escapeHtml(message.content)}</div>
+                ${message.content ? `<div class="llm-chat-message-content">${this.escapeHtml(message.content)}</div>` : ''}
+                ${attachmentsHtml}
                 <div class="llm-chat-message-meta">
                     <span>${this.formatTime(message.created_at)}</span>
-                    ${isOwn && this.activeChat.type === CHAT_TYPES.DM ? `<span class="llm-chat-message-status ${message.read ? 'read' : ''}">${message.read ? '✓✓' : '✓'}</span>` : ''}
+                    ${isOwn && this.activeChat.type === CHAT_TYPES.DM ? `<span class="llm-chat-message-status ${message.is_read || message.read ? 'read' : ''}">${message.is_read || message.read ? '✓✓' : '✓'}</span>` : ''}
                 </div>
             `;
         }
 
         el.setAttribute('data-message-id', message.id);
         return el;
+    }
+
+    /**
+     * Render attachments (images) for a message
+     * @param {Array} attachments - Array of attachment objects
+     * @returns {string} HTML string
+     */
+    renderAttachments(attachments) {
+        if (!attachments || attachments.length === 0) return '';
+
+        const images = attachments.map(att => {
+            const url = att.file_url || att.url;
+            const thumbUrl = att.thumbnail_url || url;
+            const filename = att.filename || 'image';
+            const size = att.size ? this.formatFileSize(att.size) : '';
+            const dimensions = att.width && att.height ? `${att.width}x${att.height}` : '';
+
+            return `
+                <div class="chat-attachment" data-id="${att.id || ''}">
+                    <a href="${this.escapeHtml(url)}" target="_blank" class="chat-attachment-link">
+                        <img src="${this.escapeHtml(thumbUrl)}" alt="${this.escapeHtml(filename)}" class="chat-attachment-image" loading="lazy" />
+                    </a>
+                    ${size || dimensions ? `<div class="chat-attachment-info">${size}${size && dimensions ? ' • ' : ''}${dimensions}</div>` : ''}
+                </div>
+            `;
+        }).join('');
+
+        return `<div class="chat-attachments">${images}</div>`;
+    }
+
+    /**
+     * Format file size in human readable format
+     * @param {number} bytes - File size in bytes
+     * @returns {string}
+     */
+    formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
     }
 
     renderWelcomeMessage() {
@@ -1041,20 +1146,30 @@ export class UnifiedChatPanel {
     }
 
     async sendDMMessage(content) {
+        // Get pending files
+        const files = [...this.pendingFiles];
+        this.clearPendingFiles();
+
         // Optimistic update
         const tempMessage = {
             id: 'temp-' + Date.now(),
             content,
             sender_id: Number(this.currentUserId),
             created_at: new Date().toISOString(),
-            read: false
+            read: false,
+            attachments: files.map((f, i) => ({
+                id: `temp-att-${i}`,
+                filename: f.name,
+                file_url: URL.createObjectURL(f),
+                thumbnail_url: URL.createObjectURL(f)
+            }))
         };
         this.messages.push(tempMessage);
         this.renderMessages();
         this.scrollToBottom();
 
         try {
-            const response = await chatApi.sendMessage(this.activeChat.id, content);
+            const response = await chatApi.sendMessage(this.activeChat.id, content, files.length > 0 ? files : null);
             const sentMessage = response.data;
 
             // Replace temp with real
@@ -1068,24 +1183,37 @@ export class UnifiedChatPanel {
             this.messages = this.messages.filter(m => m.id !== tempMessage.id);
             this.renderMessages();
             this.messageInput.value = content;
+            // Restore files on error
+            this.pendingFiles = files;
+            this.renderAttachmentsPreview();
         }
     }
 
     async sendGroupMessage(content) {
+        // Get pending files
+        const files = [...this.pendingFiles];
+        this.clearPendingFiles();
+
         // Optimistic update
         const tempMessage = {
             id: 'temp-' + Date.now(),
             content,
             sender_id: Number(this.currentUserId),
             sender_username: 'Вы',
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
+            attachments: files.map((f, i) => ({
+                id: `temp-att-${i}`,
+                filename: f.name,
+                file_url: URL.createObjectURL(f),
+                thumbnail_url: URL.createObjectURL(f)
+            }))
         };
         this.messages.push(tempMessage);
         this.renderMessages();
         this.scrollToBottom();
 
         try {
-            const response = await chatApi.sendGroupMessage(this.activeChat.id, content);
+            const response = await chatApi.sendGroupMessage(this.activeChat.id, content, files.length > 0 ? files : null);
             const sentMessage = response.data;
 
             const idx = this.messages.findIndex(m => m.id === tempMessage.id);
@@ -1098,6 +1226,9 @@ export class UnifiedChatPanel {
             this.messages = this.messages.filter(m => m.id !== tempMessage.id);
             this.renderMessages();
             this.messageInput.value = content;
+            // Restore files on error
+            this.pendingFiles = files;
+            this.renderAttachmentsPreview();
         }
     }
 
@@ -1334,7 +1465,122 @@ export class UnifiedChatPanel {
 
     toggleSettings(show = !this.showSettings) {
         this.showSettings = show;
-        this.container.querySelector('#settings-panel').style.display = show ? '' : 'none';
+        const panel = this.container.querySelector('#settings-panel');
+        const aiSettings = this.container.querySelector('#ai-settings');
+        const profileSettings = this.container.querySelector('#profile-settings');
+        const settingsTitle = this.container.querySelector('#settings-title');
+
+        panel.style.display = show ? '' : 'none';
+
+        if (show) {
+            const isP2P = this.activeTab === CHAT_TYPES.DM || this.activeTab === CHAT_TYPES.GROUP;
+
+            // Show/hide appropriate settings sections
+            aiSettings.style.display = this.activeTab === CHAT_TYPES.AI ? '' : 'none';
+            profileSettings.style.display = isP2P ? '' : 'none';
+
+            // Update title
+            settingsTitle.textContent = this.activeTab === CHAT_TYPES.AI ? 'Настройки AI' : 'Профиль';
+
+            // Load avatar if P2P
+            if (isP2P) {
+                this.loadAvatar();
+            }
+        }
+    }
+
+    /**
+     * Load current user avatar
+     */
+    async loadAvatar() {
+        try {
+            const response = await chatApi.getMyAvatar();
+            const data = response.data;
+
+            if (data && (data.image_url || data.thumbnail_url)) {
+                this.renderAvatarPreview(data.thumbnail_url || data.image_url);
+                this.avatarDeleteBtn.style.display = '';
+            } else {
+                this.renderAvatarPreview(null);
+                this.avatarDeleteBtn.style.display = 'none';
+            }
+        } catch (error) {
+            console.warn('Failed to load avatar:', error);
+            this.renderAvatarPreview(null);
+            this.avatarDeleteBtn.style.display = 'none';
+        }
+    }
+
+    /**
+     * Render avatar preview
+     * @param {string|null} url - Avatar URL or null for placeholder
+     */
+    renderAvatarPreview(url) {
+        if (url) {
+            this.avatarPreview.innerHTML = `<img src="${this.escapeHtml(url)}" alt="Avatar" class="chat-avatar-img" />`;
+        } else {
+            this.avatarPreview.innerHTML = '<span class="chat-avatar-placeholder">👤</span>';
+        }
+    }
+
+    /**
+     * Handle avatar file selection
+     * @param {Event} e - Change event
+     */
+    async handleAvatarSelect(e) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Validate
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Файл слишком большой. Максимум 5 MB');
+            return;
+        }
+        if (!file.type.match(/^image\/(jpeg|png|gif|webp)$/)) {
+            alert('Недопустимый формат. Допустимые: JPEG, PNG, GIF, WebP');
+            return;
+        }
+
+        // Show preview immediately
+        const previewUrl = URL.createObjectURL(file);
+        this.renderAvatarPreview(previewUrl);
+
+        try {
+            this.avatarUploadBtn.disabled = true;
+            this.avatarUploadBtn.textContent = 'Загрузка...';
+
+            await chatApi.uploadMyAvatar(file);
+
+            this.avatarDeleteBtn.style.display = '';
+        } catch (error) {
+            console.error('Failed to upload avatar:', error);
+            alert('Не удалось загрузить аватар');
+            // Reload current avatar
+            this.loadAvatar();
+        } finally {
+            this.avatarUploadBtn.disabled = false;
+            this.avatarUploadBtn.textContent = 'Загрузить';
+            e.target.value = '';
+        }
+    }
+
+    /**
+     * Delete current user avatar
+     */
+    async deleteAvatar() {
+        if (!confirm('Удалить аватар?')) return;
+
+        try {
+            this.avatarDeleteBtn.disabled = true;
+            await chatApi.deleteMyAvatar();
+            this.renderAvatarPreview(null);
+            this.avatarDeleteBtn.style.display = 'none';
+        } catch (error) {
+            console.error('Failed to delete avatar:', error);
+            alert('Не удалось удалить аватар');
+        } finally {
+            this.avatarDeleteBtn.disabled = false;
+        }
     }
 
     handleScroll() {
@@ -1373,6 +1619,102 @@ export class UnifiedChatPanel {
     scrollToBottom() {
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
     }
+
+    // =====================================================
+    // FILE ATTACHMENTS
+    // =====================================================
+
+    /**
+     * Handle file selection from input
+     * @param {Event} e - Change event
+     */
+    handleFileSelect(e) {
+        const files = Array.from(e.target.files);
+        if (!files.length) return;
+
+        // Validate and add files
+        for (const file of files) {
+            if (this.pendingFiles.length >= this.maxFiles) {
+                alert(`Максимум ${this.maxFiles} файлов за раз`);
+                break;
+            }
+            if (file.size > this.maxFileSize) {
+                alert(`Файл "${file.name}" слишком большой. Максимум 10 MB`);
+                continue;
+            }
+            if (!file.type.match(/^image\/(jpeg|png|gif|webp)$/)) {
+                alert(`Файл "${file.name}" не поддерживается. Допустимые форматы: JPEG, PNG, GIF, WebP`);
+                continue;
+            }
+            this.pendingFiles.push(file);
+        }
+
+        // Clear input for re-selection
+        e.target.value = '';
+
+        this.renderAttachmentsPreview();
+    }
+
+    /**
+     * Render preview of pending attachments
+     */
+    renderAttachmentsPreview() {
+        if (!this.attachmentsPreview) return;
+
+        if (this.pendingFiles.length === 0) {
+            this.attachmentsPreview.style.display = 'none';
+            this.attachmentsPreview.innerHTML = '';
+            return;
+        }
+
+        this.attachmentsPreview.style.display = '';
+        this.attachmentsPreview.innerHTML = this.pendingFiles.map((file, index) => {
+            const url = URL.createObjectURL(file);
+            return `
+                <div class="chat-attachment-preview-item" data-index="${index}">
+                    <img src="${url}" alt="${this.escapeHtml(file.name)}" />
+                    <button class="chat-attachment-remove" data-index="${index}" title="Удалить">✕</button>
+                    <span class="chat-attachment-name">${this.escapeHtml(file.name)}</span>
+                </div>
+            `;
+        }).join('');
+
+        // Add remove handlers
+        this.attachmentsPreview.querySelectorAll('.chat-attachment-remove').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const index = parseInt(btn.dataset.index, 10);
+                this.removeFile(index);
+            });
+        });
+    }
+
+    /**
+     * Remove a file from pending list
+     * @param {number} index - File index
+     */
+    removeFile(index) {
+        this.pendingFiles.splice(index, 1);
+        this.renderAttachmentsPreview();
+    }
+
+    /**
+     * Clear all pending files
+     */
+    clearPendingFiles() {
+        this.pendingFiles = [];
+        if (this.attachmentsPreview) {
+            this.attachmentsPreview.style.display = 'none';
+            this.attachmentsPreview.innerHTML = '';
+        }
+        if (this.fileInput) {
+            this.fileInput.value = '';
+        }
+    }
+
+    // =====================================================
+    // UTILS
+    // =====================================================
 
     escapeHtml(text) {
         const div = document.createElement('div');
