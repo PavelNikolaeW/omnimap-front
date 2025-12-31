@@ -8,6 +8,7 @@ import {jsPlumbInstance} from "../controller/arrowManager";
 import {customConfirm} from "../utils/custom-dialog";
 import {treeService} from "../services/treeService";
 import {treeValidator} from "./treeValidator";
+import {offlineQueue} from "../sincManager/offlineQueue";
 
 /**
  * Экранирует специальные символы RegExp в строке
@@ -274,6 +275,63 @@ export class LocalStateManager {
         window.addEventListener('RepairTree', () => {
             this.repairTree()
         })
+        // Обработка замены временных ID на реальные после синхронизации
+        window.addEventListener('TempIdResolved', (e) => {
+            this.handleTempIdResolved(e.detail)
+        })
+        // Обработка синхронизированного блока
+        window.addEventListener('BlockSynced', (e) => {
+            this.handleBlockSynced(e.detail)
+        })
+    }
+
+    /**
+     * Обрабатывает замену временного ID на реальный после синхронизации
+     * @param {Object} detail - {tempId, realId, blocks}
+     */
+    async handleTempIdResolved({tempId, realId, blocks}) {
+        console.log(`Replacing temp ID ${tempId} with real ID ${realId}`);
+
+        // Получаем временный блок
+        const tempBlock = this.blocks.get(tempId);
+        if (!tempBlock) {
+            console.warn(`Temp block ${tempId} not found`);
+            return;
+        }
+
+        // Удаляем временный блок из памяти и IndexedDB
+        this.blocks.delete(tempId);
+        await this.blockRepository.deleteBlock(tempId);
+
+        // Сохраняем новые блоки с реальными ID
+        if (blocks && Array.isArray(blocks)) {
+            for (const block of blocks) {
+                await this.saveBlock(block);
+            }
+        }
+
+        // Обновляем родительский блок - заменяем tempId на realId в children
+        const parentBlock = this.blocks.get(tempBlock.parent_id);
+        if (parentBlock && parentBlock.children) {
+            const index = parentBlock.children.indexOf(tempId);
+            if (index !== -1) {
+                parentBlock.children[index] = realId;
+                await this.saveBlock(parentBlock);
+            }
+        }
+
+        dispatch('ShowBlocks');
+    }
+
+    /**
+     * Обрабатывает синхронизированный блок с сервера
+     * @param {Object} detail - {block}
+     */
+    async handleBlockSynced({block}) {
+        if (block) {
+            await this.saveBlock(block);
+            // Не вызываем ShowBlocks здесь, чтобы избежать лишних перерисовок
+        }
     }
 
     async updateBlockImage({blockId, imageData}) {
@@ -310,6 +368,12 @@ export class LocalStateManager {
      * Создание нового дерева
      */
     async createTree({title}) {
+        // Офлайн режим
+        if (!offlineQueue.isNetworkOnline()) {
+            await this.createTreeOffline({title});
+            return;
+        }
+
         try {
             const res = await api.createTree(title)
             if (res.status === 201) {
@@ -319,8 +383,50 @@ export class LocalStateManager {
                 this.showBlocks()
             }
         } catch (error) {
-            console.error('Failed to create tree:', error)
+            // При ошибке сети создаём локально
+            if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+                await this.createTreeOffline({title});
+            } else {
+                console.error('Failed to create tree:', error)
+            }
         }
+    }
+
+    /**
+     * Создаёт дерево локально в офлайн режиме
+     */
+    async createTreeOffline({title}) {
+        const tempId = offlineQueue.generateTempId();
+
+        // Создаём временный блок-дерево
+        const tempBlock = {
+            id: tempId,
+            title: title || 'Новое дерево',
+            parent_id: null,
+            children: [],
+            data: {},
+            updated_at: new Date().toISOString(),
+            _isOffline: true
+        };
+
+        // Сохраняем блок
+        await this.saveBlock(tempBlock);
+
+        // Добавляем в treeService
+        await treeService.addTree(tempId);
+
+        // Добавляем в очередь синхронизации
+        await offlineQueue.enqueue({
+            id: `create_tree_${tempId}`,
+            type: 'createTree',
+            data: {
+                tempId,
+                title
+            }
+        });
+
+        this.showBlocks();
+        console.log('Tree created offline:', tempId);
     }
 
     /**
@@ -340,6 +446,12 @@ export class LocalStateManager {
 
         const block = this.blocks.get(blockId)
         if (!block) return
+
+        // Если офлайн или это временный блок - удаляем локально
+        if (!offlineQueue.isNetworkOnline() || offlineQueue.isTempId(blockId)) {
+            await this.deleteBlockOffline({blockId, isRootTree, block});
+            return;
+        }
 
         try {
             const res = await api.removeTree(blockId)
@@ -363,8 +475,49 @@ export class LocalStateManager {
                 this.showBlocks()
             }
         } catch (error) {
-            console.error('Failed to delete tree block:', error)
+            // При ошибке сети удаляем локально и добавляем в очередь
+            if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+                await this.deleteBlockOffline({blockId, isRootTree, block});
+            } else {
+                console.error('Failed to delete tree block:', error)
+            }
         }
+    }
+
+    /**
+     * Удаляет блок локально в офлайн режиме
+     */
+    async deleteBlockOffline({blockId, isRootTree, block}) {
+        // Удаляем из treeService если это корневой блок
+        if (isRootTree) {
+            await treeService.removeTree(blockId)
+        }
+
+        // Обновляем родительский блок (удаляем из children)
+        const parentBlock = this.blocks.get(block.parent_id);
+        if (parentBlock && parentBlock.children) {
+            parentBlock.children = parentBlock.children.filter(id => id !== blockId);
+            await this.saveBlock(parentBlock);
+        }
+
+        // Удаляем блок и всех потомков из кеша
+        const allChildIds = this.getAllChildIds(block);
+        for (const id of allChildIds) {
+            this.blockRepository.deleteBlock(id);
+            this.blocks.delete(id);
+        }
+
+        // Если это не временный блок - добавляем в очередь на удаление с сервера
+        if (!offlineQueue.isTempId(blockId)) {
+            await offlineQueue.enqueue({
+                id: `delete_${blockId}_${Date.now()}`,
+                type: 'deleteBlock',
+                data: { id: blockId }
+            });
+        }
+
+        this.showBlocks();
+        console.log('Block deleted offline:', blockId);
     }
 
     /**
@@ -737,6 +890,13 @@ export class LocalStateManager {
 
         if (parent && parent.data) {
             const newOrder = reorderList(parent.data.childOrder || [], block_id, before)
+
+            // Офлайн режим: перемещаем локально и добавляем в очередь
+            if (!offlineQueue.isNetworkOnline()) {
+                this.moveBlockOffline({block_id, old_parent_id, new_parent_id, childOrder: newOrder});
+                return;
+            }
+
             api.moveBlock(block_id, {new_parent_id, old_parent_id, childOrder: newOrder})
                 .then((res) => {
                     if (res.status === 200) {
@@ -746,7 +906,69 @@ export class LocalStateManager {
                         dispatch('ShowBlocks');
                     }
                 })
+                .catch((err) => {
+                    // При ошибке сети перемещаем локально
+                    if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
+                        this.moveBlockOffline({block_id, old_parent_id, new_parent_id, childOrder: newOrder});
+                    } else {
+                        console.error('Move block error:', err);
+                    }
+                })
         }
+    }
+
+    /**
+     * Перемещает блок локально в офлайн режиме
+     */
+    async moveBlockOffline({block_id, old_parent_id, new_parent_id, childOrder}) {
+        const block = this.blocks.get(block_id);
+        const oldParent = this.blocks.get(old_parent_id);
+        const newParent = this.blocks.get(new_parent_id);
+
+        if (!block || !newParent) {
+            console.error('Block or parent not found for offline move');
+            return;
+        }
+
+        // Обновляем parent_id блока
+        block.parent_id = new_parent_id;
+        block.updated_at = new Date().toISOString();
+
+        // Удаляем из старого родителя
+        if (oldParent && oldParent.children) {
+            oldParent.children = oldParent.children.filter(id => id !== block_id);
+            if (oldParent.data?.childOrder) {
+                oldParent.data.childOrder = oldParent.data.childOrder.filter(id => id !== block_id);
+            }
+            await this.saveBlock(oldParent);
+        }
+
+        // Добавляем в нового родителя
+        if (!newParent.children) newParent.children = [];
+        if (!newParent.children.includes(block_id)) {
+            newParent.children.push(block_id);
+        }
+        if (!newParent.data) newParent.data = {};
+        newParent.data.childOrder = childOrder;
+        newParent.updated_at = new Date().toISOString();
+
+        await this.saveBlock(block);
+        await this.saveBlock(newParent);
+
+        // Добавляем в очередь синхронизации
+        await offlineQueue.enqueue({
+            id: `move_${block_id}_${Date.now()}`,
+            type: 'moveBlock',
+            data: {
+                blockId: block_id,
+                oldParentId: old_parent_id,
+                newParentId: new_parent_id,
+                childOrder
+            }
+        });
+
+        dispatch('ShowBlocks');
+        console.log('Block moved offline:', block_id);
     }
 
     async loadEmptyBlocks({emptyBlocks}) {
@@ -1057,6 +1279,13 @@ export class LocalStateManager {
     }
 
     async createBlock({parentId, title}) {
+        // Проверяем сеть
+        if (!offlineQueue.isNetworkOnline()) {
+            // Офлайн режим: создаём блок локально с временным ID
+            await this.createBlockOffline({parentId, title});
+            return;
+        }
+
         try {
             const response = await api.createBlock(parentId, title);
             if (response.status === 201) {
@@ -1067,18 +1296,85 @@ export class LocalStateManager {
                 dispatch('ShowBlocks');
             }
         } catch (err) {
-            console.error(err);
+            // При ошибке сети переходим в офлайн режим
+            if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
+                await this.createBlockOffline({parentId, title});
+            } else {
+                console.error(err);
+            }
         }
     }
 
-    iframeCreate({parentId, src}) {
-        api.createBlock(parentId, '', {
+    /**
+     * Создаёт блок локально в офлайн режиме
+     * @param {Object} params
+     * @param {string} params.parentId - ID родительского блока
+     * @param {string} params.title - Заголовок блока
+     */
+    async createBlockOffline({parentId, title}) {
+        const tempId = offlineQueue.generateTempId();
+
+        // Получаем родительский блок
+        const parentBlock = this.blocks.get(parentId);
+        if (!parentBlock) {
+            console.error('Parent block not found:', parentId);
+            return;
+        }
+
+        // Создаём временный блок
+        const tempBlock = {
+            id: tempId,
+            title: title || '',
+            parent_id: parentId,
+            children: [],
+            data: {},
+            updated_at: new Date().toISOString(),
+            _isOffline: true // Метка что блок создан офлайн
+        };
+
+        // Обновляем родительский блок
+        if (!parentBlock.children) {
+            parentBlock.children = [];
+        }
+        parentBlock.children.push(tempId);
+
+        // Сохраняем оба блока локально
+        await this.saveBlock(tempBlock);
+        await this.saveBlock(parentBlock);
+
+        // Добавляем в очередь на синхронизацию
+        await offlineQueue.enqueue({
+            id: `create_${tempId}`,
+            type: 'createBlock',
+            data: {
+                tempId,
+                parentId,
+                title,
+                blockData: null
+            }
+        });
+
+        dispatch('ShowBlocks');
+        console.log('Block created offline:', tempId);
+    }
+
+    async iframeCreate({parentId, src}) {
+        const blockData = {
             view: 'iframe',
             attributes: [
                 {name: 'sandbox', value: 'allow-scripts allow-same-origin allow-forms'},
                 {name: 'src', value: src}
             ]
-        }).then(async (res) => {
+        };
+
+        // Офлайн режим
+        if (!offlineQueue.isNetworkOnline()) {
+            await this.iframeCreateOffline({parentId, src, blockData});
+            return;
+        }
+
+        try {
+            const res = await api.createBlock(parentId, '', blockData);
             if (res.status === 201) {
                 const newBlocks = res.data;
                 for (const block of newBlocks) {
@@ -1086,12 +1382,68 @@ export class LocalStateManager {
                 }
                 dispatch('ShowBlocks');
             }
-        }).catch((err) => {
-            console.error(err)
-        })
+        } catch (err) {
+            if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
+                await this.iframeCreateOffline({parentId, src, blockData});
+            } else {
+                console.error(err);
+            }
+        }
+    }
+
+    /**
+     * Создаёт iframe блок локально в офлайн режиме
+     */
+    async iframeCreateOffline({parentId, src, blockData}) {
+        const tempId = offlineQueue.generateTempId();
+
+        const parentBlock = this.blocks.get(parentId);
+        if (!parentBlock) {
+            console.error('Parent block not found:', parentId);
+            return;
+        }
+
+        // Создаём временный iframe блок
+        const tempBlock = {
+            id: tempId,
+            title: '',
+            parent_id: parentId,
+            children: [],
+            data: blockData,
+            updated_at: new Date().toISOString(),
+            _isOffline: true
+        };
+
+        // Обновляем родительский блок
+        if (!parentBlock.children) parentBlock.children = [];
+        parentBlock.children.push(tempId);
+
+        await this.saveBlock(tempBlock);
+        await this.saveBlock(parentBlock);
+
+        // Добавляем в очередь синхронизации
+        await offlineQueue.enqueue({
+            id: `create_iframe_${tempId}`,
+            type: 'createBlock',
+            data: {
+                tempId,
+                parentId,
+                title: '',
+                blockData
+            }
+        });
+
+        dispatch('ShowBlocks');
+        console.log('Iframe created offline:', tempId);
     }
 
     async pasteBlock(data) {
+        // Копирование недоступно в офлайн режиме
+        if (!offlineQueue.isNetworkOnline()) {
+            dispatch('ShowError', { message: 'Копирование блоков доступно только в онлайн режиме' });
+            return;
+        }
+
         if (data.src.length > 0) {
             try {
                 const response = await api.pasteBlock(data);
@@ -1103,12 +1455,22 @@ export class LocalStateManager {
                     dispatch('ShowBlocks');
                 }
             } catch (err) {
-                console.error(err);
+                if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
+                    dispatch('ShowError', { message: 'Копирование блоков доступно только в онлайн режиме' });
+                } else {
+                    console.error(err);
+                }
             }
         }
     }
 
     async pasteLinkBlock(data) {
+        // Создание ссылок недоступно в офлайн режиме
+        if (!offlineQueue.isNetworkOnline()) {
+            dispatch('ShowError', { message: 'Создание ссылок доступно только в онлайн режиме' });
+            return;
+        }
+
         try {
             const response = await api.pasteLinkBlock(data);
             if (response.status === 201) {
@@ -1119,7 +1481,11 @@ export class LocalStateManager {
                 dispatch('ShowBlocks');
             }
         } catch (err) {
-            console.error(err);
+            if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
+                dispatch('ShowError', { message: 'Создание ссылок доступно только в онлайн режиме' });
+            } else {
+                console.error(err);
+            }
         }
     }
 
@@ -1193,6 +1559,29 @@ export class LocalStateManager {
     }
 
     async textUpdate({blockId, text}) {
+        // Сначала обновляем локально для мгновенной обратной связи
+        const block = this.blocks.get(blockId);
+        if (block) {
+            if (!block.data) block.data = {};
+            block.data.text = text;
+            block.updated_at = new Date().toISOString();
+            await this.saveBlock(block);
+        }
+
+        // Проверяем сеть
+        if (!offlineQueue.isNetworkOnline()) {
+            await offlineQueue.enqueue({
+                id: `update_text_${blockId}_${Date.now()}`,
+                type: 'updateBlock',
+                data: {
+                    id: blockId,
+                    blockData: {data: {text}}
+                }
+            });
+            dispatch('ShowBlocks');
+            return;
+        }
+
         try {
             const response = await api.updateBlock(blockId, {data: {text}});
             if (response.status === 200) {
@@ -1201,7 +1590,19 @@ export class LocalStateManager {
                 dispatch('ShowBlocks');
             }
         } catch (err) {
-            console.error(err);
+            // При ошибке сети добавляем в очередь
+            if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
+                await offlineQueue.enqueue({
+                    id: `update_text_${blockId}_${Date.now()}`,
+                    type: 'updateBlock',
+                    data: {
+                        id: blockId,
+                        blockData: {data: {text}}
+                    }
+                });
+            } else {
+                console.error(err);
+            }
         }
     }
 
@@ -1213,6 +1614,28 @@ export class LocalStateManager {
     }
 
     async titleUpdate({blockId, title}) {
+        // Сначала обновляем локально для мгновенной обратной связи
+        const block = this.blocks.get(blockId);
+        if (block) {
+            block.title = title;
+            block.updated_at = new Date().toISOString();
+            await this.saveBlock(block);
+        }
+
+        // Проверяем сеть
+        if (!offlineQueue.isNetworkOnline()) {
+            await offlineQueue.enqueue({
+                id: `update_title_${blockId}_${Date.now()}`,
+                type: 'updateBlock',
+                data: {
+                    id: blockId,
+                    blockData: {title}
+                }
+            });
+            dispatch('ShowBlocks');
+            return;
+        }
+
         try {
             const response = await api.updateBlock(blockId, {title});
             if (response.status === 200) {
@@ -1221,7 +1644,19 @@ export class LocalStateManager {
                 dispatch('ShowBlocks');
             }
         } catch (err) {
-            console.error(err);
+            // При ошибке сети добавляем в очередь
+            if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
+                await offlineQueue.enqueue({
+                    id: `update_title_${blockId}_${Date.now()}`,
+                    type: 'updateBlock',
+                    data: {
+                        id: blockId,
+                        blockData: {title}
+                    }
+                });
+            } else {
+                console.error(err);
+            }
         }
     }
 
@@ -1246,6 +1681,29 @@ export class LocalStateManager {
     }
 
     async hueUpdate({blockId, hue}) {
+        // Сначала обновляем локально для мгновенной обратной связи
+        const block = this.blocks.get(blockId);
+        if (block) {
+            if (!block.data) block.data = {};
+            block.data.color = hue;
+            block.updated_at = new Date().toISOString();
+            await this.saveBlock(block);
+        }
+
+        // Проверяем сеть
+        if (!offlineQueue.isNetworkOnline()) {
+            await offlineQueue.enqueue({
+                id: `update_color_${blockId}_${Date.now()}`,
+                type: 'updateBlock',
+                data: {
+                    id: blockId,
+                    blockData: {data: {color: hue}}
+                }
+            });
+            dispatch('ShowBlocks');
+            return;
+        }
+
         try {
             const response = await api.updateBlock(blockId, {data: {color: hue}});
             if (response.status === 200) {
@@ -1254,7 +1712,19 @@ export class LocalStateManager {
                 dispatch('ShowBlocks');
             }
         } catch (err) {
-            console.error(err);
+            // При ошибке сети добавляем в очередь
+            if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
+                await offlineQueue.enqueue({
+                    id: `update_color_${blockId}_${Date.now()}`,
+                    type: 'updateBlock',
+                    data: {
+                        id: blockId,
+                        blockData: {data: {color: hue}}
+                    }
+                });
+            } else {
+                console.error(err);
+            }
         }
     }
 
@@ -1268,61 +1738,115 @@ export class LocalStateManager {
                                  endpoint,
                                  endpointStyle
                              }) {
+        const sourceBlock = this.blocks.get(sourceId);
+        if (!sourceBlock) {
+            console.error('Source block not found:', sourceId);
+            return;
+        }
+        if (!sourceBlock.data) sourceBlock.data = {};
+        if (!sourceBlock.data.connections) sourceBlock.data.connections = [];
+
+        const connectionData = {
+            sourceId,
+            targetId,
+            connector,
+            paintStyle,
+            overlays,
+            anchors,
+            endpoint,
+            endpointStyle
+        };
+
+        const existingConnection = sourceBlock.data.connections.find(
+            connection => connection.sourceId === sourceId && connection.targetId === targetId
+        );
+
+        if (existingConnection) {
+            Object.assign(existingConnection, connectionData);
+        } else {
+            sourceBlock.data.connections.push(connectionData);
+        }
+
+        sourceBlock.updated_at = new Date().toISOString();
+        await this.saveBlock(sourceBlock);
+        dispatch('ShowBlocks');
+
+        // Офлайн режим: добавляем в очередь
+        if (!offlineQueue.isNetworkOnline()) {
+            await offlineQueue.enqueue({
+                id: `add_connection_${sourceId}_${targetId}_${Date.now()}`,
+                type: 'updateBlock',
+                data: {
+                    id: sourceId,
+                    blockData: {data: sourceBlock.data}
+                }
+            });
+            return;
+        }
+
         try {
-            const sourceBlock = this.blocks.get(sourceId);
-            if (!sourceBlock.data.connections) sourceBlock.data.connections = [];
-
-            const existingConnection = sourceBlock.data.connections.find(
-                connection => connection.sourceId === sourceId && connection.targetId === targetId
-            );
-
-            if (existingConnection) {
-                // Обновляем все свойства соединения
-                Object.assign(existingConnection, {
-                    connector,
-                    paintStyle,
-                    overlays,
-                    anchors,
-                    endpoint,
-                    endpointStyle
-                });
-            } else {
-                // Добавляем новое соединение
-                sourceBlock.data.connections.push({
-                    sourceId,
-                    targetId,
-                    connector,
-                    paintStyle,
-                    overlays,
-                    anchors,
-                    endpoint,
-                    endpointStyle
-                });
-            }
-
             const response = await api.updateBlock(sourceId, {data: sourceBlock.data});
             if (response.status === 200) {
-                const updatedBlock = response.data;
-                await this.saveBlock(updatedBlock);
-                dispatch('ShowBlocks');
+                await this.saveBlock(response.data);
             }
         } catch (err) {
-            console.error(err);
+            if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
+                await offlineQueue.enqueue({
+                    id: `add_connection_${sourceId}_${targetId}_${Date.now()}`,
+                    type: 'updateBlock',
+                    data: {
+                        id: sourceId,
+                        blockData: {data: sourceBlock.data}
+                    }
+                });
+            } else {
+                console.error(err);
+            }
         }
     }
 
     async removeConnectionBlock({sourceId, targetId}) {
-        try {
-            const sourceBlock = this.blocks.get(sourceId);
-            sourceBlock.data.connections = sourceBlock.data.connections.filter((el) => el.targetId !== targetId);
+        const sourceBlock = this.blocks.get(sourceId);
+        if (!sourceBlock || !sourceBlock.data?.connections) {
+            console.error('Source block or connections not found:', sourceId);
+            return;
+        }
 
+        sourceBlock.data.connections = sourceBlock.data.connections.filter((el) => el.targetId !== targetId);
+        sourceBlock.updated_at = new Date().toISOString();
+        await this.saveBlock(sourceBlock);
+
+        // Офлайн режим: добавляем в очередь
+        if (!offlineQueue.isNetworkOnline()) {
+            await offlineQueue.enqueue({
+                id: `remove_connection_${sourceId}_${targetId}_${Date.now()}`,
+                type: 'updateBlock',
+                data: {
+                    id: sourceId,
+                    blockData: {data: sourceBlock.data}
+                }
+            });
+            return;
+        }
+
+        try {
             const response = await api.updateBlock(sourceId, {data: sourceBlock.data});
             if (response.status === 200) {
-                const updatedBlock = response.data;
-                await this.saveBlock(updatedBlock);
+                await this.saveBlock(response.data);
             }
         } catch (err) {
-            console.error(err);
+            if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
+                await offlineQueue.enqueue({
+                    id: `remove_connection_${sourceId}_${targetId}_${Date.now()}`,
+                    type: 'updateBlock',
+                    data: {
+                        id: sourceId,
+                        blockData: {data: sourceBlock.data}
+                    }
+                });
+            } else {
+                console.error(err);
+            }
         }
     }
 

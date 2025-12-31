@@ -81,6 +81,9 @@ class StatusIndicators {
                 this.setStatus('api', 'error');
                 this.setStatus('ws', 'error');
                 this.setStatus('llm', 'error');
+            } else {
+                // При восстановлении сети перепроверяем статусы
+                this._runInitialChecks();
             }
         });
 
