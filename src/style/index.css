@@ -344,16 +344,6 @@ th {
 }
 
 
-.diagram-inputs {
-    position: absolute;
-    top: 56px;
-    right: 10px;
-    display: flex;
-    flex-direction: row;
-    gap: 10px;
-    align-items: center;
-    z-index: 1000
-}
 
 .diagram-btn {
     background-color: white;
@@ -372,10 +362,6 @@ th {
 @media (max-width: 600px) {
     .fas-lg {
         font-size: 1em;
-    }
-    .diagram-inputs {
-        flex-direction: column;
-        background-color: white;
     }
 }
 

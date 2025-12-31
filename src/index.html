@@ -2,26 +2,74 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <head>
-        <script>
-            document.addEventListener('DOMContentLoaded', function () {
-                const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-                const meta = document.createElement('meta');
-                meta.name = 'viewport';
-                if (isMobile) {
-                    // Для мобильных: уменьшаем масштаб, viewport-fit=cover для iOS safe-area
-                    meta.content = 'width=device-width, initial-scale=0.75, maximum-scale=1.0, viewport-fit=cover';
-                } else {
-                    // Для десктопов: стандартная вёрстка без масштабирования
-                    meta.content = 'width=device-width, initial-scale=1.0';
-                }
-                document.head.appendChild(meta);
-            });
-        </script>
-    </head>
     <title>omniMap</title>
+    <style>
+        /* Inline стили для загрузочного экрана - предотвращают FOUC */
+        #app-loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 99999;
+            transition: opacity 0.3s ease-out;
+        }
+        #app-loader.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .loader-spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid #e0e0e0;
+            border-top-color: #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        .loader-text {
+            margin-top: 16px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            color: #666;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        /* Скрываем основной контент до загрузки */
+        .layout {
+            opacity: 0;
+            transition: opacity 0.3s ease-in;
+        }
+        .layout.loaded {
+            opacity: 1;
+        }
+    </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+            const meta = document.createElement('meta');
+            meta.name = 'viewport';
+            if (isMobile) {
+                meta.content = 'width=device-width, initial-scale=0.75, maximum-scale=1.0, viewport-fit=cover';
+            } else {
+                meta.content = 'width=device-width, initial-scale=1.0';
+            }
+            document.head.appendChild(meta);
+        });
+    </script>
 </head>
 <body>
+
+<!-- Загрузочный экран -->
+<div id="app-loader">
+    <div class="loader-spinner"></div>
+    <div class="loader-text">Загрузка...</div>
+</div>
 
 <main class="layout">
     <div class="top-navigation" id="topSidebar">
@@ -86,12 +134,7 @@
 </div>
 
 <div class="diagram-inputs hidden" id="diagram-inputs">
-    <label class="hidden">Rows
-        <input id="diagramRow" type="number" max="300" min="2">
-    </label>
-    <label class="hidden">Cols
-        <input id="diagramCol" type="number" max="500" min="2">
-    </label>
+
 
     <label>Connections
         <input type="checkbox" id="CerateConnections" name="create" value="create">

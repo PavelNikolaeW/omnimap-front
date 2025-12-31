@@ -215,7 +215,7 @@
 /*Окно редактирования*/
 /* styles.css */
 .hidden {
-    display: none;
+    display: none !important;
 }
 
 .resize-edit-window {

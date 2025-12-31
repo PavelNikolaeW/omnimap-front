@@ -67,6 +67,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 /**
+ * Скрывает загрузочный экран и показывает основной контент
+ */
+function hideLoader() {
+    const loader = document.getElementById('app-loader');
+    const layout = document.querySelector('.layout');
+
+    if (loader) {
+        loader.classList.add('hidden');
+        // Удаляем loader из DOM после анимации
+        setTimeout(() => loader.remove(), 300);
+    }
+
+    if (layout) {
+        layout.classList.add('loaded');
+    }
+}
+
+/**
  * Быстрая инициализация приложения
  * Сразу рендерит данные из localforage без блокирующего экрана загрузки
  */
@@ -103,6 +121,9 @@ async function fastInitialization() {
 
     // Инициализируем статус-индикаторы после того как интерфейс готов
     statusIndicators.init();
+
+    // Скрываем загрузочный экран после полной инициализации
+    hideLoader();
 }
 
 

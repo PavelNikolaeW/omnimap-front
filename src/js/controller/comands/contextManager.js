@@ -67,7 +67,14 @@ export class ContextManager {
     }
 
     rotationElements({path, activeId}) {
-        if (!activeId) activeId = this.blockElement?.id.split('*')[0]
+        // Если есть сохранённый ID для восстановления выделения (например при перемещении стрелками),
+        // используем его вместо стандартной логики
+        if (this._preserveSelectionId) {
+            activeId = this._preserveSelectionId
+        } else if (!activeId) {
+            activeId = this.blockElement?.id.split('*')[0]
+        }
+
         this.blockElement = undefined
         this.blockLinkElement = undefined
 
@@ -463,6 +470,21 @@ export function setContextManager(instance) {
 }
 
 export const contextManager = {
-    getContext: () => contextManagerInstance?.getContext() || {},
+    /**
+     * Получить контекст текущего состояния редактора
+     * @returns {Object} Объект с текущим состоянием
+     */
+    getContext: () => {
+        if (!contextManagerInstance) return {};
+        return {
+            blockId: contextManagerInstance.blockElement?.id?.split('*').pop(),
+            blockElement: contextManagerInstance.blockElement,
+            blockLinkElement: contextManagerInstance.blockLinkElement,
+            blockLinkId: contextManagerInstance.blockLinkId,
+            selectedBlocks: contextManagerInstance.getSelectedBlockIds(),
+            mode: contextManagerInstance.mode,
+            cmdId: contextManagerInstance.cmdId
+        };
+    },
     getInstance: () => contextManagerInstance
 };
