@@ -15,6 +15,9 @@ import {treeValidator} from "./treeValidator";
  * @returns {string} Экранированная строка
  */
 function escapeRegExp(string) {
+    if (typeof string !== 'string') {
+        return String(string ?? '');
+    }
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
@@ -124,6 +127,10 @@ export class LocalStateManager {
             this.updateCustomGridBlock(e.detail);
         });
 
+        window.addEventListener('UpdateBlockStyles', (e) => {
+            this.updateBlockStyles(e.detail);
+        });
+
         window.addEventListener('CreateBlock', (e) => {
             this.createBlock(e.detail);
         });
@@ -147,6 +154,15 @@ export class LocalStateManager {
             if (window.location.search || window.location.hash) {
                 window.history.replaceState({}, '', window.location.pathname);
             }
+
+            // Очищаем данные текущего пользователя из памяти
+            this.blocks.clear();
+            this.currentUser = null;
+            this.currentTree = null;
+            this.path = [];
+
+            // Очищаем currentTree из localStorage чтобы не показывать блоки предыдущего пользователя
+            await localforage.removeItem('currentTree');
 
             dispatch('InitAnonimUser');
 
@@ -1124,6 +1140,36 @@ export class LocalStateManager {
                 }
             } catch (err) {
                 console.error(err);
+            }
+        }, 1000);
+    }
+
+    /**
+     * Обновить кастомные стили блока
+     * @param {string} blockId - ID блока
+     * @param {Object} customStyles - Объект стилей (background, borderColor, border, shape, shadow)
+     */
+    async updateBlockStyles({blockId, customStyles}) {
+        const block = await this.blockRepository.loadBlock(blockId);
+        if (!block) {
+            console.error(`Block ${blockId} not found`);
+            return;
+        }
+
+        block.data.customStyles = customStyles;
+        await this.saveBlock(block);
+        dispatch('ShowBlocks');
+
+        // Debounced API call
+        if (this.debounceTimer) clearTimeout(this.debounceTimer);
+        this.debounceTimer = setTimeout(async () => {
+            try {
+                const response = await api.updateBlock(blockId, { data: { customStyles } });
+                if (response.status === 200) {
+                    await this.saveBlock(response.data);
+                }
+            } catch (err) {
+                console.error('Failed to update block styles:', err);
             }
         }, 1000);
     }

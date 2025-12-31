@@ -31,8 +31,11 @@ export class NoteEditor {
         this.blockId = blockId;
         this.ctx = ctx;
 
+        // Предобработка HTML: сохраняем <br> между блочными элементами
+        const preprocessedHtml = this._preprocessHtmlForTurndown(html);
+
         // Конвертируем HTML в Markdown и нормализуем
-        let markdown = this.turndownService.turndown(html);
+        let markdown = this.turndownService.turndown(preprocessedHtml);
         markdown = this._normalizeMarkdown(markdown);
 
         // Очистим контейнер и разметим UI
@@ -112,13 +115,16 @@ export class NoteEditor {
                 if (node.nodeName === 'P' || node.nodeName === 'DIV') {
                     return '\n\n';
                 }
+                // Для br вне параграфа — тоже перенос
+                if (node.nodeName === 'BR') {
+                    return '\n';
+                }
                 return '';
             },
         });
         this.turndownService.use(gfm);
 
-        // Правило для <br> тегов — конвертируем в простой перенос строки
-        // marked с breaks:true конвертирует \n обратно в <br>
+        // Правило для <br> тегов — конвертируем в перенос строки
         this.turndownService.addRule('lineBreaks', {
             filter: 'br',
             replacement: () => '\n',
@@ -145,7 +151,7 @@ export class NoteEditor {
             replacement: (content, node) => {
                 // Считаем количество <br> и конвертируем в пустые строки
                 const brCount = node.querySelectorAll('br').length;
-                return '\n'.repeat(brCount + 1);
+                return '\n'.repeat(brCount + 2); // +2 для параграфа
             },
         });
 
@@ -157,7 +163,7 @@ export class NoteEditor {
                 const text = node.textContent || '';
                 return text.trim() === '\u00A0' || text.trim() === '';
             },
-            replacement: () => '\n',
+            replacement: () => '\n\n',
         });
 
         // Правило для block-ссылок
@@ -290,7 +296,6 @@ export class NoteEditor {
         addBtn('Горизонтальная линия', 'fa fa-minus', () => this._insertText('\n\n---\n\n'));
 
         addBtn('Превью', 'fa fa-eye', () => this._setPreviewMode('preview'));
-        addBtn('Side-by-side', 'fa fa-columns', () => this._setPreviewMode('side-by-side'));
 
         addBtn('Справка', 'fa fa-circle-question', () => {
             alert(
@@ -307,7 +312,7 @@ export class NoteEditor {
     }
 
     // ---------- Превью ----------
-    // Режимы: 'edit' (только редактор), 'preview' (адаптивно), 'side-by-side' (всегда сбоку)
+    // Режимы: 'edit' (только редактор), 'preview' (показываем превью)
     _currentPreviewMode = 'edit';
 
     _setPreviewMode(mode) {
@@ -317,18 +322,17 @@ export class NoteEditor {
         }
         this._currentPreviewMode = mode;
 
-        const showPreview = mode !== 'edit';
+        const showPreview = mode === 'preview';
 
         if (showPreview) {
             this._updatePreviewContent();
         }
 
         this.previewEl.style.display = showPreview ? 'block' : 'none';
-        this.container.classList.toggle('preview-active', mode === 'preview');
-        this.container.classList.toggle('side-by-side', mode === 'side-by-side');
+        this.container.classList.toggle('preview-active', showPreview);
 
-        // Обновляем активное состояние кнопок
-        this._updatePreviewButtons(mode);
+        // Обновляем активное состояние кнопки
+        this._updatePreviewButton(showPreview);
     }
 
     _updatePreviewContent() {
@@ -340,16 +344,10 @@ export class NoteEditor {
         this.previewEl.innerHTML = this._highlightHtml(sanitized);
     }
 
-    _updatePreviewButtons(mode) {
-        // Находим кнопки превью и side-by-side
+    _updatePreviewButton(isActive) {
         const eyeBtn = this.toolbarEl?.querySelector('.fa-eye');
-        const columnsBtn = this.toolbarEl?.querySelector('.fa-columns');
-
         if (eyeBtn) {
-            eyeBtn.classList.toggle('active', mode === 'preview');
-        }
-        if (columnsBtn) {
-            columnsBtn.classList.toggle('active', mode === 'side-by-side');
+            eyeBtn.classList.toggle('active', isActive);
         }
     }
 
@@ -461,12 +459,54 @@ export class NoteEditor {
         }, 0);
     }
 
-    // ---------- Нормализация ----------
+    // ---------- Предобработка и нормализация ----------
+
+    /**
+     * Предобработка HTML перед конвертацией в Markdown.
+     * Turndown игнорирует <br> между блочными элементами, поэтому
+     * заменяем их на специальные параграфы-маркеры.
+     * Используем BLANKLINE (без подчёркиваний) чтобы turndown не экранировал.
+     */
+    _preprocessHtmlForTurndown(html) {
+        if (!html) return '';
+
+        let processed = html;
+
+        // Сначала нормализуем: убираем whitespace между <br> тегами
+        // чтобы <br>\n<br> стало <br><br>
+        processed = processed.replace(/(<br\s*\/?>)\s*(?=<br)/gi, '$1');
+
+        // Паттерн: </блочный_элемент> + несколько <br> + <блочный_элемент>
+        // Каждый <br> = дополнительная пустая строка
+        processed = processed.replace(
+            /(<\/(?:p|div|h[1-6]|ul|ol|li|blockquote|pre)>)\s*((?:<br\s*\/?>)+)\s*(<(?:p|div|h[1-6]|ul|ol|li|blockquote|pre)[^>]*>)/gi,
+            (match, closeTag, brs, openTag) => {
+                const brCount = (brs.match(/<br\s*\/?>/gi) || []).length;
+                // Каждый <br> становится маркером BLANKLINE в отдельном параграфе
+                const markers = Array(brCount).fill('<p>BLANKLINE</p>').join('');
+                return `${closeTag}${markers}${openTag}`;
+            }
+        );
+
+        // Также обрабатываем <br> в начале документа перед блочным элементом
+        processed = processed.replace(
+            /^(\s*)((?:<br\s*\/?>)+)\s*(<(?:p|div|h[1-6]|ul|ol|li|blockquote|pre)[^>]*>)/gi,
+            (match, space, brs, openTag) => {
+                const brCount = (brs.match(/<br\s*\/?>/gi) || []).length;
+                const markers = Array(brCount).fill('<p>BLANKLINE</p>').join('');
+                return `${markers}${openTag}`;
+            }
+        );
+
+        return processed;
+    }
+
     /**
      * Нормализует markdown текст:
      * - Сохраняет структуру code блоков
      * - Убирает trailing whitespace (включая markdown line breaks "  \n" - не нужны с breaks:true)
      * - Нормализует множественные пустые строки
+     * - Конвертирует маркеры __BLANK_LINE__ в пустые строки
      */
     _normalizeMarkdown(text) {
         if (!text) return '';
@@ -476,6 +516,16 @@ export class NoteEditor {
         let normalized = text.replace(/```[\s\S]*?```/g, (match) => {
             codeBlocks.push(match);
             return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
+        });
+
+        // Конвертируем последовательности BLANKLINE маркеров
+        // Turndown создаёт: Para1\n\nBLANKLINE\n\nBLANKLINE\n\nPara2
+        // Нам нужно: Para1 + \n\n (separator) + N blank lines + Para2
+        // Где N = количество BLANKLINE маркеров
+        normalized = normalized.replace(/(\n\n)((?:BLANKLINE\n\n)+)/g, (match, sep, markers) => {
+            const count = (markers.match(/BLANKLINE/g) || []).length;
+            // \n\n = обычный параграф, + count дополнительных переносов для пустых строк
+            return '\n\n' + '\n'.repeat(count);
         });
 
         // Убираем все trailing whitespace (markdown line breaks не нужны, т.к. breaks:true)
@@ -512,8 +562,9 @@ export class NoteEditor {
             // \n\n\n = 1 параграф + 1 пустая строка
             const extraLines = match.length - 2;
             // Используем &nbsp; для создания "непустых" параграфов, которые станут <p>&nbsp;</p>
-            const emptyParas = '\n\n&nbsp;\n'.repeat(extraLines);
-            return '\n\n' + emptyParas;
+            // Каждый маркер должен быть отдельным параграфом: \n\n&nbsp;\n\n
+            const emptyParas = Array(extraLines).fill('&nbsp;').join('\n\n');
+            return '\n\n' + emptyParas + '\n\n';
         });
 
         // Восстанавливаем code блоки

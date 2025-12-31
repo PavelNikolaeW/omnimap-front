@@ -444,6 +444,7 @@ let chatPanelInstance = null;
 export function openChatPanel() {
     if (chatPanelInstance) {
         chatPanelInstance.close();
+        chatPanelInstance = null;
     }
     chatPanelInstance = new ChatPanel();
     return chatPanelInstance;
@@ -454,4 +455,9 @@ export function closeChatPanel() {
         chatPanelInstance.close();
         chatPanelInstance = null;
     }
+}
+
+// Сброс инстанса при закрытии попапа (вызывается из метода close класса Popup)
+export function resetChatPanelInstance() {
+    chatPanelInstance = null;
 }

@@ -9,8 +9,8 @@
                 const meta = document.createElement('meta');
                 meta.name = 'viewport';
                 if (isMobile) {
-                    // Для мобильных: уменьшаем масштаб, например initial-scale=0.7
-                    meta.content = 'width=device-width, initial-scale=0.75, maximum-scale=1.0';
+                    // Для мобильных: уменьшаем масштаб, viewport-fit=cover для iOS safe-area
+                    meta.content = 'width=device-width, initial-scale=0.75, maximum-scale=1.0, viewport-fit=cover';
                 } else {
                     // Для десктопов: стандартная вёрстка без масштабирования
                     meta.content = 'width=device-width, initial-scale=1.0';
@@ -86,12 +86,7 @@
 </div>
 
 <div class="diagram-inputs hidden" id="diagram-inputs">
-    <label class="hidden">Rows
-        <input id="diagramRow" type="number" max="300" min="2">
-    </label>
-    <label class="hidden">Cols
-        <input id="diagramCol" type="number" max="500" min="2">
-    </label>
+
 
     <label>Connections
         <input type="checkbox" id="CerateConnections" name="create" value="create">
@@ -107,8 +102,130 @@
         <option value="l">l</option>
     </select>
 
-    <button class="diagram-btn fas fa-plus-square fas-lg" id="addDiagram"></button>
-    <button class="diagram-btn fas fa-rotate fas-lg" id="reset"></button>
+    <button class="diagram-btn fas fa-plus-square fas-lg" id="addDiagram" title="Add block"></button>
+    <button class="diagram-btn fas fa-palette fas-lg" id="openStylePanel" title="Block styles"></button>
+    <button class="diagram-btn fas fa-bezier-curve fas-lg" id="openConnectionPanel" title="Connections"></button>
+    <button class="diagram-btn fas fa-rotate fas-lg" id="reset" title="Reset grid"></button>
+</div>
+
+<!-- Block Style Panel -->
+<div class="block-style-panel" id="blockStylePanel">
+    <h4>Block Style</h4>
+    <div class="style-row">
+        <label>Background</label>
+        <input type="color" id="styleBackground" value="#ffffff">
+    </div>
+    <div class="style-row">
+        <label>Border Color</label>
+        <input type="color" id="styleBorderColor" value="#e5e7eb">
+    </div>
+    <div class="style-row">
+        <label>Border</label>
+        <select id="styleBorder">
+            <option value="">None</option>
+            <option value="thin">Thin</option>
+            <option value="medium">Medium</option>
+            <option value="thick">Thick</option>
+            <option value="dashed">Dashed</option>
+            <option value="dotted">Dotted</option>
+        </select>
+    </div>
+    <div class="style-row">
+        <label>Shape</label>
+        <select id="styleShape">
+            <option value="">Default</option>
+            <option value="rounded">Rounded</option>
+            <option value="pill">Pill</option>
+            <option value="diamond">Diamond</option>
+            <option value="hexagon">Hexagon</option>
+        </select>
+    </div>
+    <div class="style-row">
+        <label>Shadow</label>
+        <select id="styleShadow">
+            <option value="">None</option>
+            <option value="sm">Small</option>
+            <option value="md">Medium</option>
+            <option value="lg">Large</option>
+            <option value="xl">Extra Large</option>
+        </select>
+    </div>
+    <div class="style-presets">
+        <div class="style-preset style-preset-default" data-preset="default" title="Default"></div>
+        <div class="style-preset style-preset-blue" data-preset="blue" title="Blue"></div>
+        <div class="style-preset style-preset-green" data-preset="green" title="Green"></div>
+        <div class="style-preset style-preset-yellow" data-preset="yellow" title="Yellow"></div>
+        <div class="style-preset style-preset-red" data-preset="red" title="Red"></div>
+        <div class="style-preset style-preset-purple" data-preset="purple" title="Purple"></div>
+        <div class="style-preset style-preset-pink" data-preset="pink" title="Pink"></div>
+        <div class="style-preset style-preset-gray" data-preset="gray" title="Gray"></div>
+    </div>
+    <button class="diagram-btn" id="applyBlockStyle" style="width: 100%; margin-top: 12px;">Apply Style</button>
+</div>
+
+<!-- Connection Style Panel -->
+<div class="block-style-panel" id="connectionPanel">
+    <h4>Connection Style</h4>
+    <div class="style-row">
+        <label>Type</label>
+        <select id="connectorType">
+            <option value="Flowchart">Flowchart</option>
+            <option value="Bezier">Bezier</option>
+            <option value="Straight">Straight</option>
+            <option value="StateMachine">State Machine</option>
+        </select>
+    </div>
+    <div class="style-row">
+        <label>Color</label>
+        <input type="color" id="connectorColor" value="#516077">
+    </div>
+    <div class="style-row">
+        <label>Width</label>
+        <input type="range" id="connectorWidth" min="1" max="6" value="2">
+    </div>
+    <div class="style-row">
+        <label>Source Anchor</label>
+        <select id="connectorSourceAnchor">
+            <option value="Continuous">Auto</option>
+            <option value="Top">Top</option>
+            <option value="Bottom">Bottom</option>
+            <option value="Left">Left</option>
+            <option value="Right">Right</option>
+            <option value="TopLeft">Top Left</option>
+            <option value="TopRight">Top Right</option>
+            <option value="BottomLeft">Bottom Left</option>
+            <option value="BottomRight">Bottom Right</option>
+            <option value="Center">Center</option>
+        </select>
+    </div>
+    <div class="style-row">
+        <label>Target Anchor</label>
+        <select id="connectorTargetAnchor">
+            <option value="Continuous">Auto</option>
+            <option value="Top">Top</option>
+            <option value="Bottom">Bottom</option>
+            <option value="Left">Left</option>
+            <option value="Right">Right</option>
+            <option value="TopLeft">Top Left</option>
+            <option value="TopRight">Top Right</option>
+            <option value="BottomLeft">Bottom Left</option>
+            <option value="BottomRight">Bottom Right</option>
+            <option value="Center">Center</option>
+        </select>
+    </div>
+    <div class="style-row">
+        <label>Arrow Start</label>
+        <input type="checkbox" id="connectorArrowStart">
+    </div>
+    <div class="style-row">
+        <label>Arrow End</label>
+        <input type="checkbox" id="connectorArrowEnd" checked>
+    </div>
+    <div class="style-row">
+        <label>Dashed</label>
+        <input type="checkbox" id="connectorDashed">
+    </div>
+    <button class="diagram-btn" id="createConnection" style="width: 100%; margin-top: 12px;">Create Connection</button>
 </div>
 
 <!-- Fullscreen chat container - React will mount here -->

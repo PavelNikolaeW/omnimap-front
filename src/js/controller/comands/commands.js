@@ -15,9 +15,7 @@ import {
 import {popupsCommands} from "./popupsCmd";
 import {NoteEditor} from "../noteEditor";
 import Cookies from "js-cookie";
-import { openChatPanel } from "../popups/chatPanel";
-// LLM_GATEWAY_URL and APP_BACKEND_URL are injected by webpack DefinePlugin
-/* global LLM_GATEWAY_URL, APP_BACKEND_URL */
+import { openUnifiedChat } from "../popups/unifiedChatPanel";
 
 // Actions
 import {
@@ -156,11 +154,6 @@ export const commands = [
             if (ctx.mode === MODES.DIAGRAM) {
                 ctx.diagramUtils.hiddenInputs()
             }
-            if (ctx.mode === MODES.CHAT) {
-                if (window.LLMFullscreenChat) {
-                    window.LLMFullscreenChat.close();
-                }
-            }
             ctx.mode = MODES.NORMAL
             ctx.event = undefined
             ctx.blockId = undefined
@@ -197,18 +190,6 @@ export const commands = [
         }
     },
     {
-        id: 'chatClose',
-        mode: ['chat'],
-        defaultHotkey: 'shift+h',
-        description: 'Закрыть чат',
-        execute(ctx) {
-            if (window.LLMFullscreenChat) {
-                window.LLMFullscreenChat.close();
-            }
-            ctx.mode = MODES.NORMAL;
-        }
-    },
-    {
         id: 'unifiedChat',
         mode: ['normal'],
         btn: {
@@ -219,45 +200,10 @@ export const commands = [
         defaultHotkey: 'shift+m',
         description: 'Открыть чаты (личные, группы, AI)',
         execute(ctx) {
-            const token = Cookies.get('access')
-            if (window.LLMFullscreenChat) {
-                if (!window.LLMFullscreenChat.isInitialized()) {
-                    window.LLMFullscreenChat.init({
-                        apiUrl: LLM_GATEWAY_URL,
-                        backendUrl: APP_BACKEND_URL,
-                        token: token,
-                        initialTab: 'dm',
-                        onClose: () => { ctx.mode = MODES.NORMAL }
-                    });
-                }
-                window.LLMFullscreenChat.open();
-                ctx.mode = MODES.CHAT;
-            }
+            openUnifiedChat();
         },
         btnExec(ctx) {
             this.execute(ctx)
-        }
-    },
-    {
-        id: 'openAiChat',
-        mode: ['normal'],
-        defaultHotkey: 'shift+h',
-        description: 'Открыть AI чат',
-        execute(ctx) {
-            const token = Cookies.get('access')
-            if (window.LLMFullscreenChat) {
-                if (!window.LLMFullscreenChat.isInitialized()) {
-                    window.LLMFullscreenChat.init({
-                        apiUrl: LLM_GATEWAY_URL,
-                        backendUrl: APP_BACKEND_URL,
-                        token: token,
-                        initialTab: 'ai',
-                        onClose: () => { ctx.mode = MODES.NORMAL }
-                    });
-                }
-                window.LLMFullscreenChat.open({ tab: 'ai' });
-                ctx.mode = MODES.CHAT;
-            }
         }
     },
     {
@@ -627,7 +573,7 @@ export const commands = [
     },
     {
         id: "connectBlock",
-        mode: ['normal', 'connectToBlock'],
+        mode: ['normal', 'connectToBlock', 'diagram'],
         btn: {
             containerId: 'control-panel',
             label: 'Добавить соединение между блоками',
@@ -636,7 +582,7 @@ export const commands = [
         defaultHotkey: 'a',
         description: 'Создать стрелочку от блока до другого блока',
         execute(ctx) {
-            if (ctx.mode === MODES.NORMAL && ctx.blockElement) {
+            if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && ctx.blockElement) {
                 ctx.mode = MODES.CONNECT_TO_BLOCK
                 let sourceEl = ctx.blockElement
                 if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
@@ -662,7 +608,7 @@ export const commands = [
     },
     {
         id: "deleteConnectBlock",
-        mode: ['normal'],
+        mode: ['normal', 'diagram'],
         btn: {
             containerId: 'control-panel',
             label: 'Удалить соединение между блоками',
@@ -680,7 +626,7 @@ export const commands = [
     },
     {
         id: "connectDashed",
-        mode: ['normal', 'connectToBlock'],
+        mode: ['normal', 'connectToBlock', 'diagram'],
         btn: {
             containerId: 'control-panel',
             label: 'Пунктирное соединение',
@@ -689,7 +635,7 @@ export const commands = [
         defaultHotkey: '',
         description: 'Создать пунктирное соединение между блоками',
         execute(ctx) {
-            if (ctx.mode === MODES.NORMAL && ctx.blockElement) {
+            if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && ctx.blockElement) {
                 ctx.mode = MODES.CONNECT_TO_BLOCK
                 ctx.connectionType = 'dashed'
                 let sourceEl = ctx.blockElement
@@ -717,7 +663,7 @@ export const commands = [
     },
     {
         id: "connectDouble",
-        mode: ['normal', 'connectToBlock'],
+        mode: ['normal', 'connectToBlock', 'diagram'],
         btn: {
             containerId: 'control-panel',
             label: 'Двустороннее соединение',
@@ -726,7 +672,7 @@ export const commands = [
         defaultHotkey: '',
         description: 'Создать двустороннее соединение между блоками',
         execute(ctx) {
-            if (ctx.mode === MODES.NORMAL && ctx.blockElement) {
+            if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && ctx.blockElement) {
                 ctx.mode = MODES.CONNECT_TO_BLOCK
                 ctx.connectionType = 'double'
                 let sourceEl = ctx.blockElement
@@ -824,4 +770,237 @@ export const commands = [
     ...colorCommands,
     ...layoutCommands,
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DIAGRAM COMMANDS - команды для редактирования диаграмм
+    // ═══════════════════════════════════════════════════════════════════════════
+    {
+        id: 'diagramGridColPlus',
+        mode: ['normal', 'diagram'],
+        btn: {
+            containerId: 'control-panel',
+            label: '+Колонка',
+            classes: ['sidebar-button', 'diagram-size-btn'],
+            text: '+C'
+        },
+        description: 'Добавить колонку в сетку диаграммы',
+        execute(ctx) {
+            ctx.diagramUtils?.adjustGridSize('col', 1)
+        },
+        btnExec(ctx) { this.execute(ctx) }
+    },
+    {
+        id: 'diagramGridColMinus',
+        mode: ['normal', 'diagram'],
+        btn: {
+            containerId: 'control-panel',
+            label: '-Колонка',
+            classes: ['sidebar-button', 'diagram-size-btn'],
+            text: '-C'
+        },
+        description: 'Убрать колонку из сетки диаграммы',
+        execute(ctx) {
+            ctx.diagramUtils?.adjustGridSize('col', -1)
+        },
+        btnExec(ctx) { this.execute(ctx) }
+    },
+    {
+        id: 'diagramGridRowPlus',
+        mode: ['normal', 'diagram'],
+        btn: {
+            containerId: 'control-panel',
+            label: '+Строка',
+            classes: ['sidebar-button', 'diagram-size-btn'],
+            text: '+R'
+        },
+        description: 'Добавить строку в сетку диаграммы',
+        execute(ctx) {
+            ctx.diagramUtils?.adjustGridSize('row', 1)
+        },
+        btnExec(ctx) { this.execute(ctx) }
+    },
+    {
+        id: 'diagramGridRowMinus',
+        mode: ['normal', 'diagram'],
+        btn: {
+            containerId: 'control-panel',
+            label: '-Строка',
+            classes: ['sidebar-button', 'diagram-size-btn'],
+            text: '-R'
+        },
+        description: 'Убрать строку из сетки диаграммы',
+        execute(ctx) {
+            ctx.diagramUtils?.adjustGridSize('row', -1)
+        },
+        btnExec(ctx) { this.execute(ctx) }
+    },
+    {
+        id: 'diagramSizeXs',
+        mode: ['normal', 'diagram'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Размер XS',
+            classes: ['sidebar-button', 'diagram-size-btn'],
+            text: 'XS'
+        },
+        description: 'Установить размер сетки XS',
+        execute(ctx) {
+            ctx.diagramUtils?.setGridSize('xs')
+        },
+        btnExec(ctx) { this.execute(ctx) }
+    },
+    {
+        id: 'diagramSizeS',
+        mode: ['normal', 'diagram'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Размер S',
+            classes: ['sidebar-button', 'diagram-size-btn'],
+            text: 'S'
+        },
+        description: 'Установить размер сетки S',
+        execute(ctx) {
+            ctx.diagramUtils?.setGridSize('s')
+        },
+        btnExec(ctx) { this.execute(ctx) }
+    },
+    {
+        id: 'diagramSizeM',
+        mode: ['normal', 'diagram'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Размер M',
+            classes: ['sidebar-button', 'diagram-size-btn'],
+            text: 'M'
+        },
+        description: 'Установить размер сетки M',
+        execute(ctx) {
+            ctx.diagramUtils?.setGridSize('m')
+        },
+        btnExec(ctx) { this.execute(ctx) }
+    },
+    {
+        id: 'diagramSizeL',
+        mode: ['normal', 'diagram'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Размер L',
+            classes: ['sidebar-button', 'diagram-size-btn'],
+            text: 'L'
+        },
+        description: 'Установить размер сетки L',
+        execute(ctx) {
+            ctx.diagramUtils?.setGridSize('l')
+        },
+        btnExec(ctx) { this.execute(ctx) }
+    },
+    {
+        id: 'diagramAddBlock',
+        mode: ['normal', 'diagram'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Добавить блок в диаграмму',
+            classes: ['sidebar-button', 'fas', 'fa-square-plus', 'fas-lg'],
+        },
+        description: 'Добавить новый блок в диаграмму',
+        execute(ctx) {
+            ctx.diagramUtils?.addBtnHandler()
+        },
+        btnExec(ctx) { this.execute(ctx) }
+    },
+    {
+        id: 'diagramBlockStyle',
+        mode: ['normal', 'diagram'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Стили блока',
+            classes: ['sidebar-button', 'fas', 'fa-palette', 'fas-lg'],
+        },
+        description: 'Настроить стили выбранного блока',
+        execute(ctx) {
+            const selectedBlockId = ctx.diagramUtils?.getSelectedChildBlockId()
+            if (selectedBlockId) {
+                const selectedElement = document.getElementById(selectedBlockId)
+                ctx.diagramUtils?.blockStyleManager.toggle(selectedBlockId, selectedElement)
+            }
+        },
+        btnExec(ctx) { this.execute(ctx) }
+    },
+    {
+        id: 'diagramConnectionSettings',
+        mode: ['normal', 'diagram'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Настройки соединений',
+            classes: ['sidebar-button', 'fas', 'fa-sliders', 'fas-lg'],
+        },
+        description: 'Открыть панель настройки стилей соединений',
+        execute(ctx) {
+            ctx.diagramUtils?.connectionStyleManager.toggle()
+        },
+        btnExec(ctx) { this.execute(ctx) }
+    },
+    {
+        id: 'diagramReset',
+        mode: ['normal', 'diagram'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Сбросить сетку',
+            classes: ['sidebar-button', 'fas', 'fa-rotate', 'fas-lg'],
+        },
+        description: 'Сбросить настройки сетки диаграммы',
+        execute(ctx) {
+            ctx.diagramUtils?.resetHandler()
+        },
+        btnExec(ctx) { this.execute(ctx) }
+    },
+    {
+        id: 'diagramDeleteBlock',
+        mode: ['normal', 'diagram'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Удалить блок из диаграммы',
+            classes: ['sidebar-button', 'fas', 'fa-square-minus', 'fas-lg'],
+        },
+        description: 'Удалить выбранный блок из диаграммы',
+        async execute(ctx) {
+            let blockIdToDelete = ctx.diagramUtils?.getSelectedChildBlockId()
+
+            // Если нет выделенного блока, удаляем последний добавленный
+            if (!blockIdToDelete && ctx.diagramUtils?.blockId) {
+                const block = await ctx.diagramUtils.getBlock(ctx.diagramUtils.blockId)
+                if (block?.data?.childOrder?.length > 0) {
+                    const lastChildId = block.data.childOrder[block.data.childOrder.length - 1]
+                    // Формируем полный ID с учётом родителя
+                    blockIdToDelete = ctx.diagramUtils.element?.id
+                        ? `${ctx.diagramUtils.element.id}*${lastChildId}`
+                        : lastChildId
+                }
+            }
+
+            if (blockIdToDelete) {
+                dispatch('DeleteTreeBlock', { blockId: blockIdToDelete })
+            }
+        },
+        btnExec(ctx) { this.execute(ctx) }
+    },
+    {
+        id: 'diagramResetBlockStyle',
+        mode: ['normal', 'diagram'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Сбросить стили блока',
+            classes: ['sidebar-button', 'fas', 'fa-eraser', 'fas-lg'],
+        },
+        description: 'Сбросить кастомные стили выбранного блока',
+        execute(ctx) {
+            const selectedBlockId = ctx.diagramUtils?.getSelectedChildBlockId()
+            if (selectedBlockId) {
+                dispatch('UpdateBlockStyles', {
+                    blockId: selectedBlockId,
+                    customStyles: {}
+                })
+            }
+        },
+        btnExec(ctx) { this.execute(ctx) }
+    },
 ];

@@ -14,7 +14,7 @@ module.exports = {
         alias: {
             '@js': path.resolve(__dirname, 'src/js'), // Создаем алиас для папки src/js
         },
-        extensions: ['.js', '.jsx', '.json'], // Расширения файлов, которые Webpack будет пытаться найти
+        extensions: ['.js', '.json'],
     },
     module: {
         rules: [
