@@ -60,6 +60,86 @@ class ArrowManager {
             this.currentArrows = new Set(e.detail.arrows);
             this.loadConnections(e.detail);
         });
+
+        // Обработчик создания соединения через anchor points
+        window.addEventListener('CreateConnectionFromAnchors', (e) => {
+            const { sourceId, targetId, sourceAnchor, targetAnchor, connectionType } = e.detail;
+            this.createConnectionWithAnchors(sourceId, targetId, sourceAnchor, targetAnchor, connectionType);
+        });
+    }
+
+    /**
+     * Преобразует позицию anchor в формат jsPlumb
+     * @param {string} position - Позиция anchor (top, right, bottom, left)
+     * @returns {Array} - Массив координат для jsPlumb [x, y, dx, dy]
+     */
+    anchorPositionToJsPlumb(position) {
+        const anchors = {
+            top: [0.5, 0, 0, -1],
+            right: [1, 0.5, 1, 0],
+            bottom: [0.5, 1, 0, 1],
+            left: [0, 0.5, -1, 0]
+        };
+        return anchors[position] || [0.5, 0.5, 0, 0];
+    }
+
+    /**
+     * Создает соединение с указанными anchor points
+     * @param {string} sourceId - ID элемента-источника
+     * @param {string} targetId - ID элемента-цели
+     * @param {string} sourceAnchor - Позиция anchor на источнике
+     * @param {string} targetAnchor - Позиция anchor на цели
+     * @param {string} connectionType - Тип соединения
+     */
+    createConnectionWithAnchors(sourceId, targetId, sourceAnchor, targetAnchor, connectionType = CONNECTION_TYPES.DEFAULT) {
+        if (!sourceId || !targetId || sourceId === targetId) return;
+
+        const sourceEl = document.getElementById(sourceId);
+        const targetEl = document.getElementById(targetId);
+        if (!sourceEl || !targetEl) return;
+
+        const layout = sourceEl?.getAttribute("data-layout");
+
+        // Получаем конфигурацию по типу соединения
+        const config = getConnectionConfig(connectionType);
+
+        const connector = this.getConnector(config.connector || this.defaultConnector, layout);
+        const paintStyle = this.getPaintStyle(config.paintStyle || this.defaultPaintStyle, layout);
+        const overlays = this.getOverlays(config.overlays || this.defaultOverlays, layout);
+        const endpoint = this.getEndpoint({type: 'Dot', options: {radius: 4}}, layout);
+        const endpointStyle = {fill: paintStyle.stroke || "#456", outlineWidth: 0};
+
+        // Преобразуем anchor позиции
+        const anchors = [
+            this.anchorPositionToJsPlumb(sourceAnchor),
+            this.anchorPositionToJsPlumb(targetAnchor)
+        ];
+
+        this.instance.connect({
+            source: sourceId,
+            target: targetId,
+            anchors,
+            connector,
+            paintStyle,
+            overlays,
+            endpoint,
+            endpointStyle
+        });
+
+        // Сохраняем соединение с информацией об anchors
+        dispatch("AddConnectionBlock", {
+            sourceId,
+            targetId,
+            connector: config.connector || this.defaultConnector,
+            paintStyle: config.paintStyle || this.defaultPaintStyle,
+            overlays: config.overlays || this.defaultOverlays,
+            anchors,
+            endpoint,
+            endpointStyle,
+            connectionType,
+            sourceAnchor,
+            targetAnchor
+        });
     }
 
     /**

@@ -11,9 +11,39 @@ function handleBlockCommand(ctx, direction, action, sign) {
         el = ctx.blockLinkElement;
     }
     if (el && parentEl && parentEl.hasAttribute('blockcustomgrid')) {
-        const parentId = parentEl.id.split('*').at(-1)
+        const parentId = parentEl.id.split('*').at(-1);
+        // Сохраняем ID блока для восстановления фокуса после ре-рендера
+        const blockId = el.id;
+
+        // Устанавливаем флаг для предотвращения сброса выделения
+        ctx._preserveSelectionId = blockId;
+
         getBlock(parentId, (err, block) => {
             ctx.diagramUtils[action](el.id, direction, block.data.customGrid, parentId, sign === 'plus');
+
+            // После ре-рендера восстановить выделение на тот же блок
+            // Используем обработчик ShowedBlocks вместо таймаута
+            const restoreSelection = () => {
+                const newEl = document.getElementById(blockId);
+                if (newEl) {
+                    ctx.setActiveBlock(newEl);
+                }
+                ctx._preserveSelectionId = null;
+                window.removeEventListener('ShowedBlocks', restoreSelection);
+            };
+            window.addEventListener('ShowedBlocks', restoreSelection);
+
+            // Fallback таймаут на случай если ShowedBlocks не сработает
+            setTimeout(() => {
+                if (ctx._preserveSelectionId === blockId) {
+                    const newEl = document.getElementById(blockId);
+                    if (newEl) {
+                        ctx.setActiveBlock(newEl);
+                    }
+                    ctx._preserveSelectionId = null;
+                    window.removeEventListener('ShowedBlocks', restoreSelection);
+                }
+            }, 200);
         });
     }
 

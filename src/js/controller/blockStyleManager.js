@@ -1,5 +1,7 @@
 import { dispatch } from "../utils/utils";
 import localforage from "localforage";
+import { arrowManager } from "./arrowManager";
+import { contextManager } from "./comands/contextManager";
 
 /**
  * BlockStyleManager - управление кастомными стилями блоков
@@ -191,12 +193,15 @@ export class BlockStyleManager {
 
 /**
  * ConnectionStyleManager - управление стилями соединений
+ * Интегрируется с системой команд для создания стрелок
  */
 export class ConnectionStyleManager {
     constructor() {
         this.panel = document.getElementById('connectionPanel');
         this.isConnecting = false;
         this.sourceBlockId = null;
+        this.sourceElement = null;
+        this.customStyle = null;
 
         // Элементы управления
         this.typeSelect = document.getElementById('connectorType');
@@ -221,6 +226,23 @@ export class ConnectionStyleManager {
                 !this.panel.contains(e.target) &&
                 !e.target.closest('#openConnectionPanel')) {
                 this.hide();
+            }
+        });
+
+        // Слушатель клика для завершения соединения
+        document.addEventListener('click', (e) => {
+            if (!this.isConnecting) return;
+
+            const blockElement = e.target.closest('[block], [blocklink]');
+            if (!blockElement) return;
+
+            this.handleBlockClick(blockElement);
+        });
+
+        // Отмена по Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.isConnecting) {
+                this.cancelConnectionMode();
             }
         });
     }
@@ -254,15 +276,119 @@ export class ConnectionStyleManager {
      * Начать режим создания соединения
      */
     startConnectionMode() {
+        // Получить текущий выбранный блок
+        const ctx = contextManager.getContext();
+        const activeBlockId = ctx.blockId;
+        const activeElement = ctx.blockElement || ctx.blockLinkElement;
+
+        if (!activeBlockId || !activeElement) {
+            console.warn('Выберите блок-источник перед созданием соединения');
+            return;
+        }
+
         this.isConnecting = true;
-        this.sourceBlockId = null;
+        this.sourceBlockId = activeElement.id;
+        this.sourceElement = activeElement;
+        this.customStyle = this.getConnectionStyle();
         this.hide();
 
-        // Добавить подсказку
-        dispatch('SetConnectionMode', {
-            active: true,
-            style: this.getConnectionStyle()
-        });
+        // Визуальная индикация режима
+        this.sourceElement.classList.add('block-selected');
+        document.body.style.cursor = 'crosshair';
+
+        // Показать подсказку
+        this.showHint('Кликните на целевой блок для создания соединения (Escape для отмены)');
+    }
+
+    /**
+     * Обработать клик на блок в режиме соединения
+     */
+    handleBlockClick(blockElement) {
+        if (!this.isConnecting || !this.sourceBlockId) return;
+
+        const targetId = blockElement.id;
+
+        // Нельзя соединить блок с самим собой
+        if (targetId === this.sourceBlockId) return;
+
+        // Определить тип соединения
+        let connectionType = 'DEFAULT';
+        if (this.connectionType === 'dashed') {
+            connectionType = 'DASHED';
+        } else if (this.connectionType === 'double') {
+            connectionType = 'DOUBLE';
+        }
+
+        // Создать соединение
+        arrowManager.completeConnectionToElement(
+            this.sourceBlockId,
+            targetId,
+            connectionType,
+            this.customStyle?.paintStyle?.stroke
+        );
+
+        // Очистить режим
+        this.finishConnectionMode();
+    }
+
+    /**
+     * Завершить режим соединения
+     */
+    finishConnectionMode() {
+        if (this.sourceElement) {
+            this.sourceElement.classList.remove('block-selected');
+        }
+        document.body.style.cursor = '';
+        this.hideHint();
+
+        this.isConnecting = false;
+        this.sourceBlockId = null;
+        this.sourceElement = null;
+        this.customStyle = null;
+        this.connectionType = null;
+    }
+
+    /**
+     * Отменить режим соединения
+     */
+    cancelConnectionMode() {
+        this.finishConnectionMode();
+    }
+
+    /**
+     * Показать подсказку
+     */
+    showHint(message) {
+        let hint = document.getElementById('connection-hint');
+        if (!hint) {
+            hint = document.createElement('div');
+            hint.id = 'connection-hint';
+            hint.style.cssText = `
+                position: fixed;
+                top: 10px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(0, 0, 0, 0.8);
+                color: white;
+                padding: 8px 16px;
+                border-radius: 4px;
+                z-index: 10000;
+                font-size: 14px;
+            `;
+            document.body.appendChild(hint);
+        }
+        hint.textContent = message;
+        hint.style.display = 'block';
+    }
+
+    /**
+     * Скрыть подсказку
+     */
+    hideHint() {
+        const hint = document.getElementById('connection-hint');
+        if (hint) {
+            hint.style.display = 'none';
+        }
     }
 
     /**
@@ -304,7 +430,8 @@ export class ConnectionStyleManager {
     buildOverlays() {
         const overlays = [];
 
-        if (this.arrowEndCheckbox?.checked) {
+        if (this.arrowEndCheckbox?.checked !== false) {
+            // По умолчанию стрелка в конце
             overlays.push({
                 type: 'Arrow',
                 options: { width: 10, length: 10, location: 1 }
@@ -325,15 +452,6 @@ export class ConnectionStyleManager {
         });
 
         return overlays;
-    }
-
-    /**
-     * Отменить режим соединения
-     */
-    cancelConnectionMode() {
-        this.isConnecting = false;
-        this.sourceBlockId = null;
-        dispatch('SetConnectionMode', { active: false });
     }
 }
 

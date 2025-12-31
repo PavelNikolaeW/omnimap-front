@@ -149,11 +149,33 @@ export class CommandManager {
             }
         } else if (isExcludedElement(target, 'commandManager', ['body', 'textarea', 'input', 'emoji-picker'])) {
         } else {
+            // В режиме диаграммы - не открывать дочерние блоки при клике
+            if (this.ctxManager.mode === 'diagram') {
+                const diagramBlock = this.ctxManager.diagramUtils?.element
+                if (diagramBlock && diagramBlock.contains(target) && target !== diagramBlock) {
+                    // Клик внутри диаграммы на дочерний блок - просто выделяем, не открываем
+                    event.preventDefault()
+                    return
+                }
+            }
             const selection = window.getSelection()
             // позволяем выделять текст курсором
             if (selection && (selection.toString().trim().length > 0 || this.selectedText.length > 0)) {
                 this.selectedText = selection.toString().trim()
                 return
+            }
+
+            // Проверка на режим выбора блока-диаграммы
+            if (uiManager.isPendingDiagramSelection()) {
+                const {element, link} = this.ctxManager.getRelevantElements(target)
+                const blockElement = element || link
+                if (blockElement) {
+                    const blockId = blockElement.id?.split('*').pop()
+                    if (blockId) {
+                        uiManager.handleDiagramBlockSelection(this.ctxManager, blockId, blockElement)
+                        return
+                    }
+                }
             }
 
             // Shift+Click для мульти-выделения блоков
