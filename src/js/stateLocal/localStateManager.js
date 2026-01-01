@@ -283,6 +283,10 @@ export class LocalStateManager {
         window.addEventListener('BlockSynced', (e) => {
             this.handleBlockSynced(e.detail)
         })
+        // Обработка завершения batch import после офлайн синхронизации
+        window.addEventListener('BatchImportCompleted', (e) => {
+            this.handleBatchImportCompleted(e.detail)
+        })
     }
 
     /**
@@ -332,6 +336,48 @@ export class LocalStateManager {
             await this.saveBlock(block);
             // Не вызываем ShowBlocks здесь, чтобы избежать лишних перерисовок
         }
+    }
+
+    /**
+     * Обрабатывает завершение batch import после офлайн синхронизации
+     * Заменяет временные блоки на реальные с сервера
+     * @param {Object} detail - {blocks, tempIdToRealId, deletedIds}
+     */
+    async handleBatchImportCompleted({blocks, tempIdToRealId, deletedIds}) {
+        console.log(`Batch import completed: ${blocks?.length || 0} blocks, ${Object.keys(tempIdToRealId || {}).length} temp IDs resolved`);
+
+        // Удаляем временные блоки и блоки, которые были удалены офлайн
+        const idsToRemove = new Set([
+            ...Object.keys(tempIdToRealId || {}),
+            ...(deletedIds || [])
+        ]);
+
+        for (const id of idsToRemove) {
+            if (this.blocks.has(id)) {
+                this.blocks.delete(id);
+                await this.blockRepository.deleteBlock(id);
+            }
+        }
+
+        // Сохраняем новые блоки с сервера
+        if (blocks && Array.isArray(blocks)) {
+            for (const block of blocks) {
+                await this.saveBlock(block);
+            }
+        }
+
+        // Обновляем children родительских блоков: заменяем tempId на realId
+        for (const [tempId, realId] of Object.entries(tempIdToRealId || {})) {
+            for (const block of this.blocks.values()) {
+                if (block.children && block.children.includes(tempId)) {
+                    const index = block.children.indexOf(tempId);
+                    block.children[index] = realId;
+                    await this.saveBlock(block);
+                }
+            }
+        }
+
+        dispatch('ShowBlocks');
     }
 
     async updateBlockImage({blockId, imageData}) {
