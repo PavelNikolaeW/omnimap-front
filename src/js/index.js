@@ -53,6 +53,12 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
 
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // Показываем версию приложения
+    const versionEl = document.getElementById('app-version');
+    if (versionEl && typeof APP_VERSION !== 'undefined') {
+        versionEl.textContent = `v${APP_VERSION}`;
+    }
+
     // Инициализируем менеджер кэша для dev режима
     await initDevCacheManager();
 

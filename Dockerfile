@@ -9,11 +9,13 @@ WORKDIR /omnimap
 ARG APP_BACKEND_URL=https://omnimap.ru
 ARG LLM_GATEWAY_URL=http://0.0.0.0:7998
 ARG SINC_SERVICE_URL=wss://omnimap.ru/ws
+ARG APP_VERSION=dev
 
 # Set as environment variables for webpack build
 ENV APP_BACKEND_URL=$APP_BACKEND_URL
 ENV LLM_GATEWAY_URL=$LLM_GATEWAY_URL
 ENV SINC_SERVICE_URL=$SINC_SERVICE_URL
+ENV APP_VERSION=$APP_VERSION
 
 COPY package.json package-lock.json* ./
 
