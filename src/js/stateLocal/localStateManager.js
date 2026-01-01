@@ -537,7 +537,7 @@ export class LocalStateManager {
             await offlineQueue.enqueue({
                 id: `delete_${blockId}_${Date.now()}`,
                 type: 'deleteBlock',
-                data: { id: blockId }
+                data: { id: blockId, parentId: block.parent_id }
             });
             console.log('Block delete queued for sync:', blockId);
             return;
@@ -558,7 +558,7 @@ export class LocalStateManager {
                 await offlineQueue.enqueue({
                     id: `delete_${blockId}_${Date.now()}`,
                     type: 'deleteBlock',
-                    data: { id: blockId }
+                    data: { id: blockId, parentId: block.parent_id }
                 });
                 console.log('Block delete queued for sync:', blockId);
             } else {

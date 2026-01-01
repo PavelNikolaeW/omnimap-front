@@ -115,155 +115,110 @@ class OfflineQueueManager {
 
     /**
      * Собирает все изменённые блоки из очереди операций в формат для import API
-     * Объединяет множество операций в минимальный набор блоков для отправки
+     * Берёт финальное состояние блоков из localStateManager.blocks
      *
      * @param {Array} queue - Очередь операций
      * @param {Function} getBlockById - Функция для получения блока по ID из локального состояния
      * @returns {Promise<{blocks: Array, deletedIds: Set, tempIdToRealId: Map}>}
      */
     async buildChangedBlocksTree(queue, getBlockById) {
-        // Map: blockId -> merged block data
-        const changedBlocks = new Map();
+        // Set: ID всех затронутых блоков (включая родителей)
+        const affectedBlockIds = new Set();
         // Set: удалённые блоки
         const deletedIds = new Set();
-        // Map: tempId -> finalId (для новых блоков)
+        // Map: tempId -> realId (для новых блоков)
         const tempIdToRealId = new Map();
-        // Set: ID родителей, у которых изменились children
-        const parentsWithChangedChildren = new Set();
 
-        // Сортируем операции по timestamp для правильного порядка применения
-        const sortedQueue = [...queue].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        // Первый проход: собираем temp ID и генерируем для них реальные UUID
+        for (const operation of queue) {
+            const { type, data } = operation;
+            if (type === 'createBlock' && data.tempId) {
+                const realId = uuidV4();
+                tempIdToRealId.set(data.tempId, realId);
+            }
+        }
 
-        for (const operation of sortedQueue) {
+        // Второй проход: собираем все затронутые блоки
+        for (const operation of queue) {
             const { type, data } = operation;
 
             switch (type) {
                 case 'createBlock': {
-                    const { tempId, parentId, title, blockData } = data;
-
-                    // Генерируем реальный UUID для нового блока
-                    const realId = uuidV4();
-                    tempIdToRealId.set(tempId, realId);
-
-                    // Получаем текущее состояние блока из локального хранилища
-                    const localBlock = await getBlockById(tempId);
-
-                    const newBlock = {
-                        id: realId,
-                        parent_id: this.resolveId(parentId, tempIdToRealId),
-                        title: localBlock?.title || title || '',
-                        children: (localBlock?.children || []).map(cid => this.resolveId(cid, tempIdToRealId)),
-                        data: localBlock?.data || blockData || {}
-                    };
-
-                    changedBlocks.set(realId, newBlock);
-                    parentsWithChangedChildren.add(this.resolveId(parentId, tempIdToRealId));
+                    const { tempId, parentId } = data;
+                    affectedBlockIds.add(tempId);
+                    if (parentId) affectedBlockIds.add(parentId);
                     break;
                 }
 
                 case 'updateBlock': {
-                    const { id, blockData } = data;
-                    const resolvedId = this.resolveId(id, tempIdToRealId);
-
-                    // Пропускаем обновления удалённых блоков
-                    if (deletedIds.has(resolvedId)) continue;
-
-                    // Получаем текущее состояние блока
-                    const localBlock = await getBlockById(this.isTempId(id) ? id : resolvedId);
-
-                    if (changedBlocks.has(resolvedId)) {
-                        // Мержим с уже существующими изменениями
-                        const existing = changedBlocks.get(resolvedId);
-                        changedBlocks.set(resolvedId, this.mergeBlockData(existing, blockData));
-                    } else if (localBlock) {
-                        // Создаём новую запись об изменении
-                        const mergedBlock = {
-                            id: resolvedId,
-                            parent_id: this.resolveId(localBlock.parent_id, tempIdToRealId),
-                            title: localBlock.title,
-                            children: (localBlock.children || []).map(cid => this.resolveId(cid, tempIdToRealId)),
-                            data: localBlock.data || {}
-                        };
-                        changedBlocks.set(resolvedId, this.mergeBlockData(mergedBlock, blockData));
-                    }
+                    const { id } = data;
+                    affectedBlockIds.add(id);
                     break;
                 }
 
                 case 'moveBlock': {
-                    const { blockId, oldParentId, newParentId, childOrder } = data;
-                    const resolvedBlockId = this.resolveId(blockId, tempIdToRealId);
-                    const resolvedOldParentId = this.resolveId(oldParentId, tempIdToRealId);
-                    const resolvedNewParentId = this.resolveId(newParentId, tempIdToRealId);
-
-                    // Пропускаем перемещения удалённых блоков
-                    if (deletedIds.has(resolvedBlockId)) continue;
-
-                    // Обновляем parent_id блока
-                    const localBlock = await getBlockById(this.isTempId(blockId) ? blockId : resolvedBlockId);
-                    if (localBlock) {
-                        const blockToUpdate = changedBlocks.get(resolvedBlockId) || {
-                            id: resolvedBlockId,
-                            parent_id: resolvedNewParentId,
-                            title: localBlock.title,
-                            children: (localBlock.children || []).map(cid => this.resolveId(cid, tempIdToRealId)),
-                            data: localBlock.data || {}
-                        };
-                        blockToUpdate.parent_id = resolvedNewParentId;
-                        changedBlocks.set(resolvedBlockId, blockToUpdate);
-                    }
-
-                    // Отмечаем родителей как изменённые
-                    parentsWithChangedChildren.add(resolvedOldParentId);
-                    parentsWithChangedChildren.add(resolvedNewParentId);
+                    const { blockId, oldParentId, newParentId } = data;
+                    affectedBlockIds.add(blockId);
+                    if (oldParentId) affectedBlockIds.add(oldParentId);
+                    if (newParentId) affectedBlockIds.add(newParentId);
                     break;
                 }
 
                 case 'deleteBlock': {
-                    const { id } = data;
+                    const { id, parentId } = data;
                     const resolvedId = this.resolveId(id, tempIdToRealId);
-
                     deletedIds.add(resolvedId);
-                    changedBlocks.delete(resolvedId);
-
-                    // Получаем родителя для обновления children
-                    const localBlock = await getBlockById(this.isTempId(id) ? id : resolvedId);
-                    if (localBlock?.parent_id) {
-                        parentsWithChangedChildren.add(this.resolveId(localBlock.parent_id, tempIdToRealId));
+                    // Также добавляем temp ID в deleted, если это temp блок
+                    if (this.isTempId(id)) {
+                        deletedIds.add(id);
+                    }
+                    // Добавляем родителя - его children нужно обновить на сервере
+                    if (parentId) {
+                        affectedBlockIds.add(parentId);
                     }
                     break;
                 }
             }
         }
 
-        // Добавляем родительские блоки с обновлёнными children
-        for (const parentId of parentsWithChangedChildren) {
-            if (deletedIds.has(parentId) || this.isTempId(parentId)) continue;
+        // Формируем массив блоков из финального состояния
+        const blocks = [];
 
-            // Если родитель уже в changedBlocks, просто обновляем children
-            // Иначе добавляем родителя с актуальными children
-            const localParent = await getBlockById(parentId);
-            if (localParent) {
-                const existingParent = changedBlocks.get(parentId);
-                const updatedChildren = (localParent.children || [])
-                    .map(cid => this.resolveId(cid, tempIdToRealId))
-                    .filter(cid => !deletedIds.has(cid) && !this.isTempId(cid));
+        for (const blockId of affectedBlockIds) {
+            // Пропускаем удалённые блоки
+            const resolvedId = this.resolveId(blockId, tempIdToRealId);
+            if (deletedIds.has(resolvedId) || deletedIds.has(blockId)) continue;
 
-                if (existingParent) {
-                    existingParent.children = updatedChildren;
-                } else {
-                    changedBlocks.set(parentId, {
-                        id: parentId,
-                        parent_id: localParent.parent_id ? this.resolveId(localParent.parent_id, tempIdToRealId) : null,
-                        title: localParent.title,
-                        children: updatedChildren,
-                        data: localParent.data || {}
-                    });
-                }
-            }
+            // Получаем финальное состояние блока из памяти
+            const localBlock = await getBlockById(blockId);
+            if (!localBlock) continue;
+
+            // Определяем финальный ID блока
+            const finalId = this.isTempId(blockId)
+                ? tempIdToRealId.get(blockId)
+                : blockId;
+
+            // Резолвим parent_id
+            const finalParentId = localBlock.parent_id
+                ? this.resolveId(localBlock.parent_id, tempIdToRealId)
+                : null;
+
+            // Резолвим children и фильтруем удалённые
+            const finalChildren = (localBlock.children || [])
+                .map(cid => this.resolveId(cid, tempIdToRealId))
+                .filter(cid => !deletedIds.has(cid));
+
+            blocks.push({
+                id: finalId,
+                parent_id: finalParentId,
+                title: localBlock.title || '',
+                children: finalChildren,
+                data: localBlock.data || {}
+            });
         }
 
         return {
-            blocks: Array.from(changedBlocks.values()),
+            blocks,
             deletedIds,
             tempIdToRealId
         };
