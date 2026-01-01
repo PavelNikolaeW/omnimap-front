@@ -1,5 +1,6 @@
 import localforage from "localforage";
 import api from "../api/api";
+import config from "../config";
 
 /**
  * Результат проверки здоровья системы
@@ -155,9 +156,7 @@ async function checkWebSocketService() {
     }
 
     try {
-        const wsUrl = typeof SINC_SERVICE_URL !== 'undefined'
-            ? SINC_SERVICE_URL
-            : 'wss://localhost:7999/ws';
+        const wsUrl = config.SINC_SERVICE_URL;
 
         // Преобразуем ws:// в http:// для health check
         const httpUrl = wsUrl
@@ -213,9 +212,7 @@ async function checkLLMGateway() {
     }
 
     try {
-        const llmUrl = typeof LLM_GATEWAY_URL !== 'undefined'
-            ? LLM_GATEWAY_URL
-            : 'http://localhost:8001';
+        const llmUrl = config.LLM_GATEWAY_URL;
 
         const healthUrl = `${llmUrl}/health`;
 

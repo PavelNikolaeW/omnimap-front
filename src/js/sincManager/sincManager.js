@@ -1,5 +1,6 @@
 import {UpdateServiceWebSocket} from "./webSocket";
 import localforage from "localforage";
+import config from "../config";
 
 /**
  * Экранирует специальные символы RegExp в строке
@@ -12,7 +13,7 @@ function escapeRegExp(string) {
 
 export class SincManager {
     constructor() {
-        const wsUrl = SINC_SERVICE_URL || 'wss://localhost:7999/ws';
+        const wsUrl = config.SINC_SERVICE_URL;
 
         this.webSocket = new UpdateServiceWebSocket(wsUrl);
         this.webSocket.eventListeners.open.push(this.online.bind(this));

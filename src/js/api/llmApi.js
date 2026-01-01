@@ -12,15 +12,12 @@
  */
 
 import Cookies from 'js-cookie';
-
-// LLM_GATEWAY_URL is injected by webpack DefinePlugin
-/* global LLM_GATEWAY_URL */
+import config from '../config';
 
 class LlmApi {
     constructor() {
-        this.baseUrl = typeof LLM_GATEWAY_URL !== 'undefined'
-            ? LLM_GATEWAY_URL
-            : 'http://localhost:8001';
+        // Используем централизованный config (runtime config + build-time fallback)
+        this.baseUrl = config.LLM_GATEWAY_URL;
     }
 
     /**

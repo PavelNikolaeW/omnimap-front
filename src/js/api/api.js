@@ -5,11 +5,12 @@ import {v4 as uuidV4} from 'uuid';
 import {LimitedMapQueue} from "../utils/limitedQueue";
 import {log} from "@jsplumb/browser-ui";
 import localforage from "localforage";
+import config from "../config";
 
 class Api {
     constructor() {
-        // Убираем trailing slash для предотвращения двойных слэшей в URL
-        this.backendUrl = (APP_BACKEND_URL || 'http://localhost:8000').replace(/\/+$/, '');
+        // Используем централизованный config (runtime config + build-time fallback)
+        this.backendUrl = config.APP_BACKEND_URL;
 
         // Настройка базового URL и создание экземпляра axios
         this.operationChache = new LimitedMapQueue(50)
