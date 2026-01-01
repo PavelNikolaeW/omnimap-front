@@ -426,3 +426,257 @@ describe('NetworkStatusUI', () => {
         expect(ui.element.className).not.toContain('visible');
     });
 });
+
+describe('Batch Import Logic', () => {
+    const TEMP_ID_PREFIX = 'temp_';
+    const MIN_OPERATIONS_FOR_BATCH = 3;
+
+    /**
+     * Helper: проверяет, является ли ID временным
+     */
+    function isTempId(id) {
+        return id && typeof id === 'string' && id.startsWith(TEMP_ID_PREFIX);
+    }
+
+    /**
+     * Helper: резолвит ID используя маппинг
+     */
+    function resolveId(id, tempIdToRealId) {
+        if (!id) return id;
+        if (tempIdToRealId.has(id)) {
+            return tempIdToRealId.get(id);
+        }
+        return id;
+    }
+
+    /**
+     * Helper: мержит данные блока
+     */
+    function mergeBlockData(block, changes) {
+        const merged = { ...block };
+        if (changes.title !== undefined) {
+            merged.title = changes.title;
+        }
+        if (changes.data !== undefined) {
+            merged.data = { ...(merged.data || {}), ...changes.data };
+        }
+        return merged;
+    }
+
+    /**
+     * Helper: проверяет, можно ли использовать batch import
+     */
+    function canUseBatchImport(queue) {
+        if (queue.length < MIN_OPERATIONS_FOR_BATCH) return false;
+        const supportedTypes = ['createBlock', 'updateBlock', 'moveBlock', 'deleteBlock'];
+        return queue.every(op => supportedTypes.includes(op.type));
+    }
+
+    describe('canUseBatchImport', () => {
+        test('returns false for less than 3 operations', () => {
+            expect(canUseBatchImport([
+                { type: 'createBlock' },
+                { type: 'updateBlock' }
+            ])).toBe(false);
+        });
+
+        test('returns true for 3+ supported operations', () => {
+            expect(canUseBatchImport([
+                { type: 'createBlock' },
+                { type: 'updateBlock' },
+                { type: 'deleteBlock' }
+            ])).toBe(true);
+        });
+
+        test('returns true for mixed supported operations', () => {
+            expect(canUseBatchImport([
+                { type: 'createBlock' },
+                { type: 'moveBlock' },
+                { type: 'updateBlock' },
+                { type: 'deleteBlock' }
+            ])).toBe(true);
+        });
+
+        test('returns false for unsupported operation types', () => {
+            expect(canUseBatchImport([
+                { type: 'createBlock' },
+                { type: 'updateBlock' },
+                { type: 'unknownType' }
+            ])).toBe(false);
+        });
+    });
+
+    describe('isTempId', () => {
+        test('returns true for temp_ prefixed IDs', () => {
+            expect(isTempId('temp_abc-123')).toBe(true);
+            expect(isTempId('temp_')).toBe(true);
+        });
+
+        test('returns false for regular IDs', () => {
+            expect(isTempId('abc-123')).toBe(false);
+            expect(isTempId('uuid-v4-format')).toBe(false);
+        });
+
+        test('returns falsy for null/undefined', () => {
+            expect(isTempId(null)).toBeFalsy();
+            expect(isTempId(undefined)).toBeFalsy();
+        });
+    });
+
+    describe('resolveId', () => {
+        test('resolves temp ID to real ID when mapping exists', () => {
+            const map = new Map([['temp_1', 'real_1']]);
+            expect(resolveId('temp_1', map)).toBe('real_1');
+        });
+
+        test('returns original ID when no mapping exists', () => {
+            const map = new Map();
+            expect(resolveId('some_id', map)).toBe('some_id');
+        });
+
+        test('returns null/undefined as is', () => {
+            const map = new Map();
+            expect(resolveId(null, map)).toBe(null);
+            expect(resolveId(undefined, map)).toBe(undefined);
+        });
+    });
+
+    describe('mergeBlockData', () => {
+        test('merges title changes', () => {
+            const block = { id: '1', title: 'Old', data: {} };
+            const result = mergeBlockData(block, { title: 'New' });
+            expect(result.title).toBe('New');
+        });
+
+        test('merges data changes', () => {
+            const block = { id: '1', title: 'Test', data: { color: 'red' } };
+            const result = mergeBlockData(block, { data: { text: 'Hello' } });
+            expect(result.data.color).toBe('red');
+            expect(result.data.text).toBe('Hello');
+        });
+
+        test('does not mutate original block', () => {
+            const block = { id: '1', title: 'Old', data: { x: 1 } };
+            const result = mergeBlockData(block, { title: 'New' });
+            expect(block.title).toBe('Old');
+            expect(result.title).toBe('New');
+        });
+
+        test('handles empty data', () => {
+            const block = { id: '1', title: 'Test' };
+            const result = mergeBlockData(block, { data: { text: 'Hello' } });
+            expect(result.data.text).toBe('Hello');
+        });
+    });
+
+    describe('Operation Merging Logic', () => {
+        test('multiple updates to same block merge into single block', () => {
+            const operations = [
+                { type: 'updateBlock', data: { id: 'block-1', blockData: { title: 'First' } }, timestamp: 1 },
+                { type: 'updateBlock', data: { id: 'block-1', blockData: { data: { text: 'Hello' } } }, timestamp: 2 },
+                { type: 'updateBlock', data: { id: 'block-1', blockData: { title: 'Final' } }, timestamp: 3 },
+            ];
+
+            // Симуляция логики объединения
+            const changedBlocks = new Map();
+            const localBlocks = new Map([
+                ['block-1', { id: 'block-1', title: 'Original', data: {}, children: [] }]
+            ]);
+
+            for (const op of operations) {
+                const { id, blockData } = op.data;
+                const localBlock = localBlocks.get(id);
+
+                if (changedBlocks.has(id)) {
+                    changedBlocks.set(id, mergeBlockData(changedBlocks.get(id), blockData));
+                } else if (localBlock) {
+                    changedBlocks.set(id, mergeBlockData({ ...localBlock }, blockData));
+                }
+            }
+
+            expect(changedBlocks.size).toBe(1);
+            const merged = changedBlocks.get('block-1');
+            expect(merged.title).toBe('Final');
+            expect(merged.data.text).toBe('Hello');
+        });
+
+        test('create followed by updates merges into single block', () => {
+            const tempId = 'temp_new-block';
+            const realId = 'real-uuid-123';
+            const tempIdToRealId = new Map([[tempId, realId]]);
+
+            const operations = [
+                { type: 'createBlock', data: { tempId, parentId: 'parent-1', title: 'New Block' }, timestamp: 1 },
+                { type: 'updateBlock', data: { id: tempId, blockData: { data: { text: 'Content' } } }, timestamp: 2 },
+            ];
+
+            const changedBlocks = new Map();
+
+            // Process createBlock
+            const createOp = operations[0];
+            changedBlocks.set(realId, {
+                id: realId,
+                parent_id: createOp.data.parentId,
+                title: createOp.data.title,
+                children: [],
+                data: {}
+            });
+
+            // Process updateBlock
+            const updateOp = operations[1];
+            const resolvedId = resolveId(updateOp.data.id, tempIdToRealId);
+            if (changedBlocks.has(resolvedId)) {
+                changedBlocks.set(resolvedId, mergeBlockData(
+                    changedBlocks.get(resolvedId),
+                    updateOp.data.blockData
+                ));
+            }
+
+            expect(changedBlocks.size).toBe(1);
+            const merged = changedBlocks.get(realId);
+            expect(merged.title).toBe('New Block');
+            expect(merged.data.text).toBe('Content');
+            expect(merged.parent_id).toBe('parent-1');
+        });
+
+        test('delete removes block from changed blocks', () => {
+            const changedBlocks = new Map([
+                ['block-1', { id: 'block-1', title: 'Test' }],
+                ['block-2', { id: 'block-2', title: 'Keep' }]
+            ]);
+            const deletedIds = new Set();
+
+            // Simulate delete operation
+            deletedIds.add('block-1');
+            changedBlocks.delete('block-1');
+
+            expect(changedBlocks.size).toBe(1);
+            expect(changedBlocks.has('block-1')).toBe(false);
+            expect(changedBlocks.has('block-2')).toBe(true);
+            expect(deletedIds.has('block-1')).toBe(true);
+        });
+
+        test('move updates parent_id correctly', () => {
+            const operations = [
+                { type: 'moveBlock', data: { blockId: 'child-1', oldParentId: 'parent-1', newParentId: 'parent-2' } }
+            ];
+
+            const changedBlocks = new Map();
+            const localBlocks = new Map([
+                ['child-1', { id: 'child-1', parent_id: 'parent-1', title: 'Child', children: [], data: {} }]
+            ]);
+
+            for (const op of operations) {
+                const { blockId, newParentId } = op.data;
+                const localBlock = localBlocks.get(blockId);
+
+                if (localBlock) {
+                    const block = { ...localBlock, parent_id: newParentId };
+                    changedBlocks.set(blockId, block);
+                }
+            }
+
+            expect(changedBlocks.get('child-1').parent_id).toBe('parent-2');
+        });
+    });
+});
