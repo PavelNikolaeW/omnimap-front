@@ -1,0 +1,58 @@
+# CI/CD for omnimap-front service
+# Place this file in: services/omnimap-front/.gitverse/workflows/ci.yaml
+#
+# Triggers:
+#   - main branch -> deploy to DEV
+#   - release/* branch -> deploy to PROD
+
+name: CI/CD Frontend
+
+on:
+  push:
+    branches:
+      - main
+      - 'release/*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  # =============================================================================
+  # Lint and Test
+  # =============================================================================
+  lint:
+    name: Lint & Test
+    runs-on: [self-hosted, linux]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint --if-present
+
+      - name: Run tests
+        run: npm test --if-present
+
+  # =============================================================================
+  # Build and Deploy (only on push to main or release/*)
+  # =============================================================================
+  deploy:
+    name: Build & Deploy
+    needs: lint
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))
+    uses: PavelNikolaeW/omnimap-platform/.gitverse/workflows/deploy-service.yaml@main
+    with:
+      service_name: omnimap-front
+      context_path: .
+      dockerfile_path: Dockerfile
+    secrets: inherit
