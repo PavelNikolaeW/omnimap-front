@@ -318,8 +318,9 @@ class OfflineQueueManager {
                 }
 
                 case 'updateBlock': {
-                    const { blockId } = data;
-                    affectedBlockIds.add(blockId);
+                    // Поддерживаем оба варианта: blockId и id
+                    const blockId = data.blockId || data.id;
+                    if (blockId) affectedBlockIds.add(blockId);
                     break;
                 }
 

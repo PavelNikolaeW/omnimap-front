@@ -537,28 +537,36 @@ button:focus {
     font-size: 14px;
 }
 
-/* Offline Indicator Bar - persistent at top */
+/* Offline Indicator Bar - compact, bottom right (above network-status) */
 .offline-indicator-bar {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
+    bottom: 70px;
+    right: 20px;
     background: #fef2f2;
     color: #dc2626;
-    padding: 8px 16px;
+    padding: 10px 16px;
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 12px;
-    font-size: 14px;
-    z-index: 10000;
-    border-bottom: 1px solid #fecaca;
-    transform: translateY(-100%);
-    transition: transform 0.3s ease;
+    gap: 10px;
+    font-size: 13px;
+    z-index: 1000;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: none;
 }
 
 .offline-indicator-bar.visible {
+    opacity: 1;
     transform: translateY(0);
+    pointer-events: auto;
+}
+
+.offline-indicator-bar i {
+    font-size: 16px;
 }
 
 .offline-indicator-bar .pending-count {
@@ -566,6 +574,7 @@ button:focus {
     padding: 2px 8px;
     border-radius: 12px;
     font-weight: 500;
+    font-size: 12px;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

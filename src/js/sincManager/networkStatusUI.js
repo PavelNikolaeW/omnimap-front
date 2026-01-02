@@ -164,20 +164,18 @@ class NetworkStatusUI {
     }
 
     showSyncCompleted(detail) {
-        const { successCount, failedCount, remainingCount } = detail;
+        const { failedCount, remainingCount } = detail;
 
         // Обновляем счётчик ожидающих
         this.updatePendingCount(remainingCount || 0);
 
+        // Показываем уведомление только при ошибках
         if (failedCount > 0) {
             this.element.className = 'network-status syncing visible';
-            this.setText(`Синхронизировано: ${successCount}, ошибок: ${failedCount}`);
+            this.setText(`Ошибка синхронизации: ${failedCount}`);
             this.scheduleHide(5000);
-        } else if (successCount > 0) {
-            this.element.className = 'network-status online visible';
-            this.setText(`Синхронизировано: ${successCount}`);
-            this.scheduleHide(3000);
         } else {
+            // Успешная синхронизация - просто скрываем
             this.hide();
         }
     }

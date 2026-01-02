@@ -306,7 +306,7 @@ export class LocalStateManager {
 
     /**
      * Обрабатывает завершение batch import после офлайн синхронизации
-     * Обновляет локальные блоки данными с сервера
+     * Мержит данные с сервера с локальными данными
      * @param {Object} detail - {blocks, deletedIds}
      */
     async handleBatchImportCompleted({blocks, deletedIds}) {
@@ -323,11 +323,49 @@ export class LocalStateManager {
             }
         }
 
-        // Сохраняем/обновляем блоки с сервера
+        // Мержим данные с сервера с локальными
         if (blocks && Array.isArray(blocks)) {
-            for (const block of blocks) {
-                console.log('Saving block from server:', block.id, 'children:', block.children?.length || 0);
-                await this.saveBlock(block);
+            for (const serverBlock of blocks) {
+                const localBlock = this.blocks.get(serverBlock.id);
+
+                if (localBlock) {
+                    // Мержим: сервер имеет приоритет для основных полей,
+                    // но сохраняем локальный childOrder если сервер его не прислал
+                    const mergedBlock = {
+                        ...localBlock,
+                        ...serverBlock,
+                        data: {
+                            ...localBlock.data,
+                            ...serverBlock.data,
+                            // Сохраняем локальный childOrder если серверный пустой или отсутствует
+                            childOrder: (serverBlock.data?.childOrder?.length > 0)
+                                ? serverBlock.data.childOrder
+                                : (localBlock.data?.childOrder || serverBlock.children || [])
+                        }
+                    };
+
+                    // Синхронизируем childOrder с children
+                    if (mergedBlock.children && mergedBlock.data.childOrder) {
+                        // childOrder должен содержать только те ID, которые есть в children
+                        mergedBlock.data.childOrder = mergedBlock.data.childOrder
+                            .filter(id => mergedBlock.children.includes(id));
+                        // Добавляем недостающие children в конец childOrder
+                        for (const childId of mergedBlock.children) {
+                            if (!mergedBlock.data.childOrder.includes(childId)) {
+                                mergedBlock.data.childOrder.push(childId);
+                            }
+                        }
+                    }
+
+                    console.log('Merging block:', serverBlock.id,
+                        'children:', mergedBlock.children?.length || 0,
+                        'childOrder:', mergedBlock.data?.childOrder?.length || 0);
+                    await this.saveBlock(mergedBlock);
+                } else {
+                    // Новый блок - сохраняем как есть
+                    console.log('Saving new block:', serverBlock.id);
+                    await this.saveBlock(serverBlock);
+                }
             }
         }
 
