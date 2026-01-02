@@ -1402,18 +1402,21 @@ export class LocalStateManager {
             title: title || '',
             parent_id: parentId,
             children: [],
-            data: {},
+            data: { childOrder: [] },
             updated_at: new Date().toISOString()
         };
 
         // Обновляем родительский блок
         if (!parentBlock.children) parentBlock.children = [];
-        parentBlock.children.push(blockId);
-
-        // Синхронизируем childOrder с children
         if (!parentBlock.data) parentBlock.data = {};
         if (!parentBlock.data.childOrder) parentBlock.data.childOrder = [];
+
+        // ВАЖНО: добавляем blockId в оба массива синхронно
+        parentBlock.children.push(blockId);
         parentBlock.data.childOrder.push(blockId);
+
+        // Обновляем timestamp родителя
+        parentBlock.updated_at = new Date().toISOString();
 
         // Сохраняем локально и показываем сразу (мгновенный отклик)
         await this.saveBlock(newBlock);
