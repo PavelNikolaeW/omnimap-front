@@ -122,7 +122,7 @@ jobs:
             -f "${VALUES_FILE}" \
             --set ${{ env.HELM_VALUE_KEY }}.image.tag=${TAG} \
             --atomic \
-            --timeout 5m
+            --timeout 10m
 
       - name: Show status
         if: always()
