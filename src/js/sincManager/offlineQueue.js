@@ -28,7 +28,9 @@ class OfflineQueueManager {
         this.cachedQueueLength = 0; // Для синхронной проверки в beforeunload
         this.pullCompleted = false; // Флаг завершения pull фазы
         this.syncDebounceTimer = null; // Таймер для debounce синхронизации
-        this.SYNC_DEBOUNCE_MS = 1000; // Задержка перед началом синхронизации (1 сек)
+        this.SYNC_DEBOUNCE_MS = 3000; // Задержка перед началом синхронизации (3 сек)
+        this.lastPullTimestamp = 0; // Время последнего pull
+        this.PULL_COOLDOWN_MS = 30000; // Минимальный интервал между pull (30 сек)
 
         this.init();
     }
@@ -46,6 +48,16 @@ class OfflineQueueManager {
      */
     isNetworkOnline() {
         return this.isOnline;
+    }
+
+    /**
+     * Вызывается когда данные успешно загружены с сервера (например при инициализации)
+     * Сбрасывает cooldown для pull, так как данные уже актуальны
+     */
+    markPullCompleted() {
+        this.lastPullTimestamp = Date.now();
+        this.pullCompleted = true;
+        console.log('📥 Pull completed externally, timestamp updated');
     }
 
     async init() {
@@ -180,6 +192,19 @@ class OfflineQueueManager {
             return;
         }
 
+        // Проверяем cooldown: если недавно делали pull, пропускаем его
+        // WebSocket уже держит данные актуальными, поэтому частый pull не нужен
+        const now = Date.now();
+        const timeSinceLastPull = now - this.lastPullTimestamp;
+        const skipPull = timeSinceLastPull < this.PULL_COOLDOWN_MS;
+
+        if (skipPull) {
+            console.log(`⏭️ Skipping pull phase (last pull ${Math.round(timeSinceLastPull / 1000)}s ago, cooldown ${this.PULL_COOLDOWN_MS / 1000}s)`);
+            this.pullCompleted = true;
+            await this.processQueue();
+            return;
+        }
+
         this.isPulling = true;
         console.log('🔄 Starting pull phase before push...');
 
@@ -203,6 +228,7 @@ class OfflineQueueManager {
             // Мержим серверные данные с локальными
             await this.mergeServerBlocks(serverBlocks, queue);
 
+            this.lastPullTimestamp = Date.now();
             this.pullCompleted = true;
             this.isPulling = false;
 

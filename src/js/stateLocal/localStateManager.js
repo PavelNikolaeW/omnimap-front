@@ -1247,6 +1247,9 @@ export class LocalStateManager {
             await localforage.setItem(`Path_${tree}${this.currentUser}`, path);
         }
         this.path = await localforage.getItem(`Path_${this.currentTree}${this.currentUser}`)
+
+        // Уведомляем offlineQueue что данные загружены — следующий pull можно пропустить
+        offlineQueue.markPullCompleted();
     }
 
 
