@@ -159,8 +159,12 @@ class Api {
             return await this.api.post('/token/refresh/', {refresh})
                 .then(res => {
                     if (res.status === 200) {
-                        const {access} = res.data;
-                        Cookies.set('access', access);
+                        const {access, refresh: newRefresh} = res.data;
+                        Cookies.set('access', access, {expires: 30});
+                        // Сохраняем новый refresh token (важно при ROTATE_REFRESH_TOKENS=True)
+                        if (newRefresh) {
+                            Cookies.set('refresh', newRefresh, {expires: 30});
+                        }
                         return true;
                     }
                 }).catch(err => {
