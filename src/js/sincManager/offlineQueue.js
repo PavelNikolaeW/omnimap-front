@@ -20,6 +20,7 @@ class OfflineQueueManager {
         this.isOnline = navigator.onLine;
         this.isSyncing = false;
         this.backgroundSyncSupported = false;
+        this.cachedQueueLength = 0; // Для синхронной проверки в beforeunload
 
         this.init();
     }
@@ -44,6 +45,9 @@ class OfflineQueueManager {
         window.addEventListener('online', this.handleOnline.bind(this));
         window.addEventListener('offline', this.handleOffline.bind(this));
 
+        // Предупреждение при закрытии страницы с несохранёнными изменениями
+        window.addEventListener('beforeunload', this.handleBeforeUnload.bind(this));
+
         // Проверяем поддержку Background Sync
         this.backgroundSyncSupported = await this.checkBackgroundSyncSupport();
         if (this.backgroundSyncSupported) {
@@ -58,6 +62,24 @@ class OfflineQueueManager {
         // Проверяем очередь при старте, если онлайн
         if (this.isOnline) {
             this.processQueue();
+        }
+
+        // Инициализируем кэш длины очереди
+        this.getQueue().then(queue => {
+            this.cachedQueueLength = queue.length;
+        });
+    }
+
+    /**
+     * Предупреждение при закрытии страницы с несохранёнными изменениями
+     * Используем кэшированное значение, так как beforeunload должен быть синхронным
+     */
+    handleBeforeUnload(e) {
+        if (this.cachedQueueLength > 0) {
+            // Стандартное предупреждение браузера
+            e.preventDefault();
+            e.returnValue = 'У вас есть несохранённые изменения. Вы уверены, что хотите уйти?';
+            return e.returnValue;
         }
     }
 
@@ -137,6 +159,9 @@ class OfflineQueueManager {
 
         console.log('Operation queued:', operation.type, operation.data?.blockId);
 
+        // Уведомляем UI о новой операции в очереди
+        dispatch('OperationQueued', { count: queue.length });
+
         // Если онлайн, пытаемся сразу обработать
         if (this.isOnline && !this.isSyncing) {
             this.processQueue();
@@ -165,6 +190,8 @@ class OfflineQueueManager {
     async saveQueue(queue) {
         try {
             await localforage.setItem(this.QUEUE_KEY, queue);
+            // Обновляем кэшированную длину для синхронной проверки в beforeunload
+            this.cachedQueueLength = queue.length;
         } catch (error) {
             console.error('Error saving offline queue:', error);
         }

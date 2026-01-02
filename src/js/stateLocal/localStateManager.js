@@ -162,18 +162,26 @@ export class LocalStateManager {
             this.currentTree = null;
             this.path = [];
 
-            // Очищаем currentTree из localStorage чтобы не показывать блоки предыдущего пользователя
+            // Очищаем данные из IndexedDB
             await localforage.removeItem('currentTree');
+            await localforage.removeItem('currentUser');
 
-            dispatch('InitAnonimUser');
-
+            // Скрываем UI элементы
             const sidebar = document.getElementById('sidebar');
             const topSidebar = document.getElementById('topSidebar');
             if (sidebar) sidebar.classList.add('hidden');
             if (topSidebar) topSidebar.classList.add('hidden');
 
-            // Показываем начальный экран для анонимного пользователя
-            this.showBlocks();
+            // Проверяем, онлайн ли мы
+            const isOnline = navigator.onLine;
+
+            if (isOnline) {
+                // Онлайн: загружаем публичные блоки
+                dispatch('InitAnonimUser');
+            } else {
+                // Офлайн: показываем пустой экран с сообщением
+                this.showOfflineLogoutScreen();
+            }
         });
 
         window.addEventListener('PasteBlock', async (e) => {
@@ -1865,6 +1873,34 @@ export class LocalStateManager {
 
         traverse(block);
         return removesIds;
+    }
+
+    /**
+     * Показывает экран выхода в офлайн режиме
+     */
+    showOfflineLogoutScreen() {
+        // Очищаем rootContainer
+        if (this.rootContainer) {
+            this.rootContainer.innerHTML = '';
+        }
+
+        // Показываем сообщение о офлайн выходе
+        const offlineScreen = document.createElement('div');
+        offlineScreen.className = 'offline-logout-screen';
+        offlineScreen.innerHTML = `
+            <div class="offline-logout-content">
+                <i class="fas fa-wifi-slash offline-logout-icon"></i>
+                <h2>Вы вышли из системы</h2>
+                <p>Подключитесь к интернету и обновите страницу для входа.</p>
+                <button class="offline-refresh-btn" onclick="window.location.reload()">
+                    <i class="fas fa-sync-alt"></i> Обновить страницу
+                </button>
+            </div>
+        `;
+
+        if (this.rootContainer) {
+            this.rootContainer.appendChild(offlineScreen);
+        }
     }
 
 }

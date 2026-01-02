@@ -465,6 +465,7 @@ export const commands = [
     {
         id: 'undo',
         defaultHotkey: 'shift+z',
+        offlineDisabled: true, // Undo требует API вызова
         btn: {
             containerId: 'control-panel',
             label: 'Отменить последнее действие',
@@ -484,6 +485,7 @@ export const commands = [
         id: 'redo',
         defaultHotkey: 'shift+ctrl+z',
         mode: ['normal'],
+        offlineDisabled: true, // Redo требует API вызова
         btn: {
             containerId: 'control-panel',
             label: 'Отменить отмену действия',
