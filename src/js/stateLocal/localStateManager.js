@@ -275,10 +275,6 @@ export class LocalStateManager {
         window.addEventListener('RepairTree', () => {
             this.repairTree()
         })
-        // Обработка замены временных ID на реальные после синхронизации
-        window.addEventListener('TempIdResolved', (e) => {
-            this.handleTempIdResolved(e.detail)
-        })
         // Обработка синхронизированного блока
         window.addEventListener('BlockSynced', (e) => {
             this.handleBlockSynced(e.detail)
@@ -287,44 +283,6 @@ export class LocalStateManager {
         window.addEventListener('BatchImportCompleted', (e) => {
             this.handleBatchImportCompleted(e.detail)
         })
-    }
-
-    /**
-     * Обрабатывает замену временного ID на реальный после синхронизации
-     * @param {Object} detail - {tempId, realId, blocks}
-     */
-    async handleTempIdResolved({tempId, realId, blocks}) {
-        console.log(`Replacing temp ID ${tempId} with real ID ${realId}`);
-
-        // Получаем временный блок
-        const tempBlock = this.blocks.get(tempId);
-        if (!tempBlock) {
-            console.warn(`Temp block ${tempId} not found`);
-            return;
-        }
-
-        // Удаляем временный блок из памяти и IndexedDB
-        this.blocks.delete(tempId);
-        await this.blockRepository.deleteBlock(tempId);
-
-        // Сохраняем новые блоки с реальными ID
-        if (blocks && Array.isArray(blocks)) {
-            for (const block of blocks) {
-                await this.saveBlock(block);
-            }
-        }
-
-        // Обновляем родительский блок - заменяем tempId на realId в children
-        const parentBlock = this.blocks.get(tempBlock.parent_id);
-        if (parentBlock && parentBlock.children) {
-            const index = parentBlock.children.indexOf(tempId);
-            if (index !== -1) {
-                parentBlock.children[index] = realId;
-                await this.saveBlock(parentBlock);
-            }
-        }
-
-        dispatch('ShowBlocks');
     }
 
     /**
@@ -340,40 +298,24 @@ export class LocalStateManager {
 
     /**
      * Обрабатывает завершение batch import после офлайн синхронизации
-     * Заменяет временные блоки на реальные с сервера
-     * @param {Object} detail - {blocks, tempIdToRealId, deletedIds}
+     * Обновляет локальные блоки данными с сервера
+     * @param {Object} detail - {blocks, deletedIds}
      */
-    async handleBatchImportCompleted({blocks, tempIdToRealId, deletedIds}) {
-        console.log(`Batch import completed: ${blocks?.length || 0} blocks, ${Object.keys(tempIdToRealId || {}).length} temp IDs resolved`);
+    async handleBatchImportCompleted({blocks, deletedIds}) {
+        console.log(`Batch import completed: ${blocks?.length || 0} blocks`);
 
-        // Удаляем временные блоки и блоки, которые были удалены офлайн
-        const idsToRemove = new Set([
-            ...Object.keys(tempIdToRealId || {}),
-            ...(deletedIds || [])
-        ]);
-
-        for (const id of idsToRemove) {
+        // Удаляем блоки, которые были удалены офлайн
+        for (const id of (deletedIds || [])) {
             if (this.blocks.has(id)) {
                 this.blocks.delete(id);
                 await this.blockRepository.deleteBlock(id);
             }
         }
 
-        // Сохраняем новые блоки с сервера
+        // Сохраняем/обновляем блоки с сервера
         if (blocks && Array.isArray(blocks)) {
             for (const block of blocks) {
                 await this.saveBlock(block);
-            }
-        }
-
-        // Обновляем children родительских блоков: заменяем tempId на realId
-        for (const [tempId, realId] of Object.entries(tempIdToRealId || {})) {
-            for (const block of this.blocks.values()) {
-                if (block.children && block.children.includes(tempId)) {
-                    const index = block.children.indexOf(tempId);
-                    block.children[index] = realId;
-                    await this.saveBlock(block);
-                }
             }
         }
 
@@ -442,37 +384,33 @@ export class LocalStateManager {
      * Создаёт дерево локально в офлайн режиме
      */
     async createTreeOffline({title}) {
-        const tempId = offlineQueue.generateTempId();
+        // Генерируем реальный UUID сразу
+        const blockId = offlineQueue.generateBlockId();
 
-        // Создаём временный блок-дерево
-        const tempBlock = {
-            id: tempId,
+        // Создаём блок-дерево с реальным ID
+        const newBlock = {
+            id: blockId,
             title: title || 'Новое дерево',
             parent_id: null,
             children: [],
             data: {},
-            updated_at: new Date().toISOString(),
-            _isOffline: true
+            updated_at: new Date().toISOString()
         };
 
         // Сохраняем блок
-        await this.saveBlock(tempBlock);
+        await this.saveBlock(newBlock);
 
         // Добавляем в treeService
-        await treeService.addTree(tempId);
+        await treeService.addTree(blockId);
 
         // Добавляем в очередь синхронизации
         await offlineQueue.enqueue({
-            id: `create_tree_${tempId}`,
             type: 'createTree',
-            data: {
-                tempId,
-                title
-            }
+            data: { blockId, title }
         });
 
         this.showBlocks();
-        console.log('Tree created offline:', tempId);
+        console.log('Tree created:', blockId, offlineQueue.isNetworkOnline() ? '(syncing)' : '(offline)');
     }
 
     /**
@@ -1358,8 +1296,8 @@ export class LocalStateManager {
     }
 
     async createBlock({parentId, title}) {
-        // Optimistic UI: сначала создаём блок локально с временным ID
-        const tempId = offlineQueue.generateTempId();
+        // Генерируем реальный UUID сразу (не временный)
+        const blockId = offlineQueue.generateBlockId();
 
         const parentBlock = this.blocks.get(parentId);
         if (!parentBlock) {
@@ -1367,96 +1305,56 @@ export class LocalStateManager {
             return;
         }
 
-        // Создаём временный блок
-        const tempBlock = {
-            id: tempId,
+        // Создаём блок с реальным ID
+        const newBlock = {
+            id: blockId,
             title: title || '',
             parent_id: parentId,
             children: [],
             data: {},
-            updated_at: new Date().toISOString(),
-            _isOffline: true
+            updated_at: new Date().toISOString()
         };
 
         // Обновляем родительский блок
         if (!parentBlock.children) parentBlock.children = [];
-        parentBlock.children.push(tempId);
+        parentBlock.children.push(blockId);
+
+        // Синхронизируем childOrder с children
+        if (!parentBlock.data) parentBlock.data = {};
+        if (!parentBlock.data.childOrder) parentBlock.data.childOrder = [];
+        parentBlock.data.childOrder.push(blockId);
 
         // Сохраняем локально и показываем сразу (мгновенный отклик)
-        await this.saveBlock(tempBlock);
+        await this.saveBlock(newBlock);
         await this.saveBlock(parentBlock);
         dispatch('ShowBlocks');
 
-        // Проверяем сеть - если офлайн, добавляем в очередь
-        if (!offlineQueue.isNetworkOnline()) {
-            await offlineQueue.enqueue({
-                id: `create_${tempId}`,
-                type: 'createBlock',
-                data: { tempId, parentId, title, blockData: null }
-            });
-            console.log('Block created offline:', tempId);
-            return;
-        }
+        // Добавляем в очередь синхронизации (отправится через batch import)
+        await offlineQueue.enqueue({
+            type: 'createBlock',
+            data: { blockId, parentId }
+        });
 
-        // Синхронизируем с сервером в фоне
-        try {
-            const response = await api.createBlock(parentId, title);
-            if (response.status === 201) {
-                const newBlocks = response.data;
-                const newBlock = newBlocks.find(b => b.parent_id === parentId && !this.blocks.has(b.id));
-
-                if (newBlock) {
-                    // Сохраняем маппинг tempId -> realId
-                    await offlineQueue.saveTempIdMapping(tempId, newBlock.id);
-
-                    // Удаляем временный блок
-                    this.blocks.delete(tempId);
-                    await this.blockRepository.deleteBlock(tempId);
-
-                    // Обновляем родительский блок - заменяем tempId на realId
-                    const parent = this.blocks.get(parentId);
-                    if (parent && parent.children) {
-                        const idx = parent.children.indexOf(tempId);
-                        if (idx !== -1) parent.children[idx] = newBlock.id;
-                        await this.saveBlock(parent);
-                    }
-
-                    // Сохраняем новые блоки с сервера
-                    for (const block of newBlocks) {
-                        await this.saveBlock(block);
-                    }
-                    dispatch('ShowBlocks');
-                }
-            }
-        } catch (err) {
-            // При ошибке сети добавляем в очередь синхронизации
-            if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
-                await offlineQueue.enqueue({
-                    id: `create_${tempId}`,
-                    type: 'createBlock',
-                    data: { tempId, parentId, title, blockData: null }
-                });
-                console.log('Block queued for sync:', tempId);
-            } else {
-                // При других ошибках делаем rollback
-                console.error('Create block failed, rolling back:', err);
-                await this.rollbackCreateBlock(tempId, parentId);
-            }
-        }
+        console.log('Block created:', blockId, offlineQueue.isNetworkOnline() ? '(syncing)' : '(offline)');
     }
 
     /**
      * Откатывает создание блока при ошибке
      */
-    async rollbackCreateBlock(tempId, parentId) {
-        // Удаляем временный блок
-        this.blocks.delete(tempId);
-        await this.blockRepository.deleteBlock(tempId);
+    async rollbackCreateBlock(blockId, parentId) {
+        // Удаляем блок
+        this.blocks.delete(blockId);
+        await this.blockRepository.deleteBlock(blockId);
 
-        // Убираем из родительского блока
+        // Убираем из родительского блока (из children и childOrder)
         const parentBlock = this.blocks.get(parentId);
         if (parentBlock && parentBlock.children) {
-            parentBlock.children = parentBlock.children.filter(id => id !== tempId);
+            parentBlock.children = parentBlock.children.filter(id => id !== blockId);
+
+            // Также убираем из childOrder
+            if (parentBlock.data?.childOrder) {
+                parentBlock.data.childOrder = parentBlock.data.childOrder.filter(id => id !== blockId);
+            }
             await this.saveBlock(parentBlock);
         }
 
@@ -1473,35 +1371,8 @@ export class LocalStateManager {
             ]
         };
 
-        // Офлайн режим
-        if (!offlineQueue.isNetworkOnline()) {
-            await this.iframeCreateOffline({parentId, src, blockData});
-            return;
-        }
-
-        try {
-            const res = await api.createBlock(parentId, '', blockData);
-            if (res.status === 201) {
-                const newBlocks = res.data;
-                for (const block of newBlocks) {
-                    await this.saveBlock(block);
-                }
-                dispatch('ShowBlocks');
-            }
-        } catch (err) {
-            if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
-                await this.iframeCreateOffline({parentId, src, blockData});
-            } else {
-                console.error(err);
-            }
-        }
-    }
-
-    /**
-     * Создаёт iframe блок локально в офлайн режиме
-     */
-    async iframeCreateOffline({parentId, src, blockData}) {
-        const tempId = offlineQueue.generateTempId();
+        // Генерируем реальный UUID сразу
+        const blockId = offlineQueue.generateBlockId();
 
         const parentBlock = this.blocks.get(parentId);
         if (!parentBlock) {
@@ -1509,38 +1380,36 @@ export class LocalStateManager {
             return;
         }
 
-        // Создаём временный iframe блок
-        const tempBlock = {
-            id: tempId,
+        // Создаём iframe блок с реальным ID
+        const newBlock = {
+            id: blockId,
             title: '',
             parent_id: parentId,
             children: [],
             data: blockData,
-            updated_at: new Date().toISOString(),
-            _isOffline: true
+            updated_at: new Date().toISOString()
         };
 
         // Обновляем родительский блок
         if (!parentBlock.children) parentBlock.children = [];
-        parentBlock.children.push(tempId);
+        parentBlock.children.push(blockId);
 
-        await this.saveBlock(tempBlock);
+        // Синхронизируем childOrder с children
+        if (!parentBlock.data) parentBlock.data = {};
+        if (!parentBlock.data.childOrder) parentBlock.data.childOrder = [];
+        parentBlock.data.childOrder.push(blockId);
+
+        await this.saveBlock(newBlock);
         await this.saveBlock(parentBlock);
+        dispatch('ShowBlocks');
 
         // Добавляем в очередь синхронизации
         await offlineQueue.enqueue({
-            id: `create_iframe_${tempId}`,
             type: 'createBlock',
-            data: {
-                tempId,
-                parentId,
-                title: '',
-                blockData
-            }
+            data: { blockId, parentId }
         });
 
-        dispatch('ShowBlocks');
-        console.log('Iframe created offline:', tempId);
+        console.log('Iframe created:', blockId, offlineQueue.isNetworkOnline() ? '(syncing)' : '(offline)');
     }
 
     async pasteBlock(data) {
