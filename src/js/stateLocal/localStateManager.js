@@ -757,15 +757,41 @@ export class LocalStateManager {
                         }
                     }
 
-                    const data = this._safeJsonParse(block.data, {});
-                    const children = this._safeJsonParse(block.children, []);
+                    const serverData = this._safeJsonParse(block.data, {});
+                    const serverChildren = this._safeJsonParse(block.children, []);
+
+                    // Получаем локальный блок для мёржа
+                    const localBlock = this.blocks.get(block.id);
+                    const localData = localBlock?.data || {};
+
+                    // Мёржим data: сервер имеет приоритет, но сохраняем локальный childOrder если серверный пустой
+                    const mergedData = {
+                        ...localData,
+                        ...serverData,
+                        // childOrder: берём серверный если он есть и не пустой, иначе локальный
+                        childOrder: (serverData.childOrder?.length > 0)
+                            ? serverData.childOrder
+                            : (localData.childOrder || [])
+                    };
+
+                    // Синхронизируем childOrder с children
+                    if (serverChildren.length > 0) {
+                        // Фильтруем childOrder — только те ID, которые есть в children
+                        mergedData.childOrder = mergedData.childOrder.filter(id => serverChildren.includes(id));
+                        // Добавляем недостающие children в конец childOrder
+                        for (const childId of serverChildren) {
+                            if (!mergedData.childOrder.includes(childId)) {
+                                mergedData.childOrder.push(childId);
+                            }
+                        }
+                    }
 
                     await this.saveBlock({
                         id: block.id,
                         updated_at: new Date(block.updated_at * 1000).toISOString(),
                         title: block.title,
-                        data,
-                        children,
+                        data: mergedData,
+                        children: serverChildren,
                         parent_id: normalizeParentId(block.parent_id)
                     });
                 }
@@ -1415,20 +1441,12 @@ export class LocalStateManager {
         parentBlock.children.push(blockId);
         parentBlock.data.childOrder.push(blockId);
 
-        // DEBUG: проверяем что массивы синхронизированы
-        console.log(`[createBlock] parentId=${parentId.slice(0,8)}, children=${parentBlock.children.length}, childOrder=${parentBlock.data.childOrder.length}`);
-
         // Обновляем timestamp родителя
         parentBlock.updated_at = new Date().toISOString();
 
         // Сохраняем локально и показываем сразу (мгновенный отклик)
         await this.saveBlock(newBlock);
         await this.saveBlock(parentBlock);
-
-        // DEBUG: проверяем что блок в this.blocks обновился
-        const checkParent = this.blocks.get(parentId);
-        console.log(`[createBlock] after save: children=${checkParent?.children?.length}, childOrder=${checkParent?.data?.childOrder?.length}`);
-
         dispatch('ShowBlocks');
 
         // Добавляем в очередь синхронизации (отправится через batch import)

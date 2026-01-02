@@ -292,9 +292,6 @@ class BlockCreator {
             block.grid = grid
             block.childrenPositions = childrenPositions
             block.contentPosition = contentPosition
-
-            // DEBUG: логируем grid классы для блока
-            console.log(`[blockCreator] block=${block.id?.slice(0,8)}, grid=${JSON.stringify(grid)}, childrenPositions keys=${Object.keys(childrenPositions || {}).length}`)
         }
     }
 }
