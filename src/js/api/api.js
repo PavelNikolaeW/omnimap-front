@@ -40,7 +40,10 @@ class Api {
 
         this.api.interceptors.request.use(
             config => {
-                this.setLoading(true)
+                // Не показываем loading cursor для фоновых sync операций
+                if (!config.skipLoadingCursor) {
+                    this.setLoading(true);
+                }
                 const token = Cookies.get('access');
                 if (token) {
                     config.headers['Authorization'] = `Bearer ${token}`;
@@ -81,13 +84,19 @@ class Api {
         // Добавление интерцептора ответа для обработки истечения токена
         this.api.interceptors.response.use(
             async response => {
-                this.setLoading(false)
+                // Не меняем cursor для фоновых sync операций
+                if (!response.config?.skipLoadingCursor) {
+                    this.setLoading(false);
+                }
                 return response
             },
             async error => {
                 log(error)
                 const originalRequest = error.config;
-                this.setLoading(false)
+                // Не меняем cursor для фоновых sync операций
+                if (!originalRequest?.skipLoadingCursor) {
+                    this.setLoading(false);
+                }
 
                 // Guard against missing config (network errors)
                 if (!originalRequest) {
@@ -466,10 +475,26 @@ class Api {
     /**
      * Импорт блоков (асинхронная задача)
      * @param {Array} payload - Массив блоков для импорта
+     * @param {Object} options - Опции запроса
+     * @param {boolean} options.skipLoadingCursor - Не показывать loading cursor
      * @returns {Promise} - { task_id: string }
      */
-    importBlocks(payload) {
-        return this.api.post('import/', { payload })
+    importBlocks(payload, options = {}) {
+        return this.api.post('import/', { payload }, {
+            skipLoadingCursor: options.skipLoadingCursor
+        })
+    }
+
+    /**
+     * Проверяет статус задачи (для sync операций без loading cursor)
+     * @param {string} taskId - ID задачи
+     * @param {Object} options - Опции запроса
+     * @returns {Promise}
+     */
+    checkStatusTaskSilent(taskId, options = {}) {
+        return this.api.get(`tasks/${taskId}/`, {
+            skipLoadingCursor: options.skipLoadingCursor
+        })
     }
 
     // =====================================================

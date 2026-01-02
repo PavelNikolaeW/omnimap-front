@@ -388,10 +388,13 @@ class OfflineQueueManager {
                 message: `Синхронизация ${blocks.length} блоков...`
             });
 
-            // Отправляем на import
-            const { task_id } = await importBlocks(blocks);
+            // Сигнализируем о начале синхронизации (моргание API индикатора)
+            dispatch('ApiSyncStarted');
 
-            // Отслеживаем прогресс задачи импорта
+            // Отправляем на import (silent — без loading cursor)
+            const { task_id } = await importBlocks(blocks, { silent: true });
+
+            // Отслеживаем прогресс задачи импорта (silent — без loading cursor)
             const result = await pollImportStatus(task_id, (progress) => {
                 dispatch('SyncProgress', {
                     completed: progress.processed,
@@ -399,7 +402,7 @@ class OfflineQueueManager {
                     percent: progress.percent,
                     stage: progress.stage
                 });
-            });
+            }, 500, 300000, { silent: true });
 
             // Обновляем локальное состояние с новыми блоками от сервера
             if (result.blocks) {
@@ -413,6 +416,9 @@ class OfflineQueueManager {
             await this.saveQueue([]);
             this.isSyncing = false;
 
+            // Сигнализируем об окончании синхронизации
+            dispatch('ApiSyncFinished');
+
             dispatch('SyncCompleted', {
                 successCount: queue.length,
                 failedCount: 0,
@@ -422,6 +428,9 @@ class OfflineQueueManager {
         } catch (error) {
             console.error('Batch import failed:', error);
             this.isSyncing = false;
+
+            // Сигнализируем об окончании синхронизации (даже при ошибке)
+            dispatch('ApiSyncFinished');
 
             dispatch('SyncCompleted', {
                 successCount: 0,
@@ -457,6 +466,8 @@ class OfflineQueueManager {
                 case 'createBlock': {
                     const { blockId, parentId } = data;
                     affectedBlockIds.add(blockId);
+                    // ВАЖНО: родитель ОБЯЗАТЕЛЬНО должен быть включён,
+                    // чтобы его children/childOrder обновились на сервере
                     if (parentId) affectedBlockIds.add(parentId);
                     break;
                 }
@@ -483,8 +494,8 @@ class OfflineQueueManager {
                 }
 
                 case 'deleteBlock': {
-                    const { blockId, parentId } = data;
-                    deletedIds.add(blockId);
+                    const { blockId, parentId, id } = data;
+                    deletedIds.add(blockId || id);
                     // Добавляем родителя - его children нужно обновить на сервере
                     if (parentId) {
                         affectedBlockIds.add(parentId);
@@ -493,6 +504,10 @@ class OfflineQueueManager {
                 }
             }
         }
+
+        console.log('📦 Building changed blocks tree:');
+        console.log('  - Affected blocks:', Array.from(affectedBlockIds));
+        console.log('  - Deleted blocks:', Array.from(deletedIds));
 
         // Формируем массив блоков из финального состояния
         const blocks = [];
@@ -503,7 +518,10 @@ class OfflineQueueManager {
 
             // Получаем финальное состояние блока из памяти
             const localBlock = await getBlockById(blockId);
-            if (!localBlock) continue;
+            if (!localBlock) {
+                console.warn('⚠️ Block not found in local state:', blockId);
+                continue;
+            }
 
             // Фильтруем удалённые из children и childOrder
             const finalChildren = (localBlock.children || [])
@@ -515,13 +533,25 @@ class OfflineQueueManager {
                 finalData.childOrder = finalData.childOrder.filter(cid => !deletedIds.has(cid));
             }
 
-            blocks.push({
+            // Синхронизируем childOrder с children если childOrder пустой
+            if (!finalData.childOrder || finalData.childOrder.length === 0) {
+                finalData.childOrder = [...finalChildren];
+            }
+
+            const blockPayload = {
                 id: localBlock.id,
                 parent_id: localBlock.parent_id || null,
                 title: localBlock.title || '',
                 children: finalChildren,
                 data: finalData
-            });
+            };
+
+            console.log('  📄 Block payload:', blockPayload.id,
+                'parent:', blockPayload.parent_id,
+                'children:', finalChildren.length,
+                'childOrder:', finalData.childOrder?.length || 0);
+
+            blocks.push(blockPayload);
         }
 
         return {

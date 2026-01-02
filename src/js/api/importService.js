@@ -94,9 +94,11 @@ export function validateBlocksPayload(blocks) {
 /**
  * Отправляет блоки на импорт
  * @param {Array} blocks - Массив блоков для импорта
+ * @param {Object} options - Опции
+ * @param {boolean} options.silent - Не показывать loading cursor (для фоновой синхронизации)
  * @returns {Promise<{task_id: string}>}
  */
-export async function importBlocks(blocks) {
+export async function importBlocks(blocks, options = {}) {
     const validation = validateBlocksPayload(blocks);
     if (!validation.valid) {
         throw new Error(validation.errors.join('\n'));
@@ -108,7 +110,9 @@ export async function importBlocks(blocks) {
     console.log('Blocks:', JSON.stringify(blocks, null, 2));
     console.groupEnd();
 
-    const response = await api.importBlocks(blocks);
+    const response = await api.importBlocks(blocks, {
+        skipLoadingCursor: options.silent
+    });
 
     // DEBUG: логируем ответ
     console.group('🔄 Import API Response');
@@ -129,9 +133,11 @@ export async function importBlocks(blocks) {
  * @param {Function} onProgress - Колбэк прогресса (stage, percent, processed, total)
  * @param {number} interval - Интервал опроса в мс (по умолчанию 500)
  * @param {number} timeout - Таймаут в мс (по умолчанию 300000 = 5 минут)
+ * @param {Object} options - Опции
+ * @param {boolean} options.silent - Не показывать loading cursor
  * @returns {Promise<Object>} Результат импорта
  */
-export async function pollImportStatus(taskId, onProgress, interval = 500, timeout = 300000) {
+export async function pollImportStatus(taskId, onProgress, interval = 500, timeout = 300000, options = {}) {
     const startTime = Date.now();
 
     return new Promise((resolve, reject) => {
@@ -143,7 +149,10 @@ export async function pollImportStatus(taskId, onProgress, interval = 500, timeo
                     return;
                 }
 
-                const response = await api.checkStatusTask(taskId);
+                // Используем silent версию для фоновой синхронизации
+                const response = options.silent
+                    ? await api.checkStatusTaskSilent(taskId, { skipLoadingCursor: true })
+                    : await api.checkStatusTask(taskId);
                 const data = response.data;
 
                 // Обработка прогресса

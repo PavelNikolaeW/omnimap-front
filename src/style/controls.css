@@ -345,6 +345,22 @@
     50% { opacity: 1; }
 }
 
+/* Анимация моргания при синхронизации */
+.status-led.syncing {
+    animation: blink-syncing 0.3s ease-in-out infinite;
+}
+
+@keyframes blink-syncing {
+    0%, 100% {
+        opacity: 1;
+        box-shadow: 0 0 8px rgba(76, 175, 80, 1);
+    }
+    50% {
+        opacity: 0.3;
+        box-shadow: 0 0 2px rgba(76, 175, 80, 0.3);
+    }
+}
+
 /* Адаптивные стили для мобильных */
 @media (max-width: 600px) {
     .status-indicators {

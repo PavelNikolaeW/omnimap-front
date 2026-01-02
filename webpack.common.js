@@ -53,13 +53,20 @@ module.exports = {
                 minifyURLs: true,
             },
         }),
-        // Копируем кастомный код для Service Worker
+        // Копируем статические файлы
         new CopyPlugin({
             patterns: [
+                // Кастомный код для Service Worker
                 {
                     from: 'src/sw-custom.js',
                     to: 'sw-custom.js',
                     noErrorOnMissing: true, // Не падать если файла нет (для dev режима)
+                },
+                // Runtime config (в проде заменяется через ConfigMap)
+                {
+                    from: 'public/config.js',
+                    to: 'config/config.js', // Путь соответствует index.html: /config/config.js
+                    noErrorOnMissing: true,
                 },
             ],
         }),

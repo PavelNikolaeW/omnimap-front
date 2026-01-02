@@ -105,6 +105,39 @@ class StatusIndicators {
         window.addEventListener('ApiError', () => {
             this.setStatus('api', 'warning');
         });
+
+        // Синхронизация: моргание API индикатора
+        window.addEventListener('ApiSyncStarted', () => {
+            this.startSyncBlink('api');
+        });
+
+        window.addEventListener('ApiSyncFinished', () => {
+            this.stopSyncBlink('api');
+        });
+    }
+
+    /**
+     * Запускает моргание индикатора для отображения активности синхронизации
+     * @param {string} system - Система ('db', 'api', 'ws', 'llm')
+     */
+    startSyncBlink(system) {
+        const led = this.indicators[system];
+        if (!led) return;
+
+        // Добавляем класс моргания
+        led.classList.add('syncing');
+    }
+
+    /**
+     * Останавливает моргание индикатора
+     * @param {string} system - Система ('db', 'api', 'ws', 'llm')
+     */
+    stopSyncBlink(system) {
+        const led = this.indicators[system];
+        if (!led) return;
+
+        // Убираем класс моргания
+        led.classList.remove('syncing');
     }
 
     /**
