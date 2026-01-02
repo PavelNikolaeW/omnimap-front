@@ -443,16 +443,25 @@ export class LocalStateManager {
 
         // Сохраняем родительский блок для rollback
         const parentBlock = this.blocks.get(block.parent_id);
-        const parentBackup = parentBlock ? {...parentBlock, children: [...(parentBlock.children || [])]} : null;
+        const parentBackup = parentBlock ? {
+            ...parentBlock,
+            children: [...(parentBlock.children || [])],
+            data: {...parentBlock.data, childOrder: [...(parentBlock.data?.childOrder || [])]}
+        } : null;
 
         // Удаляем из treeService если это корневой блок
         if (isRootTree) {
             await treeService.removeTree(blockId)
         }
 
-        // Обновляем родительский блок (удаляем из children)
-        if (parentBlock && parentBlock.children) {
-            parentBlock.children = parentBlock.children.filter(id => id !== blockId);
+        // Обновляем родительский блок (удаляем из children и childOrder)
+        if (parentBlock) {
+            if (parentBlock.children) {
+                parentBlock.children = parentBlock.children.filter(id => id !== blockId);
+            }
+            if (parentBlock.data?.childOrder) {
+                parentBlock.data.childOrder = parentBlock.data.childOrder.filter(id => id !== blockId);
+            }
             await this.saveBlock(parentBlock);
         }
 
@@ -463,12 +472,6 @@ export class LocalStateManager {
         }
 
         dispatch('ShowBlocks');
-
-        // Если это временный блок - не отправляем на сервер
-        if (offlineQueue.isTempId(blockId)) {
-            console.log('Temp block deleted locally:', blockId);
-            return;
-        }
 
         // Проверяем сеть
         if (!offlineQueue.isNetworkOnline()) {
@@ -928,12 +931,14 @@ export class LocalStateManager {
             await this.saveBlock(oldParent);
         }
 
-        // Добавляем в нового родителя
+        // Добавляем в нового родителя и синхронизируем children с childOrder
         if (!newParent.children) newParent.children = [];
         if (!newParent.children.includes(block_id)) {
             newParent.children.push(block_id);
         }
         newParent.data.childOrder = newOrder;
+        // Синхронизируем children с childOrder для правильного порядка
+        newParent.children = newOrder.filter(id => newParent.children.includes(id));
         newParent.updated_at = new Date().toISOString();
 
         await this.saveBlock(block);

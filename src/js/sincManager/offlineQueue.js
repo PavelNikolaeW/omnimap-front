@@ -327,16 +327,22 @@ class OfflineQueueManager {
             const localBlock = await getBlockById(blockId);
             if (!localBlock) continue;
 
-            // Фильтруем удалённые из children
+            // Фильтруем удалённые из children и childOrder
             const finalChildren = (localBlock.children || [])
                 .filter(cid => !deletedIds.has(cid));
+
+            // Копируем data и фильтруем childOrder
+            const finalData = {...(localBlock.data || {})};
+            if (finalData.childOrder) {
+                finalData.childOrder = finalData.childOrder.filter(cid => !deletedIds.has(cid));
+            }
 
             blocks.push({
                 id: localBlock.id,
                 parent_id: localBlock.parent_id || null,
                 title: localBlock.title || '',
                 children: finalChildren,
-                data: localBlock.data || {}
+                data: finalData
             });
         }
 
