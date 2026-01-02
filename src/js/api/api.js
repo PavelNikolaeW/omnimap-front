@@ -280,7 +280,14 @@ class Api {
     }
 
     removeTree(blockId) {
-        return this.api.delete(`delete-tree/${blockId}/`)
+        console.log('🗑️ Delete tree request:', blockId);
+        return this.api.delete(`delete-tree/${blockId}/`).then(res => {
+            console.log('🗑️ Delete tree response:', res.status, res.data);
+            return res;
+        }).catch(err => {
+            console.error('🗑️ Delete tree error:', err.response?.status, err.response?.data);
+            throw err;
+        });
     }
 
     pasteBlock(data) {

@@ -102,7 +102,20 @@ export async function importBlocks(blocks) {
         throw new Error(validation.errors.join('\n'));
     }
 
+    // DEBUG: логируем что отправляем на /api/v1/import
+    console.group('🔄 Import API Request');
+    console.log('Blocks count:', blocks.length);
+    console.log('Blocks:', JSON.stringify(blocks, null, 2));
+    console.groupEnd();
+
     const response = await api.importBlocks(blocks);
+
+    // DEBUG: логируем ответ
+    console.group('🔄 Import API Response');
+    console.log('Status:', response.status);
+    console.log('Data:', response.data);
+    console.groupEnd();
+
     if (response.status !== 202) {
         throw new Error(response.data?.detail || 'Ошибка запуска импорта');
     }
