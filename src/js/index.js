@@ -54,9 +54,16 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
 
 document.addEventListener('DOMContentLoaded', async () => {
     // Показываем версию приложения
+    // Приоритет: runtime config (ConfigMap) > build-time (webpack)
     const versionEl = document.getElementById('app-version');
-    if (versionEl && typeof APP_VERSION !== 'undefined') {
-        versionEl.textContent = `v${APP_VERSION}`;
+    if (versionEl) {
+        const runtimeConfig = window.__OMNIMAP_CONFIG__ || {};
+        const version = runtimeConfig.APP_VERSION ||
+            (typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'dev');
+        const env = runtimeConfig.APP_ENVIRONMENT || '';
+        versionEl.textContent = env && env !== 'production'
+            ? `v${version} (${env})`
+            : `v${version}`;
     }
 
     // Инициализируем менеджер кэша для dev режима
