@@ -302,11 +302,14 @@ export class LocalStateManager {
      * @param {Object} detail - {blocks, deletedIds}
      */
     async handleBatchImportCompleted({blocks, deletedIds}) {
-        console.log(`Batch import completed: ${blocks?.length || 0} blocks`);
+        console.group('🔄 BatchImportCompleted');
+        console.log('Blocks from server:', blocks?.length || 0);
+        console.log('Deleted IDs:', deletedIds);
 
         // Удаляем блоки, которые были удалены офлайн
         for (const id of (deletedIds || [])) {
             if (this.blocks.has(id)) {
+                console.log('Deleting block:', id);
                 this.blocks.delete(id);
                 await this.blockRepository.deleteBlock(id);
             }
@@ -315,10 +318,12 @@ export class LocalStateManager {
         // Сохраняем/обновляем блоки с сервера
         if (blocks && Array.isArray(blocks)) {
             for (const block of blocks) {
+                console.log('Saving block from server:', block.id, 'children:', block.children?.length || 0);
                 await this.saveBlock(block);
             }
         }
 
+        console.groupEnd();
         dispatch('ShowBlocks');
     }
 
