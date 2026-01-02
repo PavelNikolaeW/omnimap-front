@@ -134,12 +134,17 @@ module.exports = merge(common, {
                         networkTimeoutSeconds: 3,
                     },
                 },
-                // JS и CSS
+                // JS и CSS с contenthash — используем CacheFirst
+                // (хеш в имени гарантирует что файл уникален, перекачивать не нужно)
                 {
                     urlPattern: ({request}) => request.destination === 'script' || request.destination === 'style',
-                    handler: 'StaleWhileRevalidate',
+                    handler: 'CacheFirst',
                     options: {
                         cacheName: 'static-resources',
+                        expiration: {
+                            maxEntries: 100,
+                            maxAgeSeconds: 30 * 24 * 60 * 60, // 30 дней
+                        },
                     },
                 },
                 // Шрифты
