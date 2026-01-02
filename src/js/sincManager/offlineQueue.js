@@ -2,6 +2,7 @@ import localforage from "localforage";
 import { dispatch } from "../utils/utils";
 import { v4 as uuidV4 } from 'uuid';
 import { importBlocks, pollImportStatus } from '../api/importService.js';
+import api from '../api/api.js';
 
 /**
  * Менеджер синхронизации блоков для offline режима
@@ -9,7 +10,10 @@ import { importBlocks, pollImportStatus } from '../api/importService.js';
  * Принцип работы:
  * - Блоки создаются сразу с реальными UUID (v4)
  * - При офлайне изменения накапливаются локально
- * - При восстановлении сети отправляем все изменённые блоки через import API
+ * - При восстановлении сети:
+ *   1. Сначала получаем обновления с сервера (pull)
+ *   2. Мержим серверные данные с локальными
+ *   3. Затем отправляем локальные изменения (push via import API)
  * - Import API: новый UUID → создаёт, существующий → обновляет
  * - Удаление: убираем ID из children/childOrder родителя
  */
@@ -19,8 +23,10 @@ class OfflineQueueManager {
         this.SYNC_TAG = 'omnimap-sync';
         this.isOnline = navigator.onLine;
         this.isSyncing = false;
+        this.isPulling = false; // Флаг для фазы pull
         this.backgroundSyncSupported = false;
         this.cachedQueueLength = 0; // Для синхронной проверки в beforeunload
+        this.pullCompleted = false; // Флаг завершения pull фазы
 
         this.init();
     }
@@ -61,7 +67,8 @@ class OfflineQueueManager {
 
         // Проверяем очередь при старте, если онлайн
         if (this.isOnline) {
-            this.processQueue();
+            // При старте приложения запускаем pull-before-push
+            this.startPullPhase();
         }
 
         // Инициализируем кэш длины очереди
@@ -134,8 +141,145 @@ class OfflineQueueManager {
     handleOnline() {
         console.log('Network: online');
         this.isOnline = true;
+        this.pullCompleted = false;
         dispatch('NetworkStatusChange', { online: true });
-        this.processQueue();
+        // Не вызываем processQueue сразу - ждём завершения pull фазы
+        // Pull будет инициирован через WebSocket (SincManager.online)
+        // После получения обновлений вызовется processSyncQueue
+        this.startPullPhase();
+    }
+
+    /**
+     * Начинает фазу pull - получение обновлений с сервера
+     * После завершения автоматически запускается push фаза
+     */
+    async startPullPhase() {
+        if (this.isPulling) return;
+
+        const queue = await this.getQueue();
+        if (queue.length === 0) {
+            // Нет локальных изменений - просто обновляем статус
+            this.pullCompleted = true;
+            return;
+        }
+
+        this.isPulling = true;
+        console.log('🔄 Starting pull phase before push...');
+
+        dispatch('SyncStarted', {
+            pendingCount: queue.length,
+            phase: 'pull',
+            message: 'Получение обновлений с сервера...'
+        });
+
+        try {
+            // Получаем все блоки с сервера
+            const { blocks: serverBlocks } = await api.getTreeBlocks();
+
+            console.log(`📥 Received ${serverBlocks.size} blocks from server`);
+
+            // Мержим серверные данные с локальными
+            await this.mergeServerBlocks(serverBlocks, queue);
+
+            this.pullCompleted = true;
+            this.isPulling = false;
+
+            console.log('✅ Pull phase completed, starting push phase...');
+
+            // Теперь запускаем push фазу
+            await this.processQueue();
+
+        } catch (error) {
+            console.error('❌ Pull phase failed:', error);
+            this.isPulling = false;
+
+            // При ошибке pull всё равно пытаемся push
+            // (локальные данные могут быть актуальнее)
+            console.log('⚠️ Proceeding to push phase despite pull failure...');
+            this.pullCompleted = true;
+            await this.processQueue();
+        }
+    }
+
+    /**
+     * Мержит блоки с сервера с локальными изменениями
+     * Стратегия: серверные данные имеют приоритет для полей, которые не были изменены локально
+     *
+     * @param {Map} serverBlocks - Блоки с сервера
+     * @param {Array} queue - Очередь локальных операций
+     */
+    async mergeServerBlocks(serverBlocks, queue) {
+        const { localStateManager } = await import('../stateLocal/localStateManager.js');
+
+        // Собираем ID блоков, которые были изменены локально
+        const locallyModifiedIds = new Set();
+        for (const operation of queue) {
+            const { type, data } = operation;
+            switch (type) {
+                case 'createBlock':
+                case 'createTree':
+                    locallyModifiedIds.add(data.blockId);
+                    if (data.parentId) locallyModifiedIds.add(data.parentId);
+                    break;
+                case 'updateBlock':
+                    locallyModifiedIds.add(data.blockId || data.id);
+                    break;
+                case 'moveBlock':
+                    locallyModifiedIds.add(data.blockId);
+                    if (data.oldParentId) locallyModifiedIds.add(data.oldParentId);
+                    if (data.newParentId) locallyModifiedIds.add(data.newParentId);
+                    break;
+                case 'deleteBlock':
+                    // Удалённые блоки не мержим с сервера
+                    locallyModifiedIds.add(data.blockId || data.id);
+                    break;
+            }
+        }
+
+        console.log(`📝 Locally modified blocks: ${locallyModifiedIds.size}`);
+
+        // Обновляем локальные блоки серверными данными
+        for (const [blockId, serverBlock] of serverBlocks) {
+            const localBlock = localStateManager.blocks.get(blockId);
+
+            if (!localBlock) {
+                // Новый блок с сервера - просто сохраняем
+                await localStateManager.getInstance().saveBlock(serverBlock);
+                continue;
+            }
+
+            if (locallyModifiedIds.has(blockId)) {
+                // Блок был изменён локально - мержим осторожно
+                // Сохраняем локальные изменения, но обновляем updated_at с сервера если он новее
+                const serverUpdatedAt = new Date(serverBlock.updated_at).getTime();
+                const localUpdatedAt = new Date(localBlock.updated_at).getTime();
+
+                if (serverUpdatedAt > localUpdatedAt) {
+                    // Сервер имеет более новую версию - конфликт!
+                    // Логируем конфликт, но сохраняем локальные изменения
+                    // (они будут отправлены на сервер в push фазе)
+                    console.warn(`⚠️ Conflict detected for block ${blockId}: server is newer`);
+                }
+                // Не перезаписываем локально изменённый блок
+                continue;
+            }
+
+            // Блок не был изменён локально - обновляем серверными данными
+            const mergedBlock = {
+                ...serverBlock,
+                // Синхронизируем childOrder с children
+                data: {
+                    ...serverBlock.data,
+                    childOrder: serverBlock.data?.childOrder?.length > 0
+                        ? serverBlock.data.childOrder
+                        : (serverBlock.children || [])
+                }
+            };
+
+            await localStateManager.getInstance().saveBlock(mergedBlock);
+        }
+
+        console.log('✅ Merge completed');
     }
 
     handleOffline() {
@@ -162,9 +306,9 @@ class OfflineQueueManager {
         // Уведомляем UI о новой операции в очереди
         dispatch('OperationQueued', { count: queue.length });
 
-        // Если онлайн, пытаемся сразу обработать
-        if (this.isOnline && !this.isSyncing) {
-            this.processQueue();
+        // Если онлайн и не в процессе синхронизации, запускаем pull-before-push
+        if (this.isOnline && !this.isSyncing && !this.isPulling) {
+            this.startPullPhase();
         } else if (!this.isOnline) {
             // Если offline, регистрируем Background Sync
             await this.registerBackgroundSync();
@@ -198,18 +342,24 @@ class OfflineQueueManager {
     }
 
     /**
-     * Обрабатывает очередь операций через batch import API
+     * Обрабатывает очередь операций через batch import API (push фаза)
+     * Вызывается после завершения pull фазы
      */
     async processQueue() {
-        if (this.isSyncing || !this.isOnline) return;
+        // Не запускаем push пока идёт pull или синхронизация
+        if (this.isSyncing || !this.isOnline || this.isPulling) return;
 
         const queue = await this.getQueue();
         if (queue.length === 0) return;
 
         this.isSyncing = true;
-        dispatch('SyncStarted', { pendingCount: queue.length });
+        dispatch('SyncStarted', {
+            pendingCount: queue.length,
+            phase: 'push',
+            message: 'Отправка изменений на сервер...'
+        });
 
-        console.log(`Processing ${queue.length} operations via batch import`);
+        console.log(`📤 Push phase: processing ${queue.length} operations via batch import`);
 
         try {
             // Получаем функцию для загрузки блоков из LocalStateManager

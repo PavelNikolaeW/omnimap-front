@@ -156,10 +156,24 @@ class NetworkStatusUI {
         this.scheduleHide(3000);
     }
 
-    showSyncing(pendingCount) {
+    showSyncing(detail) {
         this.clearHideTimeout();
         this.element.className = 'network-status syncing visible';
-        this.setText(`Синхронизация... (${pendingCount})`);
+
+        const pendingCount = detail.pendingCount || detail;
+        const phase = detail.phase;
+        const message = detail.message;
+
+        if (message) {
+            this.setText(message);
+        } else if (phase === 'pull') {
+            this.setText(`Получение обновлений...`);
+        } else if (phase === 'push') {
+            this.setText(`Отправка изменений... (${pendingCount})`);
+        } else {
+            this.setText(`Синхронизация... (${pendingCount})`);
+        }
+
         this.updatePendingCount(pendingCount);
     }
 
