@@ -53,23 +53,22 @@ class NetworkStatusUI {
             this.handleNetworkChange(e.detail.online);
         });
 
-        window.addEventListener('SyncStarted', (e) => {
-            this.showSyncing(e.detail.pendingCount);
-        });
-
+        // Синхронизация теперь показывается морганием API диода,
+        // показываем network-status только при ошибках
         window.addEventListener('SyncCompleted', (e) => {
-            this.showSyncCompleted(e.detail);
-        });
-
-        window.addEventListener('SyncProgress', (e) => {
-            this.updatePendingCount(e.detail.total - e.detail.completed);
+            // Показываем только ошибки синхронизации
+            if (e.detail.failedCount > 0) {
+                this.showSyncCompleted(e.detail);
+            } else {
+                this.hide();
+            }
         });
 
         window.addEventListener('WebSocketDisconnected', (e) => {
             this.showWebSocketError(e.detail);
         });
 
-        // Обновляем счётчик при добавлении операций в очередь
+        // Обновляем счётчик при добавлении операций в очередь (для offline bar)
         window.addEventListener('OperationQueued', async () => {
             await this.refreshPendingCount();
         });

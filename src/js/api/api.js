@@ -139,7 +139,8 @@ class Api {
     }
 
     setLoading(value) {
-        dispatch('SetLoading', value);
+        // Loading cursor отключён — синхронизация показывается морганием API диода
+        // dispatch('SetLoading', value);
     }
 
     /**
