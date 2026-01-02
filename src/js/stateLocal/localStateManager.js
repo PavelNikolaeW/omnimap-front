@@ -266,6 +266,11 @@ export class LocalStateManager {
         window.addEventListener('UpdateBlocks', (e) => {
             const data = e.detail
             data.blocks?.forEach(async (block) => {
+                // Защита: пропускаем блоки без id
+                if (!block?.id) {
+                    console.warn('⚠️ UpdateBlocks: skipping block without id:', block);
+                    return;
+                }
                 await this.saveBlock(block)
             })
             data.removed?.forEach(async (blockId) => {
@@ -326,6 +331,11 @@ export class LocalStateManager {
         // Мержим данные с сервера с локальными
         if (blocks && Array.isArray(blocks)) {
             for (const serverBlock of blocks) {
+                // Пропускаем блоки без id
+                if (!serverBlock?.id) {
+                    console.warn('⚠️ Skipping block without id from server:', serverBlock);
+                    continue;
+                }
                 const localBlock = this.blocks.get(serverBlock.id);
 
                 if (localBlock) {
@@ -540,7 +550,7 @@ export class LocalStateManager {
             const res = await api.removeTree(blockId)
             if (res.status === 200) {
                 // Обновляем родительский блок данными с сервера
-                if (res.data.parent) {
+                if (res.data.parent?.id) {
                     await this.saveBlock(res.data.parent)
                     dispatch('ShowBlocks');
                 }
@@ -655,7 +665,7 @@ export class LocalStateManager {
             const res = await api.removeTree(blockId)
             if (res.status === 200) {
                 // Обновляем родительский блок
-                if (res.data.parent) {
+                if (res.data.parent?.id) {
                     await this.saveBlock(res.data.parent)
                 }
 
@@ -859,6 +869,20 @@ export class LocalStateManager {
     async repairTree() {
         console.group('🔧 Восстановление дерева блоков');
 
+        // Удаляем блоки с undefined/null ключами (ошибочные записи)
+        if (this.blocks.has(undefined)) {
+            console.warn('⚠️ Удаляю блок с undefined ключом');
+            this.blocks.delete(undefined);
+        }
+        if (this.blocks.has(null)) {
+            console.warn('⚠️ Удаляю блок с null ключом');
+            this.blocks.delete(null);
+        }
+        if (this.blocks.has('undefined')) {
+            console.warn('⚠️ Удаляю блок с "undefined" ключом');
+            this.blocks.delete('undefined');
+        }
+
         const result = treeValidator.validateAndRepair(this.blocks);
         console.log(treeValidator.formatReport(result));
 
@@ -1013,6 +1037,11 @@ export class LocalStateManager {
             if (res.status === 200) {
                 // Обновляем блоки данными с сервера
                 for (const serverBlock of Object.values(res.data)) {
+                    // Защита: пропускаем блоки без id
+                    if (!serverBlock?.id) {
+                        console.warn('⚠️ moveBlock: skipping block without id:', serverBlock);
+                        continue;
+                    }
                     await this.saveBlock(serverBlock);
                 }
                 dispatch('ShowBlocks');
@@ -1056,15 +1085,21 @@ export class LocalStateManager {
 
 
     async saveBlock(block) {
-        if (block) {
-            this.blocks.set(block.id, block)
-            if (this.blockRepository) {
-                await this.blockRepository.saveBlock(block);
-            } else {
-                console.warn('BlockRepository not initialized, block saved only in memory:', block.id);
-            }
+        if (!block) {
+            console.error('Save block undefined');
+            console.trace('saveBlock called with undefined');
+            return;
+        }
+        if (!block.id) {
+            console.error('Save block without id:', block);
+            console.trace('saveBlock called without id');
+            return;
+        }
+        this.blocks.set(block.id, block);
+        if (this.blockRepository) {
+            await this.blockRepository.saveBlock(block);
         } else {
-            console.error('Save block undefined')
+            console.warn('BlockRepository not initialized, block saved only in memory:', block.id);
         }
     }
 
@@ -1481,6 +1516,11 @@ export class LocalStateManager {
                 if (response.status === 200) {
                     const newBlocks = response.data;
                     for (const block of Object.values(newBlocks)) {
+                        // Защита: пропускаем блоки без id
+                        if (!block?.id) {
+                            console.warn('⚠️ pasteBlock: skipping block without id:', block);
+                            continue;
+                        }
                         await this.saveBlock(block);
                     }
                     dispatch('ShowBlocks');
@@ -1507,6 +1547,11 @@ export class LocalStateManager {
             if (response.status === 201) {
                 const newBlocks = response.data;
                 for (const block of newBlocks) {
+                    // Защита: пропускаем блоки без id
+                    if (!block?.id) {
+                        console.warn('⚠️ pasteLinkBlock: skipping block without id:', block);
+                        continue;
+                    }
                     await this.saveBlock(block);
                 }
                 dispatch('ShowBlocks');
@@ -1522,7 +1567,10 @@ export class LocalStateManager {
 
     async updateCustomGridBlock({blockId, customGrid}) {
         const block = await this.blockRepository.loadBlock(blockId)
-        console.log(block)
+        if (!block) {
+            console.error(`Block ${blockId} not found`);
+            return;
+        }
         block.data.customGrid = customGrid
         await this.saveBlock(block).then(() => dispatch('ShowBlocks'))
 
@@ -1531,9 +1579,8 @@ export class LocalStateManager {
         this.debounceTimer = setTimeout(async () => {
             try {
                 const response = await api.updateBlock(blockId, {data: {customGrid}});
-                if (response.status === 200) {
-                    const updatedBlock = response.data;
-                    await this.saveBlock(updatedBlock);
+                if (response.status === 200 && response.data?.id) {
+                    await this.saveBlock(response.data);
                 }
             } catch (err) {
                 console.error(err);
@@ -1562,7 +1609,7 @@ export class LocalStateManager {
         this.debounceTimer = setTimeout(async () => {
             try {
                 const response = await api.updateBlock(blockId, { data: { customStyles } });
-                if (response.status === 200) {
+                if (response.status === 200 && response.data?.id) {
                     await this.saveBlock(response.data);
                 }
             } catch (err) {
@@ -1615,7 +1662,7 @@ export class LocalStateManager {
 
         try {
             const response = await api.updateBlock(blockId, {data: {text}});
-            if (response.status === 200) {
+            if (response.status === 200 && response.data?.id) {
                 const updatedBlock = response.data;
                 await this.saveBlock(updatedBlock);
                 dispatch('ShowBlocks');
@@ -1669,7 +1716,7 @@ export class LocalStateManager {
 
         try {
             const response = await api.updateBlock(blockId, {title});
-            if (response.status === 200) {
+            if (response.status === 200 && response.data?.id) {
                 const updatedBlock = response.data;
                 await this.saveBlock(updatedBlock);
                 dispatch('ShowBlocks');
@@ -1737,7 +1784,7 @@ export class LocalStateManager {
 
         try {
             const response = await api.updateBlock(blockId, {data: {color: hue}});
-            if (response.status === 200) {
+            if (response.status === 200 && response.data?.id) {
                 const updatedBlock = response.data;
                 await this.saveBlock(updatedBlock);
                 dispatch('ShowBlocks');
@@ -1817,7 +1864,7 @@ export class LocalStateManager {
 
         try {
             const response = await api.updateBlock(sourceId, {data: sourceBlock.data});
-            if (response.status === 200) {
+            if (response.status === 200 && response.data?.id) {
                 await this.saveBlock(response.data);
             }
         } catch (err) {
@@ -1862,7 +1909,7 @@ export class LocalStateManager {
 
         try {
             const response = await api.updateBlock(sourceId, {data: sourceBlock.data});
-            if (response.status === 200) {
+            if (response.status === 200 && response.data?.id) {
                 await this.saveBlock(response.data);
             }
         } catch (err) {
