@@ -57,7 +57,9 @@ jobs:
       - name: Build and Push
         run: |
           TAG="${{ steps.meta.outputs.tag }}"
-          docker build -t ${{ env.REGISTRY }}/${{ env.SERVICE_NAME }}:${TAG} .
+          docker build \
+            --build-arg APP_VERSION=${TAG} \
+            -t ${{ env.REGISTRY }}/${{ env.SERVICE_NAME }}:${TAG} .
           docker push ${{ env.REGISTRY }}/${{ env.SERVICE_NAME }}:${TAG}
           echo "Pushed ${{ env.SERVICE_NAME }}:${TAG}"
 
