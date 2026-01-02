@@ -35,6 +35,9 @@ class GridClassManager {
         const len = GridClassManager.getChildCount(block)
         const blockLayout = block.data?.layout || 'default'
 
+        // DEBUG: логируем количество детей
+        console.log(`[GridClassManager] block=${block.id?.slice(0,8)}, children=${block.children?.length}, childOrder=${block.data?.childOrder?.length}, len=${len}`)
+
         // Парсим тип layout и конфигурацию
         const { type, config } = parseLayoutType(blockLayout)
 

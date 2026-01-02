@@ -1415,12 +1415,20 @@ export class LocalStateManager {
         parentBlock.children.push(blockId);
         parentBlock.data.childOrder.push(blockId);
 
+        // DEBUG: проверяем что массивы синхронизированы
+        console.log(`[createBlock] parentId=${parentId.slice(0,8)}, children=${parentBlock.children.length}, childOrder=${parentBlock.data.childOrder.length}`);
+
         // Обновляем timestamp родителя
         parentBlock.updated_at = new Date().toISOString();
 
         // Сохраняем локально и показываем сразу (мгновенный отклик)
         await this.saveBlock(newBlock);
         await this.saveBlock(parentBlock);
+
+        // DEBUG: проверяем что блок в this.blocks обновился
+        const checkParent = this.blocks.get(parentId);
+        console.log(`[createBlock] after save: children=${checkParent?.children?.length}, childOrder=${checkParent?.data?.childOrder?.length}`);
+
         dispatch('ShowBlocks');
 
         // Добавляем в очередь синхронизации (отправится через batch import)
