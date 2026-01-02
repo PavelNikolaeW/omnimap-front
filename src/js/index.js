@@ -20,7 +20,7 @@ import '../style/p2p-chat.css';
 import '../style/diagram-editor.css';
 
 import {dispatch} from "./utils/utils";
-import {LocalStateManager} from "./stateLocal/localStateManager";
+import {localStateManager} from "./stateLocal/localStateManager";
 import {addedSizeStyles} from "./painter/styles";
 import localforage from "localforage";
 import api from "./api/api";
@@ -148,7 +148,8 @@ async function initApp() {
             hotkeysMap ?? {},
         )
     })
-    const localState = new LocalStateManager()
+    // Инициализируем singleton LocalStateManager
+    localStateManager.getInstance();
     const sincManager = new SincManager()
     const breadcrumbs = new Breadcrumbs()
     const treeNavigation = new TreeNavigation()

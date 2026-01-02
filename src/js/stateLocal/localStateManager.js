@@ -1863,3 +1863,21 @@ export class LocalStateManager {
     }
 
 }
+
+// Ленивый singleton для использования в других модулях
+let _localStateManagerInstance = null;
+
+export const localStateManager = {
+    get blocks() {
+        if (!_localStateManagerInstance) {
+            _localStateManagerInstance = new LocalStateManager();
+        }
+        return _localStateManagerInstance.blocks;
+    },
+    getInstance() {
+        if (!_localStateManagerInstance) {
+            _localStateManagerInstance = new LocalStateManager();
+        }
+        return _localStateManagerInstance;
+    }
+};
