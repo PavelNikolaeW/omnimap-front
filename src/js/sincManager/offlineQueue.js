@@ -27,6 +27,8 @@ class OfflineQueueManager {
         this.backgroundSyncSupported = false;
         this.cachedQueueLength = 0; // Для синхронной проверки в beforeunload
         this.pullCompleted = false; // Флаг завершения pull фазы
+        this.syncDebounceTimer = null; // Таймер для debounce синхронизации
+        this.SYNC_DEBOUNCE_MS = 1000; // Задержка перед началом синхронизации (1 сек)
 
         this.init();
     }
@@ -153,6 +155,21 @@ class OfflineQueueManager {
      * Начинает фазу pull - получение обновлений с сервера
      * После завершения автоматически запускается push фаза
      */
+    /**
+     * Создаёт промис с таймаутом
+     * @param {Promise} promise - Оригинальный промис
+     * @param {number} ms - Таймаут в миллисекундах
+     * @param {string} message - Сообщение об ошибке при таймауте
+     */
+    withTimeout(promise, ms, message = 'Operation timed out') {
+        return Promise.race([
+            promise,
+            new Promise((_, reject) =>
+                setTimeout(() => reject(new Error(message)), ms)
+            )
+        ]);
+    }
+
     async startPullPhase() {
         if (this.isPulling) return;
 
@@ -173,8 +190,13 @@ class OfflineQueueManager {
         });
 
         try {
-            // Получаем все блоки с сервера
-            const { blocks: serverBlocks } = await api.getTreeBlocks();
+            // Получаем все блоки с сервера с таймаутом 15 секунд
+            // Это защищает от зависания на медленных соединениях
+            const { blocks: serverBlocks } = await this.withTimeout(
+                api.getTreeBlocks(),
+                15000,
+                'Pull phase timed out'
+            );
 
             console.log(`📥 Received ${serverBlocks.size} blocks from server`);
 
@@ -193,7 +215,7 @@ class OfflineQueueManager {
             console.error('❌ Pull phase failed:', error);
             this.isPulling = false;
 
-            // При ошибке pull всё равно пытаемся push
+            // При ошибке pull (включая таймаут) всё равно пытаемся push
             // (локальные данные могут быть актуальнее)
             console.log('⚠️ Proceeding to push phase despite pull failure...');
             this.pullCompleted = true;
@@ -306,13 +328,33 @@ class OfflineQueueManager {
         // Уведомляем UI о новой операции в очереди
         dispatch('OperationQueued', { count: queue.length });
 
-        // Если онлайн и не в процессе синхронизации, запускаем pull-before-push
+        // Если онлайн, запускаем синхронизацию с debounce
+        // Это позволяет накопить несколько операций перед отправкой
         if (this.isOnline && !this.isSyncing && !this.isPulling) {
-            this.startPullPhase();
+            this.scheduleSyncWithDebounce();
         } else if (!this.isOnline) {
             // Если offline, регистрируем Background Sync
             await this.registerBackgroundSync();
         }
+    }
+
+    /**
+     * Запускает синхронизацию с задержкой (debounce)
+     * Позволяет накопить несколько операций перед отправкой
+     */
+    scheduleSyncWithDebounce() {
+        // Отменяем предыдущий таймер если есть
+        if (this.syncDebounceTimer) {
+            clearTimeout(this.syncDebounceTimer);
+        }
+
+        // Запускаем новый таймер
+        this.syncDebounceTimer = setTimeout(() => {
+            this.syncDebounceTimer = null;
+            if (this.isOnline && !this.isSyncing && !this.isPulling) {
+                this.startPullPhase();
+            }
+        }, this.SYNC_DEBOUNCE_MS);
     }
 
     /**
