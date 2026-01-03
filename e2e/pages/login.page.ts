@@ -14,11 +14,12 @@ export class LoginPage extends BasePage {
   constructor(page: Page) {
     super(page);
 
-    // Поля формы логина
-    this.usernameInput = page.locator('input[name="username"], input[type="text"]').first();
-    this.passwordInput = page.locator('input[name="password"], input[type="password"]');
-    this.submitButton = page.locator('button[type="submit"], input[type="submit"]');
-    this.errorMessage = page.locator('.error-message, .login-error, #login-error');
+    // Поля формы логина (ищем внутри #login-form чтобы не путать с формой регистрации)
+    const loginForm = page.locator('#login-form');
+    this.usernameInput = loginForm.locator('#username');
+    this.passwordInput = loginForm.locator('#password');
+    this.submitButton = loginForm.locator('button[type="submit"]');
+    this.errorMessage = loginForm.locator('.auth-error');
     this.registerLink = page.locator('a[href*="register"], .register-link');
   }
 
