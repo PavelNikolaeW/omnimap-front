@@ -22,11 +22,16 @@ export const TEST_TREE = {
   name: 'Test Tree',
 };
 
+const USE_REAL_AUTH = process.env.E2E_USE_REAL_AUTH === 'true';
+
 /**
  * Мок API ответов для изолированных тестов
  */
 export async function setupApiMocks(page: Page) {
   // Мок для получения деревьев
+  if (USE_REAL_AUTH) {
+    return;
+  }
   await page.route('**/api/v1/trees/**', async (route) => {
     await route.fulfill({
       status: 200,
