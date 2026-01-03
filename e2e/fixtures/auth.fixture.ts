@@ -70,9 +70,20 @@ export const test = base.extend<AuthFixtures>({
  */
 async function performRealAuth(page: Page) {
   const loginPage = new LoginPage(page);
+
+  console.log(`[Auth] Starting real auth with user: ${TEST_USER.username}`);
+
+  // Переходим на главную и ждём форму логина
   await loginPage.goto();
+  console.log('[Auth] Login form appeared');
+
+  // Выполняем вход
   await loginPage.login(TEST_USER.username, TEST_USER.password);
+  console.log('[Auth] Credentials submitted, waiting for success...');
+
+  // Ждём успешного входа
   await loginPage.assertLoginSuccess();
+  console.log('[Auth] Login successful');
 }
 
 /**
