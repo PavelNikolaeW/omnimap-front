@@ -27,17 +27,16 @@ jobs:
 
       - name: Trigger helm repo deploy
         run: |
+          # GitVerse API: workflow_dispatch via API
           curl -X POST \
-            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
             -H "Authorization: token ${{ secrets.DEPLOY_TOKEN }}" \
-            https://gitverse.ru/api/v1/repos/PavelNikolaeW/omnimap-helm/dispatches \
+            "https://gitverse.ru/api/v1/repos/PavelNikolaeW/omnimap-helm/actions/workflows/deploy-frontend.yml/dispatches" \
             -d '{
-              "event_type": "deploy-frontend",
-              "client_payload": {
+              "ref": "main",
+              "inputs": {
                 "branch": "main",
-                "commit": "${{ steps.commit.outputs.sha }}",
-                "short_commit": "${{ steps.commit.outputs.short_sha }}",
-                "triggered_by": "omnimap-front"
+                "commit": "${{ steps.commit.outputs.sha }}"
               }
             }'
-          echo "Triggered deploy-frontend in omnimap-helm"
+          echo "Triggered deploy-frontend.yml in omnimap-helm"
