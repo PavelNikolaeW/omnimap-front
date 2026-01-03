@@ -9,14 +9,19 @@ import { defineConfig, devices } from '@playwright/test';
  *   npm run test:e2e:debug    - режим отладки
  *   npm run test:e2e:headed   - с отображением браузера
  *
- * В CI режиме используется порт 9003 (E2E окружение изолировано)
+ * Режимы работы:
+ *   - Локально: http://localhost:3000
+ *   - CI (port-forward): http://localhost:9003
+ *   - K8s Job: PLAYWRIGHT_BASE_URL=http://frontend-service:80
  *
  * Оптимизации:
  *   - storageState: auth выполняется один раз в setup проекте, затем переиспользуется
- *   - workers=2 в CI: 2 параллельных воркера (под 2 vCPU раннера)
+ *   - workers: количество параллельных воркеров (по умолчанию 2 в CI)
  *   - retries=1 в CI: уменьшено с 2 для экономии времени
  */
-const baseURL = process.env.CI ? 'http://localhost:9003' : 'http://localhost:3000';
+// PLAYWRIGHT_BASE_URL для запуска в k8s, иначе localhost
+const baseURL = process.env.PLAYWRIGHT_BASE_URL
+  || (process.env.CI ? 'http://localhost:9003' : 'http://localhost:3000');
 
 // Путь к сохранённому состоянию авторизации
 const authFile = 'e2e/.auth/user.json';

@@ -1,0 +1,28 @@
+# Playwright E2E test runner
+# Build: docker build -f Dockerfile.e2e -t omnimap-e2e .
+# Run: docker run -e PLAYWRIGHT_BASE_URL=http://frontend:80 omnimap-e2e
+
+FROM mcr.microsoft.com/playwright:v1.49.1-noble
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json package-lock.json ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy E2E tests and config
+COPY e2e/ ./e2e/
+COPY playwright.config.ts ./
+COPY tsconfig.json ./
+
+# Create auth directory
+RUN mkdir -p e2e/.auth
+
+# Set environment for CI
+ENV CI=true
+ENV E2E_USE_REAL_AUTH=true
+
+# Default command - run all tests
+CMD ["npx", "playwright", "test", "--project=chromium", "--reporter=list"]
