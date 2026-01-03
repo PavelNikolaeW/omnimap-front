@@ -50,15 +50,15 @@ export const test = base.extend<AuthFixtures>({
     const mainPage = new MainPage(page);
 
     if (USE_REAL_AUTH) {
-      // Реальная авторизация через API или UI
+      // Реальная авторизация через UI
+      // После performRealAuth мы уже на главной странице с авторизацией
       await performRealAuth(page);
     } else {
       // Мокированная авторизация для быстрых тестов
       await setupMockedAuth(page, context);
+      await mainPage.goto();
+      await mainPage.waitForAppLoad();
     }
-
-    await mainPage.goto();
-    await mainPage.waitForAppLoad();
 
     await use(mainPage);
   },
