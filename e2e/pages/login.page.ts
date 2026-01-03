@@ -27,6 +27,8 @@ export class LoginPage extends BasePage {
    * Выполнить логин
    */
   async login(username: string, password: string) {
+    // Ждём пока форма логина появится (SPA рендерит её динамически)
+    await this.usernameInput.waitFor({ state: 'visible', timeout: 10000 });
     await this.usernameInput.fill(username);
     await this.passwordInput.fill(password);
     await this.submitButton.click();
