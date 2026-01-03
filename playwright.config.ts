@@ -10,16 +10,24 @@ import { defineConfig, devices } from '@playwright/test';
  *   npm run test:e2e:headed   - с отображением браузера
  *
  * В CI режиме используется порт 9003 (E2E окружение изолировано)
+ *
+ * Оптимизации:
+ *   - storageState: auth выполняется один раз в setup проекте, затем переиспользуется
+ *   - workers=2 в CI: 2 параллельных воркера (под 2 vCPU раннера)
+ *   - retries=1 в CI: уменьшено с 2 для экономии времени
  */
 const baseURL = process.env.CI ? 'http://localhost:9003' : 'http://localhost:3000';
+
+// Путь к сохранённому состоянию авторизации
+const authFile = 'e2e/.auth/user.json';
 
 export default defineConfig({
   testDir: './e2e/tests',
   outputDir: './e2e/test-results',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  retries: process.env.CI ? 1 : 0,
+  workers: process.env.CI ? 2 : undefined,
   reporter: [
     ['html', { outputFolder: './e2e/playwright-report', open: 'never' }],
     ['list']
@@ -29,20 +37,33 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
-    // Увеличенные таймауты для стабильности
     actionTimeout: 15000,
     navigationTimeout: 30000,
   },
-  // Глобальный таймаут на тест
   timeout: 60000,
   expect: {
     timeout: 10000,
   },
   projects: [
+    // Setup проект - выполняет авторизацию и сохраняет storageState
+    {
+      name: 'setup',
+      testMatch: /auth\.setup\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+      },
+    },
+    // Основные тесты - используют сохранённый storageState
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        // Используем сохранённое состояние авторизации
+        storageState: authFile,
+      },
+      dependencies: ['setup'],
     },
+    // Firefox и Webkit для локального тестирования (без storageState пока)
     {
       name: 'firefox',
       use: { ...devices['Desktop Firefox'] },
