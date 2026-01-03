@@ -30,7 +30,7 @@ jobs:
           curl -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: token ${{ secrets.GITVERSE_PAT }}" \
-            https://gitverse.ru/api/v1/repos/omnimap/omnimap-helm/dispatches \
+            https://gitverse.ru/api/v1/repos/PavelNikolaeW/omnimap-helm/dispatches \
             -d '{
               "event_type": "deploy-frontend",
               "client_payload": {
