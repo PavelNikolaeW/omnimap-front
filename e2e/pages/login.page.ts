@@ -31,25 +31,54 @@ export class LoginPage extends BasePage {
    */
   async goto() {
     await this.page.goto('/');
-    await this.waitForLoginForm();
+    // Ждём события ShowedBlocks (блоки отрендерены)
+    await this.waitForLoginFormRendered();
   }
 
   /**
    * Дождаться появления формы логина
-   * SPA рендерит форму динамически после загрузки начальных данных
+   * Ждём события ShowedBlocks, затем проверяем что форма видима
    */
-  async waitForLoginForm() {
-    // Ждём появления формы логина (может занять время из-за загрузки данных)
-    await this.loginForm.waitFor({ state: 'attached', timeout: 30000 });
-    await this.usernameInput.waitFor({ state: 'visible', timeout: 30000 });
+  async waitForLoginFormRendered(timeout = 15000) {
+    await this.page.waitForFunction(
+      () => {
+        return new Promise<boolean>((resolve) => {
+          // Если форма логина уже есть - готово
+          if (document.getElementById('login-form')) {
+            resolve(true);
+            return;
+          }
+
+          // Иначе ждём события ShowedBlocks
+          const handler = () => {
+            window.removeEventListener('ShowedBlocks', handler);
+            // Даём немного времени на финальный рендер
+            setTimeout(() => resolve(true), 100);
+          };
+          window.addEventListener('ShowedBlocks', handler);
+
+          // Fallback timeout (если событие не приходит)
+          setTimeout(() => {
+            window.removeEventListener('ShowedBlocks', handler);
+            resolve(true);
+          }, 10000);
+        });
+      },
+      {},
+      { timeout }
+    );
+
+    // После события форма должна быть в DOM
+    await this.loginForm.waitFor({ state: 'attached', timeout: 5000 });
+    await this.usernameInput.waitFor({ state: 'visible', timeout: 5000 });
   }
 
   /**
    * Выполнить логин
    */
   async login(username: string, password: string) {
-    // Убеждаемся что форма видима
-    await this.usernameInput.waitFor({ state: 'visible', timeout: 30000 });
+    // Убеждаемся что форма видима (после waitForBlocksRendered должна быть быстро)
+    await this.usernameInput.waitFor({ state: 'visible', timeout: 5000 });
 
     // Очищаем поля перед вводом (на случай если там что-то было)
     await this.usernameInput.clear();
@@ -75,7 +104,7 @@ export class LoginPage extends BasePage {
    */
   async assertLoginSuccess() {
     // Ждём пока форма логина исчезнет (значит авторизация прошла)
-    await this.loginForm.waitFor({ state: 'detached', timeout: 30000 });
+    await this.loginForm.waitFor({ state: 'detached', timeout: 15000 });
 
     // Ждём появления основного интерфейса
     await this.waitForAppLoad();
