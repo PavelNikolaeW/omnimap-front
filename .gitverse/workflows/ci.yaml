@@ -1,7 +1,6 @@
 # CI/CD for omnimap-front service
 #
-# Triggers deployment via helm repo (GitOps)
-# Actual build and deploy logic is in omnimap-helm repo
+# Builds and deploys frontend to dev environment on push to main
 
 name: CI/CD Frontend
 
@@ -11,32 +10,68 @@ on:
       - main
   workflow_dispatch:
 
+env:
+  REGISTRY: omnimap-registry.cr.cloud.ru/omnimap
+  SERVICE_NAME: omnimap-front
+  NAMESPACE: omnimap
+
 jobs:
-  trigger-deploy:
-    name: Trigger Deploy
+  build-and-deploy:
+    name: Build & Deploy
     runs-on: self-hosted
     steps:
+      - name: Refresh kubeconfig
+        run: ~/refresh-kubeconfig.sh
+
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Get commit info
-        id: commit
+      - name: Calculate version
+        id: version
         run: |
-          echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
-          echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          COMMIT=$(git rev-parse --short HEAD)
+          TAG="dev-${COMMIT}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Building ${{ env.SERVICE_NAME }}:$TAG"
 
-      - name: Trigger helm repo deploy
+      - name: Login to Registry
         run: |
-          # GitVerse API: workflow_dispatch via API
-          curl -X POST \
-            -H "Content-Type: application/json" \
-            -H "Authorization: token ${{ secrets.DEPLOY_TOKEN }}" \
-            "https://gitverse.ru/api/v1/repos/PavelNikolaeW/omnimap-helm/actions/workflows/deploy-frontend.yml/dispatches" \
-            -d '{
-              "ref": "main",
-              "inputs": {
-                "branch": "main",
-                "commit": "${{ steps.commit.outputs.sha }}"
-              }
-            }'
-          echo "Triggered deploy-frontend.yml in omnimap-helm"
+          echo "${{ secrets.CLOUDRU_REGISTRY_SK }}" | docker login omnimap-registry.cr.cloud.ru -u "${{ secrets.CLOUDRU_REGISTRY_AK }}" --password-stdin
+
+      - name: Check if image exists
+        id: check
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.SERVICE_NAME }}:${TAG} > /dev/null 2>&1; then
+            echo "Image exists, skipping build"
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Image not found, will build"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and Push
+        if: steps.check.outputs.exists != 'true'
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          docker build \
+            --build-arg APP_VERSION=${TAG} \
+            -t ${{ env.REGISTRY }}/${{ env.SERVICE_NAME }}:${TAG} .
+          docker push ${{ env.REGISTRY }}/${{ env.SERVICE_NAME }}:${TAG}
+          echo "Pushed ${{ env.SERVICE_NAME }}:${TAG}"
+
+      - name: Deploy to Dev
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+
+          kubectl set image deployment/omnimap-frontend \
+            frontend=${{ env.REGISTRY }}/${{ env.SERVICE_NAME }}:${TAG} \
+            -n ${{ env.NAMESPACE }}
+
+          kubectl rollout status deployment/omnimap-frontend -n ${{ env.NAMESPACE }} --timeout=300s
+
+          echo "Deployed ${{ env.SERVICE_NAME }}:${TAG} to ${{ env.NAMESPACE }}"
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n ${{ env.NAMESPACE }} -l app.kubernetes.io/component=frontend
