@@ -1,31 +1,61 @@
 import { test, expect } from '../fixtures/auth.fixture';
-import { setupApiMocks, uniqueBlockTitle } from '../fixtures/test-data.fixture';
-import { MainPage } from '../pages/main.page';
+import { setupApiMocks } from '../fixtures/test-data.fixture';
 
 /**
- * Хелпер: создаёт 2 блока для тестов соединений
+ * Тесты соединений и стрелок @blocks
+ *
+ * ВАЖНО: Эти тесты предполагают, что на странице уже есть минимум 2 блока.
+ * Тесты на создание блоков (blocks-crud.spec.ts) должны запускаться ПЕРЕД этими тестами.
+ *
+ * Порядок обеспечивается:
+ * 1. Единым аккаунтом (storageState) - блоки сохраняются между тестами
+ * 2. Алфавитным порядком файлов: arrows.spec.ts идёт после blocks-crud.spec.ts
  */
-async function ensureTwoBlocks(authenticatedPage: MainPage): Promise<void> {
-  // Ждём загрузки страницы
-  await authenticatedPage.rootContainer.waitFor({ state: 'visible', timeout: 10000 });
 
-  const blocks = authenticatedPage.getBlocks();
-  let count = await blocks.count();
+/**
+ * Ожидает события ShowedBlocks (блоки отрендерены на экране)
+ */
+async function waitForShowedBlocks(page: any, timeout = 10000): Promise<void> {
+  await page.waitForFunction(
+    () => {
+      return new Promise<boolean>((resolve) => {
+        // Если блоки уже есть на странице, сразу резолвим
+        const blocks = document.querySelectorAll('[block]');
+        if (blocks.length > 0) {
+          resolve(true);
+          return;
+        }
 
-  // Если блоков меньше 2, создаём недостающие
-  while (count < 2) {
-    // Кликаем на существующий блок (если есть)
-    if (count > 0) {
-      await authenticatedPage.clickBlock(blocks.first());
-    }
+        // Иначе ждём события ShowedBlocks
+        const handler = () => {
+          window.removeEventListener('ShowedBlocks', handler);
+          resolve(true);
+        };
+        window.addEventListener('ShowedBlocks', handler);
 
-    // Создаём блок
-    const title = uniqueBlockTitle('TestBlock');
-    await authenticatedPage.createBlock(title);
-    await authenticatedPage.page.waitForTimeout(500);
+        // Fallback таймаут
+        setTimeout(() => {
+          window.removeEventListener('ShowedBlocks', handler);
+          resolve(true);
+        }, 5000);
+      });
+    },
+    { timeout }
+  );
+}
 
-    count = await blocks.count();
-  }
+/**
+ * Ожидает минимум N блоков на странице
+ */
+async function waitForBlocksCount(page: any, minCount: number, timeout = 10000): Promise<void> {
+  await page.waitForFunction(
+    (min: number) => {
+      const blocks = document.querySelectorAll('[block]');
+      return blocks.length >= min;
+    },
+    minCount,
+    { timeout }
+  );
 }
 
 test.describe('Соединения и стрелки @blocks', () => {
@@ -35,7 +65,10 @@ test.describe('Соединения и стрелки @blocks', () => {
 
   test.describe('Создание соединений', () => {
     test('должен начать создание соединения через хоткей A', async ({ authenticatedPage }) => {
-      await ensureTwoBlocks(authenticatedPage);
+      // Ждём ShowedBlocks и минимум 2 блока
+      await waitForShowedBlocks(authenticatedPage.page);
+      await waitForBlocksCount(authenticatedPage.page, 2);
+
       const blocks = authenticatedPage.getBlocks();
 
       // Выделяем первый блок
@@ -52,7 +85,9 @@ test.describe('Соединения и стрелки @blocks', () => {
     });
 
     test('должен создать соединение между двумя блоками', async ({ authenticatedPage }) => {
-      await ensureTwoBlocks(authenticatedPage);
+      await waitForShowedBlocks(authenticatedPage.page);
+      await waitForBlocksCount(authenticatedPage.page, 2);
+
       const blocks = authenticatedPage.getBlocks();
 
       // Выделяем первый блок и начинаем соединение
@@ -63,16 +98,18 @@ test.describe('Соединения и стрелки @blocks', () => {
       await authenticatedPage.clickBlock(blocks.nth(1));
       await authenticatedPage.pressHotkey('a');
 
-      await authenticatedPage.page.waitForTimeout(500);
+      // Ждём ShowedBlocks после создания соединения
+      await waitForShowedBlocks(authenticatedPage.page);
 
       // Проверяем что приложение не упало
       await expect(authenticatedPage.rootContainer).toBeVisible();
     });
 
     test('должен создать пунктирное соединение', async ({ authenticatedPage }) => {
-      await ensureTwoBlocks(authenticatedPage);
-      const blocks = authenticatedPage.getBlocks();
+      await waitForShowedBlocks(authenticatedPage.page);
+      await waitForBlocksCount(authenticatedPage.page, 2);
 
+      const blocks = authenticatedPage.getBlocks();
       await authenticatedPage.clickBlock(blocks.first());
 
       // Ищем кнопку пунктирного соединения
@@ -87,15 +124,16 @@ test.describe('Соединения и стрелки @blocks', () => {
       await dashedBtn.click();
       await authenticatedPage.clickBlock(blocks.nth(1));
       await dashedBtn.click();
-      await authenticatedPage.page.waitForTimeout(500);
 
+      await waitForShowedBlocks(authenticatedPage.page);
       await expect(authenticatedPage.rootContainer).toBeVisible();
     });
 
     test('должен создать двустороннее соединение', async ({ authenticatedPage }) => {
-      await ensureTwoBlocks(authenticatedPage);
-      const blocks = authenticatedPage.getBlocks();
+      await waitForShowedBlocks(authenticatedPage.page);
+      await waitForBlocksCount(authenticatedPage.page, 2);
 
+      const blocks = authenticatedPage.getBlocks();
       await authenticatedPage.clickBlock(blocks.first());
 
       // Ищем кнопку двустороннего соединения
@@ -110,26 +148,25 @@ test.describe('Соединения и стрелки @blocks', () => {
       await doubleBtn.click();
       await authenticatedPage.clickBlock(blocks.nth(1));
       await doubleBtn.click();
-      await authenticatedPage.page.waitForTimeout(500);
 
+      await waitForShowedBlocks(authenticatedPage.page);
       await expect(authenticatedPage.rootContainer).toBeVisible();
     });
   });
 
   test.describe('Удаление соединений', () => {
     test('должен активировать режим удаления соединений через Shift+A', async ({ authenticatedPage }) => {
-      await authenticatedPage.rootContainer.waitFor({ state: 'visible', timeout: 10000 });
+      await waitForShowedBlocks(authenticatedPage.page);
 
       // Активируем режим удаления
       await authenticatedPage.pressHotkeyCombo('Shift', 'a');
-      await authenticatedPage.page.waitForTimeout(300);
 
       // Проверяем что приложение не упало
       await expect(authenticatedPage.rootContainer).toBeVisible();
     });
 
     test('должен удалить соединение через кнопку', async ({ authenticatedPage }) => {
-      await authenticatedPage.rootContainer.waitFor({ state: 'visible', timeout: 10000 });
+      await waitForShowedBlocks(authenticatedPage.page);
 
       const deleteArrowBtn = authenticatedPage.controlPanel.locator('#deleteConnectBlock, .fa-arrows-right-left.text-danger');
       const isVisible = await deleteArrowBtn.isVisible().catch(() => false);
@@ -140,54 +177,51 @@ test.describe('Соединения и стрелки @blocks', () => {
       }
 
       await deleteArrowBtn.click();
-      await authenticatedPage.page.waitForTimeout(300);
-
       await expect(authenticatedPage.rootContainer).toBeVisible();
     });
   });
 
   test.describe('Навигация стрелками клавиатуры', () => {
     test('должен переместиться к соседнему блоку через стрелку вправо', async ({ authenticatedPage }) => {
-      await ensureTwoBlocks(authenticatedPage);
-      const firstBlock = authenticatedPage.getFirstBlock();
+      await waitForShowedBlocks(authenticatedPage.page);
+      await waitForBlocksCount(authenticatedPage.page, 2);
 
+      const firstBlock = authenticatedPage.getFirstBlock();
       await authenticatedPage.clickBlock(firstBlock);
       await authenticatedPage.pressHotkey('ArrowRight');
-      await authenticatedPage.page.waitForTimeout(300);
 
       await expect(authenticatedPage.rootContainer).toBeVisible();
     });
 
     test('должен переместиться к соседнему блоку через стрелку влево', async ({ authenticatedPage }) => {
-      await ensureTwoBlocks(authenticatedPage);
-      const blocks = authenticatedPage.getBlocks();
+      await waitForShowedBlocks(authenticatedPage.page);
+      await waitForBlocksCount(authenticatedPage.page, 2);
 
-      // Выбираем второй блок
+      const blocks = authenticatedPage.getBlocks();
       await authenticatedPage.clickBlock(blocks.nth(1));
       await authenticatedPage.pressHotkey('ArrowLeft');
-      await authenticatedPage.page.waitForTimeout(300);
 
       await expect(authenticatedPage.rootContainer).toBeVisible();
     });
 
     test('должен переместиться к блоку выше через стрелку вверх', async ({ authenticatedPage }) => {
-      await ensureTwoBlocks(authenticatedPage);
-      const firstBlock = authenticatedPage.getFirstBlock();
+      await waitForShowedBlocks(authenticatedPage.page);
+      await waitForBlocksCount(authenticatedPage.page, 2);
 
+      const firstBlock = authenticatedPage.getFirstBlock();
       await authenticatedPage.clickBlock(firstBlock);
       await authenticatedPage.pressHotkey('ArrowUp');
-      await authenticatedPage.page.waitForTimeout(300);
 
       await expect(authenticatedPage.rootContainer).toBeVisible();
     });
 
     test('должен переместиться к блоку ниже через стрелку вниз', async ({ authenticatedPage }) => {
-      await ensureTwoBlocks(authenticatedPage);
-      const firstBlock = authenticatedPage.getFirstBlock();
+      await waitForShowedBlocks(authenticatedPage.page);
+      await waitForBlocksCount(authenticatedPage.page, 2);
 
+      const firstBlock = authenticatedPage.getFirstBlock();
       await authenticatedPage.clickBlock(firstBlock);
       await authenticatedPage.pressHotkey('ArrowDown');
-      await authenticatedPage.page.waitForTimeout(300);
 
       await expect(authenticatedPage.rootContainer).toBeVisible();
     });
@@ -195,67 +229,72 @@ test.describe('Соединения и стрелки @blocks', () => {
 
   test.describe('Перемещение блоков в диаграмме', () => {
     test('должен переместить блок вверх через Shift+ArrowUp', async ({ authenticatedPage }) => {
-      await ensureTwoBlocks(authenticatedPage);
-      const firstBlock = authenticatedPage.getFirstBlock();
+      await waitForShowedBlocks(authenticatedPage.page);
+      await waitForBlocksCount(authenticatedPage.page, 2);
 
+      const firstBlock = authenticatedPage.getFirstBlock();
       await authenticatedPage.clickBlock(firstBlock);
 
       await authenticatedPage.page.keyboard.down('Shift');
       await authenticatedPage.page.keyboard.press('ArrowUp');
       await authenticatedPage.page.keyboard.up('Shift');
 
-      await authenticatedPage.page.waitForTimeout(300);
+      await waitForShowedBlocks(authenticatedPage.page);
       await expect(authenticatedPage.rootContainer).toBeVisible();
     });
 
     test('должен переместить блок вниз через Shift+ArrowDown', async ({ authenticatedPage }) => {
-      await ensureTwoBlocks(authenticatedPage);
-      const firstBlock = authenticatedPage.getFirstBlock();
+      await waitForShowedBlocks(authenticatedPage.page);
+      await waitForBlocksCount(authenticatedPage.page, 2);
 
+      const firstBlock = authenticatedPage.getFirstBlock();
       await authenticatedPage.clickBlock(firstBlock);
 
       await authenticatedPage.page.keyboard.down('Shift');
       await authenticatedPage.page.keyboard.press('ArrowDown');
       await authenticatedPage.page.keyboard.up('Shift');
 
-      await authenticatedPage.page.waitForTimeout(300);
+      await waitForShowedBlocks(authenticatedPage.page);
       await expect(authenticatedPage.rootContainer).toBeVisible();
     });
 
     test('должен переместить блок влево через Shift+ArrowLeft', async ({ authenticatedPage }) => {
-      await ensureTwoBlocks(authenticatedPage);
-      const firstBlock = authenticatedPage.getFirstBlock();
+      await waitForShowedBlocks(authenticatedPage.page);
+      await waitForBlocksCount(authenticatedPage.page, 2);
 
+      const firstBlock = authenticatedPage.getFirstBlock();
       await authenticatedPage.clickBlock(firstBlock);
 
       await authenticatedPage.page.keyboard.down('Shift');
       await authenticatedPage.page.keyboard.press('ArrowLeft');
       await authenticatedPage.page.keyboard.up('Shift');
 
-      await authenticatedPage.page.waitForTimeout(300);
+      await waitForShowedBlocks(authenticatedPage.page);
       await expect(authenticatedPage.rootContainer).toBeVisible();
     });
 
     test('должен переместить блок вправо через Shift+ArrowRight', async ({ authenticatedPage }) => {
-      await ensureTwoBlocks(authenticatedPage);
-      const firstBlock = authenticatedPage.getFirstBlock();
+      await waitForShowedBlocks(authenticatedPage.page);
+      await waitForBlocksCount(authenticatedPage.page, 2);
 
+      const firstBlock = authenticatedPage.getFirstBlock();
       await authenticatedPage.clickBlock(firstBlock);
 
       await authenticatedPage.page.keyboard.down('Shift');
       await authenticatedPage.page.keyboard.press('ArrowRight');
       await authenticatedPage.page.keyboard.up('Shift');
 
-      await authenticatedPage.page.waitForTimeout(300);
+      await waitForShowedBlocks(authenticatedPage.page);
       await expect(authenticatedPage.rootContainer).toBeVisible();
     });
   });
 
   test.describe('Изменение размера блока', () => {
     test('должен растянуть блок через = + ArrowRight', async ({ authenticatedPage }) => {
-      await ensureTwoBlocks(authenticatedPage);
-      const firstBlock = authenticatedPage.getFirstBlock();
+      await waitForShowedBlocks(authenticatedPage.page);
+      await waitForBlocksCount(authenticatedPage.page, 2);
 
+      const firstBlock = authenticatedPage.getFirstBlock();
       await authenticatedPage.clickBlock(firstBlock);
 
       // Растягивание: = + стрелка
@@ -263,14 +302,15 @@ test.describe('Соединения и стрелки @blocks', () => {
       await authenticatedPage.page.keyboard.press('ArrowRight');
       await authenticatedPage.page.keyboard.up('=');
 
-      await authenticatedPage.page.waitForTimeout(300);
+      await waitForShowedBlocks(authenticatedPage.page);
       await expect(authenticatedPage.rootContainer).toBeVisible();
     });
 
     test('должен сжать блок через Shift + = + ArrowLeft', async ({ authenticatedPage }) => {
-      await ensureTwoBlocks(authenticatedPage);
-      const firstBlock = authenticatedPage.getFirstBlock();
+      await waitForShowedBlocks(authenticatedPage.page);
+      await waitForBlocksCount(authenticatedPage.page, 2);
 
+      const firstBlock = authenticatedPage.getFirstBlock();
       await authenticatedPage.clickBlock(firstBlock);
 
       // Сжатие: Shift + = + стрелка
@@ -280,31 +320,33 @@ test.describe('Соединения и стрелки @blocks', () => {
       await authenticatedPage.page.keyboard.up('=');
       await authenticatedPage.page.keyboard.up('Shift');
 
-      await authenticatedPage.page.waitForTimeout(300);
+      await waitForShowedBlocks(authenticatedPage.page);
       await expect(authenticatedPage.rootContainer).toBeVisible();
     });
   });
 
   test.describe('Открытие соседних блоков', () => {
     test('должен открыть левый соседний блок через запятую', async ({ authenticatedPage }) => {
-      await ensureTwoBlocks(authenticatedPage);
-      const firstBlock = authenticatedPage.getFirstBlock();
+      await waitForShowedBlocks(authenticatedPage.page);
+      await waitForBlocksCount(authenticatedPage.page, 2);
 
+      const firstBlock = authenticatedPage.getFirstBlock();
       await authenticatedPage.clickBlock(firstBlock);
       await authenticatedPage.pressHotkey(',');
-      await authenticatedPage.page.waitForTimeout(500);
 
+      await waitForShowedBlocks(authenticatedPage.page);
       await expect(authenticatedPage.rootContainer).toBeVisible();
     });
 
     test('должен открыть правый соседний блок через точку', async ({ authenticatedPage }) => {
-      await ensureTwoBlocks(authenticatedPage);
-      const firstBlock = authenticatedPage.getFirstBlock();
+      await waitForShowedBlocks(authenticatedPage.page);
+      await waitForBlocksCount(authenticatedPage.page, 2);
 
+      const firstBlock = authenticatedPage.getFirstBlock();
       await authenticatedPage.clickBlock(firstBlock);
       await authenticatedPage.pressHotkey('.');
-      await authenticatedPage.page.waitForTimeout(500);
 
+      await waitForShowedBlocks(authenticatedPage.page);
       await expect(authenticatedPage.rootContainer).toBeVisible();
     });
   });
@@ -316,14 +358,16 @@ test.describe('Режим диаграммы @blocks', () => {
   });
 
   test('должен включить режим диаграммы через хоткей D', async ({ authenticatedPage }) => {
-    await ensureTwoBlocks(authenticatedPage);
-    const firstBlock = authenticatedPage.getFirstBlock();
+    await waitForShowedBlocks(authenticatedPage.page);
+    await waitForBlocksCount(authenticatedPage.page, 2);
 
+    const firstBlock = authenticatedPage.getFirstBlock();
     await authenticatedPage.clickBlock(firstBlock);
 
     // Включаем режим диаграммы
     await authenticatedPage.pressHotkey('d');
-    await authenticatedPage.page.waitForTimeout(500);
+
+    await waitForShowedBlocks(authenticatedPage.page);
 
     // Выходим через Escape
     await authenticatedPage.closePopup();
@@ -332,9 +376,10 @@ test.describe('Режим диаграммы @blocks', () => {
   });
 
   test('должен включить режим диаграммы через кнопку', async ({ authenticatedPage }) => {
-    await ensureTwoBlocks(authenticatedPage);
-    const firstBlock = authenticatedPage.getFirstBlock();
+    await waitForShowedBlocks(authenticatedPage.page);
+    await waitForBlocksCount(authenticatedPage.page, 2);
 
+    const firstBlock = authenticatedPage.getFirstBlock();
     await authenticatedPage.clickBlock(firstBlock);
 
     const diagramBtn = authenticatedPage.controlPanel.locator('#createDiagram, .fa-project-diagram');
@@ -346,11 +391,11 @@ test.describe('Режим диаграммы @blocks', () => {
     }
 
     await diagramBtn.click();
-    await authenticatedPage.page.waitForTimeout(500);
+    await waitForShowedBlocks(authenticatedPage.page);
 
     // Повторный клик выключает режим
     await diagramBtn.click();
-    await authenticatedPage.page.waitForTimeout(300);
+    await waitForShowedBlocks(authenticatedPage.page);
 
     await expect(authenticatedPage.rootContainer).toBeVisible();
   });

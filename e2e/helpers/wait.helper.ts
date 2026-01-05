@@ -121,6 +121,52 @@ export class WaitHelper {
       });
     });
   }
+
+  /**
+   * Ожидает события ShowedBlocks (блоки отрендерены на экране)
+   */
+  async forShowedBlocks(timeout = 10000): Promise<void> {
+    await this.page.waitForFunction(
+      () => {
+        return new Promise<boolean>((resolve) => {
+          // Если блоки уже есть на странице, сразу резолвим
+          const blocks = document.querySelectorAll('[block]');
+          if (blocks.length > 0) {
+            resolve(true);
+            return;
+          }
+
+          // Иначе ждём события ShowedBlocks
+          const handler = () => {
+            window.removeEventListener('ShowedBlocks', handler);
+            resolve(true);
+          };
+          window.addEventListener('ShowedBlocks', handler);
+
+          // Fallback таймаут
+          setTimeout(() => {
+            window.removeEventListener('ShowedBlocks', handler);
+            resolve(true);
+          }, 5000);
+        });
+      },
+      { timeout }
+    );
+  }
+
+  /**
+   * Ожидает появления минимального количества блоков на странице
+   */
+  async forBlocksCount(minCount: number, timeout = 10000): Promise<void> {
+    await this.page.waitForFunction(
+      (min) => {
+        const blocks = document.querySelectorAll('[block]');
+        return blocks.length >= min;
+      },
+      minCount,
+      { timeout }
+    );
+  }
 }
 
 /**
