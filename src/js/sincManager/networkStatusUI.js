@@ -62,6 +62,9 @@ class NetworkStatusUI {
             } else {
                 this.hide();
             }
+
+            // Обновляем индикаторы синхронизации на блоках
+            this.updateBlockSyncIndicators();
         });
 
         window.addEventListener('WebSocketDisconnected', (e) => {
@@ -237,6 +240,30 @@ class NetworkStatusUI {
      */
     isCurrentlyOffline() {
         return this.isOffline;
+    }
+
+    /**
+     * Обновляет индикаторы синхронизации на блоках
+     * Меняет pending -> synced для всех блоков, которые больше не в pending
+     */
+    updateBlockSyncIndicators() {
+        // Находим все pending индикаторы
+        const pendingIndicators = document.querySelectorAll('.block-sync-indicator.pending');
+
+        pendingIndicators.forEach(indicator => {
+            const blockId = indicator.getAttribute('data-block-sync');
+
+            // Если блок больше не pending - показываем анимацию "synced" и удаляем
+            if (!offlineQueue.isPendingBlock(blockId)) {
+                indicator.classList.remove('pending');
+                indicator.classList.add('synced');
+
+                // Удаляем индикатор после анимации
+                setTimeout(() => {
+                    indicator.remove();
+                }, 500);
+            }
+        });
     }
 
     /**
