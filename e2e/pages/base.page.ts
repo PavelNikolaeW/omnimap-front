@@ -65,6 +65,39 @@ export class BasePage {
   }
 
   /**
+   * Дождаться события ShowedBlocks - означает что все блоки отрендерены
+   * Это кастомное событие диспатчится после painter.render()
+   */
+  async waitForBlocksRendered(timeout = 15000) {
+    await this.page.waitForFunction(
+      () => {
+        return new Promise<boolean>((resolve) => {
+          // Если rootContainer уже есть - блоки уже отрендерены
+          if (document.getElementById('rootContainer')?.children.length > 0) {
+            resolve(true);
+            return;
+          }
+
+          // Иначе ждём события ShowedBlocks
+          const handler = () => {
+            window.removeEventListener('ShowedBlocks', handler);
+            resolve(true);
+          };
+          window.addEventListener('ShowedBlocks', handler);
+
+          // Fallback timeout
+          setTimeout(() => {
+            window.removeEventListener('ShowedBlocks', handler);
+            resolve(true);
+          }, 10000);
+        });
+      },
+      {},
+      { timeout }
+    );
+  }
+
+  /**
    * Нажать горячую клавишу
    */
   async pressHotkey(key: string) {

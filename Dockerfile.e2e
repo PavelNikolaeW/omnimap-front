@@ -1,8 +1,6 @@
-# Dockerfile для E2E тестов OmniMap
-#
-# Использование:
-#   docker build -f Dockerfile.e2e -t omnimap-e2e .
-#   docker run --rm omnimap-e2e npx playwright test --project=chromium
+# Playwright E2E test runner - Chromium only (smaller image ~1.2GB vs 2.8GB)
+# Build: docker build -f Dockerfile.e2e -t omnimap-e2e .
+# Run: docker run -e PLAYWRIGHT_BASE_URL=http://frontend:80 omnimap-e2e
 #
 # В CI (K8s):
 #   Образ запускается как Job с переменными окружения:
@@ -11,35 +9,55 @@
 #   - E2E_TEST_PASSWORD: пароль тестового пользователя
 #   - CI=true: включает CI-режим Playwright
 
-FROM mcr.microsoft.com/playwright:v1.48.0-noble
+# Use slim node image instead of full playwright image
+FROM node:20-slim
 
 WORKDIR /app
 
-# Копируем файлы зависимостей
-COPY package.json package-lock.json* ./
+# Install only Chromium dependencies (not Firefox/WebKit)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libatspi2.0-0 \
+    fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
 
-# Устанавливаем только production и dev dependencies, нужные для тестов
+# Copy package files
+COPY package.json package-lock.json ./
+
+# Install dependencies
 RUN npm ci
 
-# Копируем конфигурацию Playwright
+# Install ONLY Chromium (saves ~1GB compared to all browsers)
+RUN npx playwright install chromium
+
+# Copy E2E tests and config
+COPY e2e/ ./e2e/
 COPY playwright.config.ts ./
 COPY tsconfig.json ./
 
-# Копируем E2E тесты и fixtures
-COPY e2e ./e2e
-
-# Создаём директорию для auth state
+# Create auth directory
 RUN mkdir -p e2e/.auth
 
-# Playwright уже установлен в базовом образе, но убедимся что chromium есть
-RUN npx playwright install chromium
-
-# Устанавливаем переменные по умолчанию
+# Set environment for CI
 ENV CI=true
 ENV NODE_ENV=test
 
 # Рабочая директория для результатов (монтируется как volume в K8s)
 VOLUME ["/app/e2e/test-results", "/app/e2e/playwright-report", "/app/e2e/blob-report"]
 
-# По умолчанию запускаем все тесты на chromium
-CMD ["npx", "playwright", "test", "--project=chromium", "--reporter=html,list"]
+# Default command - run all tests
+CMD ["npx", "playwright", "test", "--project=chromium", "--reporter=list"]

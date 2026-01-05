@@ -1,6 +1,7 @@
 import { test as base, expect, Page, BrowserContext } from '@playwright/test';
 import { MainPage } from '../pages/main.page';
 import { LoginPage } from '../pages/login.page';
+import * as fs from 'fs';
 
 /**
  * Тестовые учетные данные
@@ -15,6 +16,7 @@ const TEST_USER = {
 };
 
 const USE_REAL_AUTH = process.env.E2E_USE_REAL_AUTH === 'true';
+const AUTH_FILE = 'e2e/.auth/user.json';
 
 /**
  * Расширенные fixtures с авторизацией и page objects
@@ -45,13 +47,24 @@ export const test = base.extend<AuthFixtures>({
   /**
    * Авторизованная страница с готовой сессией
    * Для тестов, требующих авторизации
+   *
+   * Если storageState уже загружен (через playwright.config.ts),
+   * просто переходим на главную. Иначе выполняем логин.
    */
   authenticatedPage: async ({ page, context }, use) => {
     const mainPage = new MainPage(page);
 
-    if (USE_REAL_AUTH) {
-      // Реальная авторизация через UI
-      // После performRealAuth мы уже на главной странице с авторизацией
+    // Проверяем, есть ли уже авторизация через storageState
+    const hasStorageState = fs.existsSync(AUTH_FILE);
+    const cookies = await context.cookies();
+    const hasAuthCookie = cookies.some(c => c.name === 'access' || c.name === 'refresh');
+
+    if (hasStorageState && hasAuthCookie) {
+      // StorageState уже загружен - просто переходим на главную
+      await mainPage.goto();
+      await mainPage.waitForAppLoad();
+    } else if (USE_REAL_AUTH) {
+      // Реальная авторизация через UI (fallback)
       await performRealAuth(page);
     } else {
       // Мокированная авторизация для быстрых тестов
@@ -70,9 +83,20 @@ export const test = base.extend<AuthFixtures>({
  */
 async function performRealAuth(page: Page) {
   const loginPage = new LoginPage(page);
+
+  console.log(`[Auth] Starting real auth with user: ${TEST_USER.username}`);
+
+  // Переходим на главную и ждём форму логина
   await loginPage.goto();
+  console.log('[Auth] Login form appeared');
+
+  // Выполняем вход
   await loginPage.login(TEST_USER.username, TEST_USER.password);
+  console.log('[Auth] Credentials submitted, waiting for success...');
+
+  // Ждём успешного входа
   await loginPage.assertLoginSuccess();
+  console.log('[Auth] Login successful');
 }
 
 /**

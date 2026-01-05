@@ -13,19 +13,24 @@ import { defineConfig, devices } from '@playwright/test';
  * Проекты:
  *   - setup: выполняет авторизацию и сохраняет storageState
  *   - smoke: быстрые критичные тесты (зависят от setup)
- *   - chromium/firefox/webkit: основные тесты (зависят от smoke)
+ *   - chromium/firefox/webkit: основные тесты (зависят от setup)
  *
- * В CI режиме:
- *   - Используется PLAYWRIGHT_BASE_URL из окружения
- *   - 4 параллельных shards для ускорения
- *   - Shared storageState между shards
+ * Режимы работы:
+ *   - Локально: http://localhost:3000
+ *   - CI (port-forward): http://localhost:9003
+ *   - K8s Job: PLAYWRIGHT_BASE_URL=http://frontend-service:80
+ *
+ * Оптимизации:
+ *   - storageState: auth выполняется один раз в setup проекте, затем переиспользуется
+ *   - workers: количество параллельных воркеров (по умолчанию 2 в CI)
+ *   - retries=1 в CI: уменьшено с 2 для экономии времени
  */
 
-// В CI используем переменную окружения, локально - localhost:3000
+// PLAYWRIGHT_BASE_URL для запуска в k8s, иначе localhost
 const baseURL = process.env.PLAYWRIGHT_BASE_URL
   || (process.env.CI ? 'http://localhost:9003' : 'http://localhost:3000');
 
-// Путь к сохранённой сессии
+// Путь к сохранённому состоянию авторизации
 const authFile = 'e2e/.auth/user.json';
 
 export default defineConfig({
@@ -33,7 +38,7 @@ export default defineConfig({
   outputDir: './e2e/test-results',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 2 : undefined,
   reporter: [
     ['html', { outputFolder: './e2e/playwright-report', open: 'never' }],
@@ -46,30 +51,25 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
-    // Увеличенные таймауты для стабильности
     actionTimeout: 15000,
     navigationTimeout: 30000,
   },
-  // Глобальный таймаут на тест
   timeout: 60000,
   expect: {
     timeout: 10000,
   },
 
   projects: [
-    // =====================================================
-    // Setup проект - выполняет авторизацию один раз
-    // =====================================================
+    // Setup проект - выполняет авторизацию и сохраняет storageState
     {
       name: 'setup',
-      testMatch: /global\.setup\.ts/,
-      testDir: './e2e',
+      testMatch: /auth\.setup\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+      },
     },
 
-    // =====================================================
     // Smoke тесты - быстрая проверка критичного функционала
-    // Выполняются первыми, после setup
-    // =====================================================
     {
       name: 'smoke',
       testMatch: /smoke\/.*\.spec\.ts/,
@@ -80,18 +80,18 @@ export default defineConfig({
       },
     },
 
-    // =====================================================
-    // Основные тесты - выполняются после smoke
-    // =====================================================
+    // Основные тесты chromium
     {
       name: 'chromium',
       testMatch: /^(?!.*smoke\/).*\.spec\.ts$/,
-      dependencies: ['setup'],
       use: {
         ...devices['Desktop Chrome'],
         storageState: authFile,
       },
+      dependencies: ['setup'],
     },
+
+    // Firefox и Webkit для локального тестирования
     {
       name: 'firefox',
       testMatch: /^(?!.*smoke\/).*\.spec\.ts$/,
