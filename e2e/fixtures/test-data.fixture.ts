@@ -2,6 +2,9 @@ import { Page } from '@playwright/test';
 
 /**
  * Тестовые данные для E2E тестов
+ *
+ * ВАЖНО: Моки отключены! Все тесты работают с реальным бэкендом.
+ * Тестовые данные создаются скриптом create_initial_data.py на бэкенде.
  */
 
 export const TEST_BLOCKS = {
@@ -22,135 +25,47 @@ export const TEST_TREE = {
   name: 'Test Tree',
 };
 
-const USE_REAL_AUTH = process.env.E2E_USE_REAL_AUTH === 'true';
+/**
+ * Тестовые пользователи (создаются на бэкенде)
+ */
+export const TEST_USERS = {
+  admin: {
+    username: process.env.E2E_TEST_USERNAME || 'e2e_admin',
+    password: process.env.E2E_TEST_PASSWORD || 'e2e_admin_password',
+  },
+  editor: {
+    username: process.env.E2E_EDITOR_USERNAME || 'e2e_editor',
+    password: process.env.E2E_EDITOR_PASSWORD || 'e2e_editor_password',
+  },
+  viewer: {
+    username: process.env.E2E_VIEWER_USERNAME || 'e2e_viewer',
+    password: process.env.E2E_VIEWER_PASSWORD || 'e2e_viewer_password',
+  },
+};
 
 /**
- * Мок API ответов для изолированных тестов
+ * Заглушка для обратной совместимости.
+ * Моки больше не используются - все тесты работают с реальным API.
+ *
+ * @deprecated Не используется, оставлена для совместимости со старыми тестами
  */
-export async function setupApiMocks(page: Page) {
-  // Мок для получения деревьев
-  if (USE_REAL_AUTH) {
-    return;
-  }
-  await page.route('**/api/v1/trees/**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        id: 'mock-tree-id',
-        title: 'Mock Tree',
-        children: [
-          {
-            id: 'mock-block-1',
-            title: 'Mock Block 1',
-            content: '',
-            children: [],
-          },
-          {
-            id: 'mock-block-2',
-            title: 'Mock Block 2',
-            content: 'Some content',
-            children: [],
-          },
-        ],
-      }),
-    });
-  });
-
-  // Мок для получения блоков
-  await page.route('**/api/v1/blocks/**', async (route) => {
-    const method = route.request().method();
-
-    if (method === 'GET') {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          id: 'mock-block-id',
-          title: 'Mock Block',
-          content: '',
-          children: [],
-        }),
-      });
-    } else if (method === 'POST') {
-      // Создание блока
-      const body = route.request().postDataJSON();
-      await route.fulfill({
-        status: 201,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          id: `new-block-${Date.now()}`,
-          title: body?.title || 'New Block',
-          content: body?.content || '',
-          children: [],
-        }),
-      });
-    } else if (method === 'PATCH' || method === 'PUT') {
-      // Обновление блока
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true }),
-      });
-    } else if (method === 'DELETE') {
-      // Удаление блока
-      await route.fulfill({
-        status: 204,
-      });
-    } else {
-      await route.continue();
-    }
-  });
-
-  // Мок для авторизации
-  await page.route('**/api/v1/auth/**', async (route) => {
-    const url = route.request().url();
-
-    if (url.includes('login')) {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          access: 'mock_access_token',
-          refresh: 'mock_refresh_token',
-        }),
-      });
-    } else if (url.includes('refresh')) {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          access: 'new_mock_access_token',
-        }),
-      });
-    } else if (url.includes('user') || url.includes('me')) {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          id: 'mock-user-id',
-          username: 'test_user',
-          email: 'test@example.com',
-        }),
-      });
-    } else {
-      await route.continue();
-    }
-  });
-
-  // Мок для WebSocket (заглушка)
-  // WebSocket моки настраиваются отдельно при необходимости
+export async function setupApiMocks(_page: Page) {
+  // Моки отключены - работаем с реальным бэкендом
+  return;
 }
 
 /**
- * Очистить все моки
+ * Заглушка для обратной совместимости
+ * @deprecated Не используется
  */
-export async function clearApiMocks(page: Page) {
-  await page.unrouteAll();
+export async function clearApiMocks(_page: Page) {
+  // Моки отключены
+  return;
 }
 
 /**
  * Генератор уникальных названий для тестов
+ * Использует timestamp + random для гарантии уникальности
  */
 export function uniqueBlockTitle(prefix: string = 'Test'): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -161,4 +76,67 @@ export function uniqueBlockTitle(prefix: string = 'Test'): string {
  */
 export async function waitForApiIdle(page: Page, timeout: number = 5000) {
   await page.waitForLoadState('networkidle', { timeout });
+}
+
+/**
+ * Ожидание события ShowedBlocks (блоки отрендерены)
+ */
+export async function waitForShowedBlocks(page: Page, timeout = 15000): Promise<void> {
+  await page.waitForFunction(
+    () => {
+      return new Promise<boolean>((resolve) => {
+        // Если блоки уже есть на странице
+        const blocks = document.querySelectorAll('[block]');
+        if (blocks.length > 0) {
+          resolve(true);
+          return;
+        }
+
+        // Проверяем rootContainer
+        const root = document.getElementById('rootContainer');
+        if (root && root.children.length > 0) {
+          resolve(true);
+          return;
+        }
+
+        // Ждём события ShowedBlocks
+        const handler = () => {
+          window.removeEventListener('ShowedBlocks', handler);
+          resolve(true);
+        };
+        window.addEventListener('ShowedBlocks', handler);
+
+        // Fallback
+        setTimeout(() => {
+          window.removeEventListener('ShowedBlocks', handler);
+          resolve(true);
+        }, 10000);
+      });
+    },
+    { timeout }
+  );
+}
+
+/**
+ * Ожидание появления диалога
+ */
+export async function waitForDialog(page: Page, timeout = 5000): Promise<void> {
+  await page.waitForSelector(
+    '[data-testid="custom-dialog-input"], .custom-modal-input',
+    { state: 'visible', timeout }
+  );
+}
+
+/**
+ * Ожидание минимального количества блоков
+ */
+export async function waitForBlocksCount(page: Page, minCount: number, timeout = 10000): Promise<void> {
+  await page.waitForFunction(
+    (min) => {
+      const blocks = document.querySelectorAll('[block]');
+      return blocks.length >= min;
+    },
+    minCount,
+    { timeout }
+  );
 }

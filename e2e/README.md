@@ -1,32 +1,64 @@
 # E2E тесты OmniMap
 
+## Важно: Реальный бэкенд
+
+Все тесты работают с **реальным бэкендом** в тестовом кластере K8s.
+Моки API не используются.
+
+## Тестовые пользователи
+
+Создаются скриптом `create_initial_data.py` на бэкенде:
+
+| Пользователь | Роль | Описание |
+|--------------|------|----------|
+| `e2e_admin` | owner | Владелец корневого дерева |
+| `e2e_editor` | editor | Редактор shared блоков |
+| `e2e_viewer` | viewer | Только просмотр |
+
+### Переменные окружения
+
+```bash
+# Основной пользователь (admin)
+E2E_TEST_USERNAME=e2e_admin
+E2E_TEST_PASSWORD=e2e_admin_password
+
+# Редактор
+E2E_EDITOR_USERNAME=e2e_editor
+E2E_EDITOR_PASSWORD=e2e_editor_password
+
+# Viewer
+E2E_VIEWER_USERNAME=e2e_viewer
+E2E_VIEWER_PASSWORD=e2e_viewer_password
+
+# URL приложения
+PLAYWRIGHT_BASE_URL=http://localhost:3000
+```
+
 ## Структура
 
 ```
 e2e/
-├── fixtures/           # Playwright fixtures
-│   ├── auth.fixture.ts      # Авторизация (authenticatedPage)
-│   ├── test-data.fixture.ts # Моки API
-│   ├── websocket.fixture.ts # WebSocket хелпер
-│   └── offline.fixture.ts   # Offline хелпер
-├── pages/              # Page Objects
+├── fixtures/
+│   ├── auth.fixture.ts        # Авторизация (authenticatedPage)
+│   ├── multiuser.fixture.ts   # Мультипользовательские тесты
+│   ├── test-data.fixture.ts   # Хелперы (без моков!)
+│   ├── websocket.fixture.ts   # WebSocket хелпер
+│   └── offline.fixture.ts     # Offline хелпер
+├── pages/
 │   ├── base.page.ts
 │   ├── main.page.ts
 │   ├── login.page.ts
-│   ├── chat.page.ts
-│   └── popups/         # Page Objects для попапов
-│       ├── search.popup.ts
-│       ├── reminder.popup.ts
-│       └── image-upload.popup.ts
-├── helpers/            # Вспомогательные функции
+│   └── chat.page.ts
+├── helpers/
 │   ├── block.helper.ts
 │   └── wait.helper.ts
-├── tests/              # Тесты
-│   ├── smoke/          # Smoke тесты (критичные)
-│   ├── sync/           # Синхронизация
-│   └── *.spec.ts       # Остальные тесты
-├── .auth/              # Сохранённые сессии (gitignored)
-└── global.setup.ts     # Глобальная авторизация
+├── tests/
+│   ├── 01-blocks-crud.spec.ts    # CRUD блоков (первый)
+│   ├── 02-arrows.spec.ts         # Соединения (второй)
+│   ├── 03-multiuser-sync.spec.ts # Синхронизация между пользователями
+│   ├── smoke/                    # Smoke тесты
+│   └── *.spec.ts                 # Остальные тесты
+└── .auth/                        # Сохранённые сессии (gitignored)
 ```
 
 ## Запуск тестов
@@ -34,20 +66,17 @@ e2e/
 ### Локально
 
 ```bash
-# Запуск dev сервера в одном терминале
+# Запуск dev сервера
 npm run start_local
 
-# В другом терминале - запуск тестов
+# Все тесты
 npm run test:e2e
 
-# Только smoke тесты
-npm run test:e2e:smoke
+# Только chromium
+npm run test:e2e:chromium
 
-# С UI режимом
+# С UI
 npm run test:e2e:ui
-
-# В headed режиме (с браузером)
-npm run test:e2e:headed
 
 # Debug режим
 npm run test:e2e:debug
@@ -55,108 +84,93 @@ npm run test:e2e:debug
 
 ### Фильтрация по тегам
 
-Тесты размечены тегами:
+```bash
+# Только тесты синхронизации
+npx playwright test --grep @sync
+
+# Только мультипользовательские
+npx playwright test --grep @multiuser
+
+# Только права доступа
+npx playwright test --grep @access
+```
+
+Доступные теги:
 - `@smoke` - критичные тесты
 - `@blocks` - операции с блоками
-- `@offline` - offline режим
 - `@sync` - синхронизация
-- `@auth` - авторизация
-- `@navigation` - навигация
+- `@multiuser` - несколько пользователей
+- `@access` - права доступа
+- `@offline` - offline режим
+- `@conflict` - конфликты редактирования
 
-```bash
-# Запуск только offline тестов
-npx playwright test --grep @offline
+## Мультипользовательские тесты
 
-# Запуск тестов без тега @slow
-npx playwright test --grep-invert @slow
-```
-
-## Архитектура
-
-### Проекты Playwright
-
-1. **setup** - выполняет авторизацию и сохраняет storageState
-2. **smoke** - быстрые критичные тесты (зависят от setup)
-3. **chromium/firefox/webkit** - основные тесты (зависят от setup)
-
-### Shared storageState
-
-Авторизация выполняется один раз в `global.setup.ts` и сохраняется в `e2e/.auth/user.json`.
-Все последующие тесты переиспользуют эту сессию, что значительно ускоряет выполнение.
-
-### Переменные окружения
-
-- `E2E_TEST_USERNAME` - логин тестового пользователя
-- `E2E_TEST_PASSWORD` - пароль тестового пользователя
-- `PLAYWRIGHT_BASE_URL` - URL приложения для тестирования
-- `CI` - включает CI режим (retries, reporters)
-
-## Написание тестов
-
-### Использование Page Objects
+### Использование fixtures
 
 ```typescript
-import { test, expect } from '../fixtures/auth.fixture';
+import { test, expect } from '../fixtures/multiuser.fixture';
 
-test('создание блока', async ({ authenticatedPage }) => {
-  await authenticatedPage.createBlock('Новый блок');
-  await authenticatedPage.assertBlockWithTitleExists('Новый блок');
+test('синхронизация между пользователями', async ({ adminSession, editorSession }) => {
+  // Admin создаёт блок
+  await adminSession.mainPage.createBlock('New Block');
+
+  // Editor должен увидеть блок (через WebSocket)
+  await editorSession.page.reload();
+  await expect(editorSession.page.locator('text=New Block')).toBeVisible();
 });
 ```
 
-### Использование хелперов
+### Доступные сессии
+
+- `adminSession` - сессия владельца (e2e_admin)
+- `editorSession` - сессия редактора (e2e_editor)
+- `viewerSession` - сессия viewer (e2e_viewer)
+- `createSession(user)` - создать произвольную сессию
+
+## Ожидание событий UI
+
+Вместо `waitForTimeout` используем события приложения:
 
 ```typescript
-import { createBlockHelper } from '../helpers';
+import { waitForShowedBlocks } from '../fixtures/test-data.fixture';
 
-test('создание блока', async ({ page }) => {
-  const blocks = createBlockHelper(page);
-  const title = blocks.uniqueTitle('Test');
-  await blocks.createBlock(title);
-  await blocks.assertBlockExists(title);
-});
+// Ждём рендера блоков
+await waitForShowedBlocks(page);
+
+// Ждём диалога
+await waitForDialog(page);
+
+// Ждём N блоков
+await waitForBlocksCount(page, 2);
 ```
 
-### WebSocket тесты
+## Порядок выполнения тестов
 
-```typescript
-import { test } from '../fixtures/websocket.fixture';
+Тесты выполняются в алфавитном порядке файлов:
 
-test('синхронизация', async ({ page, wsHelper }) => {
-  await wsHelper.waitForConnection();
-  await wsHelper.simulateBlockUpdate('block-1', { title: 'Updated' });
-});
-```
-
-### Offline тесты
-
-```typescript
-import { test } from '../fixtures/offline.fixture';
-
-test('offline режим', async ({ page, offlineHelper }) => {
-  await offlineHelper.goOffline();
-  await offlineHelper.waitForOfflineIndicator();
-  // ... действия в offline
-  await offlineHelper.goOnline();
-});
-```
+1. `01-blocks-crud.spec.ts` - создаёт блоки
+2. `02-arrows.spec.ts` - использует созданные блоки
+3. `03-multiuser-sync.spec.ts` - тесты синхронизации
 
 ## CI/CD
 
-### Docker образ
+### Docker
 
 ```bash
 docker build -f Dockerfile.e2e -t omnimap-e2e .
 docker run --rm \
-  -e PLAYWRIGHT_BASE_URL=http://app:80 \
-  -e E2E_TEST_USERNAME=admin \
-  -e E2E_TEST_PASSWORD=secret \
+  -e PLAYWRIGHT_BASE_URL=http://frontend:80 \
+  -e E2E_TEST_USERNAME=e2e_admin \
+  -e E2E_TEST_PASSWORD=e2e_admin_password \
+  -e E2E_EDITOR_USERNAME=e2e_editor \
+  -e E2E_EDITOR_PASSWORD=e2e_editor_password \
+  -e E2E_VIEWER_USERNAME=e2e_viewer \
+  -e E2E_VIEWER_PASSWORD=e2e_viewer_password \
   omnimap-e2e
 ```
 
 ### Sharding
-
-В CI тесты запускаются параллельно с помощью sharding:
 
 ```bash
 npx playwright test --shard=1/4
@@ -167,18 +181,26 @@ npx playwright test --shard=4/4
 
 ## Troubleshooting
 
-### Тесты не проходят авторизацию
+### Тесты падают с таймаутом
 
-1. Убедитесь, что бэкенд доступен
-2. Проверьте переменные `E2E_TEST_USERNAME` и `E2E_TEST_PASSWORD`
-3. Проверьте скриншоты в `e2e/test-results/`
+1. Проверьте что бэкенд доступен
+2. Проверьте что тестовые пользователи созданы
+3. Проверьте логи в `e2e/test-results/`
 
-### Flaky тесты
+### Мультипользовательские тесты не работают
 
-1. Увеличьте таймауты в проблемных местах
-2. Используйте `test.describe.configure({ retries: 3 })`
-3. Проверьте, что тест не зависит от порядка выполнения
+1. Убедитесь что все 3 пользователя созданы на бэкенде
+2. Проверьте что shared блоки имеют правильные права
+3. Проверьте что WebSocket sync-сервис работает
 
-### WebSocket тесты падают
+### Блоки не появляются
 
-WebSocket тесты требуют работающий sync-сервис. В мок-режиме они будут пропущены.
+Используйте `waitForShowedBlocks()` вместо `waitForTimeout()`:
+
+```typescript
+// Плохо
+await page.waitForTimeout(500);
+
+// Хорошо
+await waitForShowedBlocks(page);
+```
