@@ -1,6 +1,9 @@
 import { test as setup, expect } from '@playwright/test';
 import { LoginPage } from './pages/login.page';
 
+// NOTE: This file is NOT used by playwright.config.ts
+// The actual auth setup is in e2e/tests/auth.setup.ts
+
 /**
  * Глобальный setup для E2E тестов
  *

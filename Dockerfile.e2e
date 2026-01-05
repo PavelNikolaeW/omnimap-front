@@ -47,7 +47,6 @@ RUN npx playwright install chromium
 # Copy E2E tests and config
 COPY e2e/ ./e2e/
 COPY playwright.config.ts ./
-COPY tsconfig.json ./
 
 # Create auth directory
 RUN mkdir -p e2e/.auth
