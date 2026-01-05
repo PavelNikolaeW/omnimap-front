@@ -1,7 +1,10 @@
 import { test, expect } from '../fixtures/auth.fixture';
 import { setupApiMocks, uniqueBlockTitle } from '../fixtures/test-data.fixture';
 
-test.describe('CRUD операции с блоками', () => {
+/**
+ * CRUD тесты для блоков @blocks @crud
+ */
+test.describe('CRUD операции с блоками @blocks', () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
   });
@@ -186,7 +189,7 @@ test.describe('CRUD операции с блоками', () => {
   });
 });
 
-test.describe('Копирование и вставка блоков', () => {
+test.describe('Копирование и вставка блоков @blocks', () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
   });

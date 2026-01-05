@@ -8,6 +8,12 @@ import { defineConfig, devices } from '@playwright/test';
  *   npm run test:e2e:ui       - интерактивный режим
  *   npm run test:e2e:debug    - режим отладки
  *   npm run test:e2e:headed   - с отображением браузера
+ *   npm run test:e2e:smoke    - только smoke тесты
+ *
+ * Проекты:
+ *   - setup: выполняет авторизацию и сохраняет storageState
+ *   - smoke: быстрые критичные тесты (зависят от setup)
+ *   - chromium/firefox/webkit: основные тесты (зависят от setup)
  *
  * Режимы работы:
  *   - Локально: http://localhost:3000
@@ -19,6 +25,7 @@ import { defineConfig, devices } from '@playwright/test';
  *   - workers: количество параллельных воркеров (по умолчанию 2 в CI)
  *   - retries=1 в CI: уменьшено с 2 для экономии времени
  */
+
 // PLAYWRIGHT_BASE_URL для запуска в k8s, иначе localhost
 const baseURL = process.env.PLAYWRIGHT_BASE_URL
   || (process.env.CI ? 'http://localhost:9003' : 'http://localhost:3000');
@@ -35,7 +42,9 @@ export default defineConfig({
   workers: process.env.CI ? 2 : undefined,
   reporter: [
     ['html', { outputFolder: './e2e/playwright-report', open: 'never' }],
-    ['list']
+    ['list'],
+    // В CI добавляем blob reporter для merge между shards
+    ...(process.env.CI ? [['blob', { outputDir: './e2e/blob-report' }] as const] : []),
   ],
   use: {
     baseURL,
@@ -49,6 +58,7 @@ export default defineConfig({
   expect: {
     timeout: 10000,
   },
+
   projects: [
     // Setup проект - выполняет авторизацию и сохраняет storageState
     {
@@ -58,27 +68,51 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
       },
     },
-    // Основные тесты - используют сохранённый storageState
+
+    // Smoke тесты - быстрая проверка критичного функционала
     {
-      name: 'chromium',
+      name: 'smoke',
+      testMatch: /smoke\/.*\.spec\.ts/,
+      dependencies: ['setup'],
       use: {
         ...devices['Desktop Chrome'],
-        // Используем сохранённое состояние авторизации
+        storageState: authFile,
+      },
+    },
+
+    // Основные тесты chromium
+    {
+      name: 'chromium',
+      testMatch: /^(?!.*smoke\/).*\.spec\.ts$/,
+      use: {
+        ...devices['Desktop Chrome'],
         storageState: authFile,
       },
       dependencies: ['setup'],
     },
-    // Firefox и Webkit для локального тестирования (без storageState пока)
+
+    // Firefox и Webkit для локального тестирования
     {
       name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
+      testMatch: /^(?!.*smoke\/).*\.spec\.ts$/,
+      dependencies: ['setup'],
+      use: {
+        ...devices['Desktop Firefox'],
+        storageState: authFile,
+      },
     },
     {
       name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
+      testMatch: /^(?!.*smoke\/).*\.spec\.ts$/,
+      dependencies: ['setup'],
+      use: {
+        ...devices['Desktop Safari'],
+        storageState: authFile,
+      },
     },
   ],
-  // В CI режиме webServer не нужен - используем docker-compose.e2e.yml
+
+  // В CI режиме webServer не нужен - используем docker-compose или K8s
   ...(process.env.CI ? {} : {
     webServer: {
       command: 'npm run start_local',

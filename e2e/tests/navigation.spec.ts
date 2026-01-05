@@ -1,7 +1,10 @@
 import { test, expect } from '../fixtures/auth.fixture';
 import { setupApiMocks } from '../fixtures/test-data.fixture';
 
-test.describe('Навигация', () => {
+/**
+ * Тесты навигации @navigation
+ */
+test.describe('Навигация @navigation', () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
   });
