@@ -3,8 +3,8 @@ import cssConverter from "./cssConverter";
 import CalcColor from "./calcBlockColor"
 import {auth} from './views/auth'
 import {registration} from './views/registration'
-import {log} from "@jsplumb/browser-ui";
 import {styleConfig} from "./styles";
+import {offlineQueue} from "../sincManager/offlineQueue";
 
 
 const viewRenderers = {
@@ -33,18 +33,23 @@ class BlockCreator {
         block.data?.arrows?.forEach((arrow) => {
             this.arrows.add(arrow)
         })
+        let element
         if (block.empty) {
-            return this.createEmpty(block, parentBlock, screen, depth)
+            element = this.createEmpty(block, parentBlock, screen, depth)
         } else {
             if (view === 'link') {
-                return this.createLink(block, parentBlock, screen, depth)
+                element = this.createLink(block, parentBlock, screen, depth)
             } else if (view === 'iframe') {
-                return this.createIframe(block, parentBlock)
+                element = this.createIframe(block, parentBlock)
             } else if (view) {
-                return this.createCustomView(block, parentBlock, screen, depth)
+                element = this.createCustomView(block, parentBlock, screen, depth)
             } else {
-                return this.create(block, parentBlock, screen, depth)
+                element = this.create(block, parentBlock, screen, depth)
             }
+
+            // Добавляем индикатор синхронизации если блок pending
+            this._addSyncIndicator(element, block.id)
+            return element
         }
     }
 
@@ -243,6 +248,27 @@ class BlockCreator {
             element.classList.add(...styles)
             cssConverter.generateStylesheet(styles)
             cssConverter.applyCssClasses(element, styles)
+        }
+    }
+
+    /**
+     * Добавляет индикатор статуса синхронизации к блоку
+     * Показывает "галочку" если блок ожидает синхронизации
+     * @param {HTMLElement} element - DOM элемент блока
+     * @param {string} blockId - ID блока
+     */
+    _addSyncIndicator(element, blockId) {
+        if (!element || !blockId) return
+
+        // Проверяем, является ли блок pending (ожидает синхронизации)
+        if (offlineQueue.isPendingBlock(blockId)) {
+            // Убеждаемся что у блока position: relative для абсолютного позиционирования индикатора
+            element.style.position = 'relative'
+
+            const indicator = document.createElement('div')
+            indicator.className = 'block-sync-indicator pending'
+            indicator.setAttribute('data-block-sync', blockId)
+            element.appendChild(indicator)
         }
     }
 

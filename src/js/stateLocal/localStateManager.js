@@ -448,6 +448,9 @@ export class LocalStateManager {
         // Генерируем реальный UUID сразу
         const blockId = offlineQueue.generateBlockId();
 
+        // Регистрируем блок как pending (ожидающий синхронизации)
+        offlineQueue.registerPendingBlock(blockId);
+
         // Создаём блок-дерево с реальным ID
         const newBlock = {
             id: blockId,
@@ -492,9 +495,20 @@ export class LocalStateManager {
         const block = this.blocks.get(blockId)
         if (!block) return
 
+        // Проверяем, является ли блок pending (создан локально, но не на сервере)
+        const isPending = offlineQueue.isPendingBlock(blockId);
+
         // Optimistic UI: сначала удаляем локально для мгновенного отклика
         const deletedBlocks = new Map(); // Сохраняем для возможного rollback
         const allChildIds = this.getAllChildIds(block);
+
+        // Собираем все pending блоки среди удаляемых
+        const pendingBlockIds = new Set();
+        for (const id of allChildIds) {
+            if (offlineQueue.isPendingBlock(id)) {
+                pendingBlockIds.add(id);
+            }
+        }
 
         // Сохраняем копии для rollback
         for (const id of allChildIds) {
@@ -532,7 +546,22 @@ export class LocalStateManager {
             this.blocks.delete(id);
         }
 
+        // Отменяем pending статус для удаляемых блоков
+        offlineQueue.cancelPendingBlocks(pendingBlockIds);
+
         dispatch('ShowBlocks');
+
+        // Если блок pending - не вызываем API, просто добавляем в очередь удаления
+        // Import API обработает это: блок не будет создан, родитель обновится
+        if (isPending) {
+            console.log('Block is pending, skipping API delete:', blockId);
+            await offlineQueue.enqueue({
+                id: `delete_${blockId}_${Date.now()}`,
+                type: 'deleteBlock',
+                data: { id: blockId, parentId: block.parent_id }
+            });
+            return;
+        }
 
         // Проверяем сеть
         if (!offlineQueue.isNetworkOnline()) {
@@ -1425,6 +1454,9 @@ export class LocalStateManager {
             return;
         }
 
+        // Регистрируем блок как pending (ожидающий синхронизации)
+        offlineQueue.registerPendingBlock(blockId);
+
         // Создаём блок с реальным ID
         const newBlock = {
             id: blockId,
@@ -1502,6 +1534,9 @@ export class LocalStateManager {
             console.error('Parent block not found:', parentId);
             return;
         }
+
+        // Регистрируем блок как pending (ожидающий синхронизации)
+        offlineQueue.registerPendingBlock(blockId);
 
         // Создаём iframe блок с реальным ID
         const newBlock = {
@@ -1598,26 +1633,27 @@ export class LocalStateManager {
     }
 
     async updateCustomGridBlock({blockId, customGrid}) {
-        const block = await this.blockRepository.loadBlock(blockId)
+        // Optimistic UI: обновляем локально, синхронизация через batch import
+        const block = await this.blockRepository.loadBlock(blockId);
         if (!block) {
             console.error(`Block ${blockId} not found`);
             return;
         }
-        block.data.customGrid = customGrid
-        await this.saveBlock(block).then(() => dispatch('ShowBlocks'))
 
-        if (this.debounceTimer) clearTimeout(this.debounceTimer);
+        block.data.customGrid = customGrid;
+        block.updated_at = new Date().toISOString();
+        await this.saveBlock(block);
 
-        this.debounceTimer = setTimeout(async () => {
-            try {
-                const response = await api.updateBlock(blockId, {data: {customGrid}});
-                if (response.status === 200 && response.data?.id) {
-                    await this.saveBlock(response.data);
-                }
-            } catch (err) {
-                console.error(err);
-            }
-        }, 1000);
+        // Регистрируем блок как pending для индикатора
+        offlineQueue.registerPendingBlock(blockId);
+
+        // Добавляем в очередь синхронизации
+        await offlineQueue.enqueue({
+            type: 'updateBlock',
+            data: { id: blockId }
+        });
+
+        dispatch('ShowBlocks');
     }
 
     /**
@@ -1626,6 +1662,7 @@ export class LocalStateManager {
      * @param {Object} customStyles - Объект стилей (background, borderColor, border, shape, shadow)
      */
     async updateBlockStyles({blockId, customStyles}) {
+        // Optimistic UI: обновляем локально, синхронизация через batch import
         const block = await this.blockRepository.loadBlock(blockId);
         if (!block) {
             console.error(`Block ${blockId} not found`);
@@ -1633,21 +1670,19 @@ export class LocalStateManager {
         }
 
         block.data.customStyles = customStyles;
+        block.updated_at = new Date().toISOString();
         await this.saveBlock(block);
-        dispatch('ShowBlocks');
 
-        // Debounced API call
-        if (this.debounceTimer) clearTimeout(this.debounceTimer);
-        this.debounceTimer = setTimeout(async () => {
-            try {
-                const response = await api.updateBlock(blockId, { data: { customStyles } });
-                if (response.status === 200 && response.data?.id) {
-                    await this.saveBlock(response.data);
-                }
-            } catch (err) {
-                console.error('Failed to update block styles:', err);
-            }
-        }, 1000);
+        // Регистрируем блок как pending для индикатора
+        offlineQueue.registerPendingBlock(blockId);
+
+        // Добавляем в очередь синхронизации
+        await offlineQueue.enqueue({
+            type: 'updateBlock',
+            data: { id: blockId }
+        });
+
+        dispatch('ShowBlocks');
     }
 
     updateDataBlock({blockId, data}) {
@@ -1669,51 +1704,25 @@ export class LocalStateManager {
     }
 
     async textUpdate({blockId, text}) {
-        // Сначала обновляем локально для мгновенной обратной связи
+        // Optimistic UI: обновляем локально, синхронизация через batch import
         const block = this.blocks.get(blockId);
-        if (block) {
-            if (!block.data) block.data = {};
-            block.data.text = text;
-            block.updated_at = new Date().toISOString();
-            await this.saveBlock(block);
-        }
+        if (!block) return;
 
-        // Проверяем сеть
-        if (!offlineQueue.isNetworkOnline()) {
-            await offlineQueue.enqueue({
-                id: `update_text_${blockId}_${Date.now()}`,
-                type: 'updateBlock',
-                data: {
-                    id: blockId,
-                    blockData: {data: {text}}
-                }
-            });
-            dispatch('ShowBlocks');
-            return;
-        }
+        if (!block.data) block.data = {};
+        block.data.text = text;
+        block.updated_at = new Date().toISOString();
+        await this.saveBlock(block);
 
-        try {
-            const response = await api.updateBlock(blockId, {data: {text}});
-            if (response.status === 200 && response.data?.id) {
-                const updatedBlock = response.data;
-                await this.saveBlock(updatedBlock);
-                dispatch('ShowBlocks');
-            }
-        } catch (err) {
-            // При ошибке сети добавляем в очередь
-            if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
-                await offlineQueue.enqueue({
-                    id: `update_text_${blockId}_${Date.now()}`,
-                    type: 'updateBlock',
-                    data: {
-                        id: blockId,
-                        blockData: {data: {text}}
-                    }
-                });
-            } else {
-                console.error(err);
-            }
-        }
+        // Регистрируем блок как pending для индикатора
+        offlineQueue.registerPendingBlock(blockId);
+
+        // Добавляем в очередь синхронизации
+        await offlineQueue.enqueue({
+            type: 'updateBlock',
+            data: { id: blockId }
+        });
+
+        dispatch('ShowBlocks');
     }
 
 
@@ -1724,118 +1733,73 @@ export class LocalStateManager {
     }
 
     async titleUpdate({blockId, title}) {
-        // Сначала обновляем локально для мгновенной обратной связи
+        // Optimistic UI: обновляем локально, синхронизация через batch import
         const block = this.blocks.get(blockId);
-        if (block) {
-            block.title = title;
-            block.updated_at = new Date().toISOString();
-            await this.saveBlock(block);
-        }
+        if (!block) return;
 
-        // Проверяем сеть
-        if (!offlineQueue.isNetworkOnline()) {
-            await offlineQueue.enqueue({
-                id: `update_title_${blockId}_${Date.now()}`,
-                type: 'updateBlock',
-                data: {
-                    id: blockId,
-                    blockData: {title}
-                }
-            });
-            dispatch('ShowBlocks');
-            return;
-        }
+        block.title = title;
+        block.updated_at = new Date().toISOString();
+        await this.saveBlock(block);
 
-        try {
-            const response = await api.updateBlock(blockId, {title});
-            if (response.status === 200 && response.data?.id) {
-                const updatedBlock = response.data;
-                await this.saveBlock(updatedBlock);
-                dispatch('ShowBlocks');
-            }
-        } catch (err) {
-            // При ошибке сети добавляем в очередь
-            if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
-                await offlineQueue.enqueue({
-                    id: `update_title_${blockId}_${Date.now()}`,
-                    type: 'updateBlock',
-                    data: {
-                        id: blockId,
-                        blockData: {title}
-                    }
-                });
-            } else {
-                console.error(err);
-            }
-        }
+        // Регистрируем блок как pending для индикатора
+        offlineQueue.registerPendingBlock(blockId);
+
+        // Добавляем в очередь синхронизации
+        await offlineQueue.enqueue({
+            type: 'updateBlock',
+            data: { id: blockId }
+        });
+
+        dispatch('ShowBlocks');
     }
 
-    setIframe({blockId, src}) {
-        api.updateBlock(blockId, {
-            data: {
-                view: 'iframe',
-                text: '',
-                attributes: [
-                    {name: 'sandbox', value: 'allow-scripts allow-same-origin allow-forms'},
-                    {name: 'src', value: src}
-                ],
-            }
-        }).then((res) => {
-            if (res.status === 200) {
-                const updatedBlock = res.data;
-                this.saveBlock(updatedBlock);
-                dispatch('ShowBlocks');
-            }
-        })
+    async setIframe({blockId, src}) {
+        // Optimistic UI: обновляем локально, синхронизация через batch import
+        const block = this.blocks.get(blockId);
+        if (!block) return;
 
+        if (!block.data) block.data = {};
+        block.data.view = 'iframe';
+        block.data.text = '';
+        block.data.attributes = [
+            {name: 'sandbox', value: 'allow-scripts allow-same-origin allow-forms'},
+            {name: 'src', value: src}
+        ];
+        block.updated_at = new Date().toISOString();
+        await this.saveBlock(block);
+
+        // Регистрируем блок как pending для индикатора
+        offlineQueue.registerPendingBlock(blockId);
+
+        // Добавляем в очередь синхронизации
+        await offlineQueue.enqueue({
+            type: 'updateBlock',
+            data: { id: blockId }
+        });
+
+        dispatch('ShowBlocks');
     }
 
     async hueUpdate({blockId, hue}) {
-        // Сначала обновляем локально для мгновенной обратной связи
+        // Optimistic UI: обновляем локально, синхронизация через batch import
         const block = this.blocks.get(blockId);
-        if (block) {
-            if (!block.data) block.data = {};
-            block.data.color = hue;
-            block.updated_at = new Date().toISOString();
-            await this.saveBlock(block);
-        }
+        if (!block) return;
 
-        // Проверяем сеть
-        if (!offlineQueue.isNetworkOnline()) {
-            await offlineQueue.enqueue({
-                id: `update_color_${blockId}_${Date.now()}`,
-                type: 'updateBlock',
-                data: {
-                    id: blockId,
-                    blockData: {data: {color: hue}}
-                }
-            });
-            dispatch('ShowBlocks');
-            return;
-        }
+        if (!block.data) block.data = {};
+        block.data.color = hue;
+        block.updated_at = new Date().toISOString();
+        await this.saveBlock(block);
 
-        try {
-            const response = await api.updateBlock(blockId, {data: {color: hue}});
-            if (response.status === 200 && response.data?.id) {
-                const updatedBlock = response.data;
-                await this.saveBlock(updatedBlock);
-                dispatch('ShowBlocks');
-            }
-        } catch (err) {
-            // При ошибке сети добавляем в очередь
-            if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
-                await offlineQueue.enqueue({
-                    id: `update_color_${blockId}_${Date.now()}`,
-                    type: 'updateBlock',
-                    data: {
-                        id: blockId,
-                        blockData: {data: {color: hue}}
-                    }
-                });
-            } else {
-                console.error(err);
-            }
-        }
+        // Регистрируем блок как pending для индикатора
+        offlineQueue.registerPendingBlock(blockId);
+
+        // Добавляем в очередь синхронизации
+        await offlineQueue.enqueue({
+            type: 'updateBlock',
+            data: { id: blockId }
+        });
+
+        dispatch('ShowBlocks');
     }
 
     async addConnectionBlock({

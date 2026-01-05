@@ -578,6 +578,106 @@ button:focus {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   Block Sync Status Indicator
+   Индикатор статуса синхронизации блока (как в мессенджерах)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Контейнер индикатора */
+.block-sync-indicator {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    z-index: 10;
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+/* Состояние: отправляется (одна галочка, серая) */
+.block-sync-indicator.pending {
+    color: rgba(0, 0, 0, 0.4);
+}
+
+.block-sync-indicator.pending::before {
+    content: '✓';
+    font-size: 12px;
+    font-weight: bold;
+}
+
+/* Состояние: синхронизировано (две галочки, зеленые) */
+.block-sync-indicator.synced {
+    color: #22c55e;
+    opacity: 0;
+    transform: scale(0.5);
+    animation: sync-complete 0.5s ease forwards;
+}
+
+.block-sync-indicator.synced::before {
+    content: '✓✓';
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: -3px;
+}
+
+@keyframes sync-complete {
+    0% {
+        opacity: 1;
+        transform: scale(1.2);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+}
+
+/* Для маленьких блоков - меньший индикатор */
+.block[layout^="xxxs"] .block-sync-indicator,
+.block[layout^="xxs"] .block-sync-indicator {
+    width: 12px;
+    height: 12px;
+    font-size: 8px;
+    bottom: 2px;
+    right: 2px;
+}
+
+.block[layout^="xxxs"] .block-sync-indicator::before,
+.block[layout^="xxs"] .block-sync-indicator::before {
+    font-size: 8px;
+}
+
+/* Анимация "пульсации" для pending */
+.block-sync-indicator.pending::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.3;
+    animation: sync-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes sync-pulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 0.3;
+    }
+    50% {
+        transform: scale(1.5);
+        opacity: 0;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    Mobile Improvements
    ───────────────────────────────────────────────────────────────────────────── */
 

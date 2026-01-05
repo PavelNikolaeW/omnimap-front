@@ -32,6 +32,10 @@ class OfflineQueueManager {
         this.lastPullTimestamp = 0; // Время последнего pull
         this.PULL_COOLDOWN_MS = 30000; // Минимальный интервал между pull (30 сек)
 
+        // Блоки, ожидающие синхронизации с сервером (созданы локально, но ещё не на сервере)
+        // Map<blockId, Promise<void>> - промис резолвится когда блок синхронизирован
+        this.pendingBlocks = new Map();
+
         this.init();
     }
 
@@ -41,6 +45,62 @@ class OfflineQueueManager {
      */
     generateBlockId() {
         return uuidV4();
+    }
+
+    /**
+     * Проверяет, ожидает ли блок синхронизации (создан локально, но ещё не на сервере)
+     * @param {string} blockId - ID блока
+     * @returns {boolean}
+     */
+    isPendingBlock(blockId) {
+        return this.pendingBlocks.has(blockId);
+    }
+
+    /**
+     * Ожидает синхронизации блока с сервером
+     * Если блок не pending - резолвится сразу
+     * @param {string} blockId - ID блока
+     * @returns {Promise<void>}
+     */
+    async waitForBlock(blockId) {
+        const pending = this.pendingBlocks.get(blockId);
+        if (pending) {
+            await pending;
+        }
+    }
+
+    /**
+     * Регистрирует блок как pending (ожидающий синхронизации)
+     * @param {string} blockId - ID блока
+     * @returns {{resolve: Function, reject: Function}} - Функции для завершения ожидания
+     */
+    registerPendingBlock(blockId) {
+        let resolve, reject;
+        const promise = new Promise((res, rej) => {
+            resolve = res;
+            reject = rej;
+        });
+        this.pendingBlocks.set(blockId, promise);
+        return { resolve, reject };
+    }
+
+    /**
+     * Помечает блок как синхронизированный
+     * @param {string} blockId - ID блока
+     */
+    resolvePendingBlock(blockId) {
+        this.pendingBlocks.delete(blockId);
+    }
+
+    /**
+     * Отменяет ожидание всех pending блоков из списка
+     * Используется когда блоки были удалены до синхронизации
+     * @param {Set<string>} blockIds - ID блоков для отмены
+     */
+    cancelPendingBlocks(blockIds) {
+        for (const blockId of blockIds) {
+            this.pendingBlocks.delete(blockId);
+        }
     }
 
     /**
@@ -479,6 +539,15 @@ class OfflineQueueManager {
                     deletedIds: Array.from(deletedIds)
                 });
             }
+
+            // Очищаем pending блоки - все синхронизированные блоки теперь на сервере
+            const syncedBlockIds = new Set(blocks.map(b => b.id));
+            for (const blockId of syncedBlockIds) {
+                this.resolvePendingBlock(blockId);
+            }
+
+            // Отменяем pending для удалённых блоков
+            this.cancelPendingBlocks(deletedIds);
 
             // Очищаем очередь
             await this.saveQueue([]);
