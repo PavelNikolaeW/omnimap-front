@@ -15,11 +15,11 @@ export class LoginPage extends BasePage {
     super(page);
 
     // Поля формы логина (ищем внутри #login-form чтобы не путать с формой регистрации)
-    const loginForm = page.locator('#login-form');
-    this.usernameInput = loginForm.locator('#username');
-    this.passwordInput = loginForm.locator('#password');
-    this.submitButton = loginForm.locator('button[type="submit"]');
-    this.errorMessage = loginForm.locator('.auth-error');
+    // Используем более специфичные селекторы
+    this.usernameInput = page.locator('#login-form input#username');
+    this.passwordInput = page.locator('#login-form input#password');
+    this.submitButton = page.locator('#login-form button[type="submit"]');
+    this.errorMessage = page.locator('#login-form .auth-error');
     this.registerLink = page.locator('a[href*="register"], .register-link');
   }
 
@@ -29,8 +29,16 @@ export class LoginPage extends BasePage {
   async login(username: string, password: string) {
     // Ждём пока форма логина появится (SPA рендерит её динамически)
     await this.usernameInput.waitFor({ state: 'visible', timeout: 10000 });
+
+    // Очищаем и заполняем поля последовательно
+    await this.usernameInput.clear();
     await this.usernameInput.fill(username);
+
+    await this.passwordInput.waitFor({ state: 'visible', timeout: 5000 });
+    await this.passwordInput.clear();
     await this.passwordInput.fill(password);
+
+    // Кликаем кнопку входа
     await this.submitButton.click();
   }
 
@@ -46,7 +54,14 @@ export class LoginPage extends BasePage {
    * Проверить, что логин успешен (редирект на главную)
    */
   async assertLoginSuccess() {
-    await this.waitForAppLoad();
+    // После успешного логина должен появиться rootContainer
+    // controlPanel может быть изначально hidden
+    await this.rootContainer.waitFor({ state: 'visible', timeout: 30000 });
+
+    // Ждём пока исчезнет форма логина (признак успешной авторизации)
+    const loginForm = this.page.locator('#login-form');
+    await loginForm.waitFor({ state: 'hidden', timeout: 30000 });
+
     await expect(this.rootContainer).toBeVisible();
   }
 

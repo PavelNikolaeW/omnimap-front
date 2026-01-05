@@ -2,7 +2,7 @@ import { test, expect } from '../fixtures/auth.fixture';
 import { Page, BrowserContext } from '@playwright/test';
 
 /**
- * E2E тесты для offline-функциональности
+ * E2E тесты для offline-функциональности @offline
  *
  * Тестируют:
  * - Сохранение данных в IndexedDB
@@ -12,7 +12,7 @@ import { Page, BrowserContext } from '@playwright/test';
  * - Индикатор состояния сети
  */
 
-test.describe('Offline Mode', () => {
+test.describe('Offline Mode @offline', () => {
   test.describe('IndexedDB Storage', () => {
     test('blocks are saved to IndexedDB after creation', async ({ authenticatedPage }) => {
       const mainPage = authenticatedPage;
@@ -368,7 +368,7 @@ test.describe('Offline Mode', () => {
   });
 });
 
-test.describe('Offline Edge Cases', () => {
+test.describe('Offline Edge Cases @offline', () => {
   test('handles rapid online/offline transitions', async ({ authenticatedPage }) => {
     const mainPage = authenticatedPage;
     const page = mainPage.page;

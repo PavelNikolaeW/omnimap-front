@@ -1,0 +1,45 @@
+# Dockerfile для E2E тестов OmniMap
+#
+# Использование:
+#   docker build -f Dockerfile.e2e -t omnimap-e2e .
+#   docker run --rm omnimap-e2e npx playwright test --project=chromium
+#
+# В CI (K8s):
+#   Образ запускается как Job с переменными окружения:
+#   - PLAYWRIGHT_BASE_URL: URL фронтенда для тестирования
+#   - E2E_TEST_USERNAME: логин тестового пользователя
+#   - E2E_TEST_PASSWORD: пароль тестового пользователя
+#   - CI=true: включает CI-режим Playwright
+
+FROM mcr.microsoft.com/playwright:v1.48.0-noble
+
+WORKDIR /app
+
+# Копируем файлы зависимостей
+COPY package.json package-lock.json* ./
+
+# Устанавливаем только production и dev dependencies, нужные для тестов
+RUN npm ci
+
+# Копируем конфигурацию Playwright
+COPY playwright.config.ts ./
+COPY tsconfig.json ./
+
+# Копируем E2E тесты и fixtures
+COPY e2e ./e2e
+
+# Создаём директорию для auth state
+RUN mkdir -p e2e/.auth
+
+# Playwright уже установлен в базовом образе, но убедимся что chromium есть
+RUN npx playwright install chromium
+
+# Устанавливаем переменные по умолчанию
+ENV CI=true
+ENV NODE_ENV=test
+
+# Рабочая директория для результатов (монтируется как volume в K8s)
+VOLUME ["/app/e2e/test-results", "/app/e2e/playwright-report", "/app/e2e/blob-report"]
+
+# По умолчанию запускаем все тесты на chromium
+CMD ["npx", "playwright", "test", "--project=chromium", "--reporter=html,list"]

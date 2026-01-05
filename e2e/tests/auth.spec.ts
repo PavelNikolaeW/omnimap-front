@@ -1,7 +1,10 @@
 import { test, expect } from '../fixtures/auth.fixture';
 import { setupApiMocks } from '../fixtures/test-data.fixture';
 
-test.describe('Авторизация', () => {
+/**
+ * Тесты авторизации @auth
+ */
+test.describe('Авторизация @auth', () => {
   test.beforeEach(async ({ page }) => {
     // Настраиваем моки API для изолированных тестов
     await setupApiMocks(page);
@@ -81,7 +84,7 @@ test.describe('Авторизация', () => {
   });
 });
 
-test.describe('Проверка сессии', () => {
+test.describe('Проверка сессии @auth', () => {
   test('должен обновить токен при истечении access token', async ({ page }) => {
     let refreshCalled = false;
 
