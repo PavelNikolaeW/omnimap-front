@@ -1,55 +1,63 @@
-import { test as base, expect, Page, BrowserContext } from '@playwright/test';
+import { test as base, expect, BrowserContext } from '@playwright/test';
 import { MainPage } from '../pages/main.page';
-import { LoginPage } from '../pages/login.page';
 import * as fs from 'fs';
 
 /**
- * Тестовые учетные данные
- * Для реальных E2E тестов задайте через переменные окружения:
- *   E2E_TEST_USERNAME - логин тестового пользователя
- *   E2E_TEST_PASSWORD - пароль тестового пользователя
- *   E2E_USE_REAL_AUTH - установите в 'true' для использования реальной авторизации
+ * Тестовые учетные данные E2E пользователей
+ *
+ * Структура пользователей на бэкенде:
+ * - e2e_admin (owner) - имеет корневой блок с дочерними блоками
+ * - e2e_editor - имеет свой корневой блок + ссылку на shared блок admin'а
+ * - e2e_viewer - имеет свой корневой блок + ссылку на shared блок (только просмотр)
  */
-const TEST_USER = {
-  username: process.env.E2E_TEST_USERNAME || 'e2e_test_user',
-  password: process.env.E2E_TEST_PASSWORD || 'e2e_test_password',
+export const TEST_USERS = {
+  admin: {
+    username: process.env.E2E_TEST_USERNAME || 'e2e_admin',
+    password: process.env.E2E_TEST_PASSWORD || 'e2e_admin_password',
+  },
+  editor: {
+    username: process.env.E2E_EDITOR_USERNAME || 'e2e_editor',
+    password: process.env.E2E_EDITOR_PASSWORD || 'e2e_editor_password',
+  },
+  viewer: {
+    username: process.env.E2E_VIEWER_USERNAME || 'e2e_viewer',
+    password: process.env.E2E_VIEWER_PASSWORD || 'e2e_viewer_password',
+  },
 };
 
-const USE_REAL_AUTH = process.env.E2E_USE_REAL_AUTH === 'true';
 const AUTH_FILE = 'e2e/.auth/user.json';
 
 /**
- * Расширенные fixtures с авторизацией и page objects
+ * Fixtures для E2E тестов
  */
 type AuthFixtures = {
+  /** MainPage без авторизации */
   mainPage: MainPage;
-  loginPage: LoginPage;
+  /** MainPage с авторизацией (через storageState или логин) */
   authenticatedPage: MainPage;
 };
 
 export const test = base.extend<AuthFixtures>({
   /**
-   * Page Object для главной страницы (без авторизации)
+   * MainPage без авторизации - для тестов формы логина
+   * Очищаем cookies чтобы показать форму логина
    */
-  mainPage: async ({ page }, use) => {
+  mainPage: async ({ page, context }, use) => {
+    // Очищаем авторизационные cookies для теста неавторизованного состояния
+    await context.clearCookies();
     const mainPage = new MainPage(page);
     await use(mainPage);
   },
 
   /**
-   * Page Object для страницы логина
-   */
-  loginPage: async ({ page }, use) => {
-    const loginPage = new LoginPage(page);
-    await use(loginPage);
-  },
-
-  /**
-   * Авторизованная страница с готовой сессией
-   * Для тестов, требующих авторизации
+   * MainPage с авторизацией
+   * Использует storageState если есть, иначе логинится через UI
    *
-   * Если storageState уже загружен (через playwright.config.ts),
-   * просто переходим на главную. Иначе выполняем логин.
+   * ВАЖНО: storageState не сохраняет IndexedDB (localforage), поэтому даже если
+   * cookies есть, localforage может быть пустым. В этом случае AuthStateManager
+   * считает пользователя неавторизованным и скрывает sidebar.
+   *
+   * Решение: если cookies есть, но sidebar скрыт - перелогиниваемся через UI.
    */
   authenticatedPage: async ({ page, context }, use) => {
     const mainPage = new MainPage(page);
@@ -57,124 +65,112 @@ export const test = base.extend<AuthFixtures>({
     // Проверяем, есть ли уже авторизация через storageState
     const hasStorageState = fs.existsSync(AUTH_FILE);
     const cookies = await context.cookies();
-    const hasAuthCookie = cookies.some(c => c.name === 'access' || c.name === 'refresh');
+    const hasAuthCookie = cookies.some((c) => c.name === 'access' || c.name === 'refresh');
 
     if (hasStorageState && hasAuthCookie) {
-      // StorageState уже загружен - просто переходим на главную
+      // StorageState уже загружен - переходим и ждём блоки
       await mainPage.goto();
       await mainPage.waitForAppLoad();
-    } else if (USE_REAL_AUTH) {
-      // Реальная авторизация через UI (fallback)
-      await performRealAuth(page);
+      await mainPage.waitForShowedBlocks();
+
+      // Проверяем, виден ли sidebar (индикатор того, что localforage содержит currentUser)
+      const sidebar = page.locator('#sidebar');
+      const sidebarHidden = await sidebar.evaluate((el) => el.classList.contains('hidden'));
+
+      if (sidebarHidden) {
+        // Sidebar скрыт - значит localforage пустой, нужно перелогиниться
+        console.log('[E2E] Sidebar hidden - localforage empty, re-authenticating...');
+
+        // Очищаем cookies
+        await context.clearCookies();
+
+        // Очищаем IndexedDB (localforage)
+        await page.evaluate(async () => {
+          // Удаляем все базы данных IndexedDB
+          const dbs = await indexedDB.databases();
+          for (const db of dbs) {
+            if (db.name) {
+              indexedDB.deleteDatabase(db.name);
+            }
+          }
+          // Очищаем localStorage и sessionStorage
+          localStorage.clear();
+          sessionStorage.clear();
+        });
+
+        // Перезагружаем страницу с новым контекстом (без cookies и данных)
+        await page.goto('/');
+        await page.waitForLoadState('networkidle');
+
+        // Ждём появления формы логина
+        const hasLoginForm = await page
+          .waitForSelector('#login-form', { state: 'visible', timeout: 10000 })
+          .then(() => true)
+          .catch(() => false);
+
+        console.log('[E2E] Login form appeared:', hasLoginForm);
+
+        if (hasLoginForm) {
+          // Логинимся через UI
+          await mainPage.login(TEST_USERS.admin.username, TEST_USERS.admin.password);
+          await mainPage.assertLoginSuccess();
+          await mainPage.waitForShowedBlocks();
+
+          // Ждём пока sidebar станет видимым (после Login события)
+          await sidebar.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {
+            console.log('[E2E] Warning: sidebar still not visible after re-auth');
+          });
+        } else {
+          console.log('[E2E] Warning: login form did not appear after clearing cookies');
+        }
+      }
     } else {
-      // Мокированная авторизация для быстрых тестов
-      await setupMockedAuth(page, context);
-      await mainPage.goto();
-      await mainPage.waitForAppLoad();
+      // Логинимся через UI
+      await mainPage.gotoAndLogin(TEST_USERS.admin.username, TEST_USERS.admin.password);
     }
+
+    // Экспортируем localforage на window для тестов storage
+    await page.evaluate(() => {
+      // Пытаемся найти localforage в webpack modules
+      // @ts-ignore
+      if (typeof window.__webpack_require__ !== 'undefined') {
+        try {
+          // Ищем localforage в модулях webpack
+          // @ts-ignore
+          const moduleCache = window.__webpack_require__.c;
+          for (const key in moduleCache) {
+            const mod = moduleCache[key];
+            if (mod?.exports?.getItem && mod?.exports?.setItem && mod?.exports?.keys) {
+              // @ts-ignore
+              window.localforage = mod.exports;
+              console.log('[E2E] localforage exported to window');
+              break;
+            }
+          }
+        } catch (e) {
+          console.log('[E2E] Failed to export localforage:', e);
+        }
+      }
+    });
 
     await use(mainPage);
   },
 });
 
 /**
- * Реальная авторизация через backend API
- * Получает настоящие JWT токены
- */
-async function performRealAuth(page: Page) {
-  const loginPage = new LoginPage(page);
-
-  console.log(`[Auth] Starting real auth with user: ${TEST_USER.username}`);
-
-  // Переходим на главную и ждём форму логина
-  await loginPage.goto();
-  console.log('[Auth] Login form appeared');
-
-  // Выполняем вход
-  await loginPage.login(TEST_USER.username, TEST_USER.password);
-  console.log('[Auth] Credentials submitted, waiting for success...');
-
-  // Ждём успешного входа
-  await loginPage.assertLoginSuccess();
-  console.log('[Auth] Login successful');
-}
-
-/**
- * Настройка мокированной авторизации
- * Устанавливает необходимые cookies и localStorage
- */
-async function setupMockedAuth(page: Page, context: BrowserContext) {
-  // Устанавливаем mock токены
-  await context.addCookies([
-    {
-      name: 'access',
-      value: 'mock_access_token_for_e2e_tests',
-      domain: 'localhost',
-      path: '/',
-    },
-    {
-      name: 'refresh',
-      value: 'mock_refresh_token_for_e2e_tests',
-      domain: 'localhost',
-      path: '/',
-    },
-  ]);
-
-  // Устанавливаем mock данные пользователя в IndexedDB через localforage
-  await page.goto('/');
-  await page.evaluate(() => {
-    // Мок данные пользователя для localforage/IndexedDB
-    const mockUser = 'e2e_test_user';
-
-    // localforage хранит данные асинхронно, используем localStorage как fallback
-    localStorage.setItem('currentUser', JSON.stringify(mockUser));
-
-    // Также устанавливаем в IndexedDB если localforage доступен
-    if (typeof (window as any).localforage !== 'undefined') {
-      (window as any).localforage.setItem('currentUser', mockUser);
-    }
-  });
-}
-
-/**
- * Выполнить реальный логин через UI
- * Используется когда нужен настоящий токен от backend
- */
-export async function performLogin(
-  loginPage: LoginPage,
-  username: string = TEST_USER.username,
-  password: string = TEST_USER.password
-) {
-  await loginPage.goto();
-  await loginPage.login(username, password);
-  await loginPage.assertLoginSuccess();
-}
-
-/**
  * Создать состояние сессии для переиспользования
- * Сохраняет cookies и localStorage в файл
- *
- * Использование:
- *   npx playwright test --project=setup
- *
- * Затем в других тестах:
- *   use: { storageState: 'e2e/.auth/user.json' }
  */
-export async function createAuthState(page: Page, storageStatePath: string) {
-  const loginPage = new LoginPage(page);
-  await performLogin(loginPage);
+export async function createAuthState(page: any, storageStatePath: string) {
+  const mainPage = new MainPage(page);
+  await mainPage.gotoAndLogin(TEST_USERS.admin.username, TEST_USERS.admin.password);
   await page.context().storageState({ path: storageStatePath });
 }
 
 /**
  * Хелпер для получения тестовых учётных данных
  */
-export function getTestCredentials() {
-  return {
-    username: TEST_USER.username,
-    password: TEST_USER.password,
-    isRealAuth: USE_REAL_AUTH,
-  };
+export function getTestCredentials(userType: 'admin' | 'editor' | 'viewer' = 'admin') {
+  return TEST_USERS[userType];
 }
 
 export { expect };

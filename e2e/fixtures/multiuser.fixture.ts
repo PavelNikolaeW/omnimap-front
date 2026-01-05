@@ -1,9 +1,13 @@
 import { test as base, expect, Browser, BrowserContext, Page } from '@playwright/test';
-import { LoginPage } from '../pages/login.page';
 import { MainPage } from '../pages/main.page';
 
 /**
  * Конфигурация тестовых пользователей
+ *
+ * Структура на бэкенде:
+ * - e2e_admin (owner) - имеет корневой блок с дочерними блоками
+ * - e2e_editor - имеет свой корневой блок + ссылку на shared блок admin'а
+ * - e2e_viewer - имеет свой корневой блок + ссылку на shared блок (только просмотр)
  */
 export const TEST_USERS = {
   admin: {
@@ -31,41 +35,6 @@ export interface UserSession {
 }
 
 /**
- * Ожидает события ShowedBlocks
- */
-async function waitForShowedBlocks(page: Page, timeout = 15000): Promise<void> {
-  await page.waitForFunction(
-    () => {
-      return new Promise<boolean>((resolve) => {
-        const blocks = document.querySelectorAll('[block]');
-        if (blocks.length > 0) {
-          resolve(true);
-          return;
-        }
-
-        const root = document.getElementById('rootContainer');
-        if (root && root.children.length > 0) {
-          resolve(true);
-          return;
-        }
-
-        const handler = () => {
-          window.removeEventListener('ShowedBlocks', handler);
-          resolve(true);
-        };
-        window.addEventListener('ShowedBlocks', handler);
-
-        setTimeout(() => {
-          window.removeEventListener('ShowedBlocks', handler);
-          resolve(true);
-        }, 10000);
-      });
-    },
-    { timeout }
-  );
-}
-
-/**
  * Создаёт авторизованную сессию для пользователя
  */
 async function createUserSession(
@@ -74,16 +43,9 @@ async function createUserSession(
 ): Promise<UserSession> {
   const context = await browser.newContext();
   const page = await context.newPage();
-
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(user.username, user.password);
-  await loginPage.assertLoginSuccess();
-
-  // Ждём загрузки приложения и рендера блоков
-  await waitForShowedBlocks(page);
-
   const mainPage = new MainPage(page);
+
+  await mainPage.gotoAndLogin(user.username, user.password);
 
   return {
     context,
@@ -157,4 +119,39 @@ export const test = base.extend<{
   },
 });
 
-export { expect, waitForShowedBlocks };
+/**
+ * Ожидает события ShowedBlocks
+ */
+export async function waitForShowedBlocks(page: any, timeout = 15000): Promise<void> {
+  await page.waitForFunction(
+    () => {
+      return new Promise<boolean>((resolve) => {
+        const blocks = document.querySelectorAll('[block]');
+        if (blocks.length > 0) {
+          resolve(true);
+          return;
+        }
+
+        const root = document.getElementById('rootContainer');
+        if (root && root.children.length > 0) {
+          resolve(true);
+          return;
+        }
+
+        const handler = () => {
+          window.removeEventListener('ShowedBlocks', handler);
+          resolve(true);
+        };
+        window.addEventListener('ShowedBlocks', handler);
+
+        setTimeout(() => {
+          window.removeEventListener('ShowedBlocks', handler);
+          resolve(true);
+        }, 10000);
+      });
+    },
+    { timeout }
+  );
+}
+
+export { expect };

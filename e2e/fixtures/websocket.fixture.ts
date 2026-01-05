@@ -1,4 +1,14 @@
-import { Page, test as base } from '@playwright/test';
+import { Page, test as base, expect } from '@playwright/test';
+
+/**
+ * Тип для захваченного WebSocket сообщения
+ */
+export interface CapturedWsMessage {
+  type: string;
+  data: any;
+  timestamp: number;
+  direction: 'incoming' | 'outgoing';
+}
 
 /**
  * Хелпер для работы с WebSocket в E2E тестах
@@ -7,9 +17,13 @@ import { Page, test as base } from '@playwright/test';
  * - Ждать подключения WebSocket
  * - Симулировать входящие сообщения
  * - Отслеживать исходящие сообщения
+ * - Захватывать входящие сообщения для проверки
  * - Симулировать disconnect/reconnect
  */
 export class WebSocketHelper {
+  private capturedMessages: CapturedWsMessage[] = [];
+  private isCapturing = false;
+
   constructor(private page: Page) {}
 
   /**
@@ -179,6 +193,141 @@ export class WebSocketHelper {
       },
       { predicateStr: predicate.toString(), timeout }
     );
+  }
+
+  /**
+   * Начинает захват входящих WebSocket сообщений
+   */
+  async startCapturing(): Promise<void> {
+    if (this.isCapturing) return;
+    this.isCapturing = true;
+    this.capturedMessages = [];
+
+    await this.page.evaluate(() => {
+      const win = window as any;
+      if (win.__wsMessageCapture) return;
+
+      win.__wsMessageCapture = {
+        messages: [] as any[],
+        originalHandler: null as any,
+      };
+
+      // Слушаем события WebSocUpdateBlock
+      const captureHandler = (e: CustomEvent) => {
+        win.__wsMessageCapture.messages.push({
+          type: 'block_updates',
+          data: e.detail,
+          timestamp: Date.now(),
+          direction: 'incoming',
+        });
+      };
+
+      window.addEventListener('WebSocUpdateBlock', captureHandler as EventListener);
+      win.__wsMessageCapture.cleanup = () => {
+        window.removeEventListener('WebSocUpdateBlock', captureHandler as EventListener);
+      };
+    });
+  }
+
+  /**
+   * Останавливает захват и очищает данные
+   */
+  async stopCapturing(): Promise<void> {
+    this.isCapturing = false;
+    this.capturedMessages = [];
+
+    await this.page.evaluate(() => {
+      const win = window as any;
+      if (win.__wsMessageCapture?.cleanup) {
+        win.__wsMessageCapture.cleanup();
+      }
+      delete win.__wsMessageCapture;
+    });
+  }
+
+  /**
+   * Возвращает все захваченные сообщения
+   */
+  async getCapturedMessages(): Promise<CapturedWsMessage[]> {
+    const messages = await this.page.evaluate(() => {
+      const win = window as any;
+      return win.__wsMessageCapture?.messages || [];
+    });
+    return messages;
+  }
+
+  /**
+   * Очищает захваченные сообщения
+   */
+  async clearCaptured(): Promise<void> {
+    await this.page.evaluate(() => {
+      const win = window as any;
+      if (win.__wsMessageCapture) {
+        win.__wsMessageCapture.messages = [];
+      }
+    });
+    this.capturedMessages = [];
+  }
+
+  /**
+   * Ожидает входящее сообщение типа block_updates с блоком
+   */
+  async waitForBlockUpdate(
+    blockId: string,
+    options: { timeout?: number } = {}
+  ): Promise<any> {
+    const { timeout = 10000 } = options;
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < timeout) {
+      const messages = await this.getCapturedMessages();
+      const found = messages.find((msg) => {
+        if (msg.type !== 'block_updates') return false;
+        const updates = Array.isArray(msg.data) ? msg.data : [msg.data];
+        return updates.some((update: any) => update?.id === blockId);
+      });
+
+      if (found) return found;
+      await this.page.waitForTimeout(200);
+    }
+
+    throw new Error(`WebSocket update for block ${blockId} not received within ${timeout}ms`);
+  }
+
+  /**
+   * Проверяет, что пришло обновление для блока
+   */
+  async assertBlockUpdateReceived(blockId: string, timeout = 10000): Promise<void> {
+    const message = await this.waitForBlockUpdate(blockId, { timeout });
+    expect(message).toBeDefined();
+  }
+
+  /**
+   * Проверяет, что пришли обновления для нескольких блоков
+   */
+  async assertBlockUpdatesReceived(blockIds: string[], timeout = 10000): Promise<void> {
+    const startTime = Date.now();
+    const receivedIds = new Set<string>();
+
+    while (Date.now() - startTime < timeout) {
+      const messages = await this.getCapturedMessages();
+
+      for (const msg of messages) {
+        if (msg.type !== 'block_updates') continue;
+        const updates = Array.isArray(msg.data) ? msg.data : [msg.data];
+        for (const update of updates) {
+          if (update?.id) receivedIds.add(update.id);
+        }
+      }
+
+      const allReceived = blockIds.every((id) => receivedIds.has(id));
+      if (allReceived) return;
+
+      await this.page.waitForTimeout(200);
+    }
+
+    const missing = blockIds.filter((id) => !receivedIds.has(id));
+    throw new Error(`WebSocket updates not received for blocks: ${missing.join(', ')}`);
   }
 }
 
