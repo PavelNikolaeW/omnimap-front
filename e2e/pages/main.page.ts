@@ -2,9 +2,20 @@ import { Page, Locator, expect } from '@playwright/test';
 import { BasePage } from './base.page';
 
 /**
- * Page Object для главной страницы с блоками
+ * Page Object для главной страницы OmniMap
+ *
+ * Это SPA - одна страница на /.
+ * Если пользователь не авторизован - видна форма логина.
+ * Если авторизован - видны его блоки.
  */
 export class MainPage extends BasePage {
+  // Форма логина (отображается для неавторизованных)
+  readonly loginForm: Locator;
+  readonly usernameInput: Locator;
+  readonly passwordInput: Locator;
+  readonly loginSubmitButton: Locator;
+  readonly loginErrorMessage: Locator;
+
   // Текстовый редактор (noteEditor)
   readonly noteEditorTextarea: Locator;
   readonly noteEditorToolbar: Locator;
@@ -22,6 +33,14 @@ export class MainPage extends BasePage {
 
   constructor(page: Page) {
     super(page);
+
+    // Форма логина - используем CSS селектор с родительским элементом
+    // Важно: на странице есть и форма регистрации с такими же id полей
+    this.loginForm = page.locator('#login-form');
+    this.usernameInput = page.locator('#login-form #username');
+    this.passwordInput = page.locator('#login-form #password');
+    this.loginSubmitButton = page.locator('#login-form button[type="submit"]');
+    this.loginErrorMessage = page.locator('#login-form .auth-error');
 
     // Текстовый редактор с data-testid
     this.noteEditorTextarea = page.locator('[data-testid="note-editor-textarea"]');
@@ -57,9 +76,20 @@ export class MainPage extends BasePage {
 
   /**
    * Кликнуть по блоку
+   * Кликаем по заголовку блока, чтобы избежать проблем с iframe блоками,
+   * которые перехватывают клики
    */
   async clickBlock(block: Locator) {
-    await block.click();
+    // Пытаемся кликнуть по заголовку блока (titleBlock)
+    const title = block.locator('titleBlock').first();
+    const hasTitleBlock = await title.count() > 0;
+
+    if (hasTitleBlock) {
+      await title.click({ force: true });
+    } else {
+      // Если заголовка нет, кликаем по самому блоку с force
+      await block.click({ force: true });
+    }
   }
 
   /**
@@ -265,5 +295,131 @@ export class MainPage extends BasePage {
     if (everywhere) {
       await this.searchEverywhereCheckbox.check();
     }
+  }
+
+  // ==================== Авторизация ====================
+
+  /**
+   * Дождаться рендера формы логина (для неавторизованных пользователей)
+   */
+  async waitForLoginForm(timeout = 15000) {
+    await this.page.waitForFunction(
+      () => {
+        return new Promise<boolean>((resolve) => {
+          if (document.getElementById('login-form')) {
+            resolve(true);
+            return;
+          }
+
+          const handler = () => {
+            window.removeEventListener('ShowedBlocks', handler);
+            setTimeout(() => resolve(true), 100);
+          };
+          window.addEventListener('ShowedBlocks', handler);
+
+          setTimeout(() => {
+            window.removeEventListener('ShowedBlocks', handler);
+            resolve(true);
+          }, 10000);
+        });
+      },
+      {},
+      { timeout }
+    );
+
+    await this.loginForm.waitFor({ state: 'attached', timeout: 5000 });
+    await this.usernameInput.waitFor({ state: 'visible', timeout: 5000 });
+  }
+
+  /**
+   * Выполнить логин
+   */
+  async login(username: string, password: string) {
+    await this.usernameInput.waitFor({ state: 'visible', timeout: 5000 });
+    await this.usernameInput.clear();
+    await this.usernameInput.fill(username);
+    await this.passwordInput.clear();
+    await this.passwordInput.fill(password);
+    await this.loginSubmitButton.click();
+  }
+
+  /**
+   * Проверить успешный логин (форма логина исчезла, блоки появились)
+   */
+  async assertLoginSuccess() {
+    await this.loginForm.waitFor({ state: 'detached', timeout: 15000 });
+    await this.waitForAppLoad();
+    await expect(this.rootContainer).toBeVisible();
+  }
+
+  /**
+   * Проверить, что видна форма логина
+   */
+  async assertOnLoginForm() {
+    await expect(this.usernameInput).toBeVisible();
+    await expect(this.passwordInput).toBeVisible();
+  }
+
+  /**
+   * Проверить наличие ошибки логина
+   */
+  async assertLoginError() {
+    await expect(this.loginErrorMessage).toBeVisible();
+  }
+
+  /**
+   * Полный флоу авторизации: перейти на страницу и залогиниться
+   * Если пользователь уже залогинен (есть блоки) - просто ждём загрузки
+   */
+  async gotoAndLogin(username: string, password: string) {
+    await this.goto();
+
+    // Ждём либо форму логина, либо блоки (если уже залогинен)
+    const hasLoginForm = await this.page
+      .waitForSelector('#login-form', { state: 'visible', timeout: 5000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (hasLoginForm) {
+      await this.login(username, password);
+      await this.assertLoginSuccess();
+    }
+
+    await this.waitForShowedBlocks();
+  }
+
+  /**
+   * Ожидает события ShowedBlocks (блоки отрендерены)
+   */
+  async waitForShowedBlocks(timeout = 15000): Promise<void> {
+    await this.page.waitForFunction(
+      () => {
+        return new Promise<boolean>((resolve) => {
+          const blocks = document.querySelectorAll('[block]');
+          if (blocks.length > 0) {
+            resolve(true);
+            return;
+          }
+
+          const root = document.getElementById('rootContainer');
+          if (root && root.children.length > 0) {
+            resolve(true);
+            return;
+          }
+
+          const handler = () => {
+            window.removeEventListener('ShowedBlocks', handler);
+            resolve(true);
+          };
+          window.addEventListener('ShowedBlocks', handler);
+
+          setTimeout(() => {
+            window.removeEventListener('ShowedBlocks', handler);
+            resolve(true);
+          }, 10000);
+        });
+      },
+      { timeout }
+    );
   }
 }

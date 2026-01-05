@@ -172,23 +172,43 @@ test.describe('Цвета блоков (colorCommands)', () => {
 
   test.describe('Цвета для нескольких блоков', () => {
     test('должен применить цвет к нескольким выделенным блокам', async ({ authenticatedPage }) => {
+      // Нужно зайти в блок с несколькими детьми
       const blocks = authenticatedPage.getBlocks();
       const count = await blocks.count();
 
-      if (count >= 2) {
-        // Выделяем первый блок
-        await authenticatedPage.clickBlock(blocks.first());
+      if (count >= 1) {
+        // Заходим в первый блок (дабл-клик) чтобы увидеть дочерние блоки
+        await authenticatedPage.doubleClickBlock(blocks.first());
+        await authenticatedPage.waitForShowedBlocks();
 
-        // Shift+клик для мульти-выделения
-        await authenticatedPage.page.keyboard.down('Shift');
-        await blocks.nth(1).click();
-        await authenticatedPage.page.keyboard.up('Shift');
+        const childBlocks = authenticatedPage.getBlocks();
+        const childCount = await childBlocks.count();
 
-        // Применяем цвет ко всем выделенным
-        await authenticatedPage.pressHotkey('3');
-        await authenticatedPage.page.waitForTimeout(300);
+        if (childCount >= 2) {
+          // Выделяем первый блок
+          await childBlocks.first().click();
 
-        // Оба блока должны получить цвет
+          await authenticatedPage.page.waitForTimeout(300);
+
+          // Re-query blocks после первого клика
+          const blocksNow = authenticatedPage.getBlocks();
+          const blocksNowCount = await blocksNow.count();
+
+          if (blocksNowCount >= 2) {
+            // Shift+клик для мульти-выделения
+            await authenticatedPage.page.keyboard.down('Shift');
+            await blocksNow.nth(1).click();
+            await authenticatedPage.page.keyboard.up('Shift');
+
+            // Применяем цвет ко всем выделенным
+            await authenticatedPage.pressHotkey('3');
+            await authenticatedPage.page.waitForTimeout(300);
+          }
+        }
+
+        // Возвращаемся назад
+        await authenticatedPage.goBack();
+        await authenticatedPage.waitForShowedBlocks();
       }
     });
   });

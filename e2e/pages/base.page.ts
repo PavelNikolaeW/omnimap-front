@@ -58,10 +58,10 @@ export class BasePage {
 
   /**
    * Дождаться загрузки приложения
+   * Ждём только rootContainer - controlPanel может быть скрыт
    */
   async waitForAppLoad() {
     await this.rootContainer.waitFor({ state: 'visible' });
-    await this.controlPanel.waitFor({ state: 'visible' });
   }
 
   /**
@@ -128,10 +128,10 @@ export class BasePage {
   }
 
   /**
-   * Получить выделенный блок
+   * Получить выделенный/активный блок
    */
   getSelectedBlock(): Locator {
-    return this.page.locator('.block-selected');
+    return this.page.locator('.block-selected, .block-active');
   }
 
   /**
