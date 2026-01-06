@@ -572,7 +572,12 @@ export const commands = [
         defaultHotkey: 'o',
         description: 'Открыть дополнительные опции',
         btnExec(ctx) {
-            ctx.optionManager.openOptions()
+            // TODO: OptionManager не реализован
+            if (ctx.optionManager) {
+                ctx.optionManager.openOptions()
+            } else {
+                console.warn('OptionManager не инициализирован')
+            }
         }
     },
     {

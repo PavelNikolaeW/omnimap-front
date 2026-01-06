@@ -41,7 +41,10 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 2 : undefined,
   reporter: [
-    ['html', { outputFolder: './e2e/playwright-report', open: 'never' }],
+    ['html', {
+      outputFolder: './e2e/playwright-report',
+      open: process.env.CI ? 'never' : 'on-failure'
+    }],
     ['list'],
     // В CI добавляем blob reporter для merge между shards
     ...(process.env.CI ? [['blob', { outputDir: './e2e/blob-report' }] as const] : []),
