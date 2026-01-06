@@ -37,18 +37,6 @@ type AuthFixtures = {
   authenticatedPage: MainPage;
 };
 
-/**
- * Хелпер: дождаться появления sidebar (признак что IndexedDB загружен)
- */
-async function waitForSidebarVisible(page: any, timeout = 10000): Promise<boolean> {
-  try {
-    await page.waitForSelector('#sidebar:not(.hidden)', { state: 'visible', timeout });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export const test = base.extend<AuthFixtures>({
   /**
    * MainPage без авторизации - для тестов формы логина
@@ -65,12 +53,11 @@ export const test = base.extend<AuthFixtures>({
    * MainPage с авторизацией
    *
    * Стратегия:
-   * 1. Если cookies есть и sidebar виден → IndexedDB в порядке, используем
-   * 2. Если cookies есть но sidebar скрыт → IndexedDB пустой, нужен логин
-   * 3. Если cookies нет → нужен логин
+   * 1. Если форма логина видна → нужен логин
+   * 2. Если форма логина не видна → юзер уже залогинен (через storageState), ждём загрузки
    *
-   * После успешного логина приложение сохраняет данные в IndexedDB.
-   * IndexedDB сохраняется между тестами в рамках одного worker.
+   * ВАЖНО: Не делаем clearCookies() + reload(), т.к. IndexedDB сохраняет состояние
+   * и приложение не покажет форму логина даже без cookies.
    */
   authenticatedPage: async ({ page, context }, use) => {
     const mainPage = new MainPage(page);
@@ -89,23 +76,9 @@ export const test = base.extend<AuthFixtures>({
       await mainPage.login(TEST_USERS.admin.username, TEST_USERS.admin.password);
       await mainPage.assertLoginSuccess();
     } else {
-      // Форма не появилась - проверяем sidebar (признак что IndexedDB загружен)
-      const sidebarVisible = await waitForSidebarVisible(page, 3000);
-
-      if (!sidebarVisible) {
-        // Sidebar скрыт - возможно IndexedDB пустой, перезагружаем и логинимся
-        console.log('[E2E] Sidebar not visible, attempting re-login...');
-        await context.clearCookies();
-        await page.reload();
-
-        // Ждём форму логина
-        await page.waitForSelector('#login-form', { state: 'visible', timeout: 10000 });
-        await mainPage.login(TEST_USERS.admin.username, TEST_USERS.admin.password);
-        await mainPage.assertLoginSuccess();
-      } else {
-        // Sidebar виден - всё ок, ждём загрузки
-        await mainPage.waitForAppLoad();
-      }
+      // Форма не появилась → юзер уже залогинен, просто ждём загрузки приложения
+      // Ждём появления блоков или sidebar (до 15 секунд)
+      await mainPage.waitForAppLoad();
     }
 
     // Ждём рендеринга блоков
