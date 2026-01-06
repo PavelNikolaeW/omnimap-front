@@ -37,14 +37,17 @@ class AuthStateManager {
      * ВАЖНО: Вызывать только после localforage.ready()
      */
     async init() {
+        console.log('[AuthStateManager] init called, _initialized:', this._initialized);
         if (this._initialized) return;
         this._initialized = true;
 
         // Кэшируем DOM элементы
         this.cacheElements();
+        console.log('[AuthStateManager] elements:', this.elements);
 
         // Проверяем, открыта ли страница по ссылке
         this.isLinkView = window.location.search.includes('?');
+        console.log('[AuthStateManager] isLinkView:', this.isLinkView);
 
         // Инициализируем состояние
         await this.checkAuthState();
@@ -72,6 +75,8 @@ class AuthStateManager {
         const user = await localforage.getItem('currentUser');
         const hasTokens = Cookies.get('refresh') !== undefined;
 
+        console.log('[AuthStateManager] checkAuthState:', { user, hasTokens });
+
         if (user && user !== 'anonim' && hasTokens) {
             this.isAuthenticated = true;
             this.currentUser = user;
@@ -80,6 +85,7 @@ class AuthStateManager {
             this.currentUser = user === 'anonim' ? 'anonim' : null;
         }
 
+        console.log('[AuthStateManager] state:', { isAuthenticated: this.isAuthenticated, currentUser: this.currentUser });
         this.updateUI();
     }
 
