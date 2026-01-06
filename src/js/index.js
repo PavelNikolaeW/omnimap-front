@@ -39,6 +39,9 @@ import {statusIndicators} from "./core/statusIndicators";
 import {initDevCacheManager} from "./core/devCacheManager";
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+    // Храним ссылку на updatefound handler для возможности cleanup
+    let updateFoundHandler = null;
+
     window.addEventListener('load', () => {
         navigator.serviceWorker
             .register('/service-worker.js')
@@ -46,7 +49,7 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
                 console.log('Service Worker зарегистрирован с объемом: ', registration.scope);
 
                 // Слушаем обновления SW
-                registration.addEventListener('updatefound', () => {
+                updateFoundHandler = () => {
                     const newWorker = registration.installing;
                     if (newWorker) {
                         let cleanupTimeout;
@@ -68,11 +71,21 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
                             newWorker.removeEventListener('statechange', stateChangeHandler);
                         }, 60000);
                     }
-                });
+                };
+                registration.addEventListener('updatefound', updateFoundHandler);
             })
             .catch(error => {
                 console.log('Ошибка регистрации Service Worker: ', error);
             });
+    });
+
+    // Cleanup при выгрузке страницы
+    window.addEventListener('beforeunload', () => {
+        if (updateFoundHandler && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.ready.then(registration => {
+                registration.removeEventListener('updatefound', updateFoundHandler);
+            }).catch(() => {});
+        }
     });
 
     // При восстановлении соединения проверяем обновления через ready promise
@@ -90,14 +103,29 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
 
     // Обработчик события обновления приложения - показываем уведомление
     window.addEventListener('AppUpdateAvailable', () => {
-        // Показываем ненавязчивое уведомление через networkStatusUI
+        // Проверяем, нет ли уже уведомления
+        if (document.querySelector('.app-update-notification')) {
+            return;
+        }
+
+        // Создаём уведомление безопасным способом (без innerHTML)
         const notification = document.createElement('div');
         notification.className = 'app-update-notification';
-        notification.innerHTML = `
-            <span>Доступна новая версия</span>
-            <button onclick="window.location.reload()">Обновить</button>
-            <button onclick="this.parentElement.remove()">✕</button>
-        `;
+
+        const messageSpan = document.createElement('span');
+        messageSpan.textContent = 'Доступна новая версия';
+
+        const updateBtn = document.createElement('button');
+        updateBtn.textContent = 'Обновить';
+        updateBtn.addEventListener('click', () => window.location.reload());
+
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '✕';
+        closeBtn.addEventListener('click', () => notification.remove());
+
+        notification.appendChild(messageSpan);
+        notification.appendChild(updateBtn);
+        notification.appendChild(closeBtn);
         document.body.appendChild(notification);
     });
 }
