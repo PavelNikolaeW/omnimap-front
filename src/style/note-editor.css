@@ -363,3 +363,137 @@
     color: var(--ne-muted);
     margin-top: 6px;
 }
+
+/* ───── Баннер конфликта при одновременном редактировании ───── */
+.note-editor-conflict-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+
+    padding: 10px 14px;
+    margin-bottom: 8px;
+
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border: 1px solid #f59e0b;
+    border-radius: var(--ne-radius);
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
+
+    font-size: 14px;
+    color: #92400e;
+    animation: slideIn 0.3s ease-out;
+}
+
+.note-editor-conflict-banner.pulse {
+    animation: pulse 0.5s ease-in-out;
+}
+
+.conflict-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.conflict-text {
+    flex: 1;
+    min-width: 150px;
+    font-weight: 500;
+}
+
+.conflict-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.conflict-btn {
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.conflict-btn-reload {
+    background: #f59e0b;
+    color: #fff;
+}
+
+.conflict-btn-reload:hover {
+    background: #d97706;
+}
+
+.conflict-btn-dismiss {
+    background: rgba(255, 255, 255, 0.7);
+    color: #92400e;
+    border: 1px solid #f59e0b;
+}
+
+.conflict-btn-dismiss:hover {
+    background: rgba(255, 255, 255, 0.9);
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
+    }
+    50% {
+        transform: scale(1.02);
+        box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
+    }
+}
+
+/* Мобильные адаптации для баннера */
+@media (max-width: 640px) {
+    .note-editor-conflict-banner {
+        padding: 8px 10px;
+        font-size: 13px;
+    }
+
+    .conflict-icon {
+        font-size: 16px;
+    }
+
+    .conflict-btn {
+        padding: 5px 10px;
+        font-size: 12px;
+    }
+}
+
+/* Тёмная тема для баннера */
+.active.ne-dark .note-editor-conflict-banner {
+    background: linear-gradient(135deg, #451a03 0%, #78350f 100%);
+    border-color: #b45309;
+    color: #fef3c7;
+}
+
+.active.ne-dark .conflict-btn-reload {
+    background: #b45309;
+}
+
+.active.ne-dark .conflict-btn-reload:hover {
+    background: #92400e;
+}
+
+.active.ne-dark .conflict-btn-dismiss {
+    background: rgba(0, 0, 0, 0.3);
+    color: #fef3c7;
+    border-color: #b45309;
+}
+
+.active.ne-dark .conflict-btn-dismiss:hover {
+    background: rgba(0, 0, 0, 0.5);
+}
