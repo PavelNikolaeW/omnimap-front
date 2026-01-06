@@ -112,6 +112,9 @@ async function fastInitialization() {
     });
     await localforage.ready();
 
+    // Инициализируем authStateManager после localforage
+    await authStateManager.init();
+
     // Запрашиваем persistent storage в фоне
     if ('storage' in navigator && 'persist' in navigator.storage) {
         navigator.storage.persist().then(granted => {

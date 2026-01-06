@@ -17,6 +17,7 @@ class AuthStateManager {
         this.currentUser = null;
         this.isLinkView = false;
         this.tokenCheckTimer = null;
+        this._initialized = false;
 
         // UI элементы
         this.elements = {
@@ -27,18 +28,23 @@ class AuthStateManager {
             controlPanel: null
         };
 
-        this.init();
+        // Подписываемся на события сразу (они могут прийти до init)
+        this.addEventListeners();
     }
 
+    /**
+     * Инициализация менеджера
+     * ВАЖНО: Вызывать только после localforage.ready()
+     */
     async init() {
+        if (this._initialized) return;
+        this._initialized = true;
+
         // Кэшируем DOM элементы
         this.cacheElements();
 
         // Проверяем, открыта ли страница по ссылке
         this.isLinkView = window.location.search.includes('?');
-
-        // Подписываемся на события
-        this.addEventListeners();
 
         // Инициализируем состояние
         await this.checkAuthState();
