@@ -44,10 +44,30 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
             .register('/service-worker.js')
             .then(registration => {
                 console.log('Service Worker зарегистрирован с объемом: ', registration.scope);
+
+                // Слушаем обновления SW
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    if (newWorker) {
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                // Новая версия SW готова, можно показать уведомление о обновлении
+                                console.log('Новая версия приложения доступна, обновите страницу');
+                            }
+                        });
+                    }
+                });
             })
             .catch(error => {
                 console.log('Ошибка регистрации Service Worker: ', error);
             });
+    });
+
+    // При восстановлении соединения проверяем обновления
+    window.addEventListener('online', () => {
+        if (navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({ type: 'CHECK_UPDATES' });
+        }
     });
 }
 
