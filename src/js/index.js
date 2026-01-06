@@ -41,6 +41,7 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
     // Храним ссылку на updatefound handler для возможности cleanup
     let updateFoundHandler = null;
     let swRegistration = null;
+    let currentScope = null;
     // Debounce для online событий - предотвращает множественные проверки
     let updateCheckTimeout = null;
     let isCheckingUpdate = false;
@@ -49,8 +50,8 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
         navigator.serviceWorker
             .register('/service-worker.js')
             .then(registration => {
-                // Предотвращаем повторную регистрацию обработчиков
-                if (swRegistration === registration) {
+                // Предотвращаем повторную регистрацию обработчиков (сравниваем по scope)
+                if (currentScope === registration.scope) {
                     return;
                 }
                 // Удаляем старый обработчик если был
@@ -58,6 +59,7 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
                     swRegistration.removeEventListener('updatefound', updateFoundHandler);
                 }
                 swRegistration = registration;
+                currentScope = registration.scope;
                 console.log('Service Worker зарегистрирован с объемом: ', registration.scope);
 
                 // Слушаем обновления SW
@@ -93,15 +95,20 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
 
     // Cleanup при выгрузке страницы
     window.addEventListener('beforeunload', () => {
-        if (updateFoundHandler && swRegistration) {
-            swRegistration.removeEventListener('updatefound', updateFoundHandler);
+        try {
+            if (updateFoundHandler && swRegistration) {
+                swRegistration.removeEventListener('updatefound', updateFoundHandler);
+            }
+            clearTimeout(updateCheckTimeout);
+        } catch (e) {
+            // Игнорируем ошибки cleanup при выгрузке страницы
         }
-        clearTimeout(updateCheckTimeout);
     });
 
     // При восстановлении соединения проверяем обновления с debounce
+    let cooldownTimeout = null;
     window.addEventListener('online', () => {
-        // Debounce: игнорируем повторные события в течение 5 секунд
+        // Debounce: игнорируем повторные события пока идёт проверка или cooldown
         if (isCheckingUpdate) return;
 
         clearTimeout(updateCheckTimeout);
@@ -117,8 +124,11 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
                     console.warn('SW ready failed:', err);
                 })
                 .finally(() => {
-                    // Сбрасываем флаг сразу, но с cooldown для следующей проверки
-                    isCheckingUpdate = false;
+                    // Cooldown: разрешаем следующую проверку через 5 секунд
+                    clearTimeout(cooldownTimeout);
+                    cooldownTimeout = setTimeout(() => {
+                        isCheckingUpdate = false;
+                    }, 5000);
                 });
         }, 1000); // Задержка 1 секунда перед проверкой
     });
@@ -141,8 +151,8 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
         updateBtn.textContent = 'Обновить';
         updateBtn.addEventListener('click', () => {
             // Проверяем наличие несохранённых данных перед обновлением
-            // Используем networkStatusUI.getPendingCount() - синхронный метод с кэшированным значением
-            const pendingCount = networkStatusUI.getPendingCount ? networkStatusUI.getPendingCount() : 0;
+            // networkStatusUI.getPendingCount() - синхронный метод с кэшированным значением
+            const pendingCount = networkStatusUI.getPendingCount();
             if (pendingCount > 0) {
                 if (!confirm(`У вас есть ${pendingCount} несохранённых изменений. Обновить страницу?`)) {
                     return;
