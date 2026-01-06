@@ -225,13 +225,15 @@ export function isExcludedElement(el, meta='kek', excludeArray=['body', 'textare
     }
 
 /**
- * Нормализует parent_id, преобразуя строку "None" или "null" в null.
- * Backend (Python) иногда отправляет None как строку "None" вместо JSON null.
+ * Нормализует parent_id, преобразуя строку "None", "null", "false" или false в null.
+ * Backend (Python) отправляет None как json.dumps(False) = "false" для корневых блоков.
  * @param {*} parentId - Значение parent_id
  * @returns {string|null} Нормализованный parent_id
  */
 export function normalizeParentId(parentId) {
-    if (parentId === 'None' || parentId === 'null' || parentId === '') {
+    // Обрабатываем все варианты "пустого" parent_id от бэкенда
+    if (parentId === 'None' || parentId === 'null' || parentId === 'false' ||
+        parentId === '' || parentId === false) {
         return null;
     }
     return parentId || null;
