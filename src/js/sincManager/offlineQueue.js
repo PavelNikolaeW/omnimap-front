@@ -601,11 +601,11 @@ class OfflineQueueManager {
 
             switch (type) {
                 case 'createBlock': {
-                    const { blockId, parentId } = data;
+                    const { blockId } = data;
                     affectedBlockIds.add(blockId);
-                    // ВАЖНО: родитель ОБЯЗАТЕЛЬНО должен быть включён,
-                    // чтобы его children/childOrder обновились на сервере
-                    if (parentId) affectedBlockIds.add(parentId);
+                    // Родитель НЕ добавляется - бэкенд сам обновит children родителя
+                    // по parent_id нового блока. Это предотвращает race condition
+                    // когда два клиента одновременно создают блоки в одном родителе.
                     break;
                 }
 
