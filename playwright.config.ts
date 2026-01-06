@@ -36,10 +36,13 @@ const authFile = 'e2e/.auth/user.json';
 export default defineConfig({
   testDir: './e2e/tests',
   outputDir: './e2e/test-results',
-  fullyParallel: true,
+  // fullyParallel: false - тесты внутри файла идут последовательно (важен порядок)
+  // Но разные файлы запускаются параллельно на разных workers
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  workers: process.env.CI ? 2 : undefined,
+  // В CI используем workers для параллельного запуска разных файлов
+  workers: process.env.CI ? 3 : undefined,
   reporter: [
     ['html', {
       outputFolder: './e2e/playwright-report',
