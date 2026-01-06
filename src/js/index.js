@@ -49,12 +49,18 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
                 registration.addEventListener('updatefound', () => {
                     const newWorker = registration.installing;
                     if (newWorker) {
-                        newWorker.addEventListener('statechange', () => {
+                        const stateChangeHandler = () => {
                             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                // Новая версия SW готова, можно показать уведомление о обновлении
+                                // Новая версия SW готова, уведомляем пользователя
                                 console.log('Новая версия приложения доступна, обновите страницу');
+                                dispatch('AppUpdateAvailable');
                             }
-                        });
+                            // Cleanup listener when SW reaches terminal state
+                            if (newWorker.state === 'activated' || newWorker.state === 'redundant') {
+                                newWorker.removeEventListener('statechange', stateChangeHandler);
+                            }
+                        };
+                        newWorker.addEventListener('statechange', stateChangeHandler);
                     }
                 });
             })
@@ -63,11 +69,13 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
             });
     });
 
-    // При восстановлении соединения проверяем обновления
+    // При восстановлении соединения проверяем обновления через ready promise
     window.addEventListener('online', () => {
-        if (navigator.serviceWorker.controller) {
-            navigator.serviceWorker.controller.postMessage({ type: 'CHECK_UPDATES' });
-        }
+        navigator.serviceWorker.ready.then(registration => {
+            if (registration.active) {
+                registration.active.postMessage({ type: 'CHECK_UPDATES' });
+            }
+        });
     });
 }
 

@@ -11,8 +11,19 @@
             LLM_GATEWAY_URL: 'https://llm.omnimap.ru',
             SINC_SERVICE_URL: 'wss://omnimap.ru/ws'
         };
+        // Flag to track if external config loaded
+        window.__OMNIMAP_CONFIG_LOADED__ = false;
     </script>
-    <script src="/config/config.js" onerror="console.log('Config not loaded, using defaults')"></script>
+    <script id="config-script" src="/config/config.js"></script>
+    <script>
+        // Check if config was loaded (CSP-safe approach instead of inline onerror)
+        document.getElementById('config-script').addEventListener('error', function() {
+            console.log('Config not loaded, using defaults');
+        });
+        document.getElementById('config-script').addEventListener('load', function() {
+            window.__OMNIMAP_CONFIG_LOADED__ = true;
+        });
+    </script>
     <style>
         /* Inline стили для загрузочного экрана - предотвращают FOUC */
         #app-loader {
