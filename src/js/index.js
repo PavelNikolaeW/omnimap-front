@@ -189,6 +189,14 @@ async function checkAuth() {
     // Проверяем наличие refresh токена
     const hasRefreshToken = Cookies.get('refresh') !== undefined
 
+    // Если anonim, но есть токены - удаляем их (несогласованное состояние)
+    if (user === 'anonim' && hasRefreshToken) {
+        console.warn('[checkAuth] Inconsistent state: anonim user with tokens, clearing tokens');
+        Cookies.remove('access');
+        Cookies.remove('refresh');
+        return true
+    }
+
     // Если пользователь авторизован, но токенов нет - logout
     if (user !== 'anonim' && !hasRefreshToken) {
         dispatch('Logout')
