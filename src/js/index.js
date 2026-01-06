@@ -182,12 +182,31 @@ async function checkAuth() {
         dispatch('InitAnonimUser')
         return false
     }
-    if (!navigator.onLine && Cookies.get('refresh') !== undefined) {
+
+    // Проверяем наличие refresh токена
+    const hasRefreshToken = Cookies.get('refresh') !== undefined
+
+    // Если пользователь авторизован, но токенов нет - logout
+    if (user !== 'anonim' && !hasRefreshToken) {
+        dispatch('Logout')
+        return false
+    }
+
+    // Офлайн режим с валидным refresh токеном
+    if (!navigator.onLine && hasRefreshToken) {
         return true
     }
+
+    // Онлайн режим - пробуем обновить токен
     if (user !== 'anonim') {
-        return await api.refreshToken()
+        const refreshed = await api.refreshToken()
+        if (!refreshed) {
+            dispatch('Logout')
+            return false
+        }
+        return true
     }
+
     return true
 }
 
