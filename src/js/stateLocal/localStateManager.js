@@ -776,7 +776,8 @@ export class LocalStateManager {
 
             try {
                 if (block.deleted) {
-                    await this.removeOneBlock(block.id);
+                    // Удаляем блок вместе со всеми потомками
+                    await this.removeBlock(block.id);
                 } else {
                     // Если это корневой блок (дерево), добавляем через treeService
                     if (!block.parent_id) {
