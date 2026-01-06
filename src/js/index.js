@@ -32,22 +32,143 @@ import {RedoStack, UndoStack} from "./controller/undoStack";
 import Cookies from "js-cookie";
 import {isExcludedElement} from "./utils/functions";
 import {authStateManager} from "./auth/authStateManager";
-import {offlineQueue} from "./sincManager/offlineQueue";
 import {networkStatusUI} from "./sincManager/networkStatusUI";
 import {handleTelegramLinkCallback} from "./controller/telegramLinkHandler";
 import {statusIndicators} from "./core/statusIndicators";
 import {initDevCacheManager} from "./core/devCacheManager";
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+    // Храним ссылку на updatefound handler для возможности cleanup
+    let updateFoundHandler = null;
+    let swRegistration = null;
+    let currentScope = null;
+    // Debounce для online событий - предотвращает множественные проверки
+    let updateCheckTimeout = null;
+    let isCheckingUpdate = false;
+
     window.addEventListener('load', () => {
         navigator.serviceWorker
             .register('/service-worker.js')
             .then(registration => {
+                // Предотвращаем повторную регистрацию обработчиков (сравниваем по scope)
+                if (currentScope === registration.scope) {
+                    return;
+                }
+                // Удаляем старый обработчик если был
+                if (updateFoundHandler && swRegistration) {
+                    swRegistration.removeEventListener('updatefound', updateFoundHandler);
+                }
+                swRegistration = registration;
+                currentScope = registration.scope;
                 console.log('Service Worker зарегистрирован с объемом: ', registration.scope);
+
+                // Слушаем обновления SW
+                updateFoundHandler = () => {
+                    const newWorker = registration.installing;
+                    if (newWorker) {
+                        let cleanupTimeout;
+                        const stateChangeHandler = () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                // Новая версия SW готова, уведомляем пользователя
+                                console.log('Новая версия приложения доступна, обновите страницу');
+                                dispatch('AppUpdateAvailable');
+                            }
+                            // Cleanup listener when SW reaches terminal state
+                            if (newWorker.state === 'activated' || newWorker.state === 'redundant') {
+                                clearTimeout(cleanupTimeout);
+                                newWorker.removeEventListener('statechange', stateChangeHandler);
+                            }
+                        };
+                        newWorker.addEventListener('statechange', stateChangeHandler);
+                        // Fallback cleanup after 60 seconds if SW gets stuck
+                        cleanupTimeout = setTimeout(() => {
+                            newWorker.removeEventListener('statechange', stateChangeHandler);
+                        }, 60000);
+                    }
+                };
+                registration.addEventListener('updatefound', updateFoundHandler);
             })
             .catch(error => {
                 console.log('Ошибка регистрации Service Worker: ', error);
             });
+    });
+
+    // Cleanup при выгрузке страницы
+    window.addEventListener('beforeunload', () => {
+        try {
+            if (updateFoundHandler && swRegistration) {
+                swRegistration.removeEventListener('updatefound', updateFoundHandler);
+            }
+            clearTimeout(updateCheckTimeout);
+        } catch (e) {
+            // Игнорируем ошибки cleanup при выгрузке страницы
+        }
+    });
+
+    // При восстановлении соединения проверяем обновления с debounce
+    let cooldownTimeout = null;
+    window.addEventListener('online', () => {
+        // Debounce: игнорируем повторные события пока идёт проверка или cooldown
+        if (isCheckingUpdate) return;
+
+        clearTimeout(updateCheckTimeout);
+        updateCheckTimeout = setTimeout(() => {
+            isCheckingUpdate = true;
+            navigator.serviceWorker.ready
+                .then(registration => {
+                    if (registration.active) {
+                        registration.active.postMessage({ type: 'CHECK_UPDATES' });
+                    }
+                })
+                .catch(err => {
+                    console.warn('SW ready failed:', err);
+                })
+                .finally(() => {
+                    // Cooldown: разрешаем следующую проверку через 5 секунд
+                    clearTimeout(cooldownTimeout);
+                    cooldownTimeout = setTimeout(() => {
+                        isCheckingUpdate = false;
+                    }, 5000);
+                });
+        }, 1000); // Задержка 1 секунда перед проверкой
+    });
+
+    // Обработчик события обновления приложения - показываем уведомление
+    window.addEventListener('AppUpdateAvailable', () => {
+        // Проверяем, нет ли уже уведомления
+        if (document.querySelector('.app-update-notification')) {
+            return;
+        }
+
+        // Создаём уведомление безопасным способом (без innerHTML)
+        const notification = document.createElement('div');
+        notification.className = 'app-update-notification';
+
+        const messageSpan = document.createElement('span');
+        messageSpan.textContent = 'Доступна новая версия';
+
+        const updateBtn = document.createElement('button');
+        updateBtn.textContent = 'Обновить';
+        updateBtn.addEventListener('click', () => {
+            // Проверяем наличие несохранённых данных перед обновлением
+            // networkStatusUI.getPendingCount() - синхронный метод с кэшированным значением
+            const pendingCount = networkStatusUI.getPendingCount();
+            if (pendingCount > 0) {
+                if (!confirm(`У вас есть ${pendingCount} несохранённых изменений. Обновить страницу?`)) {
+                    return;
+                }
+            }
+            window.location.reload();
+        });
+
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '✕';
+        closeBtn.addEventListener('click', () => notification.remove());
+
+        notification.appendChild(messageSpan);
+        notification.appendChild(updateBtn);
+        notification.appendChild(closeBtn);
+        document.body.appendChild(notification);
     });
 }
 

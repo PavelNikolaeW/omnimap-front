@@ -194,6 +194,14 @@ self.addEventListener('message', event => {
         // Можно сохранить URL в IndexedDB для использования в sync
         console.log('[SW] Backend URL set:', event.data.url);
     }
+
+    if (event.data && event.data.type === 'CHECK_UPDATES') {
+        // Проверяем обновления SW при восстановлении соединения
+        console.log('[SW] Check updates requested');
+        self.registration.update().catch(err => {
+            console.warn('[SW] Update check failed:', err);
+        });
+    }
 });
 
 console.log('[SW] Custom service worker code loaded');

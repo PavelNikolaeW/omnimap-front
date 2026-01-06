@@ -67,12 +67,15 @@ module.exports = merge(common, {
             // Подключаем кастомный код для Background Sync
             importScripts: ['sw-custom.js'],
             runtimeCaching: [
-                // Config.js - критично для оффлайна, кешируем при первом запросе
+                // Config.js - критично для оффлайна, используем NetworkFirst с быстрым таймаутом
+                // При офлайне сразу отдаём из кэша
                 {
                     urlPattern: /\/config\/config\.js$/,
-                    handler: 'StaleWhileRevalidate',
+                    handler: 'NetworkFirst',
                     options: {
                         cacheName: 'config-cache',
+                        networkTimeoutSeconds: 2,
+                        plugins: [],
                     },
                 },
                 // API кэширование для offline доступа
