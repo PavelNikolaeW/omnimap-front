@@ -62,7 +62,7 @@ export class ImageUploadPopup {
    */
   async open(): Promise<void> {
     const uploadBtn = this.page.locator(
-      '#uploadImage, .fa-image, [data-testid="command-btn-uploadImage"]'
+      '#uploadBlockImage, .fa-image, [data-testid="command-btn-uploadBlockImage"]'
     );
     if (await uploadBtn.isVisible()) {
       await uploadBtn.click();

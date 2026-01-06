@@ -37,7 +37,7 @@ test.describe('Загрузка изображений (ImageUploadPopup)', () =
         await authenticatedPage.clickBlock(firstBlock);
 
         // Ищем кнопку загрузки изображения
-        const uploadBtn = authenticatedPage.controlPanel.locator('#uploadImage, .fa-image, [title*="image" i]');
+        const uploadBtn = authenticatedPage.controlPanel.locator('#uploadBlockImage, .fa-image, [title*="image" i]');
 
         if (await uploadBtn.isVisible()) {
           await uploadBtn.click();
@@ -59,7 +59,7 @@ test.describe('Загрузка изображений (ImageUploadPopup)', () =
       if (await firstBlock.isVisible()) {
         await authenticatedPage.clickBlock(firstBlock);
 
-        const uploadBtn = authenticatedPage.controlPanel.locator('#uploadImage, .fa-image');
+        const uploadBtn = authenticatedPage.controlPanel.locator('#uploadBlockImage, .fa-image');
 
         if (await uploadBtn.isVisible()) {
           await uploadBtn.click();
@@ -79,7 +79,7 @@ test.describe('Загрузка изображений (ImageUploadPopup)', () =
       if (await firstBlock.isVisible()) {
         await authenticatedPage.clickBlock(firstBlock);
 
-        const uploadBtn = authenticatedPage.controlPanel.locator('#uploadImage, .fa-image');
+        const uploadBtn = authenticatedPage.controlPanel.locator('#uploadBlockImage, .fa-image');
 
         if (await uploadBtn.isVisible()) {
           await uploadBtn.click();
@@ -108,7 +108,7 @@ test.describe('Загрузка изображений (ImageUploadPopup)', () =
       if (await firstBlock.isVisible()) {
         await authenticatedPage.clickBlock(firstBlock);
 
-        const uploadBtn = authenticatedPage.controlPanel.locator('#uploadImage, .fa-image');
+        const uploadBtn = authenticatedPage.controlPanel.locator('#uploadBlockImage, .fa-image');
 
         if (await uploadBtn.isVisible()) {
           await uploadBtn.click();
@@ -134,7 +134,7 @@ test.describe('Загрузка изображений (ImageUploadPopup)', () =
       if (await firstBlock.isVisible()) {
         await authenticatedPage.clickBlock(firstBlock);
 
-        const uploadBtn = authenticatedPage.controlPanel.locator('#uploadImage, .fa-image');
+        const uploadBtn = authenticatedPage.controlPanel.locator('#uploadBlockImage, .fa-image');
 
         if (await uploadBtn.isVisible()) {
           await uploadBtn.click();
@@ -154,7 +154,7 @@ test.describe('Загрузка изображений (ImageUploadPopup)', () =
       if (await firstBlock.isVisible()) {
         await authenticatedPage.clickBlock(firstBlock);
 
-        const uploadBtn = authenticatedPage.controlPanel.locator('#uploadImage, .fa-image');
+        const uploadBtn = authenticatedPage.controlPanel.locator('#uploadBlockImage, .fa-image');
 
         if (await uploadBtn.isVisible()) {
           await uploadBtn.click();
@@ -179,7 +179,7 @@ test.describe('Загрузка изображений (ImageUploadPopup)', () =
       if (await firstBlock.isVisible()) {
         await authenticatedPage.clickBlock(firstBlock);
 
-        const uploadBtn = authenticatedPage.controlPanel.locator('#uploadImage, .fa-image');
+        const uploadBtn = authenticatedPage.controlPanel.locator('#uploadBlockImage, .fa-image');
 
         if (await uploadBtn.isVisible()) {
           await uploadBtn.click();
@@ -201,7 +201,7 @@ test.describe('Загрузка изображений (ImageUploadPopup)', () =
       if (await firstBlock.isVisible()) {
         await authenticatedPage.clickBlock(firstBlock);
 
-        const uploadBtn = authenticatedPage.controlPanel.locator('#uploadImage, .fa-image');
+        const uploadBtn = authenticatedPage.controlPanel.locator('#uploadBlockImage, .fa-image');
 
         if (await uploadBtn.isVisible()) {
           await uploadBtn.click();
@@ -227,7 +227,7 @@ test.describe('Загрузка изображений (ImageUploadPopup)', () =
       if (await firstBlock.isVisible()) {
         await authenticatedPage.clickBlock(firstBlock);
 
-        const uploadBtn = authenticatedPage.controlPanel.locator('#uploadImage, .fa-image');
+        const uploadBtn = authenticatedPage.controlPanel.locator('#uploadBlockImage, .fa-image');
 
         if (await uploadBtn.isVisible()) {
           await uploadBtn.click();
