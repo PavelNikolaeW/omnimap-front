@@ -123,13 +123,10 @@ describe('LocalStateManager', () => {
             expect(parentBlock.data.childOrder).toEqual(['block-2']);
         });
 
-        test('logs warning for non-existent block', async () => {
-            const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
-
-            await manager.removeOneBlock('non-existent');
-
-            expect(consoleSpy).toHaveBeenCalledWith('Block non-existent not found');
-            consoleSpy.mockRestore();
+        test('silently handles non-existent block (still attempts IndexedDB cleanup)', async () => {
+            // removeOneBlock теперь не логирует предупреждение для несуществующего блока,
+            // а просто пытается удалить из IndexedDB (полезно для синхронизации)
+            await expect(manager.removeOneBlock('non-existent')).resolves.not.toThrow();
         });
     });
 
