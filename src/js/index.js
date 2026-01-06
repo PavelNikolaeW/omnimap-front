@@ -32,7 +32,6 @@ import {RedoStack, UndoStack} from "./controller/undoStack";
 import Cookies from "js-cookie";
 import {isExcludedElement} from "./utils/functions";
 import {authStateManager} from "./auth/authStateManager";
-import {offlineQueue} from "./sincManager/offlineQueue";
 import {networkStatusUI} from "./sincManager/networkStatusUI";
 import {handleTelegramLinkCallback} from "./controller/telegramLinkHandler";
 import {statusIndicators} from "./core/statusIndicators";
@@ -50,6 +49,14 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
         navigator.serviceWorker
             .register('/service-worker.js')
             .then(registration => {
+                // Предотвращаем повторную регистрацию обработчиков
+                if (swRegistration === registration) {
+                    return;
+                }
+                // Удаляем старый обработчик если был
+                if (updateFoundHandler && swRegistration) {
+                    swRegistration.removeEventListener('updatefound', updateFoundHandler);
+                }
                 swRegistration = registration;
                 console.log('Service Worker зарегистрирован с объемом: ', registration.scope);
 
@@ -110,8 +117,8 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
                     console.warn('SW ready failed:', err);
                 })
                 .finally(() => {
-                    // Разрешаем следующую проверку через 5 секунд
-                    setTimeout(() => { isCheckingUpdate = false; }, 5000);
+                    // Сбрасываем флаг сразу, но с cooldown для следующей проверки
+                    isCheckingUpdate = false;
                 });
         }, 1000); // Задержка 1 секунда перед проверкой
     });
@@ -134,7 +141,8 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
         updateBtn.textContent = 'Обновить';
         updateBtn.addEventListener('click', () => {
             // Проверяем наличие несохранённых данных перед обновлением
-            const pendingCount = offlineQueue.getPendingCount ? offlineQueue.getPendingCount() : 0;
+            // Используем networkStatusUI.getPendingCount() - синхронный метод с кэшированным значением
+            const pendingCount = networkStatusUI.getPendingCount ? networkStatusUI.getPendingCount() : 0;
             if (pendingCount > 0) {
                 if (!confirm(`У вас есть ${pendingCount} несохранённых изменений. Обновить страницу?`)) {
                     return;
