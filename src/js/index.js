@@ -41,11 +41,16 @@ import {initDevCacheManager} from "./core/devCacheManager";
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
     // Храним ссылку на updatefound handler для возможности cleanup
     let updateFoundHandler = null;
+    let swRegistration = null;
+    // Debounce для online событий - предотвращает множественные проверки
+    let updateCheckTimeout = null;
+    let isCheckingUpdate = false;
 
     window.addEventListener('load', () => {
         navigator.serviceWorker
             .register('/service-worker.js')
             .then(registration => {
+                swRegistration = registration;
                 console.log('Service Worker зарегистрирован с объемом: ', registration.scope);
 
                 // Слушаем обновления SW
@@ -81,24 +86,34 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
 
     // Cleanup при выгрузке страницы
     window.addEventListener('beforeunload', () => {
-        if (updateFoundHandler && navigator.serviceWorker.controller) {
-            navigator.serviceWorker.ready.then(registration => {
-                registration.removeEventListener('updatefound', updateFoundHandler);
-            }).catch(() => {});
+        if (updateFoundHandler && swRegistration) {
+            swRegistration.removeEventListener('updatefound', updateFoundHandler);
         }
+        clearTimeout(updateCheckTimeout);
     });
 
-    // При восстановлении соединения проверяем обновления через ready promise
+    // При восстановлении соединения проверяем обновления с debounce
     window.addEventListener('online', () => {
-        navigator.serviceWorker.ready
-            .then(registration => {
-                if (registration.active) {
-                    registration.active.postMessage({ type: 'CHECK_UPDATES' });
-                }
-            })
-            .catch(err => {
-                console.warn('SW ready failed:', err);
-            });
+        // Debounce: игнорируем повторные события в течение 5 секунд
+        if (isCheckingUpdate) return;
+
+        clearTimeout(updateCheckTimeout);
+        updateCheckTimeout = setTimeout(() => {
+            isCheckingUpdate = true;
+            navigator.serviceWorker.ready
+                .then(registration => {
+                    if (registration.active) {
+                        registration.active.postMessage({ type: 'CHECK_UPDATES' });
+                    }
+                })
+                .catch(err => {
+                    console.warn('SW ready failed:', err);
+                })
+                .finally(() => {
+                    // Разрешаем следующую проверку через 5 секунд
+                    setTimeout(() => { isCheckingUpdate = false; }, 5000);
+                });
+        }, 1000); // Задержка 1 секунда перед проверкой
     });
 
     // Обработчик события обновления приложения - показываем уведомление
@@ -117,7 +132,16 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
 
         const updateBtn = document.createElement('button');
         updateBtn.textContent = 'Обновить';
-        updateBtn.addEventListener('click', () => window.location.reload());
+        updateBtn.addEventListener('click', () => {
+            // Проверяем наличие несохранённых данных перед обновлением
+            const pendingCount = offlineQueue.getPendingCount ? offlineQueue.getPendingCount() : 0;
+            if (pendingCount > 0) {
+                if (!confirm(`У вас есть ${pendingCount} несохранённых изменений. Обновить страницу?`)) {
+                    return;
+                }
+            }
+            window.location.reload();
+        });
 
         const closeBtn = document.createElement('button');
         closeBtn.textContent = '✕';
