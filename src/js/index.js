@@ -49,6 +49,7 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
                 registration.addEventListener('updatefound', () => {
                     const newWorker = registration.installing;
                     if (newWorker) {
+                        let cleanupTimeout;
                         const stateChangeHandler = () => {
                             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                                 // Новая версия SW готова, уведомляем пользователя
@@ -57,10 +58,15 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
                             }
                             // Cleanup listener when SW reaches terminal state
                             if (newWorker.state === 'activated' || newWorker.state === 'redundant') {
+                                clearTimeout(cleanupTimeout);
                                 newWorker.removeEventListener('statechange', stateChangeHandler);
                             }
                         };
                         newWorker.addEventListener('statechange', stateChangeHandler);
+                        // Fallback cleanup after 60 seconds if SW gets stuck
+                        cleanupTimeout = setTimeout(() => {
+                            newWorker.removeEventListener('statechange', stateChangeHandler);
+                        }, 60000);
                     }
                 });
             })
@@ -71,11 +77,28 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
 
     // При восстановлении соединения проверяем обновления через ready promise
     window.addEventListener('online', () => {
-        navigator.serviceWorker.ready.then(registration => {
-            if (registration.active) {
-                registration.active.postMessage({ type: 'CHECK_UPDATES' });
-            }
-        });
+        navigator.serviceWorker.ready
+            .then(registration => {
+                if (registration.active) {
+                    registration.active.postMessage({ type: 'CHECK_UPDATES' });
+                }
+            })
+            .catch(err => {
+                console.warn('SW ready failed:', err);
+            });
+    });
+
+    // Обработчик события обновления приложения - показываем уведомление
+    window.addEventListener('AppUpdateAvailable', () => {
+        // Показываем ненавязчивое уведомление через networkStatusUI
+        const notification = document.createElement('div');
+        notification.className = 'app-update-notification';
+        notification.innerHTML = `
+            <span>Доступна новая версия</span>
+            <button onclick="window.location.reload()">Обновить</button>
+            <button onclick="this.parentElement.remove()">✕</button>
+        `;
+        document.body.appendChild(notification);
     });
 }
 
