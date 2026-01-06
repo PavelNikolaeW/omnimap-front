@@ -51,7 +51,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |
             --model claude-sonnet-4-20250514
-            --max-turns 14
+            --max-turns 50
             --allowedTools "Read" "Glob" "Grep" "Bash(gh pr:*)" "Bash(gh api:*)" "Bash(git:*)" "Bash(npm:*)" "Bash(pnpm:*)" "Bash(yarn:*)"
           prompt: |
             You are a STRICT PR reviewer for a JS/TS frontend (webpack, jest/playwright). No rubber-stamp.
