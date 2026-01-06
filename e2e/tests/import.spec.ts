@@ -26,7 +26,7 @@ test.describe('Импорт блоков (ImportPopup)', () => {
       await authenticatedPage.pressHotkey('o'); // Открываем опции
       await authenticatedPage.page.waitForTimeout(300);
 
-      const importBtn = authenticatedPage.page.locator('#import, .fa-file-import, button:has-text("Импорт"), [title*="import" i]');
+      const importBtn = authenticatedPage.page.locator('#importBlocks, .fa-file-import, button:has-text("Импорт"), [title*="import" i]');
 
       if (await importBtn.isVisible()) {
         await importBtn.click();
@@ -47,7 +47,7 @@ test.describe('Импорт блоков (ImportPopup)', () => {
       await authenticatedPage.pressHotkey('o');
       await authenticatedPage.page.waitForTimeout(300);
 
-      const importBtn = authenticatedPage.page.locator('#import, .fa-file-import, button:has-text("Импорт")');
+      const importBtn = authenticatedPage.page.locator('#importBlocks, .fa-file-import, button:has-text("Импорт")');
 
       if (await importBtn.isVisible()) {
         await importBtn.click();
@@ -68,7 +68,7 @@ test.describe('Импорт блоков (ImportPopup)', () => {
       await authenticatedPage.pressHotkey('o');
       await authenticatedPage.page.waitForTimeout(300);
 
-      const importBtn = authenticatedPage.page.locator('#import, .fa-file-import, button:has-text("Импорт")');
+      const importBtn = authenticatedPage.page.locator('#importBlocks, .fa-file-import, button:has-text("Импорт")');
 
       if (await importBtn.isVisible()) {
         await importBtn.click();
@@ -98,7 +98,7 @@ test.describe('Импорт блоков (ImportPopup)', () => {
       await authenticatedPage.pressHotkey('o');
       await authenticatedPage.page.waitForTimeout(300);
 
-      const importBtn = authenticatedPage.page.locator('#import, .fa-file-import, button:has-text("Импорт")');
+      const importBtn = authenticatedPage.page.locator('#importBlocks, .fa-file-import, button:has-text("Импорт")');
 
       if (await importBtn.isVisible()) {
         await importBtn.click();
@@ -128,7 +128,7 @@ test.describe('Импорт блоков (ImportPopup)', () => {
       await authenticatedPage.pressHotkey('o');
       await authenticatedPage.page.waitForTimeout(300);
 
-      const importBtn = authenticatedPage.page.locator('#import, .fa-file-import, button:has-text("Импорт")');
+      const importBtn = authenticatedPage.page.locator('#importBlocks, .fa-file-import, button:has-text("Импорт")');
 
       if (await importBtn.isVisible()) {
         await importBtn.click();
@@ -166,7 +166,7 @@ test.describe('Импорт блоков (ImportPopup)', () => {
       await authenticatedPage.pressHotkey('o');
       await authenticatedPage.page.waitForTimeout(300);
 
-      const importBtn = authenticatedPage.page.locator('#import, .fa-file-import, button:has-text("Импорт")');
+      const importBtn = authenticatedPage.page.locator('#importBlocks, .fa-file-import, button:has-text("Импорт")');
 
       if (await importBtn.isVisible()) {
         await importBtn.click();
@@ -223,7 +223,7 @@ test.describe('Импорт блоков (ImportPopup)', () => {
       await authenticatedPage.pressHotkey('o');
       await authenticatedPage.page.waitForTimeout(300);
 
-      const importBtn = authenticatedPage.page.locator('#import, .fa-file-import, button:has-text("Импорт")');
+      const importBtn = authenticatedPage.page.locator('#importBlocks, .fa-file-import, button:has-text("Импорт")');
 
       if (await importBtn.isVisible()) {
         await importBtn.click();

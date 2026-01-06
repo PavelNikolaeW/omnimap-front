@@ -63,7 +63,7 @@ test.describe('Напоминания (ReminderPopup)', () => {
         await authenticatedPage.page.waitForTimeout(300);
 
         // Ищем кнопку напоминания
-        const reminderBtn = authenticatedPage.page.locator('#reminder, .fa-bell, button:has-text("Напоминание")');
+        const reminderBtn = authenticatedPage.page.locator('#setReminder, .fa-bell, button:has-text("Напоминание")');
 
         if (await reminderBtn.isVisible()) {
           await reminderBtn.click();
@@ -87,16 +87,16 @@ test.describe('Напоминания (ReminderPopup)', () => {
         await authenticatedPage.pressHotkey('o');
         await authenticatedPage.page.waitForTimeout(300);
 
-        const reminderBtn = authenticatedPage.page.locator('#reminder, .fa-bell, button:has-text("Напоминание")');
+        const reminderBtn = authenticatedPage.page.locator('#setReminder, .fa-bell, button:has-text("Напоминание")');
 
         if (await reminderBtn.isVisible()) {
           await reminderBtn.click();
 
           // Заполняем поля
-          const dateInput = authenticatedPage.page.locator('#reminder-date, input[type="date"]');
-          const timeInput = authenticatedPage.page.locator('#reminder-time, input[type="time"]');
-          const messageInput = authenticatedPage.page.locator('#reminder-message, textarea');
-          const repeatSelect = authenticatedPage.page.locator('#reminder-repeat, select');
+          const dateInput = authenticatedPage.page.locator('#setReminder-date, input[type="date"]');
+          const timeInput = authenticatedPage.page.locator('#setReminder-time, input[type="time"]');
+          const messageInput = authenticatedPage.page.locator('#setReminder-message, textarea');
+          const repeatSelect = authenticatedPage.page.locator('#setReminder-repeat, select');
 
           if (await dateInput.isVisible()) {
             // Устанавливаем дату на завтра
@@ -130,7 +130,7 @@ test.describe('Напоминания (ReminderPopup)', () => {
       await authenticatedPage.pressHotkey('o');
       await authenticatedPage.page.waitForTimeout(300);
 
-      const remindersListBtn = authenticatedPage.page.locator('#remindersList, button:has-text("Мои напоминания")');
+      const remindersListBtn = authenticatedPage.page.locator('#myReminders, button:has-text("Мои напоминания")');
 
       if (await remindersListBtn.isVisible()) {
         await remindersListBtn.click();
@@ -148,7 +148,7 @@ test.describe('Напоминания (ReminderPopup)', () => {
       await authenticatedPage.pressHotkey('o');
       await authenticatedPage.page.waitForTimeout(300);
 
-      const remindersListBtn = authenticatedPage.page.locator('#remindersList, button:has-text("Мои напоминания")');
+      const remindersListBtn = authenticatedPage.page.locator('#myReminders, button:has-text("Мои напоминания")');
 
       if (await remindersListBtn.isVisible()) {
         await remindersListBtn.click();
