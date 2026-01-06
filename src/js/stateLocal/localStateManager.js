@@ -776,8 +776,30 @@ export class LocalStateManager {
 
             try {
                 if (block.deleted) {
-                    // Удаляем блок вместе со всеми потомками
-                    await this.removeBlock(block.id);
+                    // Получаем блок до удаления чтобы найти родителя
+                    const localBlock = this.blocks.get(block.id);
+                    const parentId = localBlock?.parent_id;
+
+                    // Удаляем только этот блок (дети придут отдельными deleted событиями)
+                    await this.removeOneBlock(block.id);
+
+                    // Обновляем родительский блок локально (убираем удалённого ребёнка)
+                    if (parentId) {
+                        const parentBlock = this.blocks.get(parentId);
+                        if (parentBlock) {
+                            // Убираем из children
+                            if (Array.isArray(parentBlock.children)) {
+                                parentBlock.children = parentBlock.children.filter(id => id !== block.id);
+                            }
+                            // Убираем из childOrder
+                            if (parentBlock.data?.childOrder) {
+                                parentBlock.data.childOrder = parentBlock.data.childOrder.filter(id => id !== block.id);
+                            }
+                            await this.saveBlock(parentBlock);
+                            // Добавляем родителя в processedBlocks чтобы перерисовать
+                            processedBlocks.push(parentBlock);
+                        }
+                    }
                 } else {
                     // Если это корневой блок (дерево), добавляем через treeService
                     if (!block.parent_id) {
