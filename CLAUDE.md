@@ -93,6 +93,74 @@ Context (`ctx`) includes: `blockElement`, `mode`, `blockId`, `selectedBlocks`, e
 - **ContextManager**: Tracks UI state (selection, mode, focus)
 - **UndoStack**: Manages undo/redo via operation UUIDs
 
+### Real-Time Synchronization Architecture
+
+The app uses a 3-tier sync architecture: Backend → Sync Service → Frontend.
+
+```
+┌─────────────────┐     RabbitMQ      ┌─────────────────┐      WebSocket      ┌─────────────────┐
+│  omnimap-back   │ ──────────────→  │  omnimap-sync   │ ──────────────────→  │  omnimap-front  │
+│  (Django)       │                   │  (FastAPI)      │                      │  (JS)           │
+└─────────────────┘                   └─────────────────┘                      └─────────────────┘
+```
+
+#### Backend → RabbitMQ Messages (api/tasks.py)
+
+| Task Function | RabbitMQ Action | When Used |
+|---------------|-----------------|-----------|
+| `send_message_block_update` | `update_block` | Single block CRUD |
+| `send_message_blocks_update` | `update_blocks` | Batch import (created + updated) |
+| `send_message_unsubscribe_user` | `unsubscribe` | Block deletion |
+| `send_message_subscribe_user` | `subscribe` | Grant access |
+| `send_message_access_update` | `update_access` | Permission changes |
+
+#### Sync Service → WebSocket Messages (omnimap-sync)
+
+| WebSocket Message Type | Source | Format |
+|------------------------|--------|--------|
+| `block_updates` | Response to `get_updates` request | `{type, updates: [block, ...]}` |
+| `block_update` | Single block change | `{type, block_uuid, data: block}` |
+| `block_updates_batch` | Multiple blocks for one user | `{type, updates: [{type, block_uuid, data}, ...]}` |
+| `block_update_access` | Permission change | `{type, start_block_ids, block_uuids, permission}` |
+
+#### Frontend WebSocket Handling (sincManager/webSocket.js)
+
+```javascript
+// Message routing with debounce for live updates
+'block_updates'       → dispatch immediately (initial sync)
+'block_update'        → _queueBlockUpdates() → 50ms debounce → dispatch
+'block_updates_batch' → _queueBlockUpdates() → 50ms debounce → dispatch
+'block_update_access' → dispatch immediately
+```
+
+Key optimizations:
+- **Debounce (50ms)**: Accumulates rapid `block_update` messages into single batch
+- **Deduplication**: Same block ID in buffer → last update wins
+- **Subtree deletion**: `removeBlock()` recursively removes children
+
+#### Block Data Format (from backend)
+
+```javascript
+{
+  id: 'uuid',
+  title: 'Block title',
+  data: '{"text": "...", "childOrder": [...]}',  // JSON string
+  parent_id: 'parent-uuid' | false,
+  updated_at: 1234567890,  // Unix timestamp
+  children: '["child-uuid-1", "child-uuid-2"]',  // JSON string
+  deleted: true  // Optional, for deletion sync
+}
+```
+
+#### Key Sync Events
+
+| Event | Dispatched By | Handled By |
+|-------|---------------|------------|
+| `WebSocUpdateBlock` | webSocket.js | LocalStateManager.webSocUpdateBlock() |
+| `WebSocUpdateBlockAccess` | webSocket.js | LocalStateManager.WebSocUpdateBlockAccess() |
+| `WebSocketConnected` | webSocket.js | statusIndicators |
+| `WebSocketDisconnected` | webSocket.js | statusIndicators |
+
 ### Rendering Pipeline
 
 `Painter` → `BlockCreator` → DOM. Uses CSS Grid for layout (`gridLayoutCalculator.js`, `gridClassManager.js`).

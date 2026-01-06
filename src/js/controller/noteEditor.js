@@ -20,10 +20,14 @@ export class NoteEditor {
         this.editorEl = null;   // <textarea>
         this.previewEl = null;  // <div> для HTML-превью
         this.toolbarEl = null;  // <div> toolbar
+        this.conflictBannerEl = null; // Баннер конфликта
 
         this._setupTurndown();
         this._setupCustomRenderer();
         this._setupSanitizer();
+
+        // Привязываем обработчик для WebSocket обновлений
+        this._handleExternalUpdate = this._handleExternalUpdate.bind(this);
     }
 
     // ---------- Публичное API ----------
@@ -63,6 +67,128 @@ export class NoteEditor {
         this._currentPreviewMode = 'edit';
         this._setupEditorHotkeys();
         this._setCursorToEndOnce();
+
+        // Подписываемся на WebSocket обновления блоков
+        window.addEventListener('WebSocUpdateBlock', this._handleExternalUpdate);
+    }
+
+    /**
+     * Обработчик внешних обновлений блока через WebSocket.
+     * Показывает предупреждение если редактируемый блок был изменён другим пользователем.
+     */
+    _handleExternalUpdate(e) {
+        if (!this.blockId || !this.editorEl) return;
+
+        const blocks = e.detail;
+        if (!Array.isArray(blocks)) return;
+
+        // Ищем обновление для текущего редактируемого блока
+        const updatedBlock = blocks.find(b => b?.id === this.blockId && !b.deleted);
+        if (!updatedBlock) return;
+
+        // Показываем баннер о конфликте
+        this._showConflictBanner(updatedBlock);
+    }
+
+    /**
+     * Показывает баннер предупреждения о том, что блок был изменён другим пользователем.
+     * @param {Object} updatedBlock - Обновлённые данные блока с сервера
+     */
+    _showConflictBanner(updatedBlock) {
+        // Если баннер уже показан, обновляем данные
+        if (this.conflictBannerEl) {
+            this._updateConflictBanner(updatedBlock);
+            return;
+        }
+
+        const banner = document.createElement('div');
+        banner.className = 'note-editor-conflict-banner';
+        banner.innerHTML = `
+            <span class="conflict-icon">⚠️</span>
+            <span class="conflict-text">Блок был изменён другим пользователем</span>
+            <div class="conflict-actions">
+                <button type="button" class="conflict-btn conflict-btn-reload" title="Загрузить изменения">
+                    Загрузить
+                </button>
+                <button type="button" class="conflict-btn conflict-btn-dismiss" title="Продолжить редактирование">
+                    Игнорировать
+                </button>
+            </div>
+        `;
+
+        // Сохраняем данные обновлённого блока
+        banner.dataset.updatedData = JSON.stringify(updatedBlock);
+
+        // Обработчики кнопок
+        banner.querySelector('.conflict-btn-reload').addEventListener('click', () => {
+            this._reloadFromServer(updatedBlock);
+        });
+
+        banner.querySelector('.conflict-btn-dismiss').addEventListener('click', () => {
+            this._hideConflictBanner();
+        });
+
+        // Вставляем баннер после тулбара
+        this.toolbarEl.insertAdjacentElement('afterend', banner);
+        this.conflictBannerEl = banner;
+    }
+
+    /**
+     * Обновляет данные в баннере конфликта
+     */
+    _updateConflictBanner(updatedBlock) {
+        if (!this.conflictBannerEl) return;
+        this.conflictBannerEl.dataset.updatedData = JSON.stringify(updatedBlock);
+        // Добавляем анимацию чтобы привлечь внимание
+        this.conflictBannerEl.classList.remove('pulse');
+        void this.conflictBannerEl.offsetWidth; // Reflow для рестарта анимации
+        this.conflictBannerEl.classList.add('pulse');
+    }
+
+    /**
+     * Скрывает баннер конфликта
+     */
+    _hideConflictBanner() {
+        if (this.conflictBannerEl) {
+            this.conflictBannerEl.remove();
+            this.conflictBannerEl = null;
+        }
+    }
+
+    /**
+     * Перезагружает содержимое редактора с сервера
+     */
+    _reloadFromServer(updatedBlock) {
+        if (!updatedBlock) {
+            try {
+                updatedBlock = JSON.parse(this.conflictBannerEl?.dataset?.updatedData || '{}');
+            } catch {
+                this._hideConflictBanner();
+                return;
+            }
+        }
+
+        // Извлекаем текст из данных блока
+        let newHtml = '';
+        if (typeof updatedBlock.data === 'string') {
+            try {
+                const data = JSON.parse(updatedBlock.data);
+                newHtml = data.text || '';
+            } catch {
+                newHtml = updatedBlock.data || '';
+            }
+        } else if (updatedBlock.data?.text) {
+            newHtml = updatedBlock.data.text;
+        }
+
+        // Конвертируем HTML в Markdown и обновляем редактор
+        const preprocessedHtml = this._preprocessHtmlForTurndown(newHtml);
+        let markdown = this.turndownService.turndown(preprocessedHtml);
+        markdown = this._normalizeMarkdown(markdown);
+        this._setMarkdown(markdown);
+
+        // Скрываем баннер
+        this._hideConflictBanner();
     }
 
     closeEditor(save) {
@@ -95,6 +221,10 @@ export class NoteEditor {
         }
 
         // cleanup
+        // Отписываемся от WebSocket обновлений
+        window.removeEventListener('WebSocUpdateBlock', this._handleExternalUpdate);
+        this._hideConflictBanner();
+
         this.container.classList.remove('active');
         this.container.innerHTML = '';
         this.blockId = null;
@@ -102,6 +232,7 @@ export class NoteEditor {
         this.editorEl = null;
         this.previewEl = null;
         this.toolbarEl = null;
+        this.conflictBannerEl = null;
     }
 
     // ---------- Init helpers ----------

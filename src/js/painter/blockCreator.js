@@ -36,6 +36,7 @@ class BlockCreator {
         let element
         if (block.empty) {
             element = this.createEmpty(block, parentBlock, screen, depth)
+            return element
         } else {
             if (view === 'link') {
                 element = this.createLink(block, parentBlock, screen, depth)

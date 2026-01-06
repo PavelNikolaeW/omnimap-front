@@ -22,6 +22,11 @@ const MAX_RECONNECT_INTERVAL = 120000;
  */
 const HEARTBEAT_INTERVAL = 30000;
 
+/**
+ * Debounce интервал для накопления block updates в мс
+ */
+const BLOCK_UPDATE_DEBOUNCE_MS = 50;
+
 export class UpdateServiceWebSocket {
     /**
      * Создает экземпляр класса UpdateServiceWebSocket.
@@ -42,11 +47,47 @@ export class UpdateServiceWebSocket {
         this.heartbeatTimer = null;
         this.missedPongs = 0;
 
+        // Буфер для накопления block updates (debounce)
+        this._pendingBlockUpdates = [];
+        this._blockUpdateTimer = null;
+
         this._handleLogin = this._handleLogin.bind(this);
         this._handleLogout = this._handleLogout.bind(this);
 
         window.addEventListener('Login', this._handleLogin);
         window.addEventListener('Logout', this._handleLogout);
+    }
+
+    /**
+     * Накапливает block updates и отправляет их одним батчем после debounce
+     * @param {Array} blocks - массив блоков для обновления
+     */
+    _queueBlockUpdates(blocks) {
+        if (!Array.isArray(blocks)) return;
+
+        // Добавляем блоки в буфер (дедупликация по id - последний выигрывает)
+        for (const block of blocks) {
+            if (!block?.id) continue;
+            // Удаляем предыдущую версию этого блока если есть
+            const existingIdx = this._pendingBlockUpdates.findIndex(b => b.id === block.id);
+            if (existingIdx !== -1) {
+                this._pendingBlockUpdates.splice(existingIdx, 1);
+            }
+            this._pendingBlockUpdates.push(block);
+        }
+
+        // Сбрасываем таймер и запускаем новый
+        if (this._blockUpdateTimer) {
+            clearTimeout(this._blockUpdateTimer);
+        }
+
+        this._blockUpdateTimer = setTimeout(() => {
+            if (this._pendingBlockUpdates.length > 0) {
+                dispatch('WebSocUpdateBlock', this._pendingBlockUpdates);
+                this._pendingBlockUpdates = [];
+            }
+            this._blockUpdateTimer = null;
+        }, BLOCK_UPDATE_DEBOUNCE_MS);
     }
 
     /**
@@ -171,12 +212,26 @@ export class UpdateServiceWebSocket {
             }
 
             if (message.type === 'block_updates') {
+                // Ответ на get_updates запрос: { type: 'block_updates', updates: [...] }
+                // Этот тип приходит при начальной синхронизации - отправляем сразу без debounce
                 if (Array.isArray(message.updates)) {
                     dispatch('WebSocUpdateBlock', message.updates);
                 }
+            } else if (message.type === 'block_updates_batch') {
+                // Батч обновлений от сервера: { type: 'block_updates_batch', updates: [{type: 'block_update', data: ...}, ...] }
+                if (Array.isArray(message.updates)) {
+                    const blocks = message.updates
+                        .filter(u => u.data && typeof u.data === 'object')
+                        .map(u => u.data);
+                    if (blocks.length > 0) {
+                        this._queueBlockUpdates(blocks);
+                    }
+                }
             } else if (message.type === 'block_update') {
+                // Одиночное обновление: { type: 'block_update', data: {...} }
+                // Используем debounce для накопления нескольких одиночных обновлений
                 if (message.data && typeof message.data === 'object') {
-                    dispatch('WebSocUpdateBlock', [message.data]);
+                    this._queueBlockUpdates([message.data]);
                 }
             } else if (message.type === 'block_update_access') {
                 dispatch('WebSocUpdateBlockAccess', message);
@@ -257,6 +312,12 @@ export class UpdateServiceWebSocket {
     disconnect() {
         this.shouldReconnect = false;
         this._stopHeartbeat();
+        // Очищаем таймер debounce и буфер обновлений
+        if (this._blockUpdateTimer) {
+            clearTimeout(this._blockUpdateTimer);
+            this._blockUpdateTimer = null;
+        }
+        this._pendingBlockUpdates = [];
         if (this.ws) {
             this.ws.close();
             this.ws = null;

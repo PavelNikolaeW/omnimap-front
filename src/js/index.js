@@ -112,6 +112,9 @@ async function fastInitialization() {
     });
     await localforage.ready();
 
+    // Инициализируем authStateManager после localforage
+    await authStateManager.init();
+
     // Запрашиваем persistent storage в фоне
     if ('storage' in navigator && 'persist' in navigator.storage) {
         navigator.storage.persist().then(granted => {
@@ -182,12 +185,39 @@ async function checkAuth() {
         dispatch('InitAnonimUser')
         return false
     }
-    if (!navigator.onLine && Cookies.get('refresh') !== undefined) {
+
+    // Проверяем наличие refresh токена
+    const hasRefreshToken = Cookies.get('refresh') !== undefined
+
+    // Если anonim, но есть токены - удаляем их (несогласованное состояние)
+    if (user === 'anonim' && hasRefreshToken) {
+        console.warn('[checkAuth] Inconsistent state: anonim user with tokens, clearing tokens');
+        Cookies.remove('access');
+        Cookies.remove('refresh');
         return true
     }
-    if (user !== 'anonim') {
-        return await api.refreshToken()
+
+    // Если пользователь авторизован, но токенов нет - logout
+    if (user !== 'anonim' && !hasRefreshToken) {
+        dispatch('Logout')
+        return false
     }
+
+    // Офлайн режим с валидным refresh токеном
+    if (!navigator.onLine && hasRefreshToken) {
+        return true
+    }
+
+    // Онлайн режим - пробуем обновить токен
+    if (user !== 'anonim') {
+        const refreshed = await api.refreshToken()
+        if (!refreshed) {
+            dispatch('Logout')
+            return false
+        }
+        return true
+    }
+
     return true
 }
 

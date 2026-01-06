@@ -776,7 +776,85 @@ export class LocalStateManager {
 
             try {
                 if (block.deleted) {
+                    // Получаем блок до удаления чтобы найти родителя
+                    const localBlock = this.blocks.get(block.id);
+                    const parentId = localBlock?.parent_id;
+
+                    // Проверяем, находится ли пользователь на удаляемом блоке
+                    const currentScreen = this.path?.at(-1);
+                    const isOnDeletedBlock = currentScreen?.blockId === block.id;
+
+                    // Удаляем только этот блок (дети придут отдельными deleted событиями)
                     await this.removeOneBlock(block.id);
+
+                    // Если пользователь был на удалённом блоке — переходим к родителю
+                    if (isOnDeletedBlock) {
+                        console.log(`📍 Current block ${block.id} was deleted, navigating to parent`);
+                        // Удаляем текущий экран из path
+                        this.path.pop();
+
+                        if (parentId && this.blocks.has(parentId)) {
+                            // Переходим к родителю
+                            const parentBlock = this.blocks.get(parentId);
+                            const color = parentBlock.data?.color && parentBlock.data.color !== 'default_color' ? parentBlock.data.color : [];
+                            this.path.push({
+                                screenName: truncate(parentBlock.title, 10),
+                                color: color,
+                                blockId: parentId
+                            });
+                        } else if (this.path.length === 0 && this.currentTree) {
+                            // Если path пустой, переходим к корню дерева
+                            const rootBlock = this.blocks.get(this.currentTree);
+                            if (rootBlock) {
+                                const color = rootBlock.data?.color && rootBlock.data.color !== 'default_color' ? rootBlock.data.color : [];
+                                this.path.push({
+                                    screenName: truncate(rootBlock.title, 10),
+                                    color: color,
+                                    blockId: this.currentTree
+                                });
+                            }
+                        }
+
+                        // Сохраняем обновлённый path
+                        await localforage.setItem(`Path_${this.currentTree}${this.currentUser}`, this.path);
+                    }
+
+                    // Удаляем удалённый блок из path (может быть выше по иерархии)
+                    const deletedInPath = this.path.findIndex(p => p.blockId === block.id);
+                    if (deletedInPath !== -1) {
+                        // Обрезаем path до удалённого блока (не включая его)
+                        this.path = this.path.slice(0, deletedInPath);
+                        if (this.path.length === 0 && this.currentTree) {
+                            const rootBlock = this.blocks.get(this.currentTree);
+                            if (rootBlock) {
+                                const color = rootBlock.data?.color && rootBlock.data.color !== 'default_color' ? rootBlock.data.color : [];
+                                this.path.push({
+                                    screenName: truncate(rootBlock.title, 10),
+                                    color: color,
+                                    blockId: this.currentTree
+                                });
+                            }
+                        }
+                        await localforage.setItem(`Path_${this.currentTree}${this.currentUser}`, this.path);
+                    }
+
+                    // Обновляем родительский блок локально (убираем удалённого ребёнка)
+                    if (parentId) {
+                        const parentBlock = this.blocks.get(parentId);
+                        if (parentBlock) {
+                            // Убираем из children
+                            if (Array.isArray(parentBlock.children)) {
+                                parentBlock.children = parentBlock.children.filter(id => id !== block.id);
+                            }
+                            // Убираем из childOrder
+                            if (parentBlock.data?.childOrder) {
+                                parentBlock.data.childOrder = parentBlock.data.childOrder.filter(id => id !== block.id);
+                            }
+                            await this.saveBlock(parentBlock);
+                            // Добавляем родителя в processedBlocks чтобы перерисовать
+                            processedBlocks.push(parentBlock);
+                        }
+                    }
                 } else {
                     // Если это корневой блок (дерево), добавляем через treeService
                     if (!block.parent_id) {
@@ -1160,31 +1238,36 @@ export class LocalStateManager {
 
     async removeOneBlock(blockId) {
         const block = this.blocks.get(blockId);
-        if (!block) {
-            console.warn(`Block ${blockId} not found`);
-            return;
-        }
-        const parentId = block.parent_id;
-        if (parentId) {
-            const parentBlock = this.blocks.get(parentId);
-            if (parentBlock) {
-                parentBlock.children = parentBlock.children.filter(id => id !== blockId);
-                parentBlock.data.childOrder = parentBlock.data.childOrder.filter(id => id !== blockId);
-                this.blockRepository.saveBlock(parentBlock)
+
+        // Обновляем родителя если блок найден в памяти
+        if (block) {
+            const parentId = block.parent_id;
+            if (parentId) {
+                const parentBlock = this.blocks.get(parentId);
+                if (parentBlock) {
+                    if (Array.isArray(parentBlock.children)) {
+                        parentBlock.children = parentBlock.children.filter(id => id !== blockId);
+                    }
+                    if (parentBlock.data?.childOrder) {
+                        parentBlock.data.childOrder = parentBlock.data.childOrder.filter(id => id !== blockId);
+                    }
+                    this.blockRepository.saveBlock(parentBlock)
+                }
             }
         }
 
+        // Удаляем из treeIds если это корневой блок
         let treeIds = await localforage.getItem(`treeIds${this.currentUser}`);
-
         if (Array.isArray(treeIds)) {
             treeIds = treeIds.filter(id => id !== blockId);
             await localforage.setItem(`treeIds${this.currentUser}`, treeIds);
         }
 
-        // Remove from internal map and delete from repository
+        // Удаляем из памяти
         this.blocks.delete(blockId);
-        await this.blockRepository.deleteBlock(blockId);
 
+        // Всегда пытаемся удалить из IndexedDB (даже если блока нет в памяти)
+        await this.blockRepository.deleteBlock(blockId);
     }
 
     // Corrected block and branch removal logic with parent update
@@ -1255,6 +1338,34 @@ export class LocalStateManager {
         await localforage.setItem('currentUser', user);
         await localforage.setItem('currentTree', this.currentTree)
         await localforage.setItem(`treeIds${user}`, treeIds)
+
+        // Получаем существующие ключи блоков для этого пользователя
+        const keys = await localforage.keys();
+        const escapedUser = escapeRegExp(user);
+        const pattern = new RegExp(`^Block_.*_${escapedUser}$`);
+        const existingBlockKeys = new Set(keys.filter(key => pattern.test(key)));
+
+        // Новые ключи с сервера
+        const newBlockIds = new Set(blocks.keys());
+
+        // Удаляем блоки, которых нет на сервере (stale blocks)
+        const keysToDelete = [];
+        for (const key of existingBlockKeys) {
+            // Извлекаем blockId из ключа формата Block_{blockId}_{user}
+            const match = key.match(/^Block_(.+)_[^_]+$/);
+            if (match) {
+                const blockId = match[1];
+                if (!newBlockIds.has(blockId)) {
+                    keysToDelete.push(key);
+                }
+            }
+        }
+
+        // Удаляем устаревшие блоки из IndexedDB
+        if (keysToDelete.length > 0) {
+            console.log(`🧹 Cleaning ${keysToDelete.length} stale blocks from IndexedDB`);
+            await Promise.all(keysToDelete.map(key => localforage.removeItem(key)));
+        }
 
         // Сохраняем блоки с await для гарантии записи в IndexedDB
         for (const block of blocks.values()) {
