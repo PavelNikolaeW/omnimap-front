@@ -86,7 +86,7 @@ jobs:
           github_token: ${{ github.token }}
           claude_args: |
             --model claude-sonnet-4-20250514
-            --max-turns 50
+            --max-turns 30
             --allowedTools "Read" "Glob" "Grep" "Bash(gh:*)" "Bash(git:*)" "Bash(npm:*)" "Bash(pnpm:*)" "Bash(yarn:*)"
           prompt: |
             You are a PR reviewer for a JS/TS frontend (webpack, jest/playwright).
