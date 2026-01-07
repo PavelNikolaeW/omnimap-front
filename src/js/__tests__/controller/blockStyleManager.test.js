@@ -3,7 +3,7 @@
  * Covers critical security and performance functions
  */
 
-import { BlockStyleManager } from '../../controller/blockStyleManager';
+import { BlockStyleManager, ConnectionStyleManager } from '../../controller/blockStyleManager';
 
 // Mock DOM elements
 const createMockElement = () => {
@@ -244,6 +244,101 @@ describe('BlockStyleManager', () => {
                 expect(preset.background).toMatch(/^#[0-9a-f]{6}$/i);
                 expect(preset.borderColor).toMatch(/^#[0-9a-f]{6}$/i);
             });
+        });
+    });
+
+    describe('clampNumericValue - Bounds Validation', () => {
+        test('returns default for empty values', () => {
+            expect(manager.clampNumericValue('', 0, 100, null)).toBeNull();
+            expect(manager.clampNumericValue(null, 0, 100, null)).toBeNull();
+            expect(manager.clampNumericValue(undefined, 0, 100, null)).toBeNull();
+        });
+
+        test('returns default for invalid values', () => {
+            expect(manager.clampNumericValue('abc', 0, 100, 50)).toBe(50);
+            expect(manager.clampNumericValue('NaN', 0, 100, 50)).toBe(50);
+        });
+
+        test('clamps values to min', () => {
+            expect(manager.clampNumericValue('-10', 0, 100, 50)).toBe(0);
+            expect(manager.clampNumericValue('0', 10, 100, 50)).toBe(10);
+        });
+
+        test('clamps values to max', () => {
+            expect(manager.clampNumericValue('200', 0, 100, 50)).toBe(100);
+            expect(manager.clampNumericValue('999999', 0, 2000, 100)).toBe(2000);
+        });
+
+        test('passes through valid values', () => {
+            expect(manager.clampNumericValue('50', 0, 100, 25)).toBe(50);
+            expect(manager.clampNumericValue(75, 0, 100, 25)).toBe(75);
+        });
+    });
+});
+
+describe('ConnectionStyleManager', () => {
+    let connectionManager;
+
+    beforeEach(() => {
+        connectionManager = new ConnectionStyleManager();
+    });
+
+    describe('sanitizeText - XSS Prevention', () => {
+        test('returns empty string for invalid input', () => {
+            expect(connectionManager.sanitizeText(null)).toBe('');
+            expect(connectionManager.sanitizeText(undefined)).toBe('');
+            expect(connectionManager.sanitizeText('')).toBe('');
+            expect(connectionManager.sanitizeText(123)).toBe('');
+        });
+
+        test('escapes HTML special characters', () => {
+            expect(connectionManager.sanitizeText('<script>')).toBe('&lt;script&gt;');
+            expect(connectionManager.sanitizeText('alert("xss")')).toBe('alert(&quot;xss&quot;)');
+            expect(connectionManager.sanitizeText("test'injection")).toBe('test&#039;injection');
+            expect(connectionManager.sanitizeText('a & b')).toBe('a &amp; b');
+        });
+
+        test('handles complex XSS payloads', () => {
+            const payload = '<img src=x onerror="alert(1)">';
+            const sanitized = connectionManager.sanitizeText(payload);
+            expect(sanitized).not.toContain('<');
+            expect(sanitized).not.toContain('>');
+            expect(sanitized).toBe('&lt;img src=x onerror=&quot;alert(1)&quot;&gt;');
+        });
+
+        test('passes through safe text unchanged', () => {
+            expect(connectionManager.sanitizeText('Hello World')).toBe('Hello World');
+            expect(connectionManager.sanitizeText('Test 123')).toBe('Test 123');
+            expect(connectionManager.sanitizeText('user@email.com')).toBe('user@email.com');
+        });
+    });
+
+    describe('clampNumeric - Bounds Validation', () => {
+        test('clamps values within bounds', () => {
+            expect(connectionManager.clampNumeric('0', 1, 10, 2)).toBe(1);
+            expect(connectionManager.clampNumeric('100', 1, 10, 2)).toBe(10);
+            expect(connectionManager.clampNumeric('5', 1, 10, 2)).toBe(5);
+        });
+
+        test('returns default for invalid input', () => {
+            expect(connectionManager.clampNumeric('invalid', 1, 10, 5)).toBe(5);
+            expect(connectionManager.clampNumeric(NaN, 1, 10, 5)).toBe(5);
+        });
+    });
+
+    describe('LIMITS configuration', () => {
+        test('has reasonable stroke width limits', () => {
+            expect(connectionManager.LIMITS.strokeWidth.min).toBe(1);
+            expect(connectionManager.LIMITS.strokeWidth.max).toBe(10);
+        });
+
+        test('has reasonable corner radius limits', () => {
+            expect(connectionManager.LIMITS.cornerRadius.min).toBe(0);
+            expect(connectionManager.LIMITS.cornerRadius.max).toBe(50);
+        });
+
+        test('has reasonable label length limit', () => {
+            expect(connectionManager.LIMITS.labelMaxLength).toBe(100);
         });
     });
 });

@@ -163,6 +163,21 @@ export class BlockStyleManager {
     }
 
     /**
+     * Валидация и ограничение числового значения
+     * @param {string|number} value - входное значение
+     * @param {number} min - минимум
+     * @param {number} max - максимум
+     * @param {number|null} defaultVal - значение по умолчанию
+     * @returns {number|null}
+     */
+    clampNumericValue(value, min, max, defaultVal = null) {
+        if (value === '' || value === null || value === undefined) return defaultVal;
+        const num = parseInt(value, 10);
+        if (isNaN(num)) return defaultVal;
+        return Math.max(min, Math.min(max, num));
+    }
+
+    /**
      * Применить выбранный стиль к блоку
      */
     async applyStyle() {
@@ -179,9 +194,10 @@ export class BlockStyleManager {
             textColor: this.textColorInput?.value,
             fontSize: this.fontSizeSelect?.value,
             textAlign: this.textAlignSelect?.value,
-            opacity: this.opacityInput?.value ? parseInt(this.opacityInput.value, 10) : null,
-            minWidth: this.minWidthInput?.value ? parseInt(this.minWidthInput.value, 10) : null,
-            minHeight: this.minHeightInput?.value ? parseInt(this.minHeightInput.value, 10) : null,
+            // Numeric values with bounds validation
+            opacity: this.clampNumericValue(this.opacityInput?.value, 10, 100, null),
+            minWidth: this.clampNumericValue(this.minWidthInput?.value, 0, 2000, null),
+            minHeight: this.clampNumericValue(this.minHeightInput?.value, 0, 2000, null),
             customClass: this.customClassInput?.value || null
         };
 
@@ -386,6 +402,13 @@ export class ConnectionStyleManager {
         this.sourceBlockId = null;
         this.sourceElement = null;
         this.customStyle = null;
+
+        // Лимиты для числовых значений
+        this.LIMITS = {
+            strokeWidth: { min: 1, max: 10 },
+            cornerRadius: { min: 0, max: 50 },
+            labelMaxLength: 100
+        };
 
         // Элементы управления
         this.typeSelect = document.getElementById('connectorType');
@@ -671,13 +694,48 @@ export class ConnectionStyleManager {
     }
 
     /**
+     * Санитизация текста для предотвращения XSS
+     * Экранирует HTML-спецсимволы
+     * @param {string} text - входной текст
+     * @returns {string} - безопасный текст
+     */
+    sanitizeText(text) {
+        if (!text || typeof text !== 'string') return '';
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    /**
+     * Валидация и ограничение числового значения
+     * @param {string|number} value - входное значение
+     * @param {number} min - минимум
+     * @param {number} max - максимум
+     * @param {number} defaultVal - значение по умолчанию
+     * @returns {number}
+     */
+    clampNumeric(value, min, max, defaultVal) {
+        const num = parseInt(value, 10);
+        if (isNaN(num)) return defaultVal;
+        return Math.max(min, Math.min(max, num));
+    }
+
+    /**
      * Получить настройки стиля соединения
      */
     getConnectionStyle() {
         const sourceAnchor = this.sourceAnchorSelect?.value || 'Continuous';
         const targetAnchor = this.targetAnchorSelect?.value || 'Continuous';
         const connectorType = this.typeSelect?.value || 'Flowchart';
-        const cornerRadius = parseInt(this.cornerRadiusInput?.value || '5', 10);
+        const cornerRadius = this.clampNumeric(
+            this.cornerRadiusInput?.value,
+            this.LIMITS.cornerRadius.min,
+            this.LIMITS.cornerRadius.max,
+            5
+        );
 
         // Connector options based on type
         const connectorOptions = connectorType === 'Flowchart'
@@ -686,6 +744,13 @@ export class ConnectionStyleManager {
             ? { curviness: 100 }
             : {};
 
+        const strokeWidth = this.clampNumeric(
+            this.widthInput?.value,
+            this.LIMITS.strokeWidth.min,
+            this.LIMITS.strokeWidth.max,
+            2
+        );
+
         return {
             connector: {
                 type: connectorType,
@@ -693,7 +758,7 @@ export class ConnectionStyleManager {
             },
             paintStyle: {
                 stroke: this.colorInput?.value || '#516077',
-                strokeWidth: parseInt(this.widthInput?.value || '2', 10),
+                strokeWidth,
                 dashstyle: this.dashStyleSelect?.value || undefined,
                 outlineStroke: 'transparent',
                 outlineWidth: 10
@@ -791,8 +856,13 @@ export class ConnectionStyleManager {
             overlays.push(getOverlayConfig(0, -1));
         }
 
-        // Label
-        const labelText = this.labelInput?.value || '';
+        // Label - sanitize and limit length to prevent XSS
+        let labelText = this.labelInput?.value || '';
+        if (labelText.length > this.LIMITS.labelMaxLength) {
+            labelText = labelText.substring(0, this.LIMITS.labelMaxLength);
+        }
+        labelText = this.sanitizeText(labelText);
+
         overlays.push({
             type: 'Label',
             options: {
