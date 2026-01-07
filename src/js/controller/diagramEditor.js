@@ -40,6 +40,7 @@ export class DiagramEditor {
         this.connectionLine = null;
         this.connectionType = 'default';  // Тип соединения
         this.justFinishedConnection = false;  // Флаг для предотвращения клика после соединения
+        this.justFinishedDrag = false;  // Флаг для предотвращения клика после drag
 
         // Shift+drag quick mode state
         this.quickModeActive = false;
@@ -220,13 +221,33 @@ export class DiagramEditor {
         // Сохранить старый элемент для удаления слушателей
         const oldParentElement = this.parentElement;
 
+        // Извлечь чистый blockId (без prefix родителя)
+        const cleanBlockId = this.parentBlockId.includes('*')
+            ? this.parentBlockId.split('*').pop()
+            : this.parentBlockId;
+
         // Найти новый элемент родительского блока после ре-рендера
-        const newParentElement = document.getElementById(this.parentBlockId);
+        // Сначала пробуем найти по сохранённому полному ID
+        let newParentElement = document.getElementById(this.parentBlockId);
+
+        // Если не найден - ищем по чистому ID
+        if (!newParentElement) {
+            newParentElement = document.getElementById(cleanBlockId);
+        }
+
+        // Если всё ещё не найден - ищем элемент, ID которого заканчивается на чистый blockId
+        if (!newParentElement) {
+            newParentElement = document.querySelector(`[id$="*${cleanBlockId}"]`);
+        }
+
         if (!newParentElement) {
             // Блок больше не существует - деактивируем редактор
             this.deactivate();
             return;
         }
+
+        // Обновляем parentBlockId на актуальный ID из DOM
+        this.parentBlockId = newParentElement.id;
 
         // Удалить слушатели со старого элемента (если он еще существует)
         if (oldParentElement && oldParentElement !== newParentElement) {
@@ -238,7 +259,7 @@ export class DiagramEditor {
         this.parentElement = newParentElement;
 
         // Обновить customGrid из хранилища
-        const block = await this.getBlock(this.parentBlockId);
+        const block = await this.getBlock(cleanBlockId);
         if (block?.data?.customGrid) {
             this.customGrid = block.data.customGrid;
         }
@@ -309,10 +330,13 @@ export class DiagramEditor {
 
     /**
      * Получить блок из localforage
+     * @param {string} id - ID блока (может быть полным вида "parentId*blockId" или чистым)
      */
     async getBlock(id) {
+        // Извлекаем чистый blockId если передан полный ID
+        const cleanId = id.includes('*') ? id.split('*').pop() : id;
         const user = await localforage.getItem('currentUser');
-        return await localforage.getItem(`Block_${id}_${user}`);
+        return await localforage.getItem(`Block_${cleanId}_${user}`);
     }
 
     /**
@@ -743,6 +767,12 @@ export class DiagramEditor {
         this.dragStartCell = null;
         this.dragBlockSize = null;
         this.dragOffset = null;
+
+        // Установить флаг для предотвращения клика после drag
+        this.justFinishedDrag = true;
+        setTimeout(() => {
+            this.justFinishedDrag = false;
+        }, 100);
 
         // Деактивировать quick mode после завершения drag
         if (this.quickModeActive) {

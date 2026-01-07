@@ -150,8 +150,8 @@ export class CommandManager {
             }
         } else if (isExcludedElement(target, 'commandManager', ['body', 'textarea', 'input', 'emoji-picker'])) {
         } else {
-            // Если только что завершили создание соединения - игнорируем клик
-            if (diagramEditor.justFinishedConnection) {
+            // Если только что завершили создание соединения или drag - игнорируем клик
+            if (diagramEditor.justFinishedConnection || diagramEditor.justFinishedDrag) {
                 event.preventDefault()
                 return
             }
