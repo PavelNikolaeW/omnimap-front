@@ -1,5 +1,6 @@
 import {commands} from "./commands";
 import localforage from "localforage";
+import { MODES } from "../../actions/selectionActions";
 
 /**
  * Конфигурация подменю
@@ -436,6 +437,11 @@ export class UIManager {
         this.diagramMode = true
         this.diagramBlockId = blockId
         this.diagramElement = blockElement
+
+        // Устанавливаем режим для корректной обработки ESC
+        if (ctx) {
+            ctx.mode = MODES.DIAGRAM
+        }
 
         // Визуальная индикация выбранного блока-диаграммы
         blockElement.classList.add('diagram-target-block')

@@ -361,6 +361,12 @@ export class DiagramEditor {
             this.parentElement.classList.remove('diagram-edit-mode');
         }
 
+        // Очистить выделение блока
+        if (this.selectedBlock) {
+            this.selectedBlock.classList.remove('diagram-block-selected');
+            this.selectedBlock = null;
+        }
+
         this.isActive = false;
         this.parentBlockId = null;
         this.parentElement = null;
