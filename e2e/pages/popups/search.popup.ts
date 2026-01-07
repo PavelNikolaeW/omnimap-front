@@ -46,7 +46,7 @@ export class SearchPopup {
    * Открывает попап поиска через кнопку в панели управления
    */
   async open(): Promise<void> {
-    const searchBtn = this.page.locator('#search, .fa-search, [data-testid="command-btn-search"]');
+    const searchBtn = this.page.locator('#findBlock, .fa-search, [data-testid="command-btn-findBlock"]');
     await searchBtn.click();
     await expect(this.popup).toBeVisible({ timeout: 5000 });
   }

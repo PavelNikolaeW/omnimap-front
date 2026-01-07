@@ -45,7 +45,7 @@ export class ReminderPopup {
     await this.page.waitForTimeout(300);
 
     // Кликаем на кнопку напоминания
-    const reminderBtn = this.page.locator('#reminder, .fa-bell, button:has-text("Напоминание")');
+    const reminderBtn = this.page.locator('#setReminder, .fa-bell, button:has-text("Напоминание")');
     if (await reminderBtn.isVisible()) {
       await reminderBtn.click();
       await expect(this.popup).toBeVisible({ timeout: 5000 });
@@ -196,7 +196,7 @@ export class RemindersListPopup {
     await this.page.keyboard.press('o');
     await this.page.waitForTimeout(300);
 
-    const listBtn = this.page.locator('#remindersList, button:has-text("Мои напоминания")');
+    const listBtn = this.page.locator('#myReminders, button:has-text("Мои напоминания")');
     if (await listBtn.isVisible()) {
       await listBtn.click();
       await expect(this.popup).toBeVisible({ timeout: 5000 });

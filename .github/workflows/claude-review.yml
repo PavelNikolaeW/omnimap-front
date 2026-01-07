@@ -10,11 +10,13 @@ concurrency:
 
 jobs:
   review:
+    # Skip forks: token often cannot write reviews there
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
+
     permissions:
       contents: read
       pull-requests: write
-      id-token: write
 
     steps:
       - name: Checkout
@@ -28,60 +30,211 @@ jobs:
           node-version: "20"
           cache: npm
 
-      - name: Fast checks (best-effort)
+      - name: Install dependencies
         shell: bash
         run: |
-          set -euo pipefail
-          echo "== install =="
           if [ -f package-lock.json ]; then npm ci
           elif [ -f pnpm-lock.yaml ]; then corepack enable && pnpm i --frozen-lockfile
           elif [ -f yarn.lock ]; then corepack enable && yarn install --frozen-lockfile
           else npm i
           fi
 
-          echo "== lint/typecheck/test (if exists) =="
-          npm run -s lint || true
-          npm run -s typecheck || true
-          npm run -s test || true
-          npm run -s build || true
+      - name: Fast checks (capture results)
+        id: checks
+        shell: bash
+        run: |
+          set -uo pipefail
 
-      - name: PR Review (strict)
+          results=""
+
+          if npm run -s lint 2>&1 | tee /tmp/lint.log; then
+            results="${results}lint: PASS\n"
+          else
+            results="${results}lint: FAIL\n$(tail -20 /tmp/lint.log)\n"
+          fi
+
+          if npm run -s typecheck 2>&1 | tee /tmp/typecheck.log; then
+            results="${results}typecheck: PASS\n"
+          else
+            results="${results}typecheck: FAIL\n$(tail -20 /tmp/typecheck.log)\n"
+          fi
+
+          if npm run -s test 2>&1 | tee /tmp/test.log; then
+            results="${results}test: PASS\n"
+          else
+            results="${results}test: FAIL\n$(tail -30 /tmp/test.log)\n"
+          fi
+
+          if npm run -s build 2>&1 | tee /tmp/build.log; then
+            results="${results}build: PASS\n"
+          else
+            results="${results}build: FAIL\n$(tail -20 /tmp/build.log)\n"
+          fi
+
+          echo -e "$results" > /tmp/check_results.txt
+          echo "check_results_path=/tmp/check_results.txt" >> "$GITHUB_OUTPUT"
+
+      - name: PR context (sha + last bot review + skip same sha)
+        id: ctx
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+          gh api "repos/${{ github.repository }}/pulls/$PR/reviews?per_page=50" > /tmp/reviews.json || echo '[]' > /tmp/reviews.json
+
+          last_state="$(jq -r 'map(select(.user.login=="github-actions[bot]"))[0].state // ""' /tmp/reviews.json)"
+          echo "last_bot_state=$last_state" >> "$GITHUB_OUTPUT"
+
+          # Extract last bot review body and save to file
+          jq -r 'map(select(.user.login=="github-actions[bot]"))[0].body // ""' /tmp/reviews.json \
+            | head -c 9000 > /tmp/last_bot_review_body.txt
+
+          # Create multiline output for prompt injection
+          {
+            echo "last_bot_review<<EOF_REVIEW"
+            cat /tmp/last_bot_review_body.txt
+            echo "EOF_REVIEW"
+          } >> "$GITHUB_OUTPUT"
+
+          if jq -e --arg sha "$SHA" '
+              map(select(.user.login=="github-actions[bot]" and (.body//"" | test("reviewed-sha:" + $sha))))
+              | length > 0
+            ' /tmp/reviews.json >/dev/null; then
+            echo "already_reviewed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "already_reviewed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip if already reviewed this SHA
+        if: steps.ctx.outputs.already_reviewed == 'true'
+        run: echo "Already reviewed this commit SHA; skipping."
+
+      - name: Claude PR Review (critical + medium only)
+        if: steps.ctx.outputs.already_reviewed != 'true'
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
           claude_args: |
             --model claude-sonnet-4-20250514
-            --max-turns 50
-            --allowedTools "Read" "Glob" "Grep" "Bash(gh pr:*)" "Bash(gh api:*)" "Bash(git:*)" "Bash(npm:*)" "Bash(pnpm:*)" "Bash(yarn:*)"
+            --max-turns 15
+            --allowedTools "Read" "Glob" "Grep" "Bash(gh:*)" "Bash(git:*)" "Bash(npm:*)" "Bash(pnpm:*)" "Bash(yarn:*)"
           prompt: |
-            You are a STRICT PR reviewer for a JS/TS frontend (webpack, jest/playwright). No rubber-stamp.
+            You are a PR reviewer for a JS/TS frontend (webpack, jest/playwright).
+            Goal: useful review, not endless nitpicks.
+
+            RELIABILITY:
+            - You MUST submit a PR review by turn <= 10.
+            - If unfinished, submit a PARTIAL review and continue.
+
+            SCOPE (IMPORTANT):
+            - Report ONLY Critical and Medium issues.
+            - Do NOT mention minor style/naming/formatting unless it causes a bug.
+            - Max issues: Critical <= 5, Medium <= 7. If more, merge duplicates and keep highest impact.
+
+            ANTI-VAGUE RULE (IMPORTANT):
+            - Every issue MUST include these fields:
+              1) Impact: what breaks / risk / user-visible symptom
+              2) Evidence: file path + exact snippet/line context
+              3) Fix: concrete change (prefer a small code snippet)
+              4) Test: a concrete test to add/update (jest or playwright), including a minimal example snippet
+            - If you cannot propose a test, still provide the best minimal test idea and mark it "needs test".
+
+            FOLLOW-UP BEHAVIOR (avoid infinite loop):
+            - If last bot state was REQUEST_CHANGES:
+              (a) verify previous blocking items are fixed/not fixed,
+              (b) report at most 2 new Critical issues (if any),
+              (c) do NOT expand Medium list unless it blocks merge.
+
+            Context:
+            - PR: #${{ github.event.pull_request.number }}
+            - head SHA: ${{ steps.ctx.outputs.sha }}
+            - last bot review state: ${{ steps.ctx.outputs.last_bot_state }}
+
+            CI Check Results:
+            ```
+            ${{ steps.checks.outputs.check_results_path && '(see /tmp/check_results.txt)' || 'Not available' }}
+            ```
+            Read file /tmp/check_results.txt to see lint/typecheck/test/build results.
+            If any check FAILED, prioritize those issues in your review.
+
+            Previous bot review body (if any):
+            ```
+            ${{ steps.ctx.outputs.last_bot_review }}
+            ```
 
             Required workflow:
-            1) Run: gh pr diff ${{ github.event.pull_request.number }}
-            2) Run: gh pr view ${{ github.event.pull_request.number }} --json files --jq '.files[].path'
-            3) Read all modified files and any referenced code.
+              Context expansion rule (IMPORTANT):
+              - Default scope is the PR diff only.
+              - You MAY read additional files or folders if (and only if):
+                - a critical or medium issue depends on shared logic, OR
+                - behavior cannot be confidently judged from the diff alone.
+              - When expanding scope:
+                - first use Grep/Glob to locate relevant code,
+                - then read only the minimal set of files needed.
+              - Do NOT attempt to review the entire repository end-to-end.
 
-            Mandatory checks:
-            - Correctness: state management, async race conditions, DOM event handling, data flow, error handling
-            - Security: XSS, unsafe innerHTML, injection into templates, leaking tokens in logs
-            - Performance: unnecessary re-renders, heavy loops, large JSON ops, expensive layout thrash
-            - Test impact: jest/playwright assertions, flaky patterns, timeouts
+            1) Read /tmp/check_results.txt first to see CI results
+            2) gh pr diff ${{ github.event.pull_request.number }}
+            3) gh pr view ${{ github.event.pull_request.number }} --json files --jq '.files[].path'
+            4) Read changed files (and only necessary referenced code).
 
-            Review rules:
-            - Always leave a review comment.
-            - If ANY correctness/security risk OR you are not confident (missing context/tests), use REQUEST_CHANGES.
-            - Every issue must include: file path + exact snippet/line context + why + concrete fix.
+            Check focus:
+            - Correctness: state management, async races, DOM events, error handling
+            - Security: XSS, unsafe innerHTML, token leakage
+            - Performance: layout thrash, heavy loops, unnecessary re-renders
+            - Tests: flakiness, missing assertions, timeouts
 
-            Output format:
-            1) Summary (1-3 bullets)
-            2) High-risk issues (if any)
-            3) Medium/low issues
-            4) Suggested tests to add (>=1)
-            5) If LGTM: explicitly list what you checked and why safe.
+            OUTPUT FORMAT (strict, concise):
+            1) Summary (max 3 bullets)
+            2) CI Status (PASS/FAIL for each check)
+            3) Critical issues (if any) — numbered list
+            4) Medium issues (if any) — numbered list
+            5) Tests to add/update (1-5 bullets, deduplicated)
 
-            Then submit:
-            - REQUEST_CHANGES if needed, otherwise COMMENT (do not APPROVE).
+            For each issue use this template:
+
+            [Severity] <short title>
+            - Evidence: <path>:<line-range or nearby snippet>
+            - Impact: <what breaks / risk>
+            - Fix: <concrete change + short snippet>
+            - Test: <jest/playwright test idea + minimal snippet>
+
+            Include marker:
+            reviewed-sha:${{ steps.ctx.outputs.sha }}
+
+            Submit:
+            - REQUEST_CHANGES if any Critical exists OR any CI check FAILED.
+            - Else COMMENT (do not APPROVE).
+
             Use:
               gh pr review ${{ github.event.pull_request.number }} --request-changes -b "<body>"
               OR
               gh pr review ${{ github.event.pull_request.number }} --comment -b "<body>"
+
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Fallback comment if no bot review posted
+        if: always() && steps.ctx.outputs.already_reviewed != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          reviews="$(gh api "repos/${{ github.repository }}/pulls/$PR/reviews?per_page=50" || echo '[]')"
+          if echo "$reviews" | jq -e --arg sha "$SHA" '
+              map(select(.user.login=="github-actions[bot]" and (.body//"" | test("reviewed-sha:" + $sha))))
+              | length > 0
+            ' >/dev/null; then
+            echo "Review exists for SHA"
+          else
+            gh pr comment "$PR" -b "Claude review run finished but no PR review was posted. Check Actions logs. reviewed-sha:$SHA"
+          fi

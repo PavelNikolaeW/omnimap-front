@@ -80,6 +80,15 @@ npm run test:e2e:ui
 
 # Debug режим
 npm run test:e2e:debug
+
+# Запустить тесты и автоматически открыть отчёт
+npm run test:e2e:open
+
+# Открыть HTML-отчёт в браузере (после запуска тестов)
+npm run test:e2e:report
+
+# Запустить отчёт как локальный сервер (с поиском и фильтрацией)
+npm run test:e2e:report:serve
 ```
 
 ### Фильтрация по тегам
