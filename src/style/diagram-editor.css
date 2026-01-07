@@ -342,6 +342,139 @@
 .style-preset-gray { background: linear-gradient(135deg, #f3f4f6, #9ca3af); }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   Shape Presets for Diagrams
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.style-section {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.style-section-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.shape-presets {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+}
+
+.shape-preset {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 4px;
+    border: 2px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: #f9fafb;
+}
+
+.shape-preset:hover {
+    border-color: #4f46e5;
+    background: white;
+}
+
+.shape-preset.active {
+    border-color: #4f46e5;
+    background: white;
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+}
+
+.shape-preset span {
+    font-size: 9px;
+    color: #6b7280;
+    text-align: center;
+    line-height: 1.2;
+}
+
+.shape-preview {
+    width: 28px;
+    height: 20px;
+    border: 2px solid;
+}
+
+/* Shape preview styles */
+.shape-preview-process {
+    background: #ffffff;
+    border-color: #374151;
+    border-radius: 2px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.shape-preview-decision {
+    background: #fef3c7;
+    border-color: #f59e0b;
+    transform: rotate(45deg) scale(0.7);
+    border-radius: 2px;
+}
+
+.shape-preview-data {
+    background: #dbeafe;
+    border-color: #3b82f6;
+    transform: skewX(-15deg);
+    border-radius: 2px;
+}
+
+.shape-preview-database {
+    background: #f3f4f6;
+    border-color: #6b7280;
+    border-radius: 50% / 30%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+.shape-preview-document {
+    background: #ffffff;
+    border-color: #9ca3af;
+    border-radius: 2px 2px 0 0;
+    position: relative;
+}
+
+.shape-preview-document::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: -2px;
+    right: -2px;
+    height: 6px;
+    background: inherit;
+    border: inherit;
+    border-top: none;
+    border-radius: 0 0 50% 50% / 0 0 100% 100%;
+}
+
+.shape-preview-terminal {
+    background: #dcfce7;
+    border-color: #22c55e;
+    border-radius: 50%;
+}
+
+.shape-preview-manual {
+    background: #fce7f3;
+    border-color: #ec4899;
+    clip-path: polygon(10% 0%, 100% 0%, 90% 100%, 0% 100%);
+    border-radius: 2px;
+}
+
+.shape-preview-subprocess {
+    background: #ede9fe;
+    border-color: #8b5cf6;
+    border-radius: 6px;
+    border-width: 3px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    Кастомные стили для блоков (применяются через data атрибуты)
    ───────────────────────────────────────────────────────────────────────────── */
 

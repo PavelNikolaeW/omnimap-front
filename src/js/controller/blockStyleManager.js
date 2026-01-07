@@ -54,6 +54,74 @@ export class BlockStyleManager {
             gray: { background: '#f3f4f6', borderColor: '#9ca3af' }
         };
 
+        // Пресеты форм для диаграмм
+        this.presetShapes = {
+            process: {
+                shape: '',  // default rectangle
+                border: 'medium',
+                shadow: 'sm',
+                background: '#ffffff',
+                borderColor: '#374151',
+                label: 'Процесс'
+            },
+            decision: {
+                shape: 'diamond',
+                border: 'medium',
+                shadow: 'sm',
+                background: '#fef3c7',
+                borderColor: '#f59e0b',
+                label: 'Решение'
+            },
+            data: {
+                shape: 'parallelogram',
+                border: 'medium',
+                shadow: '',
+                background: '#dbeafe',
+                borderColor: '#3b82f6',
+                label: 'Данные'
+            },
+            database: {
+                shape: 'cylinder',
+                border: 'medium',
+                shadow: 'md',
+                background: '#f3f4f6',
+                borderColor: '#6b7280',
+                label: 'База данных'
+            },
+            document: {
+                shape: 'document',
+                border: 'thin',
+                shadow: 'sm',
+                background: '#ffffff',
+                borderColor: '#9ca3af',
+                label: 'Документ'
+            },
+            terminal: {
+                shape: 'ellipse',
+                border: 'medium',
+                shadow: '',
+                background: '#dcfce7',
+                borderColor: '#22c55e',
+                label: 'Начало/Конец'
+            },
+            manual: {
+                shape: 'trapezoid',
+                border: 'medium',
+                shadow: '',
+                background: '#fce7f3',
+                borderColor: '#ec4899',
+                label: 'Ручной ввод'
+            },
+            subprocess: {
+                shape: 'rounded',
+                border: 'thick',
+                shadow: 'sm',
+                background: '#ede9fe',
+                borderColor: '#8b5cf6',
+                label: 'Подпроцесс'
+            }
+        };
+
         this.bindEvents();
     }
 
@@ -61,9 +129,15 @@ export class BlockStyleManager {
         // Применить стиль
         this.applyBtn?.addEventListener('click', () => this.applyStyle());
 
-        // Пресеты
+        // Пресеты цветов
         this.presets?.forEach(preset => {
             preset.addEventListener('click', () => this.applyPreset(preset.dataset.preset));
+        });
+
+        // Пресеты форм
+        this.shapePresets = document.querySelectorAll('.shape-preset');
+        this.shapePresets?.forEach(preset => {
+            preset.addEventListener('click', () => this.applyShapePreset(preset.dataset.shape));
         });
 
         // Табы
@@ -329,7 +403,7 @@ export class BlockStyleManager {
     }
 
     /**
-     * Применить пресет
+     * Применить пресет цвета
      */
     applyPreset(presetName) {
         const preset = this.presetColors[presetName];
@@ -342,6 +416,67 @@ export class BlockStyleManager {
         this.presets?.forEach(p => {
             p.classList.toggle('active', p.dataset.preset === presetName);
         });
+    }
+
+    /**
+     * Применить пресет формы (для диаграмм)
+     * Сразу применяет стиль к блоку без нажатия Apply
+     */
+    applyShapePreset(presetName) {
+        const preset = this.presetShapes[presetName];
+        if (!preset || !this.currentBlockId) return;
+
+        // Обновить UI
+        if (this.backgroundInput) this.backgroundInput.value = preset.background;
+        if (this.borderColorInput) this.borderColorInput.value = preset.borderColor;
+        if (this.borderSelect) this.borderSelect.value = preset.border;
+        if (this.shapeSelect) this.shapeSelect.value = preset.shape;
+        if (this.shadowSelect) this.shadowSelect.value = preset.shadow;
+
+        // Выделить активный пресет формы
+        this.shapePresets?.forEach(p => {
+            p.classList.toggle('active', p.dataset.shape === presetName);
+        });
+
+        // Сразу применить стиль
+        this.applyStyle();
+    }
+
+    /**
+     * Применить пресет формы напрямую к блоку (без открытия панели)
+     * @param {string} presetName - имя пресета
+     * @param {string} blockId - ID блока
+     * @param {HTMLElement} blockElement - DOM элемент блока
+     */
+    applyShapePresetDirect(presetName, blockId, blockElement) {
+        const preset = this.presetShapes[presetName];
+        if (!preset || !blockId) return;
+
+        const styles = {
+            background: preset.background,
+            borderColor: preset.borderColor,
+            border: preset.border,
+            shape: preset.shape,
+            shadow: preset.shadow
+        };
+
+        // Удалить пустые значения
+        Object.keys(styles).forEach(key => {
+            if (styles[key] === '' || styles[key] === null) {
+                delete styles[key];
+            }
+        });
+
+        // Обновить данные блока
+        dispatch('UpdateBlockStyles', {
+            blockId: blockId,
+            customStyles: styles
+        });
+
+        // Применить стили сразу к элементу
+        if (blockElement) {
+            this.applyStylesToElement(blockElement, styles);
+        }
     }
 
     /**
