@@ -98,18 +98,8 @@
 .resize-handle-e:hover { transform: translateY(-50%) scale(1.2); }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Drag Ghost - элемент при перетаскивании
+   Состояния блоков при drag/resize
    ───────────────────────────────────────────────────────────────────────────── */
-
-.diagram-drag-ghost {
-    position: fixed;
-    background: rgba(99, 102, 241, 0.3);
-    border: 2px dashed #4f46e5;
-    border-radius: 8px;
-    pointer-events: none;
-    z-index: 9999;
-    /* Позиционирование через left/top в JS, без transform */
-}
 
 .diagram-dragging {
     opacity: 0.5;

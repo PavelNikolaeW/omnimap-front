@@ -22,7 +22,6 @@ export class DiagramEditor {
         this.isDragging = false;
         this.draggedBlockId = null;
         this.dragStartCell = null;
-        this.dragGhost = null;
 
         // Resize state
         this.isResizing = false;
@@ -32,6 +31,10 @@ export class DiagramEditor {
 
         // Grid overlay
         this.gridOverlay = null;
+        this.gridCellsMap = null;  // Map для быстрого доступа к ячейкам: "col-row" -> element
+        this.highlightedCells = new Set();  // Текущие подсвеченные ячейки
+        this.cachedGridSize = null;  // Кэш размера сетки
+        this.lastHighlightPos = null;  // Последняя позиция подсветки для оптимизации
 
         // Connection drag state (для anchor points)
         this.isConnecting = false;
@@ -224,12 +227,6 @@ export class DiagramEditor {
             this.quickModeElement.classList.remove('diagram-quick-mode');
         }
         this.quickModeElement = null;
-
-        // Удалить ghost если остался
-        if (this.dragGhost) {
-            this.dragGhost.remove();
-            this.dragGhost = null;
-        }
 
         // Очистить состояние соединения если активно
         if (this.isConnecting) {
@@ -432,6 +429,12 @@ export class DiagramEditor {
 
         const { cols, rows } = this.parseGridSize();
 
+        // Кэшируем размер сетки
+        this.cachedGridSize = { cols, rows };
+
+        // Инициализируем Map для быстрого доступа к ячейкам
+        this.gridCellsMap = new Map();
+
         this.gridOverlay = document.createElement('div');
         this.gridOverlay.className = 'diagram-grid-overlay';
         this.gridOverlay.style.cssText = `
@@ -452,9 +455,12 @@ export class DiagramEditor {
         for (let c = 0; c < cols; c++) {
             const cell = document.createElement('div');
             cell.className = 'diagram-grid-cell diagram-grid-cell-header';
-            cell.dataset.col = c + 1;
-            cell.dataset.row = 1;
+            const col = c + 1;
+            const row = 1;
+            cell.dataset.col = col;
+            cell.dataset.row = row;
             this.gridOverlay.appendChild(cell);
+            this.gridCellsMap.set(`${col}-${row}`, cell);
         }
 
         // Остальные строки
@@ -462,9 +468,12 @@ export class DiagramEditor {
             for (let c = 0; c < cols; c++) {
                 const cell = document.createElement('div');
                 cell.className = 'diagram-grid-cell';
-                cell.dataset.col = c + 1;
-                cell.dataset.row = r + 2; // +2 потому что первая строка - контент
+                const col = c + 1;
+                const row = r + 2; // +2 потому что первая строка - контент
+                cell.dataset.col = col;
+                cell.dataset.row = row;
                 this.gridOverlay.appendChild(cell);
+                this.gridCellsMap.set(`${col}-${row}`, cell);
             }
         }
 
@@ -480,6 +489,11 @@ export class DiagramEditor {
             this.gridOverlay.remove();
             this.gridOverlay = null;
         }
+        // Очистить кэши
+        this.gridCellsMap = null;
+        this.highlightedCells.clear();
+        this.cachedGridSize = null;
+        this.lastHighlightPos = null;
     }
 
     /**
@@ -792,23 +806,6 @@ export class DiagramEditor {
         // Сохранить начальную позицию курсора
         this.dragStartCell = this.getCellFromPoint(e.clientX, e.clientY);
 
-        // Сохранить смещение клика относительно левого верхнего угла блока
-        const rect = blockElement.getBoundingClientRect();
-        this.dragOffset = {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
-        };
-
-        // Создать ghost элемент
-        this.dragGhost = document.createElement('div');
-        this.dragGhost.className = 'diagram-drag-ghost';
-        this.dragGhost.style.width = rect.width + 'px';
-        this.dragGhost.style.height = rect.height + 'px';
-        // Позиционировать ghost - left/top указывают на левый верхний угол
-        this.dragGhost.style.left = rect.left + 'px';
-        this.dragGhost.style.top = rect.top + 'px';
-        document.body.appendChild(this.dragGhost);
-
         blockElement.classList.add('diagram-dragging');
     }
 
@@ -816,12 +813,6 @@ export class DiagramEditor {
      * Обновить drag
      */
     updateDrag(e) {
-        if (!this.dragGhost) return;
-
-        // Обновить позицию ghost - следует за курсором с учётом смещения
-        this.dragGhost.style.left = (e.clientX - this.dragOffset.x) + 'px';
-        this.dragGhost.style.top = (e.clientY - this.dragOffset.y) + 'px';
-
         // Вычислить смещение курсора от начальной позиции
         const currentCell = this.getCellFromPoint(e.clientX, e.clientY);
         const deltaCol = currentCell.col - this.dragStartCell.col;
@@ -837,10 +828,18 @@ export class DiagramEditor {
      * Подсветить область при drag (размер блока)
      */
     highlightDragArea(startCol, startRow) {
-        this.clearHighlight();
-        if (!this.gridOverlay || !this.dragBlockSize) return;
+        if (!this.gridCellsMap || !this.dragBlockSize) return;
 
-        const { cols, rows } = this.parseGridSize();
+        // Оптимизация: пропустить если позиция не изменилась
+        const posKey = `${startCol}-${startRow}`;
+        if (this.lastHighlightPos === posKey) return;
+        this.lastHighlightPos = posKey;
+
+        // Очистить предыдущую подсветку
+        this.clearHighlight();
+
+        // Использовать кэшированный размер сетки
+        const { cols, rows } = this.cachedGridSize || this.parseGridSize();
         const blockCols = this.dragBlockSize.cols;
         const blockRows = this.dragBlockSize.rows;
 
@@ -848,11 +847,13 @@ export class DiagramEditor {
         const endCol = Math.min(startCol + blockCols, cols + 1);
         const endRow = Math.min(startRow + blockRows, rows + 2);
 
+        // Использовать Map для быстрого доступа к ячейкам
         for (let r = startRow; r < endRow; r++) {
             for (let c = startCol; c < endCol; c++) {
-                const cell = this.gridOverlay.querySelector(`[data-col="${c}"][data-row="${r}"]`);
+                const cell = this.gridCellsMap.get(`${c}-${r}`);
                 if (cell) {
                     cell.classList.add('diagram-grid-cell-highlight');
+                    this.highlightedCells.add(cell);
                 }
             }
         }
@@ -878,11 +879,6 @@ export class DiagramEditor {
             blockEl.classList.remove('diagram-dragging');
         }
 
-        if (this.dragGhost) {
-            this.dragGhost.remove();
-            this.dragGhost = null;
-        }
-
         this.clearHighlight();
 
         // Вычислить смещение
@@ -897,8 +893,8 @@ export class DiagramEditor {
         this.draggedBlockId = null;
         this.dragStartCell = null;
         this.dragBlockSize = null;
-        this.dragOffset = null;
         this.dragStartBlockPos = null;
+        this.lastHighlightPos = null;  // Сбросить для следующего drag
 
         // Установить флаг для предотвращения клика после drag
         this.justFinishedDrag = true;
@@ -925,27 +921,6 @@ export class DiagramEditor {
         const blockEl = document.getElementById(blockId);
         if (blockEl) {
             blockEl.classList.add('diagram-resizing');
-
-            // Создать ghost элемент для resize
-            const rect = blockEl.getBoundingClientRect();
-            this.resizeGhost = document.createElement('div');
-            this.resizeGhost.className = 'diagram-resize-ghost';
-            this.resizeGhost.style.cssText = `
-                position: fixed;
-                left: ${rect.left}px;
-                top: ${rect.top}px;
-                width: ${rect.width}px;
-                height: ${rect.height}px;
-                background: rgba(99, 102, 241, 0.2);
-                border: 2px dashed #4f46e5;
-                border-radius: 8px;
-                pointer-events: none;
-                z-index: 9999;
-            `;
-            document.body.appendChild(this.resizeGhost);
-
-            // Сохранить начальные размеры
-            this.resizeStartRect = rect;
         }
     }
 
@@ -955,32 +930,6 @@ export class DiagramEditor {
     updateResize(e) {
         const cell = this.getCellFromPoint(e.clientX, e.clientY);
         this.highlightResizeArea(cell);
-
-        // Обновить размеры ghost
-        if (this.resizeGhost && this.resizeStartRect) {
-            const deltaX = e.clientX - this.resizeStartPos.x;
-            const deltaY = e.clientY - this.resizeStartPos.y;
-            const dir = this.resizeDirection;
-
-            let left = this.resizeStartRect.left;
-            let top = this.resizeStartRect.top;
-            let width = this.resizeStartRect.width;
-            let height = this.resizeStartRect.height;
-
-            if (dir.includes('e')) width += deltaX;
-            if (dir.includes('w')) { left += deltaX; width -= deltaX; }
-            if (dir.includes('s')) height += deltaY;
-            if (dir.includes('n')) { top += deltaY; height -= deltaY; }
-
-            // Минимальные размеры
-            width = Math.max(50, width);
-            height = Math.max(30, height);
-
-            this.resizeGhost.style.left = left + 'px';
-            this.resizeGhost.style.top = top + 'px';
-            this.resizeGhost.style.width = width + 'px';
-            this.resizeGhost.style.height = height + 'px';
-        }
     }
 
     /**
@@ -1002,13 +951,6 @@ export class DiagramEditor {
         if (blockEl) {
             blockEl.classList.remove('diagram-resizing');
         }
-
-        // Удалить ghost
-        if (this.resizeGhost) {
-            this.resizeGhost.remove();
-            this.resizeGhost = null;
-        }
-        this.resizeStartRect = null;
 
         this.clearHighlight();
 
@@ -1032,11 +974,12 @@ export class DiagramEditor {
     highlightCell(col, row) {
         this.clearHighlight();
 
-        if (!this.gridOverlay) return;
+        if (!this.gridCellsMap) return;
 
-        const cell = this.gridOverlay.querySelector(`[data-col="${col}"][data-row="${row}"]`);
+        const cell = this.gridCellsMap.get(`${col}-${row}`);
         if (cell) {
             cell.classList.add('diagram-grid-cell-highlight');
+            this.highlightedCells.add(cell);
         }
     }
 
@@ -1052,7 +995,7 @@ export class DiagramEditor {
             : this.resizingBlockId;
 
         const pos = this.parseBlockPosition(cleanBlockId);
-        if (!pos || !this.gridOverlay) return;
+        if (!pos || !this.gridCellsMap) return;
 
         let { colStart, colEnd, rowStart, rowEnd } = pos;
 
@@ -1063,12 +1006,13 @@ export class DiagramEditor {
         if (dir.includes('w')) colStart = Math.min(endCell.col, colEnd - 1);
         if (dir.includes('e')) colEnd = Math.max(endCell.col + 1, colStart + 1);
 
-        // Подсветить всю область
+        // Подсветить всю область используя Map
         for (let r = rowStart; r < rowEnd; r++) {
             for (let c = colStart; c < colEnd; c++) {
-                const cell = this.gridOverlay.querySelector(`[data-col="${c}"][data-row="${r}"]`);
+                const cell = this.gridCellsMap.get(`${c}-${r}`);
                 if (cell) {
                     cell.classList.add('diagram-grid-cell-highlight');
+                    this.highlightedCells.add(cell);
                 }
             }
         }
@@ -1078,10 +1022,11 @@ export class DiagramEditor {
      * Убрать подсветку
      */
     clearHighlight() {
-        if (!this.gridOverlay) return;
-        this.gridOverlay.querySelectorAll('.diagram-grid-cell-highlight').forEach(cell => {
+        // Использовать кэшированный Set вместо querySelectorAll
+        for (const cell of this.highlightedCells) {
             cell.classList.remove('diagram-grid-cell-highlight');
-        });
+        }
+        this.highlightedCells.clear();
     }
 
     /**
@@ -1496,7 +1441,6 @@ export class DiagramEditor {
         this.parentElement = null;
         this.quickModeElement = null;
         this.gridOverlay = null;
-        this.dragGhost = null;
         this.connectionLine = null;
     }
 }
