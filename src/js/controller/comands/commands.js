@@ -536,32 +536,6 @@ export const commands = [
         }
     },
     {
-        id: "createDiagram",
-        mode: ['normal', 'diagram'],
-        btn: {
-            containerId: 'control-panel',
-            label: 'Включить режим создания схемы в блоке',
-            classes: ['sidebar-button', 'fas', 'fa-project-diagram', 'fas-lg',]
-        },
-        defaultHotkey: 'd',
-        description: 'создать блок-схему',
-        execute(ctx) {
-            if (ctx.mode !== MODES.DIAGRAM) {
-                const blockId = extractBlockId(ctx.blockElement)
-                if (!blockId) return
-                ctx.mode = MODES.DIAGRAM
-                ctx.diagramUtils.showInputs(blockId, ctx.blockElement)
-            }
-        },
-        btnExec(ctx) {
-            if (ctx.mode === MODES.DIAGRAM) {
-                ctx.mode = MODES.NORMAL
-                ctx.diagramUtils.hiddenInputs()
-                setCmdOpenBlock(ctx)
-            }
-        }
-    },
-    {
         id: 'options',
         mode: ['normal'],
         btn: {
