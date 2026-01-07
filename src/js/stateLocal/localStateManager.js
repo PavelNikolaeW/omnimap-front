@@ -865,7 +865,9 @@ export class LocalStateManager {
                     // Если блок pending — проверяем, наше ли это изменение или чужое
                     if (isPending && localBlock) {
                         const isSameTitle = localBlock.title === block.title;
-                        const isSameData = JSON.stringify(localBlock.data || {}) === JSON.stringify(serverData);
+                        // Сортируем ключи для корректного сравнения (порядок свойств может отличаться)
+                        const sortedStringify = (obj) => JSON.stringify(obj, Object.keys(obj || {}).sort());
+                        const isSameData = sortedStringify(localBlock.data || {}) === sortedStringify(serverData);
 
                         // Сравниваем title и весь data объект
                         const isOwnUpdate = isSameTitle && isSameData;
