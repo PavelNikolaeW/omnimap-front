@@ -623,6 +623,7 @@ export const commands = [
         execute(ctx) {
             // Шаг 1: Выбор источника (блок уже выбран)
             if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && ctx.blockElement) {
+                ctx.previousMode = ctx.mode  // Сохраняем режим для возврата
                 ctx.mode = MODES.CONNECT_TO_BLOCK
                 let sourceEl = ctx.blockElement
                 if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
@@ -633,6 +634,7 @@ export const commands = [
             }
             // Шаг 1 альтернатива: Блок не выбран - ждём выбора источника
             else if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && !ctx.blockElement) {
+                ctx.previousMode = ctx.mode  // Сохраняем режим для возврата
                 ctx.mode = MODES.CONNECT_SELECT_SOURCE
                 ctx.connectionType = undefined  // обычное соединение
                 document.body.style.cursor = 'crosshair'
@@ -659,7 +661,9 @@ export const commands = [
                     ctx.connect_source_id = undefined
                     ctx.sourceEl.classList.remove('block-selected')
                     ctx.sourceEl = undefined
-                    ctx.mode = MODES.NORMAL
+                    // Вернуться в предыдущий режим (DIAGRAM или NORMAL)
+                    ctx.mode = ctx.previousMode || MODES.NORMAL
+                    ctx.previousMode = undefined
                     showHint('Соединение создано', 1500)
                     setTimeout(() => {
                         ctx.setCmd('openBlock')
@@ -699,8 +703,9 @@ export const commands = [
         execute(ctx) {
             // Шаг 1: Выбор источника (блок уже выбран)
             if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && ctx.blockElement) {
+                ctx.previousMode = ctx.mode
                 ctx.mode = MODES.CONNECT_TO_BLOCK
-                ctx.connectionType = 'DASHED'
+                ctx.connectionType = 'dashed'
                 let sourceEl = ctx.blockElement
                 if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
                 ctx.connect_source_id = sourceEl.id
@@ -710,8 +715,9 @@ export const commands = [
             }
             // Шаг 1 альтернатива: Блок не выбран - ждём выбора источника
             else if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && !ctx.blockElement) {
+                ctx.previousMode = ctx.mode
                 ctx.mode = MODES.CONNECT_SELECT_SOURCE
-                ctx.connectionType = 'DASHED'
+                ctx.connectionType = 'dashed'
                 document.body.style.cursor = 'crosshair'
                 showHint('Кликните на блок-источник для пунктирного соединения (Esc для отмены)')
             }
@@ -732,12 +738,13 @@ export const commands = [
                 if (ctx.blockLinkElement) targetEl = ctx.blockLinkElement
                 let targetId = targetEl.id
                 if (ctx.connect_source_id !== targetId) {
-                    arrowManager.completeConnectionToElement(ctx.connect_source_id, targetId, ctx.connectionType || 'DASHED')
+                    arrowManager.completeConnectionToElement(ctx.connect_source_id, targetId, ctx.connectionType || 'dashed')
                     ctx.connect_source_id = undefined
                     ctx.connectionType = undefined
                     ctx.sourceEl.classList.remove('block-selected')
                     ctx.sourceEl = undefined
-                    ctx.mode = MODES.NORMAL
+                    ctx.mode = ctx.previousMode || MODES.NORMAL
+                    ctx.previousMode = undefined
                     showHint('Пунктирное соединение создано', 1500)
                     setTimeout(() => {
                         ctx.setCmd('openBlock')
@@ -759,8 +766,9 @@ export const commands = [
         execute(ctx) {
             // Шаг 1: Выбор источника (блок уже выбран)
             if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && ctx.blockElement) {
+                ctx.previousMode = ctx.mode
                 ctx.mode = MODES.CONNECT_TO_BLOCK
-                ctx.connectionType = 'DOUBLE'
+                ctx.connectionType = 'double'
                 let sourceEl = ctx.blockElement
                 if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
                 ctx.connect_source_id = sourceEl.id
@@ -770,8 +778,9 @@ export const commands = [
             }
             // Шаг 1 альтернатива: Блок не выбран - ждём выбора источника
             else if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && !ctx.blockElement) {
+                ctx.previousMode = ctx.mode
                 ctx.mode = MODES.CONNECT_SELECT_SOURCE
-                ctx.connectionType = 'DOUBLE'
+                ctx.connectionType = 'double'
                 document.body.style.cursor = 'crosshair'
                 showHint('Кликните на блок-источник для двустороннего соединения (Esc для отмены)')
             }
@@ -792,12 +801,13 @@ export const commands = [
                 if (ctx.blockLinkElement) targetEl = ctx.blockLinkElement
                 let targetId = targetEl.id
                 if (ctx.connect_source_id !== targetId) {
-                    arrowManager.completeConnectionToElement(ctx.connect_source_id, targetId, ctx.connectionType || 'DOUBLE')
+                    arrowManager.completeConnectionToElement(ctx.connect_source_id, targetId, ctx.connectionType || 'double')
                     ctx.connect_source_id = undefined
                     ctx.connectionType = undefined
                     ctx.sourceEl.classList.remove('block-selected')
                     ctx.sourceEl = undefined
-                    ctx.mode = MODES.NORMAL
+                    ctx.mode = ctx.previousMode || MODES.NORMAL
+                    ctx.previousMode = undefined
                     showHint('Двустороннее соединение создано', 1500)
                     setTimeout(() => {
                         ctx.setCmd('openBlock')
@@ -819,6 +829,7 @@ export const commands = [
         execute(ctx) {
             // Шаг 1: Выбор источника (блок уже выбран)
             if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && ctx.blockElement) {
+                ctx.previousMode = ctx.mode
                 ctx.mode = MODES.CONNECT_TO_BLOCK
                 ctx.connectionType = 'curved'
                 let sourceEl = ctx.blockElement
@@ -830,6 +841,7 @@ export const commands = [
             }
             // Шаг 1 альтернатива: Блок не выбран - ждём выбора источника
             else if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && !ctx.blockElement) {
+                ctx.previousMode = ctx.mode
                 ctx.mode = MODES.CONNECT_SELECT_SOURCE
                 ctx.connectionType = 'curved'
                 document.body.style.cursor = 'crosshair'
@@ -857,7 +869,8 @@ export const commands = [
                     ctx.connectionType = undefined
                     ctx.sourceEl.classList.remove('block-selected')
                     ctx.sourceEl = undefined
-                    ctx.mode = MODES.NORMAL
+                    ctx.mode = ctx.previousMode || MODES.NORMAL
+                    ctx.previousMode = undefined
                     showHint('Изогнутое соединение создано', 1500)
                     setTimeout(() => {
                         ctx.setCmd('openBlock')
@@ -879,6 +892,7 @@ export const commands = [
         execute(ctx) {
             // Шаг 1: Выбор источника (блок уже выбран)
             if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && ctx.blockElement) {
+                ctx.previousMode = ctx.mode
                 ctx.mode = MODES.CONNECT_TO_BLOCK
                 ctx.connectionType = 'straight'
                 let sourceEl = ctx.blockElement
@@ -890,6 +904,7 @@ export const commands = [
             }
             // Шаг 1 альтернатива: Блок не выбран - ждём выбора источника
             else if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && !ctx.blockElement) {
+                ctx.previousMode = ctx.mode
                 ctx.mode = MODES.CONNECT_SELECT_SOURCE
                 ctx.connectionType = 'straight'
                 document.body.style.cursor = 'crosshair'
@@ -917,7 +932,8 @@ export const commands = [
                     ctx.connectionType = undefined
                     ctx.sourceEl.classList.remove('block-selected')
                     ctx.sourceEl = undefined
-                    ctx.mode = MODES.NORMAL
+                    ctx.mode = ctx.previousMode || MODES.NORMAL
+                    ctx.previousMode = undefined
                     showHint('Прямое соединение создано', 1500)
                     setTimeout(() => {
                         ctx.setCmd('openBlock')

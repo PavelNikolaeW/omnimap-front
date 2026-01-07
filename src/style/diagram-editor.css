@@ -561,10 +561,22 @@
 
 [data-block-shape="diamond"] {
     clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    padding: 25% 15% !important; /* Дополнительный padding чтобы текст не обрезался */
+}
+
+[data-block-shape="diamond"] > titleBlock,
+[data-block-shape="diamond"] > contentBlock {
+    text-align: center;
 }
 
 [data-block-shape="hexagon"] {
     clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+    padding: 10% 20% !important; /* Дополнительный padding чтобы текст не обрезался */
+}
+
+[data-block-shape="hexagon"] > titleBlock,
+[data-block-shape="hexagon"] > contentBlock {
+    text-align: center;
 }
 
 /* Новые формы для блок-схем */
@@ -578,6 +590,12 @@
 
 [data-block-shape="trapezoid"] {
     clip-path: polygon(10% 0%, 90% 0%, 100% 100%, 0% 100%);
+    padding: 8px 15% !important; /* Дополнительный padding чтобы текст не обрезался */
+}
+
+[data-block-shape="trapezoid"] > titleBlock,
+[data-block-shape="trapezoid"] > contentBlock {
+    text-align: center;
 }
 
 [data-block-shape="cylinder"] {
@@ -600,38 +618,101 @@
 [data-block-shape="document"] {
     border-radius: 0 0 0 0 !important;
     clip-path: polygon(0% 0%, 100% 0%, 100% 85%, 50% 100%, 0% 85%);
+    padding-bottom: 20% !important; /* Оставить место для волны внизу */
 }
 
 [data-block-shape="ellipse"] {
     border-radius: 50% !important;
+    padding: 15% !important; /* Padding для овальной формы */
+}
+
+[data-block-shape="ellipse"] > titleBlock,
+[data-block-shape="ellipse"] > contentBlock {
+    text-align: center;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Block Borders
+   Z-index для контента блоков с формами - текст всегда поверх
+   ───────────────────────────────────────────────────────────────────────────── */
+
+[data-block-shape] > titleBlock,
+[data-block-shape] > contentBlock {
+    position: relative;
+    z-index: 1;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Тени для форм с clip-path - используем filter: drop-shadow
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Для форм с clip-path box-shadow не работает, используем drop-shadow */
+[data-block-shape="diamond"][data-block-shadow],
+[data-block-shape="hexagon"][data-block-shadow],
+[data-block-shape="trapezoid"][data-block-shadow],
+[data-block-shape="document"][data-block-shadow] {
+    box-shadow: none !important; /* Отключаем box-shadow */
+}
+
+[data-block-shape="diamond"][data-block-shadow="sm"],
+[data-block-shape="hexagon"][data-block-shadow="sm"],
+[data-block-shape="trapezoid"][data-block-shadow="sm"],
+[data-block-shape="document"][data-block-shadow="sm"] {
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+}
+
+[data-block-shape="diamond"][data-block-shadow="md"],
+[data-block-shape="hexagon"][data-block-shadow="md"],
+[data-block-shape="trapezoid"][data-block-shadow="md"],
+[data-block-shape="document"][data-block-shadow="md"] {
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+}
+
+[data-block-shape="diamond"][data-block-shadow="lg"],
+[data-block-shape="hexagon"][data-block-shadow="lg"],
+[data-block-shape="trapezoid"][data-block-shadow="lg"],
+[data-block-shape="document"][data-block-shadow="lg"] {
+    filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.1));
+}
+
+[data-block-shape="diamond"][data-block-shadow="xl"],
+[data-block-shape="hexagon"][data-block-shadow="xl"],
+[data-block-shape="trapezoid"][data-block-shadow="xl"],
+[data-block-shape="document"][data-block-shadow="xl"] {
+    filter: drop-shadow(0 20px 25px rgba(0, 0, 0, 0.15));
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Block Borders - ширина и стиль через data-атрибут, цвет через inline style
    ───────────────────────────────────────────────────────────────────────────── */
 
 [data-block-border="thin"] {
-    border: 1px solid currentColor !important;
+    border-width: 1px !important;
+    border-style: solid !important;
 }
 
 [data-block-border="medium"] {
-    border: 2px solid currentColor !important;
+    border-width: 2px !important;
+    border-style: solid !important;
 }
 
 [data-block-border="thick"] {
-    border: 4px solid currentColor !important;
+    border-width: 4px !important;
+    border-style: solid !important;
 }
 
 [data-block-border="dashed"] {
-    border: 2px dashed currentColor !important;
+    border-width: 2px !important;
+    border-style: dashed !important;
 }
 
 [data-block-border="dotted"] {
-    border: 2px dotted currentColor !important;
+    border-width: 2px !important;
+    border-style: dotted !important;
 }
 
 [data-block-border="double"] {
-    border: 4px double currentColor !important;
+    border-width: 4px !important;
+    border-style: double !important;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
