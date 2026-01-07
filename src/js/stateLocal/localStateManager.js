@@ -856,6 +856,46 @@ export class LocalStateManager {
                         }
                     }
                 } else {
+                    // Получаем локальный блок для проверки
+                    const localBlock = this.blocks.get(block.id);
+                    const isPending = offlineQueue.isPendingBlock(block.id);
+                    const serverData = this._safeJsonParse(block.data, {});
+                    const serverChildren = this._safeJsonParse(block.children, []);
+
+                    // Если блок pending — проверяем, наше ли это изменение или чужое
+                    if (isPending && localBlock) {
+                        const isSameTitle = localBlock.title === block.title;
+                        // Сортируем ключи для корректного сравнения (порядок свойств может отличаться)
+                        const sortedStringify = (obj) => JSON.stringify(obj, Object.keys(obj || {}).sort());
+                        const isSameData = sortedStringify(localBlock.data || {}) === sortedStringify(serverData);
+
+                        // Сравниваем title и весь data объект
+                        const isOwnUpdate = isSameTitle && isSameData;
+
+                        if (isOwnUpdate) {
+                            // Это наше изменение вернулось с сервера — пропускаем рендер
+                            offlineQueue.resolvePendingBlock(block.id);
+
+                            await this.saveBlock({
+                                id: block.id,
+                                updated_at: new Date(block.updated_at * 1000).toISOString(),
+                                title: block.title,
+                                data: serverData,
+                                children: serverChildren,
+                                parent_id: normalizeParentId(block.parent_id)
+                            });
+
+                            console.log(`⏭️ Own update confirmed, skipping render: ${block.id}`);
+                            continue;
+                        } else {
+                            // Данные отличаются — это изменение от другого пользователя
+                            // Снимаем pending и рендерим (last write wins)
+                            offlineQueue.resolvePendingBlock(block.id);
+                            console.warn(`⚠️ Concurrent edit detected for block ${block.id}, applying server version`);
+                            // Продолжаем выполнение — блок будет сохранён и отрендерен ниже
+                        }
+                    }
+
                     // Если это корневой блок (дерево), добавляем через treeService
                     if (!block.parent_id) {
                         await treeService.refresh();
@@ -864,11 +904,6 @@ export class LocalStateManager {
                         }
                     }
 
-                    const serverData = this._safeJsonParse(block.data, {});
-                    const serverChildren = this._safeJsonParse(block.children, []);
-
-                    // Получаем локальный блок для мёржа
-                    const localBlock = this.blocks.get(block.id);
                     const localData = localBlock?.data || {};
 
                     // Мёржим data: сервер имеет приоритет, но сохраняем локальный childOrder если серверный пустой
