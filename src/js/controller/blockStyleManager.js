@@ -219,6 +219,26 @@ export class BlockStyleManager {
     }
 
     /**
+     * Валидация CSS класса для предотвращения XSS
+     * Разрешены только буквы, цифры, дефисы и подчёркивания
+     */
+    validateCssClass(className) {
+        if (!className || typeof className !== 'string') return null;
+        // Разрешаем только безопасные символы: a-z, A-Z, 0-9, -, _
+        const sanitized = className.trim();
+        if (!/^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(sanitized)) {
+            console.warn('Invalid CSS class name:', className);
+            return null;
+        }
+        // Максимальная длина класса
+        if (sanitized.length > 50) {
+            console.warn('CSS class name too long:', className);
+            return null;
+        }
+        return sanitized;
+    }
+
+    /**
      * Применить стили к DOM элементу
      */
     applyStylesToElement(element, styles) {
@@ -291,7 +311,7 @@ export class BlockStyleManager {
             element.style.minHeight = '';
         }
 
-        // Custom class
+        // Custom class (with XSS validation)
         // Remove any previously applied custom class
         const prevCustomClass = element.getAttribute('data-custom-class');
         if (prevCustomClass) {
@@ -299,8 +319,11 @@ export class BlockStyleManager {
         }
         element.removeAttribute('data-custom-class');
         if (styles.customClass) {
-            element.classList.add(styles.customClass);
-            element.setAttribute('data-custom-class', styles.customClass);
+            const validatedClass = this.validateCssClass(styles.customClass);
+            if (validatedClass) {
+                element.classList.add(validatedClass);
+                element.setAttribute('data-custom-class', validatedClass);
+            }
         }
     }
 

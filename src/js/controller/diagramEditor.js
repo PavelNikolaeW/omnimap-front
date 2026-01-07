@@ -99,6 +99,9 @@ export class DiagramEditor {
         // Только если редактор не активен и зажат Shift
         if (this.isActive || !e.shiftKey) return;
 
+        // Предотвратить повторную активацию если уже в процессе
+        if (this.quickModeActivating) return;
+
         // Найти блок под курсором
         const blockEl = this.findBlockWithCustomGrid(e.target);
         if (!blockEl) return;
@@ -107,8 +110,20 @@ export class DiagramEditor {
         const parentEl = blockEl.parentElement?.closest('[blockcustomgrid]');
         if (!parentEl) return;
 
-        // Активировать quick mode
-        await this.activateQuickMode(parentEl.id.split('*').pop(), parentEl);
+        // Активировать quick mode и дождаться завершения
+        this.quickModeActivating = true;
+        try {
+            const activated = await this.activateQuickMode(parentEl.id.split('*').pop(), parentEl);
+            if (!activated) {
+                this.quickModeActivating = false;
+                return;
+            }
+        } catch (err) {
+            console.warn('Failed to activate quick mode:', err);
+            this.quickModeActivating = false;
+            return;
+        }
+        this.quickModeActivating = false;
 
         // Проверить, нажали ли на resize handle (добавленный в quick mode)
         if (e.target.classList.contains('resize-handle')) {
@@ -144,9 +159,10 @@ export class DiagramEditor {
 
     /**
      * Активировать quick mode для быстрого перетаскивания
+     * @returns {Promise<boolean>} - true если активация успешна
      */
     async activateQuickMode(blockId, blockElement) {
-        if (this.quickModeActive) return;
+        if (this.quickModeActive) return false;
 
         this.quickModeActive = true;
         this.quickModeBlockId = blockId;
@@ -156,7 +172,7 @@ export class DiagramEditor {
         const block = await this.getBlock(blockId);
         if (!block?.data?.customGrid || !Object.keys(block.data.customGrid).length) {
             this.deactivateQuickMode();
-            return;
+            return false;
         }
 
         // Временно установить состояние как в activate()
@@ -174,6 +190,8 @@ export class DiagramEditor {
         // Глобальные слушатели уже есть, добавляем mousemove и mouseup
         document.addEventListener('mousemove', this.handleMouseMove);
         document.addEventListener('mouseup', this.handleMouseUp);
+
+        return true;
     }
 
     /**
@@ -185,8 +203,11 @@ export class DiagramEditor {
         this.quickModeActive = false;
         this.quickModeBlockId = null;
 
-        // Удалить resize handles
+        // Удалить resize handles и anchor points
         this.removeResizeHandles();
+        if (this.parentElement) {
+            this.parentElement.querySelectorAll('.anchor-point').forEach(el => el.remove());
+        }
 
         if (this.quickModeElement) {
             this.quickModeElement.classList.remove('diagram-quick-mode');
@@ -199,7 +220,12 @@ export class DiagramEditor {
             this.dragGhost = null;
         }
 
-        // Убрать глобальные слушатели mousemove/mouseup
+        // Очистить состояние соединения если активно
+        if (this.isConnecting) {
+            this.cleanupConnection();
+        }
+
+        // Убрать глобальные слушатели mousemove/mouseup (используем bound методы)
         document.removeEventListener('mousemove', this.handleMouseMove);
         document.removeEventListener('mouseup', this.handleMouseUp);
 
@@ -210,6 +236,8 @@ export class DiagramEditor {
         this.customGrid = null;
         this.isDragging = false;
         this.isResizing = false;
+        this.draggedBlockId = null;
+        this.resizingBlockId = null;
     }
 
     /**
@@ -1278,6 +1306,33 @@ export class DiagramEditor {
         this.connectionSourceId = null;
         this.connectionSourceAnchor = null;
         this.connectionStartPoint = null;
+    }
+
+    /**
+     * Полностью уничтожить редактор и освободить ресурсы
+     * Вызывать при unmount компонента
+     */
+    destroy() {
+        // Деактивировать все режимы
+        this.deactivate();
+        this.deactivateQuickMode();
+
+        // Удалить глобальные слушатели
+        window.removeEventListener('ShowedBlocks', this.handleShowedBlocks);
+        document.removeEventListener('keydown', this.handleKeyDown);
+        document.removeEventListener('keyup', this.handleKeyUp);
+        document.removeEventListener('mousedown', this.handleGlobalMouseDown);
+        document.removeEventListener('mousemove', this.handleMouseMove);
+        document.removeEventListener('mouseup', this.handleMouseUp);
+        document.removeEventListener('touchmove', this.handleTouchMove);
+        document.removeEventListener('touchend', this.handleTouchEnd);
+
+        // Очистить все ссылки
+        this.parentElement = null;
+        this.quickModeElement = null;
+        this.gridOverlay = null;
+        this.dragGhost = null;
+        this.connectionLine = null;
     }
 }
 
