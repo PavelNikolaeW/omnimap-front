@@ -694,7 +694,7 @@ export const commands = [
             label: 'Пунктирное соединение',
             classes: ['sidebar-button', 'fas', 'fa-ellipsis', 'fas-lg'],
         },
-        defaultHotkey: '',
+        defaultHotkey: '2',
         description: 'Создать пунктирное соединение между блоками',
         execute(ctx) {
             // Шаг 1: Выбор источника (блок уже выбран)
@@ -754,7 +754,7 @@ export const commands = [
             label: 'Двустороннее соединение',
             classes: ['sidebar-button', 'fas', 'fa-arrows-left-right', 'fas-lg'],
         },
-        defaultHotkey: '',
+        defaultHotkey: '3',
         description: 'Создать двустороннее соединение между блоками',
         execute(ctx) {
             // Шаг 1: Выбор источника (блок уже выбран)
@@ -814,7 +814,7 @@ export const commands = [
             label: 'Изогнутое соединение',
             classes: ['sidebar-button', 'fas', 'fa-bezier-curve', 'fas-lg'],
         },
-        defaultHotkey: '',
+        defaultHotkey: '4',
         description: 'Создать изогнутое (Bezier) соединение между блоками',
         execute(ctx) {
             // Шаг 1: Выбор источника (блок уже выбран)
@@ -874,7 +874,7 @@ export const commands = [
             label: 'Прямое соединение',
             classes: ['sidebar-button', 'fas', 'fa-ruler', 'fas-lg'],
         },
-        defaultHotkey: '',
+        defaultHotkey: '1',
         description: 'Создать прямое соединение между блоками',
         execute(ctx) {
             // Шаг 1: Выбор источника (блок уже выбран)
@@ -1138,6 +1138,7 @@ export const commands = [
     {
         id: 'diagramBlockStyle',
         mode: ['normal', 'diagram'],
+        defaultHotkey: 's',
         btn: {
             containerId: 'control-panel',
             label: 'Стили блока',
