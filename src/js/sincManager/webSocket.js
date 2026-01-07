@@ -27,6 +27,11 @@ const HEARTBEAT_INTERVAL = 30000;
  */
 const BLOCK_UPDATE_DEBOUNCE_MS = 50;
 
+/**
+ * Таймаут ожидания pong после ping при проверке соединения (мс)
+ */
+const CONNECTION_CHECK_TIMEOUT = 5000;
+
 export class UpdateServiceWebSocket {
     /**
      * Создает экземпляр класса UpdateServiceWebSocket.
@@ -53,9 +58,18 @@ export class UpdateServiceWebSocket {
 
         this._handleLogin = this._handleLogin.bind(this);
         this._handleLogout = this._handleLogout.bind(this);
+        this._handleVisibilityChange = this._handleVisibilityChange.bind(this);
+        this._handleOnline = this._handleOnline.bind(this);
+
+        // Таймер для проверки соединения после visibility change
+        this._connectionCheckTimer = null;
+        // Флаг ожидания pong при проверке соединения
+        this._awaitingConnectionCheck = false;
 
         window.addEventListener('Login', this._handleLogin);
         window.addEventListener('Logout', this._handleLogout);
+        document.addEventListener('visibilitychange', this._handleVisibilityChange);
+        window.addEventListener('online', this._handleOnline);
     }
 
     /**
@@ -108,6 +122,80 @@ export class UpdateServiceWebSocket {
      */
     _handleLogout() {
         this.disconnect();
+    }
+
+    /**
+     * Обработчик события visibilitychange - проверка соединения при возврате к вкладке
+     * После sleep режима WebSocket может быть "мёртвым", но браузер этого не знает
+     */
+    _handleVisibilityChange() {
+        if (document.visibilityState !== 'visible') {
+            return;
+        }
+
+        // Если нет активного соединения, пробуем переподключиться
+        if (!this.ws || this.ws.readyState === WebSocket.CLOSED) {
+            console.log('WebSocket: tab visible, connection closed, reconnecting...');
+            this.shouldReconnect = true;
+            this.reconnectAttempts = 0;
+            this.connect();
+            return;
+        }
+
+        // Если соединение "открыто", проверяем его реальное состояние через ping
+        if (this.ws.readyState === WebSocket.OPEN && this.isConnected) {
+            this._checkConnectionHealth();
+        }
+    }
+
+    /**
+     * Обработчик события online - переподключение при восстановлении сети
+     */
+    _handleOnline() {
+        console.log('WebSocket: network online, checking connection...');
+
+        // Если соединение уже закрыто, просто переподключаемся
+        if (!this.ws || this.ws.readyState === WebSocket.CLOSED) {
+            this.shouldReconnect = true;
+            this.reconnectAttempts = 0;
+            this.connect();
+            return;
+        }
+
+        // Если соединение "открыто", проверяем его здоровье
+        if (this.ws.readyState === WebSocket.OPEN && this.isConnected) {
+            this._checkConnectionHealth();
+        }
+    }
+
+    /**
+     * Проверяет здоровье соединения через ping/pong
+     * Если pong не придёт в течение таймаута - переподключается
+     */
+    _checkConnectionHealth() {
+        // Избегаем дублирующих проверок
+        if (this._awaitingConnectionCheck) {
+            return;
+        }
+
+        this._awaitingConnectionCheck = true;
+        this.missedPongs++; // Увеличиваем счётчик, pong его сбросит
+
+        // Отправляем ping
+        this.sendMessage({ action: 'ping' });
+
+        // Устанавливаем таймаут на ожидание pong
+        this._connectionCheckTimer = setTimeout(() => {
+            this._awaitingConnectionCheck = false;
+
+            // Если pong так и не пришёл (missedPongs не сбросился)
+            if (this.missedPongs > 0) {
+                console.warn('WebSocket: connection check failed, reconnecting...');
+                this._stopHeartbeat();
+                this.ws?.close();
+                // close event вызовет переподключение
+            }
+        }, CONNECTION_CHECK_TIMEOUT);
     }
 
     /**
@@ -203,6 +291,12 @@ export class UpdateServiceWebSocket {
             // Обработка pong от сервера
             if (message.type === 'pong') {
                 this.missedPongs = 0;
+                // Сбрасываем флаг и таймер проверки соединения
+                this._awaitingConnectionCheck = false;
+                if (this._connectionCheckTimer) {
+                    clearTimeout(this._connectionCheckTimer);
+                    this._connectionCheckTimer = null;
+                }
                 return;
             }
 
@@ -312,6 +406,12 @@ export class UpdateServiceWebSocket {
     disconnect() {
         this.shouldReconnect = false;
         this._stopHeartbeat();
+        // Очищаем таймер проверки соединения
+        if (this._connectionCheckTimer) {
+            clearTimeout(this._connectionCheckTimer);
+            this._connectionCheckTimer = null;
+        }
+        this._awaitingConnectionCheck = false;
         // Очищаем таймер debounce и буфер обновлений
         if (this._blockUpdateTimer) {
             clearTimeout(this._blockUpdateTimer);
@@ -341,6 +441,8 @@ export class UpdateServiceWebSocket {
         this.disconnect();
         window.removeEventListener('Login', this._handleLogin);
         window.removeEventListener('Logout', this._handleLogout);
+        document.removeEventListener('visibilitychange', this._handleVisibilityChange);
+        window.removeEventListener('online', this._handleOnline);
         this.eventListeners = { open: [], message: [], error: [], close: [] };
     }
 }
