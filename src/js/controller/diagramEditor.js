@@ -170,6 +170,13 @@ export class DiagramEditor {
 
         // Загрузить customGrid
         const block = await this.getBlock(blockId);
+
+        // Проверить что quick mode всё ещё активен после async операции
+        // (пользователь мог отпустить Shift пока мы ждали)
+        if (!this.quickModeActive) {
+            return false;
+        }
+
         if (!block?.data?.customGrid || !Object.keys(block.data.customGrid).length) {
             this.deactivateQuickMode();
             return false;

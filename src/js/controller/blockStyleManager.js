@@ -239,90 +239,128 @@ export class BlockStyleManager {
     }
 
     /**
-     * Применить стили к DOM элементу
+     * Применить стили к DOM элементу с кэшированием для избежания избыточных DOM операций
+     * @param {HTMLElement} element - DOM элемент
+     * @param {Object} styles - объект стилей
+     * @param {boolean} force - принудительно применить все стили (без проверки кэша)
      */
-    applyStylesToElement(element, styles) {
+    applyStylesToElement(element, styles, force = false) {
         if (!element) return;
 
-        // Background
-        if (styles.background) {
+        // Используем requestAnimationFrame для батчинга DOM операций
+        requestAnimationFrame(() => {
+            this._applyStylesSync(element, styles, force);
+        });
+    }
+
+    /**
+     * Синхронное применение стилей с dirty-checking
+     * @private
+     */
+    _applyStylesSync(element, styles, force = false) {
+        if (!element) return;
+
+        // Background - проверяем изменилось ли значение
+        if (styles.background && (force || element.style.backgroundColor !== styles.background)) {
             element.style.backgroundColor = styles.background;
         }
 
         // Border color
-        if (styles.borderColor) {
+        if (styles.borderColor && (force || element.style.borderColor !== styles.borderColor)) {
             element.style.borderColor = styles.borderColor;
         }
 
         // Border style через data-атрибут
-        element.removeAttribute('data-block-border');
-        if (styles.border) {
-            element.setAttribute('data-block-border', styles.border);
+        const currentBorder = element.getAttribute('data-block-border') || '';
+        const newBorder = styles.border || '';
+        if (force || currentBorder !== newBorder) {
+            if (newBorder) {
+                element.setAttribute('data-block-border', newBorder);
+            } else if (currentBorder) {
+                element.removeAttribute('data-block-border');
+            }
         }
 
         // Shape через data-атрибут
-        element.removeAttribute('data-block-shape');
-        if (styles.shape) {
-            element.setAttribute('data-block-shape', styles.shape);
+        const currentShape = element.getAttribute('data-block-shape') || '';
+        const newShape = styles.shape || '';
+        if (force || currentShape !== newShape) {
+            if (newShape) {
+                element.setAttribute('data-block-shape', newShape);
+            } else if (currentShape) {
+                element.removeAttribute('data-block-shape');
+            }
         }
 
         // Shadow через data-атрибут
-        element.removeAttribute('data-block-shadow');
-        if (styles.shadow) {
-            element.setAttribute('data-block-shadow', styles.shadow);
+        const currentShadow = element.getAttribute('data-block-shadow') || '';
+        const newShadow = styles.shadow || '';
+        if (force || currentShadow !== newShadow) {
+            if (newShadow) {
+                element.setAttribute('data-block-shadow', newShadow);
+            } else if (currentShadow) {
+                element.removeAttribute('data-block-shadow');
+            }
         }
 
-        // Advanced styles
         // Text color
-        if (styles.textColor) {
+        if (styles.textColor && (force || element.style.color !== styles.textColor)) {
             element.style.color = styles.textColor;
         }
 
         // Font size через data-атрибут
-        element.removeAttribute('data-block-font-size');
-        if (styles.fontSize) {
-            element.setAttribute('data-block-font-size', styles.fontSize);
+        const currentFontSize = element.getAttribute('data-block-font-size') || '';
+        const newFontSize = styles.fontSize || '';
+        if (force || currentFontSize !== newFontSize) {
+            if (newFontSize) {
+                element.setAttribute('data-block-font-size', newFontSize);
+            } else if (currentFontSize) {
+                element.removeAttribute('data-block-font-size');
+            }
         }
 
         // Text align через data-атрибут
-        element.removeAttribute('data-block-text-align');
-        if (styles.textAlign) {
-            element.setAttribute('data-block-text-align', styles.textAlign);
+        const currentTextAlign = element.getAttribute('data-block-text-align') || '';
+        const newTextAlign = styles.textAlign || '';
+        if (force || currentTextAlign !== newTextAlign) {
+            if (newTextAlign) {
+                element.setAttribute('data-block-text-align', newTextAlign);
+            } else if (currentTextAlign) {
+                element.removeAttribute('data-block-text-align');
+            }
         }
 
         // Opacity
-        if (styles.opacity && styles.opacity < 100) {
-            element.style.opacity = styles.opacity / 100;
-        } else {
-            element.style.opacity = '';
+        const newOpacity = (styles.opacity && styles.opacity < 100) ? String(styles.opacity / 100) : '';
+        if (force || element.style.opacity !== newOpacity) {
+            element.style.opacity = newOpacity;
         }
 
         // Min width
-        if (styles.minWidth) {
-            element.style.minWidth = `${styles.minWidth}px`;
-        } else {
-            element.style.minWidth = '';
+        const newMinWidth = styles.minWidth ? `${styles.minWidth}px` : '';
+        if (force || element.style.minWidth !== newMinWidth) {
+            element.style.minWidth = newMinWidth;
         }
 
         // Min height
-        if (styles.minHeight) {
-            element.style.minHeight = `${styles.minHeight}px`;
-        } else {
-            element.style.minHeight = '';
+        const newMinHeight = styles.minHeight ? `${styles.minHeight}px` : '';
+        if (force || element.style.minHeight !== newMinHeight) {
+            element.style.minHeight = newMinHeight;
         }
 
         // Custom class (with XSS validation)
-        // Remove any previously applied custom class
-        const prevCustomClass = element.getAttribute('data-custom-class');
-        if (prevCustomClass) {
-            element.classList.remove(prevCustomClass);
-        }
-        element.removeAttribute('data-custom-class');
-        if (styles.customClass) {
-            const validatedClass = this.validateCssClass(styles.customClass);
-            if (validatedClass) {
-                element.classList.add(validatedClass);
-                element.setAttribute('data-custom-class', validatedClass);
+        const prevCustomClass = element.getAttribute('data-custom-class') || '';
+        const validatedClass = styles.customClass ? this.validateCssClass(styles.customClass) : null;
+        const newCustomClass = validatedClass || '';
+
+        if (force || prevCustomClass !== newCustomClass) {
+            if (prevCustomClass) {
+                element.classList.remove(prevCustomClass);
+                element.removeAttribute('data-custom-class');
+            }
+            if (newCustomClass) {
+                element.classList.add(newCustomClass);
+                element.setAttribute('data-custom-class', newCustomClass);
             }
         }
     }
