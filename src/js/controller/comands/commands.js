@@ -4,6 +4,7 @@ import {dispatch} from "../../utils/utils";
 import {colorCommands} from "./colorCommands";
 import {layoutCommands} from "./layoutCommands";
 import {arrowManager} from "../arrowManager";
+import {blockStyleManager} from "../blockStyleManager";
 import api from "../../api/api";
 import {customPrompt} from "../../utils/custom-dialog";
 
@@ -72,6 +73,17 @@ function showHint(message, duration = 3000) {
             hint.style.display = 'none'
         }, 300)
     }, duration)
+}
+
+function hideHint() {
+    const hint = document.getElementById('command-hint')
+    if (hint) {
+        clearTimeout(hint._timeout)
+        hint.style.opacity = '0'
+        setTimeout(() => {
+            hint.style.display = 'none'
+        }, 300)
+    }
 }
 
 function createTreeCmd() {
@@ -169,6 +181,11 @@ export const commands = [
                 ctx.connect_source_id = undefined
                 ctx.sourceEl.classList.remove('block-selected')
                 ctx.sourceEl = undefined
+            }
+            if (ctx.mode === MODES.CONNECT_SELECT_SOURCE) {
+                ctx.connectionType = undefined
+                document.body.style.cursor = ''
+                hideHint()
             }
             if (ctx.mode === MODES.CUT_BLOCK) {
                 if (ctx.beforeBlockElement) ctx.beforeBlockElement.remove()
@@ -595,7 +612,7 @@ export const commands = [
     },
     {
         id: "connectBlock",
-        mode: ['normal', 'connectToBlock', 'diagram'],
+        mode: ['normal', 'connectToBlock', 'connectSelectSource', 'diagram'],
         btn: {
             containerId: 'control-panel',
             label: 'Добавить соединение между блоками',
@@ -604,6 +621,7 @@ export const commands = [
         defaultHotkey: 'a',
         description: 'Создать стрелочку от блока до другого блока',
         execute(ctx) {
+            // Шаг 1: Выбор источника (блок уже выбран)
             if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && ctx.blockElement) {
                 ctx.mode = MODES.CONNECT_TO_BLOCK
                 let sourceEl = ctx.blockElement
@@ -612,7 +630,27 @@ export const commands = [
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
                 showHint('Теперь кликните на целевой блок для создания соединения')
-            } else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
+            }
+            // Шаг 1 альтернатива: Блок не выбран - ждём выбора источника
+            else if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && !ctx.blockElement) {
+                ctx.mode = MODES.CONNECT_SELECT_SOURCE
+                ctx.connectionType = undefined  // обычное соединение
+                document.body.style.cursor = 'crosshair'
+                showHint('Кликните на блок-источник для создания соединения (Esc для отмены)')
+            }
+            // Шаг 2: Выбор источника после входа в режим ожидания
+            else if (ctx.mode === MODES.CONNECT_SELECT_SOURCE && ctx.blockElement) {
+                ctx.mode = MODES.CONNECT_TO_BLOCK
+                let sourceEl = ctx.blockElement
+                if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
+                ctx.connect_source_id = sourceEl.id
+                sourceEl.classList.add('block-selected')
+                ctx.sourceEl = sourceEl
+                document.body.style.cursor = ''
+                showHint('Теперь кликните на целевой блок для создания соединения')
+            }
+            // Шаг 3: Выбор целевого блока
+            else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
                 let targetEl = ctx.blockElement
                 if (ctx.blockLinkElement) targetEl = ctx.blockLinkElement
                 let targetId = targetEl.id
@@ -627,8 +665,6 @@ export const commands = [
                         ctx.setCmd('openBlock')
                     }, 50)
                 }
-            } else if (!ctx.blockElement) {
-                showHint('Выберите блок-источник для создания соединения')
             }
         }
     },
@@ -652,7 +688,7 @@ export const commands = [
     },
     {
         id: "connectDashed",
-        mode: ['normal', 'connectToBlock', 'diagram'],
+        mode: ['normal', 'connectToBlock', 'connectSelectSource', 'diagram'],
         btn: {
             containerId: 'control-panel',
             label: 'Пунктирное соединение',
@@ -661,6 +697,7 @@ export const commands = [
         defaultHotkey: '',
         description: 'Создать пунктирное соединение между блоками',
         execute(ctx) {
+            // Шаг 1: Выбор источника (блок уже выбран)
             if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && ctx.blockElement) {
                 ctx.mode = MODES.CONNECT_TO_BLOCK
                 ctx.connectionType = 'DASHED'
@@ -670,7 +707,27 @@ export const commands = [
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
                 showHint('Кликните на целевой блок для пунктирного соединения')
-            } else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
+            }
+            // Шаг 1 альтернатива: Блок не выбран - ждём выбора источника
+            else if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && !ctx.blockElement) {
+                ctx.mode = MODES.CONNECT_SELECT_SOURCE
+                ctx.connectionType = 'DASHED'
+                document.body.style.cursor = 'crosshair'
+                showHint('Кликните на блок-источник для пунктирного соединения (Esc для отмены)')
+            }
+            // Шаг 2: Выбор источника после входа в режим ожидания
+            else if (ctx.mode === MODES.CONNECT_SELECT_SOURCE && ctx.blockElement) {
+                ctx.mode = MODES.CONNECT_TO_BLOCK
+                let sourceEl = ctx.blockElement
+                if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
+                ctx.connect_source_id = sourceEl.id
+                sourceEl.classList.add('block-selected')
+                ctx.sourceEl = sourceEl
+                document.body.style.cursor = ''
+                showHint('Кликните на целевой блок для пунктирного соединения')
+            }
+            // Шаг 3: Выбор целевого блока
+            else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
                 let targetEl = ctx.blockElement
                 if (ctx.blockLinkElement) targetEl = ctx.blockLinkElement
                 let targetId = targetEl.id
@@ -686,14 +743,12 @@ export const commands = [
                         ctx.setCmd('openBlock')
                     }, 50)
                 }
-            } else if (!ctx.blockElement) {
-                showHint('Выберите блок-источник для создания соединения')
             }
         }
     },
     {
         id: "connectDouble",
-        mode: ['normal', 'connectToBlock', 'diagram'],
+        mode: ['normal', 'connectToBlock', 'connectSelectSource', 'diagram'],
         btn: {
             containerId: 'control-panel',
             label: 'Двустороннее соединение',
@@ -702,6 +757,7 @@ export const commands = [
         defaultHotkey: '',
         description: 'Создать двустороннее соединение между блоками',
         execute(ctx) {
+            // Шаг 1: Выбор источника (блок уже выбран)
             if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && ctx.blockElement) {
                 ctx.mode = MODES.CONNECT_TO_BLOCK
                 ctx.connectionType = 'DOUBLE'
@@ -711,7 +767,27 @@ export const commands = [
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
                 showHint('Кликните на целевой блок для двустороннего соединения')
-            } else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
+            }
+            // Шаг 1 альтернатива: Блок не выбран - ждём выбора источника
+            else if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && !ctx.blockElement) {
+                ctx.mode = MODES.CONNECT_SELECT_SOURCE
+                ctx.connectionType = 'DOUBLE'
+                document.body.style.cursor = 'crosshair'
+                showHint('Кликните на блок-источник для двустороннего соединения (Esc для отмены)')
+            }
+            // Шаг 2: Выбор источника после входа в режим ожидания
+            else if (ctx.mode === MODES.CONNECT_SELECT_SOURCE && ctx.blockElement) {
+                ctx.mode = MODES.CONNECT_TO_BLOCK
+                let sourceEl = ctx.blockElement
+                if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
+                ctx.connect_source_id = sourceEl.id
+                sourceEl.classList.add('block-selected')
+                ctx.sourceEl = sourceEl
+                document.body.style.cursor = ''
+                showHint('Кликните на целевой блок для двустороннего соединения')
+            }
+            // Шаг 3: Выбор целевого блока
+            else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
                 let targetEl = ctx.blockElement
                 if (ctx.blockLinkElement) targetEl = ctx.blockLinkElement
                 let targetId = targetEl.id
@@ -727,14 +803,12 @@ export const commands = [
                         ctx.setCmd('openBlock')
                     }, 50)
                 }
-            } else if (!ctx.blockElement) {
-                showHint('Выберите блок-источник для создания соединения')
             }
         }
     },
     {
         id: "connectCurved",
-        mode: ['normal', 'connectToBlock', 'diagram'],
+        mode: ['normal', 'connectToBlock', 'connectSelectSource', 'diagram'],
         btn: {
             containerId: 'control-panel',
             label: 'Изогнутое соединение',
@@ -743,6 +817,7 @@ export const commands = [
         defaultHotkey: '',
         description: 'Создать изогнутое (Bezier) соединение между блоками',
         execute(ctx) {
+            // Шаг 1: Выбор источника (блок уже выбран)
             if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && ctx.blockElement) {
                 ctx.mode = MODES.CONNECT_TO_BLOCK
                 ctx.connectionType = 'curved'
@@ -752,7 +827,27 @@ export const commands = [
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
                 showHint('Кликните на целевой блок для изогнутого соединения')
-            } else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
+            }
+            // Шаг 1 альтернатива: Блок не выбран - ждём выбора источника
+            else if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && !ctx.blockElement) {
+                ctx.mode = MODES.CONNECT_SELECT_SOURCE
+                ctx.connectionType = 'curved'
+                document.body.style.cursor = 'crosshair'
+                showHint('Кликните на блок-источник для изогнутого соединения (Esc для отмены)')
+            }
+            // Шаг 2: Выбор источника после входа в режим ожидания
+            else if (ctx.mode === MODES.CONNECT_SELECT_SOURCE && ctx.blockElement) {
+                ctx.mode = MODES.CONNECT_TO_BLOCK
+                let sourceEl = ctx.blockElement
+                if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
+                ctx.connect_source_id = sourceEl.id
+                sourceEl.classList.add('block-selected')
+                ctx.sourceEl = sourceEl
+                document.body.style.cursor = ''
+                showHint('Кликните на целевой блок для изогнутого соединения')
+            }
+            // Шаг 3: Выбор целевого блока
+            else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
                 let targetEl = ctx.blockElement
                 if (ctx.blockLinkElement) targetEl = ctx.blockLinkElement
                 let targetId = targetEl.id
@@ -768,14 +863,12 @@ export const commands = [
                         ctx.setCmd('openBlock')
                     }, 50)
                 }
-            } else if (!ctx.blockElement) {
-                showHint('Выберите блок-источник для создания соединения')
             }
         }
     },
     {
         id: "connectStraight",
-        mode: ['normal', 'connectToBlock', 'diagram'],
+        mode: ['normal', 'connectToBlock', 'connectSelectSource', 'diagram'],
         btn: {
             containerId: 'control-panel',
             label: 'Прямое соединение',
@@ -784,6 +877,7 @@ export const commands = [
         defaultHotkey: '',
         description: 'Создать прямое соединение между блоками',
         execute(ctx) {
+            // Шаг 1: Выбор источника (блок уже выбран)
             if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && ctx.blockElement) {
                 ctx.mode = MODES.CONNECT_TO_BLOCK
                 ctx.connectionType = 'straight'
@@ -793,7 +887,27 @@ export const commands = [
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
                 showHint('Кликните на целевой блок для прямого соединения')
-            } else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
+            }
+            // Шаг 1 альтернатива: Блок не выбран - ждём выбора источника
+            else if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && !ctx.blockElement) {
+                ctx.mode = MODES.CONNECT_SELECT_SOURCE
+                ctx.connectionType = 'straight'
+                document.body.style.cursor = 'crosshair'
+                showHint('Кликните на блок-источник для прямого соединения (Esc для отмены)')
+            }
+            // Шаг 2: Выбор источника после входа в режим ожидания
+            else if (ctx.mode === MODES.CONNECT_SELECT_SOURCE && ctx.blockElement) {
+                ctx.mode = MODES.CONNECT_TO_BLOCK
+                let sourceEl = ctx.blockElement
+                if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
+                ctx.connect_source_id = sourceEl.id
+                sourceEl.classList.add('block-selected')
+                ctx.sourceEl = sourceEl
+                document.body.style.cursor = ''
+                showHint('Кликните на целевой блок для прямого соединения')
+            }
+            // Шаг 3: Выбор целевого блока
+            else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
                 let targetEl = ctx.blockElement
                 if (ctx.blockLinkElement) targetEl = ctx.blockLinkElement
                 let targetId = targetEl.id
@@ -809,8 +923,6 @@ export const commands = [
                         ctx.setCmd('openBlock')
                     }, 50)
                 }
-            } else if (!ctx.blockElement) {
-                showHint('Выберите блок-источник для создания соединения')
             }
         }
     },
@@ -1050,9 +1162,10 @@ export const commands = [
             }
 
             if (selectedBlockId && selectedElement) {
-                ctx.diagramUtils?.blockStyleManager.toggle(selectedBlockId, selectedElement)
+                blockStyleManager.toggle(selectedBlockId, selectedElement)
             } else {
-                console.warn('Выберите блок для применения стилей')
+                // Блок не выбран - включить режим ожидания выбора
+                blockStyleManager.startStyleSelectionMode()
             }
         },
         btnExec(ctx) { this.execute(ctx) }

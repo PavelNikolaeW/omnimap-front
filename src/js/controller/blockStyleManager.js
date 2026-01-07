@@ -17,6 +17,9 @@ export class BlockStyleManager {
         this.panel = document.getElementById('blockStylePanel');
         this.currentBlockId = null;
 
+        // Режим ожидания выбора блока
+        this.pendingStyleSelection = false;
+
         // Basic tab elements
         this.backgroundInput = document.getElementById('styleBackground');
         this.borderColorInput = document.getElementById('styleBorderColor');
@@ -84,6 +87,24 @@ export class BlockStyleManager {
                 this.hide();
             }
         });
+
+        // Слушатель клика для режима выбора блока
+        document.addEventListener('click', (e) => {
+            if (!this.pendingStyleSelection) return;
+
+            const blockElement = e.target.closest('[block], [blocklink]');
+            if (!blockElement) return;
+
+            e.stopPropagation();
+            this.handleBlockSelectedForStyle(blockElement);
+        });
+
+        // Отмена по Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.pendingStyleSelection) {
+                this.cancelStyleSelectionMode();
+            }
+        });
     }
 
     /**
@@ -117,6 +138,95 @@ export class BlockStyleManager {
         this.panel?.classList.remove('visible');
         this.currentBlockId = null;
         this.currentElement = null;
+    }
+
+    /**
+     * Начать режим выбора блока для применения стилей
+     * Пользователь нажал кнопку "Стили блока", теперь ожидаем клик на блок
+     */
+    startStyleSelectionMode() {
+        this.pendingStyleSelection = true;
+        document.body.style.cursor = 'pointer';
+        this.showHint('Кликните на блок для настройки стилей (Escape для отмены)');
+    }
+
+    /**
+     * Обработать выбор блока в режиме выбора стилей
+     */
+    handleBlockSelectedForStyle(blockElement) {
+        if (!this.pendingStyleSelection) return;
+
+        // Получить ID блока
+        let blockId = blockElement.id;
+        if (blockElement.hasAttribute('blocklink')) {
+            blockId = blockElement.getAttribute('blocklink');
+        } else {
+            // Для обычного блока извлекаем чистый ID
+            blockId = blockId?.split('*').pop();
+        }
+
+        if (!blockId) {
+            this.cancelStyleSelectionMode();
+            return;
+        }
+
+        // Завершить режим выбора
+        this.finishStyleSelectionMode();
+
+        // Показать панель стилей для выбранного блока
+        this.show(blockId, blockElement);
+    }
+
+    /**
+     * Завершить режим выбора блока
+     */
+    finishStyleSelectionMode() {
+        document.body.style.cursor = '';
+        this.hideHint();
+        this.pendingStyleSelection = false;
+    }
+
+    /**
+     * Отменить режим выбора блока
+     */
+    cancelStyleSelectionMode() {
+        this.finishStyleSelectionMode();
+    }
+
+    /**
+     * Показать подсказку
+     */
+    showHint(message) {
+        let hint = document.getElementById('block-style-hint');
+        if (!hint) {
+            hint = document.createElement('div');
+            hint.id = 'block-style-hint';
+            hint.style.cssText = `
+                position: fixed;
+                top: 10px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(0, 0, 0, 0.8);
+                color: white;
+                padding: 8px 16px;
+                border-radius: 4px;
+                z-index: 10000;
+                font-size: 14px;
+            `;
+            document.body.appendChild(hint);
+        }
+        hint.textContent = message;
+        hint.style.display = 'block';
+    }
+
+    /**
+     * Скрыть подсказку
+     */
+    hideHint() {
+        const hint = document.getElementById('block-style-hint');
+        if (hint) {
+            hint.style.display = 'none';
+        }
     }
 
     /**
