@@ -179,22 +179,40 @@ export class UpdateServiceWebSocket {
         }
 
         this._awaitingConnectionCheck = true;
-        this.missedPongs++; // Увеличиваем счётчик, pong его сбросит
+        // Сбрасываем счётчик перед проверкой, чтобы не конфликтовать с heartbeat
+        this.missedPongs = 0;
 
-        // Отправляем ping
-        this.sendMessage({ action: 'ping' });
+        // Отправляем ping с обработкой ошибок
+        try {
+            this.sendMessage({ action: 'ping' });
+        } catch (error) {
+            console.error('WebSocket: failed to send ping:', error);
+            this._awaitingConnectionCheck = false;
+            // Если не удалось отправить ping, соединение точно мёртвое
+            this._stopHeartbeat();
+            this.ws?.close();
+            return;
+        }
 
         // Устанавливаем таймаут на ожидание pong
         this._connectionCheckTimer = setTimeout(() => {
-            this._awaitingConnectionCheck = false;
-
-            // Если pong так и не пришёл (missedPongs не сбросился)
-            if (this.missedPongs > 0) {
-                console.warn('WebSocket: connection check failed, reconnecting...');
-                this._stopHeartbeat();
-                this.ws?.close();
-                // close event вызовет переподключение
+            // Если pong пришёл, флаг уже сброшен — выходим
+            if (!this._awaitingConnectionCheck) {
+                return;
             }
+
+            // Проверяем что соединение всё ещё активно (не было disconnect)
+            if (!this.isConnected || !this.ws) {
+                this._awaitingConnectionCheck = false;
+                return;
+            }
+
+            // Pong не пришёл в течение таймаута — соединение мёртвое
+            this._awaitingConnectionCheck = false;
+            console.warn('WebSocket: connection check timeout, reconnecting...');
+            this._stopHeartbeat();
+            this.ws?.close();
+            // close event вызовет переподключение
         }, CONNECTION_CHECK_TIMEOUT);
     }
 
