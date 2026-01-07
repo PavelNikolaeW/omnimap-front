@@ -46,6 +46,10 @@ export class DiagramEditor {
         this.quickModeBlockId = null;
         this.quickModeElement = null;
 
+        // Performance optimization
+        this.rafId = null;
+        this.pendingMouseEvent = null;
+
         // Bind methods
         this.handleMouseDown = this.handleMouseDown.bind(this);
         this.handleMouseMove = this.handleMouseMove.bind(this);
@@ -539,16 +543,30 @@ export class DiagramEditor {
     }
 
     /**
-     * Обработчик mousemove
+     * Обработчик mousemove с requestAnimationFrame для оптимизации
      */
     handleMouseMove(e) {
-        if (this.isDragging) {
-            this.updateDrag(e);
-        } else if (this.isResizing) {
-            this.updateResize(e);
-        } else if (this.isConnecting) {
-            this.updateConnection(e);
-        }
+        if (!this.isDragging && !this.isResizing && !this.isConnecting) return;
+
+        // Сохраняем последнее событие
+        this.pendingMouseEvent = e;
+
+        // Если уже запланирован RAF, пропускаем
+        if (this.rafId) return;
+
+        this.rafId = requestAnimationFrame(() => {
+            this.rafId = null;
+            const event = this.pendingMouseEvent;
+            if (!event) return;
+
+            if (this.isDragging) {
+                this.updateDrag(event);
+            } else if (this.isResizing) {
+                this.updateResize(event);
+            } else if (this.isConnecting) {
+                this.updateConnection(event);
+            }
+        });
     }
 
     /**
@@ -661,8 +679,6 @@ export class DiagramEditor {
         this.dragGhost.style.width = rect.width + 'px';
         this.dragGhost.style.height = rect.height + 'px';
         // Позиционировать ghost - left/top указывают на левый верхний угол
-        // Удалить transform из CSS для упрощения позиционирования
-        this.dragGhost.style.transform = 'none';
         this.dragGhost.style.left = (e.clientX - this.dragOffset.x) + 'px';
         this.dragGhost.style.top = (e.clientY - this.dragOffset.y) + 'px';
         document.body.appendChild(this.dragGhost);
@@ -715,6 +731,13 @@ export class DiagramEditor {
      */
     async endDrag(e) {
         if (!this.isDragging) return;
+
+        // Отменить pending RAF
+        if (this.rafId) {
+            cancelAnimationFrame(this.rafId);
+            this.rafId = null;
+        }
+        this.pendingMouseEvent = null;
 
         const endCell = this.getCellFromPoint(e.clientX, e.clientY);
         const blockEl = document.getElementById(this.draggedBlockId);
@@ -779,6 +802,13 @@ export class DiagramEditor {
      */
     async endResize(e) {
         if (!this.isResizing) return;
+
+        // Отменить pending RAF
+        if (this.rafId) {
+            cancelAnimationFrame(this.rafId);
+            this.rafId = null;
+        }
+        this.pendingMouseEvent = null;
 
         const endCell = this.getCellFromPoint(e.clientX, e.clientY);
         const blockEl = document.getElementById(this.resizingBlockId);

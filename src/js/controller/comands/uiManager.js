@@ -40,7 +40,7 @@ export const submenuConfig = {
         id: 'submenu-connections',
         label: 'Соединения',
         icon: 'fa-bezier-curve',
-        items: ['connectBlock', 'connectDashed', 'connectDouble', 'deleteConnectBlock']
+        items: ['connectBlock', 'connectDashed', 'connectDouble', 'connectCurved', 'connectStraight', 'deleteConnectBlock']
     },
     // Подменю "Дополнительно" - редактирование, ссылки, права, уведомления
     extra: {
@@ -68,7 +68,7 @@ const hiddenInSubmenu = new Set([
     'diagramAddBlock', 'diagramDeleteBlock', 'diagramBlockStyle', 'diagramResetBlockStyle',
     'diagramConnectionSettings', 'diagramReset',
     // Connections команды (теперь в подменю diagram)
-    'connectBlock', 'deleteConnectBlock', 'connectDashed', 'connectDouble',
+    'connectBlock', 'deleteConnectBlock', 'connectDashed', 'connectDouble', 'connectCurved', 'connectStraight',
     // Extra команды
     'createUrl', 'editBlock', 'editAccessBlock',
     'notificationSettings', 'setReminder', 'watchBlock',

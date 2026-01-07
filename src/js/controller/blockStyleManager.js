@@ -311,20 +311,30 @@ export class ConnectionStyleManager {
         // Нельзя соединить блок с самим собой
         if (targetId === this.sourceBlockId) return;
 
-        // Определить тип соединения
-        let connectionType = 'DEFAULT';
-        if (this.connectionType === 'dashed') {
-            connectionType = 'DASHED';
-        } else if (this.connectionType === 'double') {
-            connectionType = 'DOUBLE';
+        // Определить тип соединения на основе выбора в панели или переданного типа
+        let connectionType = this.connectionType || 'default';
+
+        // Преобразовать тип коннектора в тип соединения, если не задан явно
+        if (!this.connectionType && this.typeSelect?.value) {
+            const connectorType = this.typeSelect.value;
+            if (connectorType === 'Bezier') {
+                connectionType = 'curved';
+            } else if (connectorType === 'Straight') {
+                connectionType = 'straight';
+            } else if (this.dashedCheckbox?.checked) {
+                connectionType = 'DASHED';
+            }
         }
+
+        // Получить цвет из панели
+        const color = this.colorInput?.value;
 
         // Создать соединение
         arrowManager.completeConnectionToElement(
             this.sourceBlockId,
             targetId,
             connectionType,
-            this.customStyle?.paintStyle?.stroke
+            color
         );
 
         // Очистить режим

@@ -35,6 +35,45 @@ import {
 
 const nodeEditor = new NoteEditor('editor-container')
 
+/**
+ * Показать временную подсказку пользователю
+ * @param {string} message - Текст подсказки
+ * @param {number} duration - Длительность показа в мс (по умолчанию 3000)
+ */
+function showHint(message, duration = 3000) {
+    let hint = document.getElementById('command-hint')
+    if (!hint) {
+        hint = document.createElement('div')
+        hint.id = 'command-hint'
+        hint.style.cssText = `
+            position: fixed;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            z-index: 10000;
+            font-size: 14px;
+            transition: opacity 0.3s ease;
+        `
+        document.body.appendChild(hint)
+    }
+    hint.textContent = message
+    hint.style.opacity = '1'
+    hint.style.display = 'block'
+
+    // Скрыть через duration
+    clearTimeout(hint._timeout)
+    hint._timeout = setTimeout(() => {
+        hint.style.opacity = '0'
+        setTimeout(() => {
+            hint.style.display = 'none'
+        }, 300)
+    }, duration)
+}
+
 function createTreeCmd() {
     const cmds = new Array(10)
     // space+0 переключает на последнюю вкладку
@@ -593,6 +632,7 @@ export const commands = [
                 ctx.connect_source_id = sourceEl.id
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
+                showHint('Теперь кликните на целевой блок для создания соединения')
             } else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
                 let targetEl = ctx.blockElement
                 if (ctx.blockLinkElement) targetEl = ctx.blockLinkElement
@@ -603,10 +643,13 @@ export const commands = [
                     ctx.sourceEl.classList.remove('block-selected')
                     ctx.sourceEl = undefined
                     ctx.mode = MODES.NORMAL
+                    showHint('Соединение создано', 1500)
                     setTimeout(() => {
                         ctx.setCmd('openBlock')
                     }, 50)
                 }
+            } else if (!ctx.blockElement) {
+                showHint('Выберите блок-источник для создания соединения')
             }
         }
     },
@@ -641,27 +684,31 @@ export const commands = [
         execute(ctx) {
             if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && ctx.blockElement) {
                 ctx.mode = MODES.CONNECT_TO_BLOCK
-                ctx.connectionType = 'dashed'
+                ctx.connectionType = 'DASHED'
                 let sourceEl = ctx.blockElement
                 if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
                 ctx.connect_source_id = sourceEl.id
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
+                showHint('Кликните на целевой блок для пунктирного соединения')
             } else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
                 let targetEl = ctx.blockElement
                 if (ctx.blockLinkElement) targetEl = ctx.blockLinkElement
                 let targetId = targetEl.id
                 if (ctx.connect_source_id !== targetId) {
-                    arrowManager.completeConnectionToElement(ctx.connect_source_id, targetId, ctx.connectionType || 'dashed')
+                    arrowManager.completeConnectionToElement(ctx.connect_source_id, targetId, ctx.connectionType || 'DASHED')
                     ctx.connect_source_id = undefined
                     ctx.connectionType = undefined
                     ctx.sourceEl.classList.remove('block-selected')
                     ctx.sourceEl = undefined
                     ctx.mode = MODES.NORMAL
+                    showHint('Пунктирное соединение создано', 1500)
                     setTimeout(() => {
                         ctx.setCmd('openBlock')
                     }, 50)
                 }
+            } else if (!ctx.blockElement) {
+                showHint('Выберите блок-источник для создания соединения')
             }
         }
     },
@@ -678,27 +725,113 @@ export const commands = [
         execute(ctx) {
             if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && ctx.blockElement) {
                 ctx.mode = MODES.CONNECT_TO_BLOCK
-                ctx.connectionType = 'double'
+                ctx.connectionType = 'DOUBLE'
                 let sourceEl = ctx.blockElement
                 if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
                 ctx.connect_source_id = sourceEl.id
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
+                showHint('Кликните на целевой блок для двустороннего соединения')
             } else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
                 let targetEl = ctx.blockElement
                 if (ctx.blockLinkElement) targetEl = ctx.blockLinkElement
                 let targetId = targetEl.id
                 if (ctx.connect_source_id !== targetId) {
-                    arrowManager.completeConnectionToElement(ctx.connect_source_id, targetId, ctx.connectionType || 'double')
+                    arrowManager.completeConnectionToElement(ctx.connect_source_id, targetId, ctx.connectionType || 'DOUBLE')
                     ctx.connect_source_id = undefined
                     ctx.connectionType = undefined
                     ctx.sourceEl.classList.remove('block-selected')
                     ctx.sourceEl = undefined
                     ctx.mode = MODES.NORMAL
+                    showHint('Двустороннее соединение создано', 1500)
                     setTimeout(() => {
                         ctx.setCmd('openBlock')
                     }, 50)
                 }
+            } else if (!ctx.blockElement) {
+                showHint('Выберите блок-источник для создания соединения')
+            }
+        }
+    },
+    {
+        id: "connectCurved",
+        mode: ['normal', 'connectToBlock', 'diagram'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Изогнутое соединение',
+            classes: ['sidebar-button', 'fas', 'fa-bezier-curve', 'fas-lg'],
+        },
+        defaultHotkey: '',
+        description: 'Создать изогнутое (Bezier) соединение между блоками',
+        execute(ctx) {
+            if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && ctx.blockElement) {
+                ctx.mode = MODES.CONNECT_TO_BLOCK
+                ctx.connectionType = 'curved'
+                let sourceEl = ctx.blockElement
+                if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
+                ctx.connect_source_id = sourceEl.id
+                sourceEl.classList.add('block-selected')
+                ctx.sourceEl = sourceEl
+                showHint('Кликните на целевой блок для изогнутого соединения')
+            } else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
+                let targetEl = ctx.blockElement
+                if (ctx.blockLinkElement) targetEl = ctx.blockLinkElement
+                let targetId = targetEl.id
+                if (ctx.connect_source_id !== targetId) {
+                    arrowManager.completeConnectionToElement(ctx.connect_source_id, targetId, ctx.connectionType || 'curved')
+                    ctx.connect_source_id = undefined
+                    ctx.connectionType = undefined
+                    ctx.sourceEl.classList.remove('block-selected')
+                    ctx.sourceEl = undefined
+                    ctx.mode = MODES.NORMAL
+                    showHint('Изогнутое соединение создано', 1500)
+                    setTimeout(() => {
+                        ctx.setCmd('openBlock')
+                    }, 50)
+                }
+            } else if (!ctx.blockElement) {
+                showHint('Выберите блок-источник для создания соединения')
+            }
+        }
+    },
+    {
+        id: "connectStraight",
+        mode: ['normal', 'connectToBlock', 'diagram'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Прямое соединение',
+            classes: ['sidebar-button', 'fas', 'fa-ruler', 'fas-lg'],
+        },
+        defaultHotkey: '',
+        description: 'Создать прямое соединение между блоками',
+        execute(ctx) {
+            if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && ctx.blockElement) {
+                ctx.mode = MODES.CONNECT_TO_BLOCK
+                ctx.connectionType = 'straight'
+                let sourceEl = ctx.blockElement
+                if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
+                ctx.connect_source_id = sourceEl.id
+                sourceEl.classList.add('block-selected')
+                ctx.sourceEl = sourceEl
+                showHint('Кликните на целевой блок для прямого соединения')
+            } else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
+                let targetEl = ctx.blockElement
+                if (ctx.blockLinkElement) targetEl = ctx.blockLinkElement
+                let targetId = targetEl.id
+                if (ctx.connect_source_id !== targetId) {
+                    arrowManager.completeConnectionToElement(ctx.connect_source_id, targetId, ctx.connectionType || 'straight')
+                    ctx.connect_source_id = undefined
+                    ctx.connectionType = undefined
+                    ctx.sourceEl.classList.remove('block-selected')
+                    ctx.sourceEl = undefined
+                    ctx.mode = MODES.NORMAL
+                    showHint('Прямое соединение создано', 1500)
+                    setTimeout(() => {
+                        ctx.setCmd('openBlock')
+                    }, 50)
+                }
+            } else if (!ctx.blockElement) {
+                showHint('Выберите блок-источник для создания соединения')
             }
         }
     },
@@ -921,10 +1054,26 @@ export const commands = [
         },
         description: 'Настроить стили выбранного блока',
         execute(ctx) {
-            const selectedBlockId = ctx.diagramUtils?.getSelectedChildBlockId()
+            // Попробовать получить ID из diagramUtils или напрямую из контекста
+            let selectedBlockId = ctx.diagramUtils?.getSelectedChildBlockId()
+            let selectedElement = null
+
             if (selectedBlockId) {
-                const selectedElement = document.getElementById(selectedBlockId)
+                selectedElement = document.getElementById(selectedBlockId)
+            } else if (ctx.blockElement) {
+                // Если нет дочернего блока диаграммы, используем текущий выбранный блок
+                selectedBlockId = ctx.blockId
+                selectedElement = ctx.blockElement
+            } else if (ctx.blockLinkElement) {
+                // Для блоков-ссылок
+                selectedBlockId = ctx.blockLinkElement.id?.split('*').pop()
+                selectedElement = ctx.blockLinkElement
+            }
+
+            if (selectedBlockId && selectedElement) {
                 ctx.diagramUtils?.blockStyleManager.toggle(selectedBlockId, selectedElement)
+            } else {
+                console.warn('Выберите блок для применения стилей')
             }
         },
         btnExec(ctx) { this.execute(ctx) }
@@ -997,12 +1146,31 @@ export const commands = [
         },
         description: 'Сбросить кастомные стили выбранного блока',
         execute(ctx) {
-            const selectedBlockId = ctx.diagramUtils?.getSelectedChildBlockId()
+            // Попробовать получить ID из diagramUtils или напрямую из контекста
+            let selectedBlockId = ctx.diagramUtils?.getSelectedChildBlockId()
+
+            if (!selectedBlockId && ctx.blockId) {
+                selectedBlockId = ctx.blockId
+            } else if (!selectedBlockId && ctx.blockLinkElement) {
+                selectedBlockId = ctx.blockLinkElement.id?.split('*').pop()
+            }
+
             if (selectedBlockId) {
                 dispatch('UpdateBlockStyles', {
                     blockId: selectedBlockId,
                     customStyles: {}
                 })
+                // Очистить inline стили с элемента
+                const element = document.getElementById(selectedBlockId) || ctx.blockElement || ctx.blockLinkElement
+                if (element) {
+                    element.style.backgroundColor = ''
+                    element.style.borderColor = ''
+                    element.removeAttribute('data-block-border')
+                    element.removeAttribute('data-block-shape')
+                    element.removeAttribute('data-block-shadow')
+                }
+            } else {
+                console.warn('Выберите блок для сброса стилей')
             }
         },
         btnExec(ctx) { this.execute(ctx) }

@@ -9,12 +9,14 @@
 
 .diagram-edit-mode {
     position: relative;
+    overflow: visible !important; /* Предотвращает скроллы от resize handles и anchor points */
 }
 
 .diagram-edit-mode > [block],
 .diagram-edit-mode > [blocklink] {
     cursor: move;
     transition: transform 0.1s ease, box-shadow 0.2s ease;
+    overflow: visible !important; /* Предотвращает скроллы от resize handles */
 }
 
 .diagram-edit-mode > [block]:hover,
@@ -53,6 +55,7 @@
 
 .diagram-resizable {
     position: relative;
+    overflow: visible !important; /* Предотвращает появление скроллов от resize handles */
 }
 
 .resize-handle {
@@ -105,7 +108,7 @@
     border-radius: 8px;
     pointer-events: none;
     z-index: 9999;
-    transform: translate(-50%, -50%);
+    /* Позиционирование через left/top в JS, без transform */
 }
 
 .diagram-dragging {
