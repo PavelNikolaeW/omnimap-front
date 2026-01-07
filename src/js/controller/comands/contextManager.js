@@ -35,6 +35,11 @@ export class ContextManager {
             this.rotationElements(e.detail)
         });
 
+        // Обработка выбора блока в режиме диаграммы
+        window.addEventListener('DiagramBlockSelected', (e) => {
+            this.handleDiagramBlockSelected(e.detail);
+        });
+
         this.rootContainer.addEventListener('mouseover', this.mouseOverBlockHandlerBound);
         this.rootContainer.addEventListener('touchstart', this.mouseOverBlockHandlerBound);
         this.rootContainer.addEventListener('mouseout', this.mouseOutBlockHandlerBound);
@@ -52,6 +57,27 @@ export class ContextManager {
 
         window.addEventListener('keydown', this.keydownHandler.bind(this));
         window.addEventListener('keyup', this.keyupHandler.bind(this));
+    }
+
+    /**
+     * Обработать выбор блока в режиме диаграммы
+     */
+    handleDiagramBlockSelected({ blockId, element, fullId }) {
+        // Обновить контекст
+        this.blockId = blockId;
+        this.blockElement = element;
+
+        // Проверить, является ли это blocklink
+        if (element.hasAttribute('blocklink')) {
+            this.blockLinkElement = element;
+            this.blockLinkId = element.getAttribute('blocklink');
+        } else {
+            this.blockLinkElement = undefined;
+            this.blockLinkId = undefined;
+        }
+
+        // Добавить визуальное выделение
+        this.addActiveClass();
     }
 
     keydownHandler(e) {

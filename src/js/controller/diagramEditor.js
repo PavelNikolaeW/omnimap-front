@@ -592,10 +592,13 @@ export class DiagramEditor {
             return;
         }
 
-        // Проверить, нажали ли на блок для drag
+        // Проверить, нажали ли на блок
         const blockEl = this.findBlockElement(e.target);
         if (blockEl && blockEl.parentElement === this.parentElement) {
-            this.startDrag(e, blockEl);
+            // Сохранить данные для потенциального drag или click
+            this.potentialDragBlock = blockEl;
+            this.potentialDragStartPos = { x: e.clientX, y: e.clientY };
+            this.potentialDragStartTime = Date.now();
             e.preventDefault();
             e.stopPropagation();
         }
@@ -605,6 +608,24 @@ export class DiagramEditor {
      * Обработчик mousemove с requestAnimationFrame для оптимизации
      */
     handleMouseMove(e) {
+        // Проверить, нужно ли начать drag (если есть потенциальный drag блок)
+        if (this.potentialDragBlock && !this.isDragging) {
+            const dx = e.clientX - this.potentialDragStartPos.x;
+            const dy = e.clientY - this.potentialDragStartPos.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            // Начать drag только если смещение больше 5 пикселей
+            if (distance > 5) {
+                this.startDrag({
+                    clientX: this.potentialDragStartPos.x,
+                    clientY: this.potentialDragStartPos.y
+                }, this.potentialDragBlock);
+                this.potentialDragBlock = null;
+                this.potentialDragStartPos = null;
+                this.potentialDragStartTime = null;
+            }
+        }
+
         if (!this.isDragging && !this.isResizing && !this.isConnecting) return;
 
         // Сохраняем последнее событие
@@ -632,6 +653,15 @@ export class DiagramEditor {
      * Обработчик mouseup
      */
     handleMouseUp(e) {
+        // Если был потенциальный drag, но drag не начался - это клик (выбор блока)
+        if (this.potentialDragBlock && !this.isDragging) {
+            this.selectBlock(this.potentialDragBlock);
+            this.potentialDragBlock = null;
+            this.potentialDragStartPos = null;
+            this.potentialDragStartTime = null;
+            return;
+        }
+
         if (this.isDragging) {
             this.endDrag(e);
         } else if (this.isResizing) {
@@ -639,6 +669,29 @@ export class DiagramEditor {
         } else if (this.isConnecting) {
             this.endConnection(e);
         }
+    }
+
+    /**
+     * Выбрать блок (для применения стилей, соединений и т.д.)
+     */
+    selectBlock(blockElement) {
+        // Снять выделение с предыдущего блока
+        if (this.selectedBlock && this.selectedBlock !== blockElement) {
+            this.selectedBlock.classList.remove('diagram-block-selected');
+        }
+
+        // Выбрать новый блок
+        this.selectedBlock = blockElement;
+        blockElement.classList.add('diagram-block-selected');
+
+        // Обновить контекст для команд
+        const blockId = blockElement.id;
+        const cleanBlockId = blockId.includes('*') ? blockId.split('*').pop() : blockId;
+
+        // Dispatch событие для обновления контекста
+        window.dispatchEvent(new CustomEvent('DiagramBlockSelected', {
+            detail: { blockId: cleanBlockId, element: blockElement, fullId: blockId }
+        }));
     }
 
     /**
@@ -711,9 +764,8 @@ export class DiagramEditor {
     startDrag(e, blockElement) {
         this.isDragging = true;
         this.draggedBlockId = blockElement.id;
-        this.dragStartCell = this.getCellFromPoint(e.clientX, e.clientY);
 
-        // Сохранить размеры блока в ячейках для подсветки области
+        // Сохранить размеры и позицию блока
         const cleanBlockId = blockElement.id.includes('*') ? blockElement.id.split('*').pop() : blockElement.id;
         const pos = this.parseBlockPosition(cleanBlockId);
         if (pos) {
@@ -721,9 +773,18 @@ export class DiagramEditor {
                 cols: pos.colEnd - pos.colStart,
                 rows: pos.rowEnd - pos.rowStart
             };
+            // Сохранить начальную позицию блока в grid
+            this.dragStartBlockPos = {
+                colStart: pos.colStart,
+                rowStart: pos.rowStart
+            };
         } else {
             this.dragBlockSize = { cols: 1, rows: 1 };
+            this.dragStartBlockPos = { colStart: 1, rowStart: 2 };
         }
+
+        // Сохранить начальную позицию курсора
+        this.dragStartCell = this.getCellFromPoint(e.clientX, e.clientY);
 
         // Сохранить смещение клика относительно левого верхнего угла блока
         const rect = blockElement.getBoundingClientRect();
@@ -738,8 +799,8 @@ export class DiagramEditor {
         this.dragGhost.style.width = rect.width + 'px';
         this.dragGhost.style.height = rect.height + 'px';
         // Позиционировать ghost - left/top указывают на левый верхний угол
-        this.dragGhost.style.left = (e.clientX - this.dragOffset.x) + 'px';
-        this.dragGhost.style.top = (e.clientY - this.dragOffset.y) + 'px';
+        this.dragGhost.style.left = rect.left + 'px';
+        this.dragGhost.style.top = rect.top + 'px';
         document.body.appendChild(this.dragGhost);
 
         blockElement.classList.add('diagram-dragging');
@@ -751,13 +812,19 @@ export class DiagramEditor {
     updateDrag(e) {
         if (!this.dragGhost) return;
 
-        // Обновить позицию ghost - left/top указывают на левый верхний угол
+        // Обновить позицию ghost - следует за курсором с учётом смещения
         this.dragGhost.style.left = (e.clientX - this.dragOffset.x) + 'px';
         this.dragGhost.style.top = (e.clientY - this.dragOffset.y) + 'px';
 
-        // Подсветить область, где будет размещён блок
-        const cell = this.getCellFromPoint(e.clientX, e.clientY);
-        this.highlightDragArea(cell.col, cell.row);
+        // Вычислить смещение курсора от начальной позиции
+        const currentCell = this.getCellFromPoint(e.clientX, e.clientY);
+        const deltaCol = currentCell.col - this.dragStartCell.col;
+        const deltaRow = currentCell.row - this.dragStartCell.row;
+
+        // Подсветить область, где будет размещён блок (начальная позиция блока + смещение)
+        const newColStart = this.dragStartBlockPos.colStart + deltaCol;
+        const newRowStart = this.dragStartBlockPos.rowStart + deltaRow;
+        this.highlightDragArea(newColStart, newRowStart);
     }
 
     /**
@@ -825,6 +892,7 @@ export class DiagramEditor {
         this.dragStartCell = null;
         this.dragBlockSize = null;
         this.dragOffset = null;
+        this.dragStartBlockPos = null;
 
         // Установить флаг для предотвращения клика после drag
         this.justFinishedDrag = true;
@@ -851,6 +919,27 @@ export class DiagramEditor {
         const blockEl = document.getElementById(blockId);
         if (blockEl) {
             blockEl.classList.add('diagram-resizing');
+
+            // Создать ghost элемент для resize
+            const rect = blockEl.getBoundingClientRect();
+            this.resizeGhost = document.createElement('div');
+            this.resizeGhost.className = 'diagram-resize-ghost';
+            this.resizeGhost.style.cssText = `
+                position: fixed;
+                left: ${rect.left}px;
+                top: ${rect.top}px;
+                width: ${rect.width}px;
+                height: ${rect.height}px;
+                background: rgba(99, 102, 241, 0.2);
+                border: 2px dashed #4f46e5;
+                border-radius: 8px;
+                pointer-events: none;
+                z-index: 9999;
+            `;
+            document.body.appendChild(this.resizeGhost);
+
+            // Сохранить начальные размеры
+            this.resizeStartRect = rect;
         }
     }
 
@@ -860,6 +949,32 @@ export class DiagramEditor {
     updateResize(e) {
         const cell = this.getCellFromPoint(e.clientX, e.clientY);
         this.highlightResizeArea(cell);
+
+        // Обновить размеры ghost
+        if (this.resizeGhost && this.resizeStartRect) {
+            const deltaX = e.clientX - this.resizeStartPos.x;
+            const deltaY = e.clientY - this.resizeStartPos.y;
+            const dir = this.resizeDirection;
+
+            let left = this.resizeStartRect.left;
+            let top = this.resizeStartRect.top;
+            let width = this.resizeStartRect.width;
+            let height = this.resizeStartRect.height;
+
+            if (dir.includes('e')) width += deltaX;
+            if (dir.includes('w')) { left += deltaX; width -= deltaX; }
+            if (dir.includes('s')) height += deltaY;
+            if (dir.includes('n')) { top += deltaY; height -= deltaY; }
+
+            // Минимальные размеры
+            width = Math.max(50, width);
+            height = Math.max(30, height);
+
+            this.resizeGhost.style.left = left + 'px';
+            this.resizeGhost.style.top = top + 'px';
+            this.resizeGhost.style.width = width + 'px';
+            this.resizeGhost.style.height = height + 'px';
+        }
     }
 
     /**
@@ -881,6 +996,13 @@ export class DiagramEditor {
         if (blockEl) {
             blockEl.classList.remove('diagram-resizing');
         }
+
+        // Удалить ghost
+        if (this.resizeGhost) {
+            this.resizeGhost.remove();
+            this.resizeGhost = null;
+        }
+        this.resizeStartRect = null;
 
         this.clearHighlight();
 
