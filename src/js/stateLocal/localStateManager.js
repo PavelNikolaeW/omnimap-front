@@ -864,15 +864,13 @@ export class LocalStateManager {
 
                     // Если блок pending — проверяем, наше ли это изменение или чужое
                     if (isPending && localBlock) {
-                        const localTitle = localBlock.title;
-                        const serverTitle = block.title;
-                        const localText = localBlock.data?.text ?? '';
-                        const serverText = serverData?.text ?? '';
+                        const isSameTitle = localBlock.title === block.title;
+                        const isSameData = JSON.stringify(localBlock.data || {}) === JSON.stringify(serverData);
 
-                        // Сравниваем ключевые поля
-                        const isSameData = localTitle === serverTitle && localText === serverText;
+                        // Сравниваем title и весь data объект
+                        const isOwnUpdate = isSameTitle && isSameData;
 
-                        if (isSameData) {
+                        if (isOwnUpdate) {
                             // Это наше изменение вернулось с сервера — пропускаем рендер
                             offlineQueue.resolvePendingBlock(block.id);
 
