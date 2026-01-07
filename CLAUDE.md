@@ -241,6 +241,167 @@ Test files are located in `src/js/__tests__/` mirroring the source structure.
 
 **Причина:** Каждый сервис имеет свои тесты. Изменения без прогона тестов ломают CI/CD.
 
+## Diagram Mode & Block Styling
+
+### Режимы приложения (MODES)
+
+Определены в `src/js/actions/selectionActions.js`:
+
+```javascript
+MODES = {
+    NORMAL: 'normal',              // Обычный режим навигации
+    TEXT_EDIT: 'textEdit',         // Редактирование текста блока
+    CONNECT_TO_BLOCK: 'connectToBlock',      // Ожидание выбора целевого блока для соединения
+    CONNECT_SELECT_SOURCE: 'connectSelectSource', // Ожидание выбора блока-источника
+    CUT_BLOCK: 'cutBlock',         // Режим вырезания блока
+    DIAGRAM: 'diagram',            // Режим редактирования диаграммы
+    CHAT: 'chat'                   // Режим чата
+}
+```
+
+**Важно:** При создании соединений сохраняй `ctx.previousMode` чтобы вернуться в исходный режим (DIAGRAM или NORMAL).
+
+### Менеджеры стилей
+
+**Файл:** `src/js/controller/blockStyleManager.js`
+
+#### BlockStyleManager
+
+Управляет визуальными стилями блоков:
+
+```javascript
+// Singleton экземпляр
+import { blockStyleManager } from './blockStyleManager';
+
+// Показать панель для блока
+blockStyleManager.show(blockId, blockElement);
+
+// Режим выбора блока (кнопка → клик на блок)
+blockStyleManager.startStyleSelectionMode();
+
+// Применить пресет формы
+blockStyleManager.applyShapePreset('decision');  // diamond shape
+blockStyleManager.applyShapePresetDirect('process', blockId, element);  // без панели
+```
+
+#### ConnectionStyleManager
+
+Управляет стилями соединений (стрелок):
+
+```javascript
+import { connectionStyleManager } from './blockStyleManager';
+
+connectionStyleManager.toggle();  // Показать/скрыть панель
+connectionStyleManager.startConnectionMode();  // Начать создание соединения
+```
+
+### Типы соединений (CONNECTION_TYPES)
+
+**Файл:** `src/js/controller/connectionTypes.js`
+
+```javascript
+CONNECTION_TYPES = {
+    DEFAULT: 'default',      // Стандартное (Flowchart)
+    DASHED: 'dashed',        // Пунктирная линия
+    DOTTED: 'dotted',        // Точечная линия
+    DOUBLE: 'double',        // Двусторонняя стрелка
+    CURVED: 'curved',        // Bezier кривая
+    STRAIGHT: 'straight',    // Прямая линия
+    // ... и другие UML типы
+}
+```
+
+**ВАЖНО:** Типы в нижнем регистре! Не используй `'DASHED'`, используй `'dashed'`.
+
+### Пресеты форм для диаграмм
+
+Определены в `BlockStyleManager.presetShapes`:
+
+| Пресет | Форма | Использование |
+|--------|-------|---------------|
+| `process` | Rectangle | Обычный процесс |
+| `decision` | Diamond | Условие/решение |
+| `data` | Parallelogram | Ввод/вывод данных |
+| `database` | Cylinder | База данных |
+| `document` | Document | Документ |
+| `terminal` | Ellipse | Начало/конец |
+| `manual` | Trapezoid | Ручной ввод |
+| `subprocess` | Rounded | Подпроцесс |
+
+### CSS Data-атрибуты для стилей блоков
+
+**Файл:** `src/style/diagram-editor.css`
+
+Стили применяются через data-атрибуты на элементе блока:
+
+```html
+<div block
+     data-block-shape="diamond"
+     data-block-border="medium"
+     data-block-shadow="md"
+     data-block-font-size="lg"
+     data-block-text-align="center"
+     style="background-color: #fef3c7; border-color: #f59e0b;">
+```
+
+#### Формы (data-block-shape)
+- `rounded`, `pill`, `diamond`, `hexagon`, `parallelogram`, `trapezoid`, `cylinder`, `document`, `ellipse`
+
+#### Границы (data-block-border)
+- `thin` (1px), `medium` (2px), `thick` (4px), `dashed`, `dotted`, `double`
+- **Цвет** задаётся через inline `style="border-color: #xxx"`
+
+#### Тени (data-block-shadow)
+- `sm`, `md`, `lg`, `xl`, `inner`
+- Для форм с `clip-path` (diamond, hexagon, trapezoid, document) используется `filter: drop-shadow`
+
+#### Размер шрифта (data-block-font-size)
+- `xs`, `sm`, `md`, `lg`, `xl`
+
+#### Выравнивание (data-block-text-align)
+- `left`, `center`, `right`
+
+### Команды соединений
+
+**Файл:** `src/js/controller/comands/commands.js`
+
+Все команды поддерживают flow: кнопка → клик источник → клик цель
+
+| Команда | Тип | Hotkey |
+|---------|-----|--------|
+| `connectBlock` | default | `a` |
+| `connectDashed` | dashed | - |
+| `connectDouble` | double | - |
+| `connectCurved` | curved | - |
+| `connectStraight` | straight | - |
+| `deleteConnectBlock` | удаление | `shift+a` |
+
+### Добавление новой формы блока
+
+1. Добавь CSS в `src/style/diagram-editor.css`:
+   ```css
+   [data-block-shape="newshape"] {
+       /* clip-path или border-radius */
+   }
+   ```
+
+2. Если используешь `clip-path`, добавь поддержку теней:
+   ```css
+   [data-block-shape="newshape"][data-block-shadow="md"] {
+       filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+   }
+   ```
+
+3. Добавь пресет в `BlockStyleManager.presetShapes`
+
+4. Добавь UI в `src/index.html` (секция `.shape-presets`)
+
+### Добавление нового типа соединения
+
+1. Добавь тип в `CONNECTION_TYPES` (`connectionTypes.js`)
+2. Добавь конфигурацию в `CONNECTION_CONFIGS` (jsPlumb настройки)
+3. Добавь команду в `commands.js` (опционально)
+
 ## Notes
 
 - Code comments are in Russian
