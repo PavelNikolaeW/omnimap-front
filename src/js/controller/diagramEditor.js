@@ -29,12 +29,10 @@ export class DiagramEditor {
         this.resizeDirection = null;
         this.resizeStartPos = null;
 
-        // Grid overlay
+        // Grid overlay (CSS gradient - no DOM cells)
+        // Note: Cell highlighting disabled for performance. Grid uses CSS gradients instead of DOM elements.
         this.gridOverlay = null;
-        this.gridCellsMap = null;  // Map для быстрого доступа к ячейкам: "col-row" -> element
-        this.highlightedCells = new Set();  // Текущие подсвеченные ячейки
         this.cachedGridSize = null;  // Кэш размера сетки
-        this.lastHighlightPos = null;  // Последняя позиция подсветки для оптимизации
 
         // Connection drag state (для anchor points)
         this.isConnecting = false;
@@ -430,11 +428,8 @@ export class DiagramEditor {
 
         const { cols, rows } = this.parseGridSize();
 
-        // Кэшируем размер сетки
+        // Кэшируем размер сетки для getCellFromPoint()
         this.cachedGridSize = { cols, rows };
-
-        // gridCellsMap больше не нужен для CSS gradient подхода
-        this.gridCellsMap = null;
 
         const rect = this.parentElement?.getBoundingClientRect();
 
@@ -485,11 +480,7 @@ export class DiagramEditor {
             this.gridOverlay.remove();
             this.gridOverlay = null;
         }
-        // Очистить кэши
-        this.gridCellsMap = null;
-        this.highlightedCells.clear();
         this.cachedGridSize = null;
-        this.lastHighlightPos = null;
     }
 
     /**
@@ -1016,64 +1007,25 @@ export class DiagramEditor {
     }
 
     /**
-     * Подсветить ячейку
+     * Подсветить ячейку (no-op: CSS gradient не поддерживает подсветку ячеек)
+     * Отключено для производительности - используется CSS gradient вместо DOM ячеек
      */
     highlightCell(col, row) {
-        this.clearHighlight();
-
-        if (!this.gridCellsMap) return;
-
-        const cell = this.gridCellsMap.get(`${col}-${row}`);
-        if (cell) {
-            cell.classList.add('diagram-grid-cell-highlight');
-            this.highlightedCells.add(cell);
-        }
+        // No-op: cell highlighting disabled for CSS gradient performance
     }
 
     /**
-     * Подсветить область resize
+     * Подсветить область resize (no-op: CSS gradient не поддерживает подсветку)
      */
     highlightResizeArea(endCell) {
-        this.clearHighlight();
-
-        // Извлечь чистый blockId
-        const cleanBlockId = this.resizingBlockId?.includes('*')
-            ? this.resizingBlockId.split('*').pop()
-            : this.resizingBlockId;
-
-        const pos = this.parseBlockPosition(cleanBlockId);
-        if (!pos || !this.gridCellsMap) return;
-
-        let { colStart, colEnd, rowStart, rowEnd } = pos;
-
-        // Вычислить новые границы в зависимости от направления
-        const dir = this.resizeDirection;
-        if (dir.includes('n')) rowStart = Math.min(endCell.row, rowEnd - 1);
-        if (dir.includes('s')) rowEnd = Math.max(endCell.row + 1, rowStart + 1);
-        if (dir.includes('w')) colStart = Math.min(endCell.col, colEnd - 1);
-        if (dir.includes('e')) colEnd = Math.max(endCell.col + 1, colStart + 1);
-
-        // Подсветить всю область используя Map
-        for (let r = rowStart; r < rowEnd; r++) {
-            for (let c = colStart; c < colEnd; c++) {
-                const cell = this.gridCellsMap.get(`${c}-${r}`);
-                if (cell) {
-                    cell.classList.add('diagram-grid-cell-highlight');
-                    this.highlightedCells.add(cell);
-                }
-            }
-        }
+        // No-op: cell highlighting disabled for CSS gradient performance
     }
 
     /**
-     * Убрать подсветку
+     * Убрать подсветку (no-op)
      */
     clearHighlight() {
-        // Использовать кэшированный Set вместо querySelectorAll
-        for (const cell of this.highlightedCells) {
-            cell.classList.remove('diagram-grid-cell-highlight');
-        }
-        this.highlightedCells.clear();
+        // No-op: cell highlighting disabled for CSS gradient performance
     }
 
     /**
