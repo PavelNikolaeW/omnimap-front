@@ -2112,8 +2112,8 @@ export class LocalStateManager {
         sourceBlock.updated_at = new Date().toISOString();
         await this.saveBlock(sourceBlock);
 
-        // Добавляем в undo stack
-        dispatch('UndoStackAdd', { blockId: cleanSourceId, type: 'connection-update' });
+        // Примечание: не добавляем в undo stack, т.к. стили соединений
+        // не поддерживают формат операций для undo/redo
 
         // Офлайн режим: добавляем в очередь
         if (!offlineQueue.isNetworkOnline()) {

@@ -1196,6 +1196,11 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
+/* Блок с anchor points должен иметь position: relative */
+.connection-target {
+    position: relative !important;
+}
+
 /* Показать anchor points при наведении на блок или в connect-mode */
 .diagram-resizable:hover .anchor-point,
 .anchor-point.anchor-visible,
