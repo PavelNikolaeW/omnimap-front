@@ -29,12 +29,10 @@ export class DiagramEditor {
         this.resizeDirection = null;
         this.resizeStartPos = null;
 
-        // Grid overlay
+        // Grid overlay (CSS gradient - no DOM cells)
+        // Note: Cell highlighting disabled for performance. Grid uses CSS gradients instead of DOM elements.
         this.gridOverlay = null;
-        this.gridCellsMap = null;  // Map для быстрого доступа к ячейкам: "col-row" -> element
-        this.highlightedCells = new Set();  // Текущие подсвеченные ячейки
         this.cachedGridSize = null;  // Кэш размера сетки
-        this.lastHighlightPos = null;  // Последняя позиция подсветки для оптимизации
 
         // Connection drag state (для anchor points)
         this.isConnecting = false;
@@ -422,18 +420,34 @@ export class DiagramEditor {
     }
 
     /**
-     * Создать оверлей с грид-линиями
+     * Создать оверлей с грид-линиями (CSS gradient - 0 DOM элементов)
+     * Адаптивное количество линий: целевой размер ячейки ~60px
      */
     createGridOverlay() {
         if (this.gridOverlay) return;
 
         const { cols, rows } = this.parseGridSize();
 
-        // Кэшируем размер сетки
+        // Кэшируем размер сетки для getCellFromPoint()
         this.cachedGridSize = { cols, rows };
 
-        // Инициализируем Map для быстрого доступа к ячейкам
-        this.gridCellsMap = new Map();
+        const rect = this.parentElement?.getBoundingClientRect();
+
+        // Целевой размер ячейки для комфортного восприятия
+        const TARGET_CELL_SIZE = 60;
+        const MIN_LINES = 3;
+        const MAX_LINES = 12;
+
+        // Вычисляем оптимальное количество линий на основе размера блока
+        let visibleCols = cols;
+        let visibleRows = rows;
+
+        if (rect) {
+            visibleCols = Math.min(MAX_LINES, Math.max(MIN_LINES, Math.floor(rect.width / TARGET_CELL_SIZE)));
+            visibleRows = Math.min(MAX_LINES, Math.max(MIN_LINES, Math.floor(rect.height / TARGET_CELL_SIZE)));
+        }
+
+        const lineColor = 'rgba(100, 100, 200, 0.25)';
 
         this.gridOverlay = document.createElement('div');
         this.gridOverlay.className = 'diagram-grid-overlay';
@@ -445,37 +459,14 @@ export class DiagramEditor {
             bottom: 0;
             pointer-events: none;
             z-index: 10;
-            display: grid;
-            grid-template-columns: repeat(${cols}, 1fr);
-            grid-template-rows: auto repeat(${rows}, 1fr);
+            background-image:
+                linear-gradient(to right, ${lineColor} 1px, transparent 1px),
+                linear-gradient(to bottom, ${lineColor} 1px, transparent 1px);
+            background-size:
+                calc(100% / ${visibleCols}) 100%,
+                100% calc(100% / ${visibleRows});
+            background-position: 0 0;
         `;
-
-        // Создать ячейки для визуализации сетки
-        // Первая строка - контент (auto)
-        for (let c = 0; c < cols; c++) {
-            const cell = document.createElement('div');
-            cell.className = 'diagram-grid-cell diagram-grid-cell-header';
-            const col = c + 1;
-            const row = 1;
-            cell.dataset.col = col;
-            cell.dataset.row = row;
-            this.gridOverlay.appendChild(cell);
-            this.gridCellsMap.set(`${col}-${row}`, cell);
-        }
-
-        // Остальные строки
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-                const cell = document.createElement('div');
-                cell.className = 'diagram-grid-cell';
-                const col = c + 1;
-                const row = r + 2; // +2 потому что первая строка - контент
-                cell.dataset.col = col;
-                cell.dataset.row = row;
-                this.gridOverlay.appendChild(cell);
-                this.gridCellsMap.set(`${col}-${row}`, cell);
-            }
-        }
 
         this.parentElement.style.position = 'relative';
         this.parentElement.appendChild(this.gridOverlay);
@@ -489,11 +480,7 @@ export class DiagramEditor {
             this.gridOverlay.remove();
             this.gridOverlay = null;
         }
-        // Очистить кэши
-        this.gridCellsMap = null;
-        this.highlightedCells.clear();
         this.cachedGridSize = null;
-        this.lastHighlightPos = null;
     }
 
     /**
@@ -1020,64 +1007,25 @@ export class DiagramEditor {
     }
 
     /**
-     * Подсветить ячейку
+     * Подсветить ячейку (no-op: CSS gradient не поддерживает подсветку ячеек)
+     * Отключено для производительности - используется CSS gradient вместо DOM ячеек
      */
     highlightCell(col, row) {
-        this.clearHighlight();
-
-        if (!this.gridCellsMap) return;
-
-        const cell = this.gridCellsMap.get(`${col}-${row}`);
-        if (cell) {
-            cell.classList.add('diagram-grid-cell-highlight');
-            this.highlightedCells.add(cell);
-        }
+        // No-op: cell highlighting disabled for CSS gradient performance
     }
 
     /**
-     * Подсветить область resize
+     * Подсветить область resize (no-op: CSS gradient не поддерживает подсветку)
      */
     highlightResizeArea(endCell) {
-        this.clearHighlight();
-
-        // Извлечь чистый blockId
-        const cleanBlockId = this.resizingBlockId?.includes('*')
-            ? this.resizingBlockId.split('*').pop()
-            : this.resizingBlockId;
-
-        const pos = this.parseBlockPosition(cleanBlockId);
-        if (!pos || !this.gridCellsMap) return;
-
-        let { colStart, colEnd, rowStart, rowEnd } = pos;
-
-        // Вычислить новые границы в зависимости от направления
-        const dir = this.resizeDirection;
-        if (dir.includes('n')) rowStart = Math.min(endCell.row, rowEnd - 1);
-        if (dir.includes('s')) rowEnd = Math.max(endCell.row + 1, rowStart + 1);
-        if (dir.includes('w')) colStart = Math.min(endCell.col, colEnd - 1);
-        if (dir.includes('e')) colEnd = Math.max(endCell.col + 1, colStart + 1);
-
-        // Подсветить всю область используя Map
-        for (let r = rowStart; r < rowEnd; r++) {
-            for (let c = colStart; c < colEnd; c++) {
-                const cell = this.gridCellsMap.get(`${c}-${r}`);
-                if (cell) {
-                    cell.classList.add('diagram-grid-cell-highlight');
-                    this.highlightedCells.add(cell);
-                }
-            }
-        }
+        // No-op: cell highlighting disabled for CSS gradient performance
     }
 
     /**
-     * Убрать подсветку
+     * Убрать подсветку (no-op)
      */
     clearHighlight() {
-        // Использовать кэшированный Set вместо querySelectorAll
-        for (const cell of this.highlightedCells) {
-            cell.classList.remove('diagram-grid-cell-highlight');
-        }
-        this.highlightedCells.clear();
+        // No-op: cell highlighting disabled for CSS gradient performance
     }
 
     /**
