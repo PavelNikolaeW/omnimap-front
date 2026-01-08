@@ -20,30 +20,15 @@ export class BlockStyleManager {
         // Режим ожидания выбора блока
         this.pendingStyleSelection = false;
 
-        // Basic tab elements
-        this.backgroundInput = document.getElementById('styleBackground');
-        this.borderColorInput = document.getElementById('styleBorderColor');
-        this.borderSelect = document.getElementById('styleBorder');
-        this.shapeSelect = document.getElementById('styleShape');
+        // Style elements
         this.shadowSelect = document.getElementById('styleShadow');
-        this.applyBtn = document.getElementById('applyBlockStyle');
-        this.presets = document.querySelectorAll('.style-preset');
-
-        // Advanced tab elements
-        this.textColorInput = document.getElementById('styleTextColor');
-        this.fontSizeSelect = document.getElementById('styleFontSize');
         this.textAlignSelect = document.getElementById('styleTextAlign');
-        this.opacityInput = document.getElementById('styleOpacity');
-        this.opacityValue = document.getElementById('styleOpacityValue');
-        this.customClassInput = document.getElementById('styleCustomClass');
+        this.borderColorInput = document.getElementById('styleBorderColor');
+        this.textColorInput = document.getElementById('styleTextColor');
 
         // Drag state
         this.isDragging = false;
         this.dragOffset = { x: 0, y: 0 };
-
-        // Tab elements
-        this.tabs = document.querySelectorAll('.style-tab');
-        this.tabContents = document.querySelectorAll('.style-tab-content');
 
         this.presetColors = {
             default: { background: '#ffffff', borderColor: '#e5e7eb' },
@@ -131,41 +116,15 @@ export class BlockStyleManager {
         // Auto-apply при изменении любого input/select
         const autoApplyHandler = () => this.applyStyle();
 
-        // Basic inputs
-        this.backgroundInput?.addEventListener('change', autoApplyHandler);
-        this.borderColorInput?.addEventListener('change', autoApplyHandler);
-        this.borderSelect?.addEventListener('change', autoApplyHandler);
-        this.shapeSelect?.addEventListener('change', autoApplyHandler);
         this.shadowSelect?.addEventListener('change', autoApplyHandler);
-
-        // Advanced inputs
-        this.textColorInput?.addEventListener('change', autoApplyHandler);
-        this.fontSizeSelect?.addEventListener('change', autoApplyHandler);
         this.textAlignSelect?.addEventListener('change', autoApplyHandler);
-        this.customClassInput?.addEventListener('change', autoApplyHandler);
-
-        // Пресеты цветов
-        this.presets?.forEach(preset => {
-            preset.addEventListener('click', () => this.applyPreset(preset.dataset.preset));
-        });
+        this.borderColorInput?.addEventListener('change', autoApplyHandler);
+        this.textColorInput?.addEventListener('change', autoApplyHandler);
 
         // Пресеты форм
         this.shapePresets = document.querySelectorAll('.shape-preset');
         this.shapePresets?.forEach(preset => {
             preset.addEventListener('click', () => this.applyShapePreset(preset.dataset.shape));
-        });
-
-        // Табы
-        this.tabs?.forEach(tab => {
-            tab.addEventListener('click', () => this.switchTab(tab.dataset.tab));
-        });
-
-        // Opacity - обновление значения и auto-apply
-        this.opacityInput?.addEventListener('input', () => {
-            if (this.opacityValue) {
-                this.opacityValue.textContent = `${this.opacityInput.value}%`;
-            }
-            this.applyStyle();
         });
 
         // Кнопка сброса стилей
@@ -245,18 +204,6 @@ export class BlockStyleManager {
         if (this.panel) {
             this.panel.style.transition = '';
         }
-    }
-
-    /**
-     * Переключить таб
-     */
-    switchTab(tabName) {
-        this.tabs?.forEach(tab => {
-            tab.classList.toggle('active', tab.dataset.tab === tabName);
-        });
-        this.tabContents?.forEach(content => {
-            content.classList.toggle('active', content.id === `tab-${tabName}`);
-        });
     }
 
     /**
@@ -415,25 +362,14 @@ export class BlockStyleManager {
         const block = await this.getBlock(cleanId);
         const styles = block?.data?.customStyles || {};
 
-        // Basic tab
-        if (this.backgroundInput) this.backgroundInput.value = styles.background || '#ffffff';
-        if (this.borderColorInput) this.borderColorInput.value = styles.borderColor || '#e5e7eb';
-        if (this.borderSelect) this.borderSelect.value = styles.border || '';
-        if (this.shapeSelect) this.shapeSelect.value = styles.shape || '';
+        // Загрузить текущие значения в UI
         if (this.shadowSelect) this.shadowSelect.value = styles.shadow || '';
-
-        // Advanced tab
-        if (this.textColorInput) this.textColorInput.value = styles.textColor || '#000000';
-        if (this.fontSizeSelect) this.fontSizeSelect.value = styles.fontSize || '';
         if (this.textAlignSelect) this.textAlignSelect.value = styles.textAlign || '';
-        if (this.opacityInput) {
-            this.opacityInput.value = styles.opacity || 100;
-            if (this.opacityValue) this.opacityValue.textContent = `${styles.opacity || 100}%`;
-        }
-        if (this.customClassInput) this.customClassInput.value = styles.customClass || '';
+        if (this.borderColorInput) this.borderColorInput.value = styles.borderColor || '#e5e7eb';
+        if (this.textColorInput) this.textColorInput.value = styles.textColor || '#000000';
 
-        // Снять выделение с пресетов
-        this.presets?.forEach(p => p.classList.remove('active'));
+        // Снять выделение с пресетов форм
+        this.shapePresets?.forEach(p => p.classList.remove('active'));
     }
 
     /**
@@ -458,19 +394,10 @@ export class BlockStyleManager {
         if (!this.currentBlockId) return;
 
         const styles = {
-            // Basic
-            background: this.backgroundInput?.value,
-            borderColor: this.borderColorInput?.value,
-            border: this.borderSelect?.value,
-            shape: this.shapeSelect?.value,
             shadow: this.shadowSelect?.value,
-            // Advanced
-            textColor: this.textColorInput?.value,
-            fontSize: this.fontSizeSelect?.value,
             textAlign: this.textAlignSelect?.value,
-            // Numeric values with bounds validation
-            opacity: this.clampNumericValue(this.opacityInput?.value, 10, 100, null),
-            customClass: this.customClassInput?.value || null
+            borderColor: this.borderColorInput?.value,
+            textColor: this.textColorInput?.value
         };
 
         // Удалить пустые значения
@@ -541,22 +468,12 @@ export class BlockStyleManager {
         if (!this.currentBlockId) return;
 
         // Сбросить UI к дефолтным значениям
-        if (this.backgroundInput) this.backgroundInput.value = '#ffffff';
-        if (this.borderColorInput) this.borderColorInput.value = '#e5e7eb';
-        if (this.borderSelect) this.borderSelect.value = '';
-        if (this.shapeSelect) this.shapeSelect.value = '';
         if (this.shadowSelect) this.shadowSelect.value = '';
-        if (this.textColorInput) this.textColorInput.value = '#000000';
-        if (this.fontSizeSelect) this.fontSizeSelect.value = '';
         if (this.textAlignSelect) this.textAlignSelect.value = '';
-        if (this.opacityInput) {
-            this.opacityInput.value = 100;
-            if (this.opacityValue) this.opacityValue.textContent = '100%';
-        }
-        if (this.customClassInput) this.customClassInput.value = '';
+        if (this.borderColorInput) this.borderColorInput.value = '#e5e7eb';
+        if (this.textColorInput) this.textColorInput.value = '#000000';
 
-        // Снять выделение с пресетов
-        this.presets?.forEach(p => p.classList.remove('active'));
+        // Снять выделение с пресетов форм
         this.shapePresets?.forEach(p => p.classList.remove('active'));
 
         // Очистить все стили блока

@@ -181,149 +181,76 @@
 <div class="block-style-panel" id="blockStylePanel">
     <h4>Block Style</h4>
 
-    <!-- Tabs for basic/advanced -->
-    <div class="style-tabs">
-        <button class="style-tab active" data-tab="basic">Basic</button>
-        <button class="style-tab" data-tab="advanced">Advanced</button>
-    </div>
-
-    <!-- Basic Tab -->
-    <div class="style-tab-content active" id="tab-basic">
-        <div class="style-row">
-            <label>Background</label>
-            <input type="color" id="styleBackground" value="#ffffff">
-        </div>
-        <div class="style-row">
-            <label>Border Color</label>
-            <input type="color" id="styleBorderColor" value="#e5e7eb">
-        </div>
-        <div class="style-row">
-            <label>Border</label>
-            <select id="styleBorder">
-                <option value="">None</option>
-                <option value="thin">Thin (1px)</option>
-                <option value="medium">Medium (2px)</option>
-                <option value="thick">Thick (3px)</option>
-                <option value="dashed">Dashed</option>
-                <option value="dotted">Dotted</option>
-                <option value="double">Double</option>
-            </select>
-        </div>
-        <div class="style-row">
-            <label>Shape</label>
-            <select id="styleShape">
-                <option value="">Default (Rectangle)</option>
-                <option value="rounded">Rounded</option>
-                <option value="pill">Pill (Capsule)</option>
-                <option value="diamond">Diamond</option>
-                <option value="hexagon">Hexagon</option>
-                <option value="parallelogram">Parallelogram</option>
-                <option value="trapezoid">Trapezoid</option>
-                <option value="cylinder">Cylinder (Database)</option>
-                <option value="document">Document</option>
-                <option value="ellipse">Ellipse</option>
-            </select>
-        </div>
-        <div class="style-row">
-            <label>Shadow</label>
-            <select id="styleShadow">
-                <option value="">None</option>
-                <option value="sm">Small</option>
-                <option value="md">Medium</option>
-                <option value="lg">Large</option>
-                <option value="xl">Extra Large</option>
-                <option value="inner">Inner Shadow</option>
-            </select>
-        </div>
-        <div class="style-presets">
-            <div class="style-preset style-preset-default" data-preset="default" title="Default"></div>
-            <div class="style-preset style-preset-blue" data-preset="blue" title="Blue"></div>
-            <div class="style-preset style-preset-green" data-preset="green" title="Green"></div>
-            <div class="style-preset style-preset-yellow" data-preset="yellow" title="Yellow"></div>
-            <div class="style-preset style-preset-red" data-preset="red" title="Red"></div>
-            <div class="style-preset style-preset-purple" data-preset="purple" title="Purple"></div>
-            <div class="style-preset style-preset-pink" data-preset="pink" title="Pink"></div>
-            <div class="style-preset style-preset-gray" data-preset="gray" title="Gray"></div>
-        </div>
-
-        <!-- Shape Presets for Diagrams -->
-        <div class="style-section">
-            <label class="style-section-label">Diagram Shapes</label>
-            <div class="shape-presets">
-                <div class="shape-preset" data-shape="process" title="Процесс">
-                    <div class="shape-preview shape-preview-process"></div>
-                    <span>Процесс</span>
-                </div>
-                <div class="shape-preset" data-shape="decision" title="Решение">
-                    <div class="shape-preview shape-preview-decision"></div>
-                    <span>Решение</span>
-                </div>
-                <div class="shape-preset" data-shape="data" title="Данные">
-                    <div class="shape-preview shape-preview-data"></div>
-                    <span>Данные</span>
-                </div>
-                <div class="shape-preset" data-shape="database" title="База данных">
-                    <div class="shape-preview shape-preview-database"></div>
-                    <span>БД</span>
-                </div>
-                <div class="shape-preset" data-shape="document" title="Документ">
-                    <div class="shape-preview shape-preview-document"></div>
-                    <span>Документ</span>
-                </div>
-                <div class="shape-preset" data-shape="terminal" title="Начало/Конец">
-                    <div class="shape-preview shape-preview-terminal"></div>
-                    <span>Терминал</span>
-                </div>
-                <div class="shape-preset" data-shape="manual" title="Ручной ввод">
-                    <div class="shape-preview shape-preview-manual"></div>
-                    <span>Ввод</span>
-                </div>
-                <div class="shape-preset" data-shape="subprocess" title="Подпроцесс">
-                    <div class="shape-preview shape-preview-subprocess"></div>
-                    <span>Подпроцесс</span>
-                </div>
+    <!-- Shape Presets for Diagrams -->
+    <div class="style-section">
+        <label class="style-section-label">Форма</label>
+        <div class="shape-presets">
+            <div class="shape-preset" data-shape="process" title="Процесс">
+                <div class="shape-preview shape-preview-process"></div>
+                <span>Процесс</span>
+            </div>
+            <div class="shape-preset" data-shape="decision" title="Решение">
+                <div class="shape-preview shape-preview-decision"></div>
+                <span>Решение</span>
+            </div>
+            <div class="shape-preset" data-shape="data" title="Данные">
+                <div class="shape-preview shape-preview-data"></div>
+                <span>Данные</span>
+            </div>
+            <div class="shape-preset" data-shape="database" title="База данных">
+                <div class="shape-preview shape-preview-database"></div>
+                <span>БД</span>
+            </div>
+            <div class="shape-preset" data-shape="document" title="Документ">
+                <div class="shape-preview shape-preview-document"></div>
+                <span>Документ</span>
+            </div>
+            <div class="shape-preset" data-shape="terminal" title="Начало/Конец">
+                <div class="shape-preview shape-preview-terminal"></div>
+                <span>Терминал</span>
+            </div>
+            <div class="shape-preset" data-shape="manual" title="Ручной ввод">
+                <div class="shape-preview shape-preview-manual"></div>
+                <span>Ввод</span>
+            </div>
+            <div class="shape-preset" data-shape="subprocess" title="Подпроцесс">
+                <div class="shape-preview shape-preview-subprocess"></div>
+                <span>Подпроцесс</span>
             </div>
         </div>
     </div>
 
-    <!-- Advanced Tab -->
-    <div class="style-tab-content" id="tab-advanced">
-        <div class="style-row">
-            <label>Text Color</label>
-            <input type="color" id="styleTextColor" value="#000000">
-        </div>
-        <div class="style-row">
-            <label>Font Size</label>
-            <select id="styleFontSize">
-                <option value="">Default</option>
-                <option value="xs">Extra Small</option>
-                <option value="sm">Small</option>
-                <option value="md">Medium</option>
-                <option value="lg">Large</option>
-                <option value="xl">Extra Large</option>
-            </select>
-        </div>
-        <div class="style-row">
-            <label>Text Align</label>
-            <select id="styleTextAlign">
-                <option value="">Default</option>
-                <option value="left">Left</option>
-                <option value="center">Center</option>
-                <option value="right">Right</option>
-            </select>
-        </div>
-        <div class="style-row">
-            <label>Opacity</label>
-            <input type="range" id="styleOpacity" min="10" max="100" value="100">
-            <span id="styleOpacityValue">100%</span>
-        </div>
-        <div class="style-row">
-            <label>Custom CSS Class</label>
-            <input type="text" id="styleCustomClass" placeholder="e.g. my-class">
-        </div>
+    <div class="style-row">
+        <label>Тень</label>
+        <select id="styleShadow">
+            <option value="">Нет</option>
+            <option value="sm">Маленькая</option>
+            <option value="md">Средняя</option>
+            <option value="lg">Большая</option>
+        </select>
     </div>
 
-    <button class="diagram-btn diagram-btn-danger" id="resetBlockStyle" style="width: 100%; margin-top: 12px;">Reset Styles</button>
+    <div class="style-row">
+        <label>Выравнивание</label>
+        <select id="styleTextAlign">
+            <option value="">По умолчанию</option>
+            <option value="left">Слева</option>
+            <option value="center">По центру</option>
+            <option value="right">Справа</option>
+        </select>
+    </div>
+
+    <div class="style-row">
+        <label>Цвет границы</label>
+        <input type="color" id="styleBorderColor" value="#e5e7eb">
+    </div>
+
+    <div class="style-row">
+        <label>Цвет текста</label>
+        <input type="color" id="styleTextColor" value="#000000">
+    </div>
+
+    <button class="diagram-btn diagram-btn-danger" id="resetBlockStyle" style="width: 100%; margin-top: 12px;">Сбросить стили</button>
 </div>
 
 <!-- Connection Style Panel -->
