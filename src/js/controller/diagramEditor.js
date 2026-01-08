@@ -435,13 +435,19 @@ export class DiagramEditor {
     }
 
     /**
-     * Создать оверлей с грид-линиями
+     * Создать оверлей с грид-линиями (CSS gradient - 0 DOM элементов)
      */
     createGridOverlay() {
         if (this.gridOverlay) return;
 
         const { cols, rows } = this.parseGridSize();
         const thinningFactor = this._calculateGridThinningFactor(cols, rows);
+
+        // Эффективные размеры с учётом прореживания
+        const effectiveCols = Math.ceil(cols / thinningFactor);
+        const effectiveRows = Math.ceil(rows / thinningFactor);
+
+        const lineColor = 'rgba(100, 100, 200, 0.3)';
 
         this.gridOverlay = document.createElement('div');
         this.gridOverlay.className = 'diagram-grid-overlay';
@@ -453,37 +459,14 @@ export class DiagramEditor {
             bottom: 0;
             pointer-events: none;
             z-index: 10;
-            display: grid;
-            grid-template-columns: repeat(${cols}, 1fr);
-            grid-template-rows: auto repeat(${rows}, 1fr);
+            background-image:
+                linear-gradient(to right, ${lineColor} 1px, transparent 1px),
+                linear-gradient(to bottom, ${lineColor} 1px, transparent 1px);
+            background-size:
+                calc(100% / ${effectiveCols}) 100%,
+                100% calc(100% / ${effectiveRows});
+            background-position: 0 0;
         `;
-
-        // Создать ячейки для визуализации сетки
-        // Первая строка - контент (auto)
-        for (let c = 0; c < cols; c++) {
-            const cell = document.createElement('div');
-            cell.className = 'diagram-grid-cell diagram-grid-cell-header';
-            cell.dataset.col = c + 1;
-            cell.dataset.row = 1;
-            this.gridOverlay.appendChild(cell);
-        }
-
-        // Остальные строки с учётом прореживания
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-                const cell = document.createElement('div');
-                const isVisibleCol = (c % thinningFactor === 0) || (c === cols - 1);
-                const isVisibleRow = (r % thinningFactor === 0) || (r === rows - 1);
-
-                // Ячейка видима если обе её границы (левая и верхняя) на видимых линиях
-                const isThinned = !isVisibleCol || !isVisibleRow;
-
-                cell.className = `diagram-grid-cell${isThinned ? ' diagram-grid-cell-thinned' : ''}`;
-                cell.dataset.col = c + 1;
-                cell.dataset.row = r + 2; // +2 потому что первая строка - контент
-                this.gridOverlay.appendChild(cell);
-            }
-        }
 
         this.parentElement.style.position = 'relative';
         this.parentElement.appendChild(this.gridOverlay);
