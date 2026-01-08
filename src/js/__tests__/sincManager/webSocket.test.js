@@ -18,6 +18,11 @@ jest.mock('../../sincManager/chatSync', () => ({
     handleMessage: jest.fn(() => false),
 }));
 
+jest.mock('../../api/api', () => ({
+    refreshToken: jest.fn(),
+    logout: jest.fn(),
+}));
+
 // Мок WebSocket
 class MockWebSocket {
     static CONNECTING = 0;
@@ -319,6 +324,99 @@ describe('UpdateServiceWebSocket', () => {
             expect(removeEventListenerSpy).toHaveBeenCalledWith('Logout', ws._handleLogout);
             expect(removeEventListenerSpy).toHaveBeenCalledWith('online', ws._handleOnline);
             expect(removeDocEventListenerSpy).toHaveBeenCalledWith('visibilitychange', ws._handleVisibilityChange);
+        });
+    });
+
+    describe('auth error handling (code 1008)', () => {
+        let api;
+        let wsInstance;
+
+        beforeEach(() => {
+            // Для этих тестов используем реальные таймеры
+            jest.useRealTimers();
+
+            api = require('../../api/api');
+            api.refreshToken.mockClear();
+            api.logout.mockClear();
+
+            // Создаём новый instance без fake timers
+            jest.isolateModules(() => {
+                const module = require('../../sincManager/webSocket');
+                wsInstance = new module.UpdateServiceWebSocket('ws://test.local');
+            });
+        });
+
+        afterEach(() => {
+            if (wsInstance) {
+                wsInstance.destroy();
+            }
+            // Возвращаем fake timers для следующих тестов
+            jest.useFakeTimers();
+        });
+
+        test('should try to refresh token on close with code 1008', async () => {
+            api.refreshToken.mockResolvedValue(true);
+
+            wsInstance.connect();
+            wsInstance.ws._simulateOpen();
+            wsInstance.shouldReconnect = true;
+
+            // Симулируем закрытие с кодом 1008 (auth error)
+            wsInstance.ws.readyState = MockWebSocket.CLOSED;
+            wsInstance.ws.onclose({ code: 1008, reason: 'Token expired' });
+
+            // Даём время для выполнения async операции
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            expect(api.refreshToken).toHaveBeenCalled();
+        });
+
+        test('should logout if token refresh fails', async () => {
+            api.refreshToken.mockResolvedValue(false);
+
+            wsInstance.connect();
+            wsInstance.ws._simulateOpen();
+            wsInstance.shouldReconnect = true;
+
+            // Симулируем закрытие с кодом 1008
+            wsInstance.ws.readyState = MockWebSocket.CLOSED;
+            wsInstance.ws.onclose({ code: 1008, reason: 'Token expired' });
+
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            expect(api.refreshToken).toHaveBeenCalled();
+            expect(api.logout).toHaveBeenCalled();
+            expect(wsInstance.shouldReconnect).toBe(false);
+        });
+
+        test('should logout if token refresh throws error', async () => {
+            api.refreshToken.mockRejectedValue(new Error('Network error'));
+
+            wsInstance.connect();
+            wsInstance.ws._simulateOpen();
+            wsInstance.shouldReconnect = true;
+
+            wsInstance.ws.readyState = MockWebSocket.CLOSED;
+            wsInstance.ws.onclose({ code: 1008, reason: 'Token expired' });
+
+            // Ждём rejection
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            expect(api.refreshToken).toHaveBeenCalled();
+            expect(api.logout).toHaveBeenCalled();
+            expect(wsInstance.shouldReconnect).toBe(false);
+        });
+
+        test('should not refresh token on normal close (code 1000)', () => {
+            wsInstance.connect();
+            wsInstance.ws._simulateOpen();
+            wsInstance.shouldReconnect = true;
+
+            // Симулируем нормальное закрытие
+            wsInstance.ws.readyState = MockWebSocket.CLOSED;
+            wsInstance.ws.onclose({ code: 1000, reason: 'Normal closure' });
+
+            expect(api.refreshToken).not.toHaveBeenCalled();
         });
     });
 });

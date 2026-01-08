@@ -1,6 +1,7 @@
 import Cookies from "js-cookie";
 import {dispatch} from "../utils/utils";
 import chatSync from "./chatSync";
+import api from "../api/api";
 
 /**
  * Максимальное количество попыток переподключения
@@ -226,6 +227,32 @@ export class UpdateServiceWebSocket {
     }
 
     /**
+     * Пробует обновить токен и переподключиться
+     * Если refresh не удался - вызывает logout
+     * @param {number} interval - интервал перед переподключением
+     */
+    async _refreshTokenAndReconnect(interval) {
+        try {
+            const refreshed = await api.refreshToken();
+            if (refreshed) {
+                console.log(`WebSocket: token refreshed, reconnecting in ${interval}ms (attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+                setTimeout(() => {
+                    this.connect();
+                }, interval);
+            } else {
+                // Refresh не удался - токены недействительны
+                console.error('WebSocket: token refresh failed, logging out');
+                this.shouldReconnect = false;
+                api.logout();
+            }
+        } catch (error) {
+            console.error('WebSocket: token refresh error:', error);
+            this.shouldReconnect = false;
+            api.logout();
+        }
+    }
+
+    /**
      * Запускает heartbeat для проверки соединения
      */
     _startHeartbeat() {
@@ -370,11 +397,18 @@ export class UpdateServiceWebSocket {
 
                 const interval = this._getReconnectInterval();
                 this.reconnectAttempts++;
-                console.log(`WebSocket: reconnecting in ${interval}ms (attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
 
-                setTimeout(() => {
-                    this.connect();
-                }, interval);
+                // Код 1008 (Policy Violation) означает ошибку авторизации
+                // Сначала пробуем обновить токен, потом переподключаемся
+                if (event.code === 1008) {
+                    console.log('WebSocket: auth error, trying to refresh token...');
+                    this._refreshTokenAndReconnect(interval);
+                } else {
+                    console.log(`WebSocket: reconnecting in ${interval}ms (attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+                    setTimeout(() => {
+                        this.connect();
+                    }, interval);
+                }
             }
         };
     }
