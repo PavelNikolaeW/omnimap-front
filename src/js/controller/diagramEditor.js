@@ -422,7 +422,8 @@ export class DiagramEditor {
     }
 
     /**
-     * Создать оверлей с грид-линиями
+     * Создать оверлей с грид-линиями (CSS gradient - 0 DOM элементов)
+     * Адаптивное количество линий: целевой размер ячейки ~60px
      */
     createGridOverlay() {
         if (this.gridOverlay) return;
@@ -432,8 +433,26 @@ export class DiagramEditor {
         // Кэшируем размер сетки
         this.cachedGridSize = { cols, rows };
 
-        // Инициализируем Map для быстрого доступа к ячейкам
-        this.gridCellsMap = new Map();
+        // gridCellsMap больше не нужен для CSS gradient подхода
+        this.gridCellsMap = null;
+
+        const rect = this.parentElement?.getBoundingClientRect();
+
+        // Целевой размер ячейки для комфортного восприятия
+        const TARGET_CELL_SIZE = 60;
+        const MIN_LINES = 3;
+        const MAX_LINES = 12;
+
+        // Вычисляем оптимальное количество линий на основе размера блока
+        let visibleCols = cols;
+        let visibleRows = rows;
+
+        if (rect) {
+            visibleCols = Math.min(MAX_LINES, Math.max(MIN_LINES, Math.floor(rect.width / TARGET_CELL_SIZE)));
+            visibleRows = Math.min(MAX_LINES, Math.max(MIN_LINES, Math.floor(rect.height / TARGET_CELL_SIZE)));
+        }
+
+        const lineColor = 'rgba(100, 100, 200, 0.25)';
 
         this.gridOverlay = document.createElement('div');
         this.gridOverlay.className = 'diagram-grid-overlay';
@@ -445,37 +464,14 @@ export class DiagramEditor {
             bottom: 0;
             pointer-events: none;
             z-index: 10;
-            display: grid;
-            grid-template-columns: repeat(${cols}, 1fr);
-            grid-template-rows: auto repeat(${rows}, 1fr);
+            background-image:
+                linear-gradient(to right, ${lineColor} 1px, transparent 1px),
+                linear-gradient(to bottom, ${lineColor} 1px, transparent 1px);
+            background-size:
+                calc(100% / ${visibleCols}) 100%,
+                100% calc(100% / ${visibleRows});
+            background-position: 0 0;
         `;
-
-        // Создать ячейки для визуализации сетки
-        // Первая строка - контент (auto)
-        for (let c = 0; c < cols; c++) {
-            const cell = document.createElement('div');
-            cell.className = 'diagram-grid-cell diagram-grid-cell-header';
-            const col = c + 1;
-            const row = 1;
-            cell.dataset.col = col;
-            cell.dataset.row = row;
-            this.gridOverlay.appendChild(cell);
-            this.gridCellsMap.set(`${col}-${row}`, cell);
-        }
-
-        // Остальные строки
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-                const cell = document.createElement('div');
-                cell.className = 'diagram-grid-cell';
-                const col = c + 1;
-                const row = r + 2; // +2 потому что первая строка - контент
-                cell.dataset.col = col;
-                cell.dataset.row = row;
-                this.gridOverlay.appendChild(cell);
-                this.gridCellsMap.set(`${col}-${row}`, cell);
-            }
-        }
 
         this.parentElement.style.position = 'relative';
         this.parentElement.appendChild(this.gridOverlay);
