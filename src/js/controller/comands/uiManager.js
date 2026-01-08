@@ -25,16 +25,9 @@ export const submenuConfig = {
             'diagramGridRowPlus', 'diagramGridRowMinus',
             'diagramSizeXs', 'diagramSizeS', 'diagramSizeM', 'diagramSizeL',
             'diagramAddBlock', 'diagramDeleteBlock',
-            'submenu-blockStyles', 'submenu-connections',
+            'diagramBlockStyle', 'submenu-connections',
             'diagramReset'
         ]
-    },
-    // Подменю "Стили блока" - вложено в "Диаграмма"
-    blockStyles: {
-        id: 'submenu-blockStyles',
-        label: 'Стили блока',
-        icon: 'fa-palette',
-        items: ['diagramBlockStyle', 'diagramResetBlockStyle']
     },
     // Подменю "Соединения" - вложено в "Диаграмма"
     connections: {
