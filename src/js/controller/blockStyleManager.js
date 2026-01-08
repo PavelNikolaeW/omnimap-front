@@ -404,10 +404,11 @@ export class BlockStyleManager {
 
     /**
      * Применить пресет цвета
+     * Сразу применяет стиль к блоку без нажатия Apply
      */
     applyPreset(presetName) {
         const preset = this.presetColors[presetName];
-        if (!preset) return;
+        if (!preset || !this.currentBlockId) return;
 
         this.backgroundInput.value = preset.background;
         this.borderColorInput.value = preset.borderColor;
@@ -416,6 +417,9 @@ export class BlockStyleManager {
         this.presets?.forEach(p => {
             p.classList.toggle('active', p.dataset.preset === presetName);
         });
+
+        // Сразу применить стиль
+        this.applyStyle();
     }
 
     /**

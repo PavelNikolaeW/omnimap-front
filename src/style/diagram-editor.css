@@ -254,6 +254,8 @@
     z-index: 1001;
     width: 220px;
     display: none;
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
 }
 
 .block-style-panel.visible {
@@ -523,6 +525,14 @@
     display: block;
 }
 
+/* Apply button sticky at bottom */
+#applyBlockStyle {
+    position: sticky;
+    bottom: 0;
+    background: white;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+}
+
 /* Additional inputs in style panel */
 .style-row input[type="number"] {
     width: 60px;
@@ -601,6 +611,7 @@
 [data-block-shape="cylinder"] {
     border-radius: 50% / 10% !important;
     position: relative;
+    padding-top: 20% !important; /* Компенсация для ::before overlay */
 }
 
 [data-block-shape="cylinder"]::before {
