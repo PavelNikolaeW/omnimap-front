@@ -510,6 +510,7 @@ export class DiagramEditor {
 
     /**
      * Добавить resize handles к конкретному элементу
+     * В режиме диаграммы - только resize handles, без anchor points
      */
     addResizeHandlesToElement(element) {
         // Удалить старые handles если есть
@@ -526,8 +527,8 @@ export class DiagramEditor {
             element.appendChild(handle);
         });
 
-        // Добавить anchor points для соединений
-        this.addAnchorPointsToElement(element);
+        // Anchor points НЕ добавляем - они теперь показываются при hover в режиме connect
+        // через ConnectionAnchorManager
 
         // Добавить класс для позиционирования
         element.classList.add('diagram-resizable');

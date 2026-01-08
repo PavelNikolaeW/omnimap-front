@@ -5,6 +5,7 @@ import {uiManager} from "./uiManager";
 import {isExcludedElement, throttle} from "../../utils/functions";
 import {dispatch} from "../../utils/utils";
 import {diagramEditor} from "../diagramEditor";
+import {connectionAnchorManager} from "../connectionAnchorManager";
 
 hotkeys.filter = function (event) {
     const target = event.target || event.srcElement;
@@ -53,6 +54,8 @@ export class CommandManager {
             this.resetAndReRegisterCommands(this.hotkeysMap);
         } )
 
+        // Инициализируем менеджер якорей для режима создания соединений
+        connectionAnchorManager.init(this.rootContainer);
     }
 
     registerCommand(cmd) {
