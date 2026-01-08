@@ -1587,3 +1587,24 @@ body.connect-mode [block] .anchor-point {
     background: #ef4444;
     color: white;
 }
+
+/* Подсказка в панели */
+#connectionEditPanel .style-hint {
+    font-size: 11px;
+    color: var(--text-secondary, #71717a);
+    margin-top: 4px;
+    font-style: italic;
+}
+
+/* Курсор для перетаскивания заголовка */
+#connectionEditPanel h4 {
+    cursor: move;
+    user-select: none;
+    padding: 4px;
+    margin: -4px -4px 12px -4px;
+    border-radius: 4px;
+}
+
+#connectionEditPanel h4:hover {
+    background: rgba(255, 255, 255, 0.05);
+}

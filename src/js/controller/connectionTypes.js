@@ -84,7 +84,7 @@ export const CONNECTION_CONFIGS = {
     [CONNECTION_TYPES.DEFAULT]: {
         connector: {
             type: "Flowchart",
-            options: { stub: 50, alwaysRespectStubs: true, cornerRadius: 5 }
+            options: { stub: 30, alwaysRespectStubs: false, cornerRadius: 5, midpoint: 0.5 }
         },
         paintStyle: { ...BASE_PAINT_STYLES },
         overlays: [
@@ -266,10 +266,11 @@ export const CONNECTION_CONFIGS = {
         ]
     },
 
+    // ORTHOGONAL - используем Flowchart с меньшим stub для близких блоков
     [CONNECTION_TYPES.ORTHOGONAL]: {
         connector: {
-            type: "Orthogonal",
-            options: { stub: 30, cornerRadius: 5, alwaysRespectStubs: true }
+            type: "Flowchart",
+            options: { stub: 15, cornerRadius: 5, alwaysRespectStubs: false, midpoint: 0.5 }
         },
         paintStyle: { ...BASE_PAINT_STYLES },
         overlays: [

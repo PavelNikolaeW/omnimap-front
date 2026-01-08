@@ -1,6 +1,11 @@
 /**
  * ConnectionEditManager - управляет редактированием существующих соединений jsPlumb
  * Позволяет пользователю кликнуть на соединение и изменить его стиль
+ *
+ * Исправления:
+ * - Live-update: изменения применяются сразу без кнопки "Применить"
+ * - Панель перемещаемая (drag)
+ * - Расширенные настройки для Flowchart/Orthogonal (stub, cornerRadius)
  */
 import { dispatch } from '../utils/utils';
 import { CONNECTION_TYPES } from './connectionTypes';
@@ -11,10 +16,21 @@ class ConnectionEditManager {
         this.sourceBlockId = null;
         this.targetBlockId = null;
         this.panel = null;
+        this.isInitialized = false;
+
+        // Для drag панели
+        this.isDragging = false;
+        this.dragOffset = { x: 0, y: 0 };
+
+        // Debounce для сохранения
+        this.saveTimeout = null;
+        this.SAVE_DEBOUNCE = 300;
 
         // Лимиты для валидации
         this.LIMITS = {
             strokeWidth: { min: 1, max: 10 },
+            stub: { min: 5, max: 100 },
+            cornerRadius: { min: 0, max: 20 },
             labelMaxLength: 100
         };
     }
@@ -23,6 +39,8 @@ class ConnectionEditManager {
      * Инициализация после загрузки DOM
      */
     init() {
+        if (this.isInitialized) return;
+
         this.panel = document.getElementById('connectionEditPanel');
         if (!this.panel) return;
 
@@ -34,41 +52,67 @@ class ConnectionEditManager {
         this.arrowStartCheckbox = document.getElementById('editArrowStart');
         this.arrowEndCheckbox = document.getElementById('editArrowEnd');
         this.labelInput = document.getElementById('editConnectorLabel');
-        this.applyBtn = document.getElementById('applyConnectionEdit');
         this.deleteBtn = document.getElementById('deleteConnectionEdit');
 
+        // Расширенные настройки
+        this.stubInput = document.getElementById('editConnectorStub');
+        this.stubValue = document.getElementById('editStubValue');
+        this.cornerRadiusInput = document.getElementById('editConnectorCornerRadius');
+        this.cornerRadiusValue = document.getElementById('editCornerRadiusValue');
+        this.advancedSection = document.getElementById('editAdvancedSection');
+
         this.bindEvents();
+        this.isInitialized = true;
     }
 
     /**
      * Привязать события
      */
     bindEvents() {
-        // Apply button
-        this.applyBtn?.addEventListener('click', () => {
-            this.applyChanges();
-        });
-
         // Delete button
         this.deleteBtn?.addEventListener('click', () => {
             this.deleteConnection();
         });
 
-        // Width value display
+        // Live-update для всех полей
+        this.typeSelect?.addEventListener('change', () => {
+            this.toggleAdvancedSettings();
+            this.applyChangesLive();
+        });
+
+        this.colorInput?.addEventListener('input', () => this.applyChangesLive());
+
         this.widthInput?.addEventListener('input', () => {
             if (this.widthValue) {
                 this.widthValue.textContent = `${this.widthInput.value}px`;
             }
+            this.applyChangesLive();
         });
 
-        // Close on click outside
-        document.addEventListener('click', (e) => {
-            if (this.panel?.classList.contains('visible') &&
-                !this.panel.contains(e.target) &&
-                !e.target.closest('.jtk-connector')) {
-                this.hide();
+        this.dashStyleSelect?.addEventListener('change', () => this.applyChangesLive());
+
+        this.arrowStartCheckbox?.addEventListener('change', () => this.applyChangesLive());
+        this.arrowEndCheckbox?.addEventListener('change', () => this.applyChangesLive());
+
+        this.labelInput?.addEventListener('input', () => this.applyChangesLive());
+
+        // Расширенные настройки
+        this.stubInput?.addEventListener('input', () => {
+            if (this.stubValue) {
+                this.stubValue.textContent = `${this.stubInput.value}px`;
             }
+            this.applyChangesLive();
         });
+
+        this.cornerRadiusInput?.addEventListener('input', () => {
+            if (this.cornerRadiusValue) {
+                this.cornerRadiusValue.textContent = `${this.cornerRadiusInput.value}px`;
+            }
+            this.applyChangesLive();
+        });
+
+        // Drag для панели
+        this.setupDrag();
 
         // Close on Escape
         document.addEventListener('keydown', (e) => {
@@ -76,6 +120,63 @@ class ConnectionEditManager {
                 this.hide();
             }
         });
+
+        // Предотвратить закрытие при клике на панель
+        this.panel?.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    }
+
+    /**
+     * Настроить drag для панели
+     */
+    setupDrag() {
+        const header = this.panel?.querySelector('h4');
+        if (!header) return;
+
+        header.style.cursor = 'move';
+        header.style.userSelect = 'none';
+
+        header.addEventListener('mousedown', (e) => {
+            this.isDragging = true;
+            const rect = this.panel.getBoundingClientRect();
+            this.dragOffset = {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!this.isDragging) return;
+
+            const x = e.clientX - this.dragOffset.x;
+            const y = e.clientY - this.dragOffset.y;
+
+            // Ограничить в пределах окна
+            const maxX = window.innerWidth - this.panel.offsetWidth;
+            const maxY = window.innerHeight - this.panel.offsetHeight;
+
+            this.panel.style.left = `${Math.max(0, Math.min(x, maxX))}px`;
+            this.panel.style.top = `${Math.max(0, Math.min(y, maxY))}px`;
+            this.panel.style.right = 'auto';
+        });
+
+        document.addEventListener('mouseup', () => {
+            this.isDragging = false;
+        });
+    }
+
+    /**
+     * Показать/скрыть расширенные настройки в зависимости от типа
+     */
+    toggleAdvancedSettings() {
+        const type = this.typeSelect?.value;
+        const showAdvanced = type === 'Flowchart';
+
+        if (this.advancedSection) {
+            this.advancedSection.style.display = showAdvanced ? 'block' : 'none';
+        }
     }
 
     /**
@@ -96,7 +197,14 @@ class ConnectionEditManager {
         this.targetBlockId = connection.target?.id;
 
         this.populatePanel();
+        this.toggleAdvancedSettings();
         this.highlightConnection();
+
+        // Сбросить позицию панели
+        this.panel.style.right = '20px';
+        this.panel.style.top = '100px';
+        this.panel.style.left = 'auto';
+
         this.panel.classList.add('visible');
     }
 
@@ -133,6 +241,21 @@ class ConnectionEditManager {
             this.typeSelect.value = connectorType;
         }
 
+        // Расширенные настройки - stub и cornerRadius из connector options
+        const connectorOptions = connector?.options || {};
+        if (this.stubInput) {
+            this.stubInput.value = connectorOptions.stub || 30;
+        }
+        if (this.stubValue) {
+            this.stubValue.textContent = `${connectorOptions.stub || 30}px`;
+        }
+        if (this.cornerRadiusInput) {
+            this.cornerRadiusInput.value = connectorOptions.cornerRadius || 5;
+        }
+        if (this.cornerRadiusValue) {
+            this.cornerRadiusValue.textContent = `${connectorOptions.cornerRadius || 5}px`;
+        }
+
         // Стрелки - проверить overlay'и
         const overlays = this.currentConnection.getOverlays ? this.currentConnection.getOverlays() : {};
         let hasStartArrow = false;
@@ -162,9 +285,9 @@ class ConnectionEditManager {
     }
 
     /**
-     * Применить изменения к соединению
+     * Применить изменения сразу (live-update)
      */
-    applyChanges() {
+    applyChangesLive() {
         if (!this.currentConnection) return;
 
         const config = this.getConfigFromPanel();
@@ -177,16 +300,19 @@ class ConnectionEditManager {
         // Обновить overlay'и
         this.updateOverlays(config.overlays);
 
-        // Сохранить изменения в data model
-        dispatch('UpdateConnectionBlock', {
-            sourceId: this.sourceBlockId,
-            targetId: this.targetBlockId,
-            connector: config.connector,
-            paintStyle: config.paintStyle,
-            overlays: config.overlays
-        });
-
-        this.hide();
+        // Debounce сохранения в data model
+        if (this.saveTimeout) {
+            clearTimeout(this.saveTimeout);
+        }
+        this.saveTimeout = setTimeout(() => {
+            dispatch('UpdateConnectionBlock', {
+                sourceId: this.sourceBlockId,
+                targetId: this.targetBlockId,
+                connector: config.connector,
+                paintStyle: config.paintStyle,
+                overlays: config.overlays
+            });
+        }, this.SAVE_DEBOUNCE);
     }
 
     /**
@@ -203,17 +329,36 @@ class ConnectionEditManager {
         const dashstyle = this.dashStyleSelect?.value || undefined;
         const connectorType = this.typeSelect?.value || 'Flowchart';
 
+        // Расширенные настройки
+        const stub = this.clampNumeric(
+            this.stubInput?.value,
+            this.LIMITS.stub.min,
+            this.LIMITS.stub.max,
+            30
+        );
+        const cornerRadius = this.clampNumeric(
+            this.cornerRadiusInput?.value,
+            this.LIMITS.cornerRadius.min,
+            this.LIMITS.cornerRadius.max,
+            5
+        );
+
         // Connector options based on type
         let connectorOptions = {};
         switch (connectorType) {
             case 'Flowchart':
-                connectorOptions = { stub: 50, alwaysRespectStubs: true, cornerRadius: 5 };
+                connectorOptions = {
+                    stub: stub,
+                    alwaysRespectStubs: false, // false для близких блоков
+                    cornerRadius: cornerRadius,
+                    midpoint: 0.5
+                };
                 break;
             case 'Bezier':
                 connectorOptions = { curviness: 100 };
                 break;
-            case 'Orthogonal':
-                connectorOptions = { stub: 30, cornerRadius: 5, alwaysRespectStubs: true };
+            case 'Straight':
+                connectorOptions = {};
                 break;
             case 'StateMachine':
                 connectorOptions = { margin: 5, curviness: 10, proximityLimit: 80 };
@@ -318,7 +463,6 @@ class ConnectionEditManager {
         });
 
         // Удаляем соединение из jsPlumb
-        // arrowManager.deleteConnection будет вызван через event
         const instance = this.currentConnection._jsPlumb?.instance;
         if (instance && instance.deleteConnection) {
             instance.deleteConnection(this.currentConnection);
@@ -351,6 +495,9 @@ class ConnectionEditManager {
      * Скрыть панель редактирования
      */
     hide() {
+        if (this.saveTimeout) {
+            clearTimeout(this.saveTimeout);
+        }
         this.unhighlightConnection();
         this.panel?.classList.remove('visible');
         this.currentConnection = null;

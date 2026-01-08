@@ -127,6 +127,12 @@ export class CommandManager {
     clickOnRootContainerHandler(event) {
         const target = event.target
 
+        // Игнорировать клики на jsPlumb соединениях - они обрабатываются arrowManager
+        if (target.closest('.jtk-connector') || target.closest('.jtk-overlay') ||
+            target.classList.contains('jtk-connector') || target.classList.contains('jtk-endpoint')) {
+            return;
+        }
+
         // Обработать клик на anchor point в режимах connect
         if (target.classList.contains('anchor-point')) {
             const mode = this.ctxManager.mode;
