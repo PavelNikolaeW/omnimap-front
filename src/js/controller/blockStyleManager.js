@@ -128,8 +128,21 @@ export class BlockStyleManager {
     }
 
     bindEvents() {
-        // Применить стиль
-        this.applyBtn?.addEventListener('click', () => this.applyStyle());
+        // Auto-apply при изменении любого input/select
+        const autoApplyHandler = () => this.applyStyle();
+
+        // Basic inputs
+        this.backgroundInput?.addEventListener('change', autoApplyHandler);
+        this.borderColorInput?.addEventListener('change', autoApplyHandler);
+        this.borderSelect?.addEventListener('change', autoApplyHandler);
+        this.shapeSelect?.addEventListener('change', autoApplyHandler);
+        this.shadowSelect?.addEventListener('change', autoApplyHandler);
+
+        // Advanced inputs
+        this.textColorInput?.addEventListener('change', autoApplyHandler);
+        this.fontSizeSelect?.addEventListener('change', autoApplyHandler);
+        this.textAlignSelect?.addEventListener('change', autoApplyHandler);
+        this.customClassInput?.addEventListener('change', autoApplyHandler);
 
         // Пресеты цветов
         this.presets?.forEach(preset => {
@@ -147,12 +160,17 @@ export class BlockStyleManager {
             tab.addEventListener('click', () => this.switchTab(tab.dataset.tab));
         });
 
-        // Обновление значения opacity
+        // Opacity - обновление значения и auto-apply
         this.opacityInput?.addEventListener('input', () => {
             if (this.opacityValue) {
                 this.opacityValue.textContent = `${this.opacityInput.value}%`;
             }
+            this.applyStyle();
         });
+
+        // Кнопка сброса стилей
+        this.resetBtn = document.getElementById('resetBlockStyle');
+        this.resetBtn?.addEventListener('click', () => this.resetStyles());
 
         // Закрытие панели при клике вне неё
         document.addEventListener('click', (e) => {
@@ -514,6 +532,70 @@ export class BlockStyleManager {
 
         // Сразу применить стиль
         this.applyStyle();
+    }
+
+    /**
+     * Сбросить все стили блока к значениям по умолчанию
+     */
+    resetStyles() {
+        if (!this.currentBlockId) return;
+
+        // Сбросить UI к дефолтным значениям
+        if (this.backgroundInput) this.backgroundInput.value = '#ffffff';
+        if (this.borderColorInput) this.borderColorInput.value = '#e5e7eb';
+        if (this.borderSelect) this.borderSelect.value = '';
+        if (this.shapeSelect) this.shapeSelect.value = '';
+        if (this.shadowSelect) this.shadowSelect.value = '';
+        if (this.textColorInput) this.textColorInput.value = '#000000';
+        if (this.fontSizeSelect) this.fontSizeSelect.value = '';
+        if (this.textAlignSelect) this.textAlignSelect.value = '';
+        if (this.opacityInput) {
+            this.opacityInput.value = 100;
+            if (this.opacityValue) this.opacityValue.textContent = '100%';
+        }
+        if (this.customClassInput) this.customClassInput.value = '';
+
+        // Снять выделение с пресетов
+        this.presets?.forEach(p => p.classList.remove('active'));
+        this.shapePresets?.forEach(p => p.classList.remove('active'));
+
+        // Очистить все стили блока
+        dispatch('UpdateBlockStyles', {
+            blockId: this.currentBlockId,
+            customStyles: null  // null означает удаление всех стилей
+        });
+
+        // Очистить стили с элемента
+        if (this.currentElement) {
+            this.clearStylesFromElement(this.currentElement);
+        }
+    }
+
+    /**
+     * Очистить все кастомные стили с элемента
+     */
+    clearStylesFromElement(element) {
+        if (!element) return;
+
+        // Inline styles
+        element.style.backgroundColor = '';
+        element.style.borderColor = '';
+        element.style.color = '';
+        element.style.opacity = '';
+
+        // Data-атрибуты
+        element.removeAttribute('data-block-border');
+        element.removeAttribute('data-block-shape');
+        element.removeAttribute('data-block-shadow');
+        element.removeAttribute('data-block-font-size');
+        element.removeAttribute('data-block-text-align');
+
+        // Custom class
+        const customClass = element.getAttribute('data-custom-class');
+        if (customClass) {
+            element.classList.remove(customClass);
+            element.removeAttribute('data-custom-class');
+        }
     }
 
     /**

@@ -525,12 +525,19 @@
     display: block;
 }
 
-/* Apply button sticky at bottom */
-#applyBlockStyle {
+/* Reset button sticky at bottom */
+#resetBlockStyle {
     position: sticky;
     bottom: 0;
-    background: white;
+    background: #fee2e2;
+    border-color: #fca5a5;
+    color: #dc2626;
     box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+}
+
+#resetBlockStyle:hover {
+    background: #fecaca;
+    border-color: #f87171;
 }
 
 /* Additional inputs in style panel */
@@ -751,42 +758,50 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Block Font Sizes
+   Block Font Sizes (применяется к блоку и всем вложенным элементам)
    ───────────────────────────────────────────────────────────────────────────── */
 
-[data-block-font-size="xs"] {
+[data-block-font-size="xs"],
+[data-block-font-size="xs"] * {
     font-size: 10px !important;
 }
 
-[data-block-font-size="sm"] {
+[data-block-font-size="sm"],
+[data-block-font-size="sm"] * {
     font-size: 12px !important;
 }
 
-[data-block-font-size="md"] {
+[data-block-font-size="md"],
+[data-block-font-size="md"] * {
     font-size: 14px !important;
 }
 
-[data-block-font-size="lg"] {
+[data-block-font-size="lg"],
+[data-block-font-size="lg"] * {
     font-size: 18px !important;
 }
 
-[data-block-font-size="xl"] {
+[data-block-font-size="xl"],
+[data-block-font-size="xl"] * {
     font-size: 24px !important;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Block Text Alignment
+   Block Text Alignment (применяется к блоку и вложенным контейнерам)
    ───────────────────────────────────────────────────────────────────────────── */
 
-[data-block-text-align="left"] {
+[data-block-text-align="left"],
+[data-block-text-align="left"] > * {
     text-align: left !important;
 }
 
-[data-block-text-align="center"] {
+[data-block-text-align="center"],
+[data-block-text-align="center"] > * {
     text-align: center !important;
 }
 
-[data-block-text-align="right"] {
+[data-block-text-align="right"],
+[data-block-text-align="right"] > * {
     text-align: right !important;
 }
 
