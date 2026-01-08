@@ -415,12 +415,33 @@ export class DiagramEditor {
     }
 
     /**
+     * Вычислить коэффициент прореживания сетки на основе размера ячеек
+     * @returns {number} - показывать каждую N-ую линию (1 = все, 2 = каждую вторую, и т.д.)
+     */
+    _calculateGridThinningFactor(cols, rows) {
+        if (!this.parentElement) return 1;
+
+        const rect = this.parentElement.getBoundingClientRect();
+        const cellWidth = rect.width / cols;
+        const cellHeight = rect.height / (rows + 1); // +1 для header row
+        const minCellSize = Math.min(cellWidth, cellHeight);
+
+        // Минимальный комфортный размер ячейки ~40px
+        // При меньших размерах прореживаем линии
+        if (minCellSize < 15) return 4;  // очень мелкие - каждую 4-ю
+        if (minCellSize < 25) return 3;  // мелкие - каждую 3-ю
+        if (minCellSize < 40) return 2;  // средние - каждую 2-ю
+        return 1;  // нормальные - все линии
+    }
+
+    /**
      * Создать оверлей с грид-линиями
      */
     createGridOverlay() {
         if (this.gridOverlay) return;
 
         const { cols, rows } = this.parseGridSize();
+        const thinningFactor = this._calculateGridThinningFactor(cols, rows);
 
         this.gridOverlay = document.createElement('div');
         this.gridOverlay.className = 'diagram-grid-overlay';
@@ -447,11 +468,17 @@ export class DiagramEditor {
             this.gridOverlay.appendChild(cell);
         }
 
-        // Остальные строки
+        // Остальные строки с учётом прореживания
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
                 const cell = document.createElement('div');
-                cell.className = 'diagram-grid-cell';
+                const isVisibleCol = (c % thinningFactor === 0) || (c === cols - 1);
+                const isVisibleRow = (r % thinningFactor === 0) || (r === rows - 1);
+
+                // Ячейка видима если обе её границы (левая и верхняя) на видимых линиях
+                const isThinned = !isVisibleCol || !isVisibleRow;
+
+                cell.className = `diagram-grid-cell${isThinned ? ' diagram-grid-cell-thinned' : ''}`;
                 cell.dataset.col = c + 1;
                 cell.dataset.row = r + 2; // +2 потому что первая строка - контент
                 this.gridOverlay.appendChild(cell);
