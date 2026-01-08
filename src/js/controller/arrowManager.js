@@ -362,18 +362,36 @@ class ArrowManager {
             return { visible: true };
         };
 
+        // FIX: Проверка видимости учитывает overflow родителей.
+        // Элемент должен быть видим в viewport И внутри всех родительских
+        // контейнеров со скроллом (overflow: auto/scroll/hidden).
         const isVisible = (el) => {
             if (!el) return false;
-            const r = el.getBoundingClientRect(), o = 10;
-            return [
-                [r.left + o, r.top + o],
-                [r.right - o, r.top + o],
-                [r.left + o, r.bottom - o],
-                [r.right - o, r.bottom - o],
-            ].every(([x, y]) => {
-                const at = document.elementFromPoint(x, y);
-                return el.contains(at) || at === el;
-            });
+            const r = el.getBoundingClientRect();
+            // Элемент должен иметь размеры > 0
+            if (r.width <= 0 || r.height <= 0) return false;
+
+            // Проверяем видимость внутри всех родителей с overflow
+            let parent = el.parentElement;
+            while (parent && parent !== document.body) {
+                const style = getComputedStyle(parent);
+                const overflow = style.overflow + style.overflowX + style.overflowY;
+                // Если родитель имеет overflow (не visible), проверяем bounds
+                if (overflow.includes('auto') || overflow.includes('scroll') || overflow.includes('hidden')) {
+                    const parentRect = parent.getBoundingClientRect();
+                    // Элемент должен быть хотя бы частично видим внутри родителя
+                    if (r.bottom <= parentRect.top || r.top >= parentRect.bottom ||
+                        r.right <= parentRect.left || r.left >= parentRect.right) {
+                        return false;
+                    }
+                }
+                parent = parent.parentElement;
+            }
+
+            // Элемент должен быть хотя бы частично в viewport
+            const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+            const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+            return r.bottom > 0 && r.top < viewportHeight && r.right > 0 && r.left < viewportWidth;
         };
 
         // DEBUG: Статистика
