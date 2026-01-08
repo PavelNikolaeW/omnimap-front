@@ -404,6 +404,70 @@
     </button>
 </div>
 
+<!-- Connection Edit Panel (для редактирования существующих соединений) -->
+<div class="block-style-panel" id="connectionEditPanel">
+    <h4>Редактирование соединения</h4>
+
+    <div class="style-section">
+        <div class="style-section-label">Тип линии</div>
+        <select id="editConnectorType">
+            <option value="Flowchart">Flowchart</option>
+            <option value="Bezier">Bezier (изогнутая)</option>
+            <option value="Straight">Прямая</option>
+            <option value="Orthogonal">Ортогональная</option>
+            <option value="StateMachine">State Machine</option>
+        </select>
+    </div>
+
+    <div class="style-section">
+        <div class="style-section-label">Цвет</div>
+        <input type="color" id="editConnectorColor" value="#516077" style="width: 100%;">
+    </div>
+
+    <div class="style-section">
+        <div class="style-section-label">Толщина: <span id="editWidthValue">2px</span></div>
+        <input type="range" id="editConnectorWidth" min="1" max="10" value="2" style="width: 100%;">
+    </div>
+
+    <div class="style-section">
+        <div class="style-section-label">Стиль линии</div>
+        <select id="editConnectorDashStyle">
+            <option value="">Сплошная</option>
+            <option value="4 2">Пунктирная</option>
+            <option value="1 3">Точечная</option>
+            <option value="6 3">Длинный пунктир</option>
+        </select>
+    </div>
+
+    <div class="style-section">
+        <div class="style-section-label">Стрелки</div>
+        <div class="style-row checkbox-row">
+            <label>
+                <input type="checkbox" id="editArrowStart"> Начало
+            </label>
+        </div>
+        <div class="style-row checkbox-row">
+            <label>
+                <input type="checkbox" id="editArrowEnd" checked> Конец
+            </label>
+        </div>
+    </div>
+
+    <div class="style-section">
+        <div class="style-section-label">Подпись</div>
+        <input type="text" id="editConnectorLabel" placeholder="Текст на соединении..." style="width: 100%;">
+    </div>
+
+    <div class="style-section connection-edit-actions">
+        <button id="applyConnectionEdit" class="diagram-btn" style="flex: 1;">
+            <i class="fas fa-check"></i> Применить
+        </button>
+        <button id="deleteConnectionEdit" class="diagram-btn diagram-btn-danger">
+            <i class="fas fa-trash"></i>
+        </button>
+    </div>
+</div>
+
 <!-- Fullscreen chat container - React will mount here -->
 <div id="fullscreen-chat-root"></div>
 

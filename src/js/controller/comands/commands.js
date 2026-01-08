@@ -5,6 +5,7 @@ import {colorCommands} from "./colorCommands";
 import {layoutCommands} from "./layoutCommands";
 import {arrowManager} from "../arrowManager";
 import {blockStyleManager} from "../blockStyleManager";
+import {CONNECTION_TYPES} from "../connectionTypes";
 import api from "../../api/api";
 import {customPrompt} from "../../utils/custom-dialog";
 
@@ -628,9 +629,13 @@ export const commands = [
                 let sourceEl = ctx.blockElement
                 if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
                 ctx.connect_source_id = sourceEl.id
+                // Сохраняем anchor если кликнули на него
+                ctx.sourceAnchor = ctx.clickedAnchor?.position || null
+                ctx.clickedAnchor = null
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
-                showHint('Теперь кликните на целевой блок для создания соединения')
+                document.body.classList.add('connect-mode')  // Показать anchors на всех блоках
+                showHint('Кликните на блок или точку привязки для создания соединения')
             }
             // Шаг 1 альтернатива: Блок не выбран - ждём выбора источника
             else if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && !ctx.blockElement) {
@@ -638,7 +643,8 @@ export const commands = [
                 ctx.mode = MODES.CONNECT_SELECT_SOURCE
                 ctx.connectionType = undefined  // обычное соединение
                 document.body.style.cursor = 'crosshair'
-                showHint('Кликните на блок-источник для создания соединения (Esc для отмены)')
+                document.body.classList.add('connect-mode')  // Показать anchors на всех блоках
+                showHint('Кликните на блок или точку привязки источника (Esc для отмены)')
             }
             // Шаг 2: Выбор источника после входа в режим ожидания
             else if (ctx.mode === MODES.CONNECT_SELECT_SOURCE && ctx.blockElement) {
@@ -646,10 +652,13 @@ export const commands = [
                 let sourceEl = ctx.blockElement
                 if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
                 ctx.connect_source_id = sourceEl.id
+                // Сохраняем anchor если кликнули на него
+                ctx.sourceAnchor = ctx.clickedAnchor?.position || null
+                ctx.clickedAnchor = null
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
                 document.body.style.cursor = ''
-                showHint('Теперь кликните на целевой блок для создания соединения')
+                showHint('Кликните на блок или точку привязки для создания соединения')
             }
             // Шаг 3: Выбор целевого блока
             else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
@@ -657,10 +666,23 @@ export const commands = [
                 if (ctx.blockLinkElement) targetEl = ctx.blockLinkElement
                 let targetId = targetEl.id
                 if (ctx.connect_source_id !== targetId) {
-                    arrowManager.completeConnectionToElement(ctx.connect_source_id, targetId)
+                    // Сохраняем target anchor если кликнули на него
+                    const targetAnchor = ctx.clickedAnchor?.position || null
+                    ctx.clickedAnchor = null
+                    // Создаём соединение с опциональными anchors
+                    arrowManager.completeConnectionToElement(
+                        ctx.connect_source_id,
+                        targetId,
+                        CONNECTION_TYPES.DEFAULT,
+                        null,
+                        ctx.sourceAnchor,
+                        targetAnchor
+                    )
                     ctx.connect_source_id = undefined
+                    ctx.sourceAnchor = undefined
                     ctx.sourceEl.classList.remove('block-selected')
                     ctx.sourceEl = undefined
+                    document.body.classList.remove('connect-mode')  // Скрыть anchors
                     // Вернуться в предыдущий режим (DIAGRAM или NORMAL)
                     ctx.mode = ctx.previousMode || MODES.NORMAL
                     ctx.previousMode = undefined
@@ -709,9 +731,12 @@ export const commands = [
                 let sourceEl = ctx.blockElement
                 if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
                 ctx.connect_source_id = sourceEl.id
+                ctx.sourceAnchor = ctx.clickedAnchor?.position || null
+                ctx.clickedAnchor = null
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
-                showHint('Кликните на целевой блок для пунктирного соединения')
+                document.body.classList.add('connect-mode')
+                showHint('Кликните на блок или точку привязки для пунктирного соединения')
             }
             // Шаг 1 альтернатива: Блок не выбран - ждём выбора источника
             else if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && !ctx.blockElement) {
@@ -719,7 +744,8 @@ export const commands = [
                 ctx.mode = MODES.CONNECT_SELECT_SOURCE
                 ctx.connectionType = 'dashed'
                 document.body.style.cursor = 'crosshair'
-                showHint('Кликните на блок-источник для пунктирного соединения (Esc для отмены)')
+                document.body.classList.add('connect-mode')
+                showHint('Кликните на блок или точку привязки источника (Esc для отмены)')
             }
             // Шаг 2: Выбор источника после входа в режим ожидания
             else if (ctx.mode === MODES.CONNECT_SELECT_SOURCE && ctx.blockElement) {
@@ -727,10 +753,12 @@ export const commands = [
                 let sourceEl = ctx.blockElement
                 if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
                 ctx.connect_source_id = sourceEl.id
+                ctx.sourceAnchor = ctx.clickedAnchor?.position || null
+                ctx.clickedAnchor = null
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
                 document.body.style.cursor = ''
-                showHint('Кликните на целевой блок для пунктирного соединения')
+                showHint('Кликните на блок или точку привязки для пунктирного соединения')
             }
             // Шаг 3: Выбор целевого блока
             else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
@@ -738,11 +766,22 @@ export const commands = [
                 if (ctx.blockLinkElement) targetEl = ctx.blockLinkElement
                 let targetId = targetEl.id
                 if (ctx.connect_source_id !== targetId) {
-                    arrowManager.completeConnectionToElement(ctx.connect_source_id, targetId, ctx.connectionType || 'dashed')
+                    const targetAnchor = ctx.clickedAnchor?.position || null
+                    ctx.clickedAnchor = null
+                    arrowManager.completeConnectionToElement(
+                        ctx.connect_source_id,
+                        targetId,
+                        ctx.connectionType || 'dashed',
+                        null,
+                        ctx.sourceAnchor,
+                        targetAnchor
+                    )
                     ctx.connect_source_id = undefined
                     ctx.connectionType = undefined
+                    ctx.sourceAnchor = undefined
                     ctx.sourceEl.classList.remove('block-selected')
                     ctx.sourceEl = undefined
+                    document.body.classList.remove('connect-mode')
                     ctx.mode = ctx.previousMode || MODES.NORMAL
                     ctx.previousMode = undefined
                     showHint('Пунктирное соединение создано', 1500)
@@ -772,9 +811,12 @@ export const commands = [
                 let sourceEl = ctx.blockElement
                 if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
                 ctx.connect_source_id = sourceEl.id
+                ctx.sourceAnchor = ctx.clickedAnchor?.position || null
+                ctx.clickedAnchor = null
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
-                showHint('Кликните на целевой блок для двустороннего соединения')
+                document.body.classList.add('connect-mode')
+                showHint('Кликните на блок или точку привязки для двустороннего соединения')
             }
             // Шаг 1 альтернатива: Блок не выбран - ждём выбора источника
             else if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && !ctx.blockElement) {
@@ -782,7 +824,8 @@ export const commands = [
                 ctx.mode = MODES.CONNECT_SELECT_SOURCE
                 ctx.connectionType = 'double'
                 document.body.style.cursor = 'crosshair'
-                showHint('Кликните на блок-источник для двустороннего соединения (Esc для отмены)')
+                document.body.classList.add('connect-mode')
+                showHint('Кликните на блок или точку привязки источника (Esc для отмены)')
             }
             // Шаг 2: Выбор источника после входа в режим ожидания
             else if (ctx.mode === MODES.CONNECT_SELECT_SOURCE && ctx.blockElement) {
@@ -790,10 +833,12 @@ export const commands = [
                 let sourceEl = ctx.blockElement
                 if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
                 ctx.connect_source_id = sourceEl.id
+                ctx.sourceAnchor = ctx.clickedAnchor?.position || null
+                ctx.clickedAnchor = null
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
                 document.body.style.cursor = ''
-                showHint('Кликните на целевой блок для двустороннего соединения')
+                showHint('Кликните на блок или точку привязки для двустороннего соединения')
             }
             // Шаг 3: Выбор целевого блока
             else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
@@ -801,11 +846,22 @@ export const commands = [
                 if (ctx.blockLinkElement) targetEl = ctx.blockLinkElement
                 let targetId = targetEl.id
                 if (ctx.connect_source_id !== targetId) {
-                    arrowManager.completeConnectionToElement(ctx.connect_source_id, targetId, ctx.connectionType || 'double')
+                    const targetAnchor = ctx.clickedAnchor?.position || null
+                    ctx.clickedAnchor = null
+                    arrowManager.completeConnectionToElement(
+                        ctx.connect_source_id,
+                        targetId,
+                        ctx.connectionType || 'double',
+                        null,
+                        ctx.sourceAnchor,
+                        targetAnchor
+                    )
                     ctx.connect_source_id = undefined
                     ctx.connectionType = undefined
+                    ctx.sourceAnchor = undefined
                     ctx.sourceEl.classList.remove('block-selected')
                     ctx.sourceEl = undefined
+                    document.body.classList.remove('connect-mode')
                     ctx.mode = ctx.previousMode || MODES.NORMAL
                     ctx.previousMode = undefined
                     showHint('Двустороннее соединение создано', 1500)
@@ -835,9 +891,12 @@ export const commands = [
                 let sourceEl = ctx.blockElement
                 if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
                 ctx.connect_source_id = sourceEl.id
+                ctx.sourceAnchor = ctx.clickedAnchor?.position || null
+                ctx.clickedAnchor = null
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
-                showHint('Кликните на целевой блок для изогнутого соединения')
+                document.body.classList.add('connect-mode')
+                showHint('Кликните на блок или точку привязки для изогнутого соединения')
             }
             // Шаг 1 альтернатива: Блок не выбран - ждём выбора источника
             else if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && !ctx.blockElement) {
@@ -845,7 +904,8 @@ export const commands = [
                 ctx.mode = MODES.CONNECT_SELECT_SOURCE
                 ctx.connectionType = 'curved'
                 document.body.style.cursor = 'crosshair'
-                showHint('Кликните на блок-источник для изогнутого соединения (Esc для отмены)')
+                document.body.classList.add('connect-mode')
+                showHint('Кликните на блок или точку привязки источника (Esc для отмены)')
             }
             // Шаг 2: Выбор источника после входа в режим ожидания
             else if (ctx.mode === MODES.CONNECT_SELECT_SOURCE && ctx.blockElement) {
@@ -853,10 +913,12 @@ export const commands = [
                 let sourceEl = ctx.blockElement
                 if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
                 ctx.connect_source_id = sourceEl.id
+                ctx.sourceAnchor = ctx.clickedAnchor?.position || null
+                ctx.clickedAnchor = null
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
                 document.body.style.cursor = ''
-                showHint('Кликните на целевой блок для изогнутого соединения')
+                showHint('Кликните на блок или точку привязки для изогнутого соединения')
             }
             // Шаг 3: Выбор целевого блока
             else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
@@ -864,11 +926,22 @@ export const commands = [
                 if (ctx.blockLinkElement) targetEl = ctx.blockLinkElement
                 let targetId = targetEl.id
                 if (ctx.connect_source_id !== targetId) {
-                    arrowManager.completeConnectionToElement(ctx.connect_source_id, targetId, ctx.connectionType || 'curved')
+                    const targetAnchor = ctx.clickedAnchor?.position || null
+                    ctx.clickedAnchor = null
+                    arrowManager.completeConnectionToElement(
+                        ctx.connect_source_id,
+                        targetId,
+                        ctx.connectionType || 'curved',
+                        null,
+                        ctx.sourceAnchor,
+                        targetAnchor
+                    )
                     ctx.connect_source_id = undefined
                     ctx.connectionType = undefined
+                    ctx.sourceAnchor = undefined
                     ctx.sourceEl.classList.remove('block-selected')
                     ctx.sourceEl = undefined
+                    document.body.classList.remove('connect-mode')
                     ctx.mode = ctx.previousMode || MODES.NORMAL
                     ctx.previousMode = undefined
                     showHint('Изогнутое соединение создано', 1500)
@@ -898,9 +971,12 @@ export const commands = [
                 let sourceEl = ctx.blockElement
                 if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
                 ctx.connect_source_id = sourceEl.id
+                ctx.sourceAnchor = ctx.clickedAnchor?.position || null
+                ctx.clickedAnchor = null
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
-                showHint('Кликните на целевой блок для прямого соединения')
+                document.body.classList.add('connect-mode')
+                showHint('Кликните на блок или точку привязки для прямого соединения')
             }
             // Шаг 1 альтернатива: Блок не выбран - ждём выбора источника
             else if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && !ctx.blockElement) {
@@ -908,7 +984,8 @@ export const commands = [
                 ctx.mode = MODES.CONNECT_SELECT_SOURCE
                 ctx.connectionType = 'straight'
                 document.body.style.cursor = 'crosshair'
-                showHint('Кликните на блок-источник для прямого соединения (Esc для отмены)')
+                document.body.classList.add('connect-mode')
+                showHint('Кликните на блок или точку привязки источника (Esc для отмены)')
             }
             // Шаг 2: Выбор источника после входа в режим ожидания
             else if (ctx.mode === MODES.CONNECT_SELECT_SOURCE && ctx.blockElement) {
@@ -916,10 +993,12 @@ export const commands = [
                 let sourceEl = ctx.blockElement
                 if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
                 ctx.connect_source_id = sourceEl.id
+                ctx.sourceAnchor = ctx.clickedAnchor?.position || null
+                ctx.clickedAnchor = null
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
                 document.body.style.cursor = ''
-                showHint('Кликните на целевой блок для прямого соединения')
+                showHint('Кликните на блок или точку привязки для прямого соединения')
             }
             // Шаг 3: Выбор целевого блока
             else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
@@ -927,11 +1006,22 @@ export const commands = [
                 if (ctx.blockLinkElement) targetEl = ctx.blockLinkElement
                 let targetId = targetEl.id
                 if (ctx.connect_source_id !== targetId) {
-                    arrowManager.completeConnectionToElement(ctx.connect_source_id, targetId, ctx.connectionType || 'straight')
+                    const targetAnchor = ctx.clickedAnchor?.position || null
+                    ctx.clickedAnchor = null
+                    arrowManager.completeConnectionToElement(
+                        ctx.connect_source_id,
+                        targetId,
+                        ctx.connectionType || 'straight',
+                        null,
+                        ctx.sourceAnchor,
+                        targetAnchor
+                    )
                     ctx.connect_source_id = undefined
                     ctx.connectionType = undefined
+                    ctx.sourceAnchor = undefined
                     ctx.sourceEl.classList.remove('block-selected')
                     ctx.sourceEl = undefined
+                    document.body.classList.remove('connect-mode')
                     ctx.mode = ctx.previousMode || MODES.NORMAL
                     ctx.previousMode = undefined
                     showHint('Прямое соединение создано', 1500)
@@ -939,6 +1029,118 @@ export const commands = [
                         ctx.setCmd('openBlock')
                     }, 50)
                 }
+            }
+        }
+    },
+    {
+        id: "connectOrthogonal",
+        mode: ['normal', 'connectToBlock', 'connectSelectSource', 'diagram'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Ортогональное соединение',
+            classes: ['sidebar-button', 'fas', 'fa-right-left', 'fas-lg'],
+        },
+        defaultHotkey: '',
+        regLink: false,
+        description: 'Создать ортогональное соединение между блоками',
+        execute(ctx) {
+            // Шаг 1: Выбор источника (блок уже выбран)
+            if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && ctx.blockElement) {
+                ctx.previousMode = ctx.mode
+                ctx.mode = MODES.CONNECT_TO_BLOCK
+                ctx.connectionType = CONNECTION_TYPES.ORTHOGONAL
+                let sourceEl = ctx.blockElement
+                if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
+                ctx.connect_source_id = sourceEl.id
+                ctx.sourceAnchor = ctx.clickedAnchor?.position || null
+                ctx.clickedAnchor = null
+                sourceEl.classList.add('block-selected')
+                ctx.sourceEl = sourceEl
+                document.body.classList.add('connect-mode')
+                showHint('Кликните на блок или точку привязки для ортогонального соединения')
+            }
+            // Шаг 1 альтернатива: Блок не выбран - ждём выбора источника
+            else if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && !ctx.blockElement) {
+                ctx.previousMode = ctx.mode
+                ctx.mode = MODES.CONNECT_SELECT_SOURCE
+                ctx.connectionType = CONNECTION_TYPES.ORTHOGONAL
+                document.body.style.cursor = 'crosshair'
+                document.body.classList.add('connect-mode')
+                showHint('Кликните на блок или точку привязки источника (Esc для отмены)')
+            }
+            // Шаг 2: Выбор источника после входа в режим ожидания
+            else if (ctx.mode === MODES.CONNECT_SELECT_SOURCE && ctx.blockElement) {
+                ctx.mode = MODES.CONNECT_TO_BLOCK
+                let sourceEl = ctx.blockElement
+                if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
+                ctx.connect_source_id = sourceEl.id
+                ctx.sourceAnchor = ctx.clickedAnchor?.position || null
+                ctx.clickedAnchor = null
+                sourceEl.classList.add('block-selected')
+                ctx.sourceEl = sourceEl
+                document.body.style.cursor = ''
+                showHint('Кликните на блок или точку привязки для ортогонального соединения')
+            }
+            // Шаг 3: Выбор целевого блока
+            else if (ctx.mode === MODES.CONNECT_TO_BLOCK && ctx.blockElement) {
+                let targetEl = ctx.blockElement
+                if (ctx.blockLinkElement) targetEl = ctx.blockLinkElement
+                let targetId = targetEl.id
+                if (ctx.connect_source_id !== targetId) {
+                    const targetAnchor = ctx.clickedAnchor?.position || null
+                    ctx.clickedAnchor = null
+                    arrowManager.completeConnectionToElement(
+                        ctx.connect_source_id,
+                        targetId,
+                        ctx.connectionType || CONNECTION_TYPES.ORTHOGONAL,
+                        null,
+                        ctx.sourceAnchor,
+                        targetAnchor
+                    )
+                    ctx.connect_source_id = undefined
+                    ctx.connectionType = undefined
+                    ctx.sourceAnchor = undefined
+                    ctx.sourceEl.classList.remove('block-selected')
+                    ctx.sourceEl = undefined
+                    document.body.classList.remove('connect-mode')
+                    ctx.mode = ctx.previousMode || MODES.NORMAL
+                    ctx.previousMode = undefined
+                    showHint('Ортогональное соединение создано', 1500)
+                    setTimeout(() => {
+                        ctx.setCmd('openBlock')
+                    }, 50)
+                }
+            }
+        }
+    },
+    {
+        id: "connectSelfLoop",
+        mode: ['normal', 'diagram'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Петля (self-loop)',
+            classes: ['sidebar-button', 'fas', 'fa-rotate', 'fas-lg'],
+        },
+        defaultHotkey: 'shift+l',
+        regLink: false,
+        description: 'Создать соединение блока с самим собой',
+        execute(ctx) {
+            if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && ctx.blockElement) {
+                let sourceEl = ctx.blockElement
+                if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
+
+                arrowManager.createConnection(
+                    sourceEl.id,
+                    sourceEl.id,
+                    CONNECTION_TYPES.STATEMACHINE,
+                    null,
+                    null,
+                    null
+                )
+
+                showHint('Петля создана', 1500)
+            } else {
+                showHint('Выделите блок для создания петли', 2000)
             }
         }
     },
