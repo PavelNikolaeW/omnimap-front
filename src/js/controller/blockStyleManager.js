@@ -35,9 +35,11 @@ export class BlockStyleManager {
         this.textAlignSelect = document.getElementById('styleTextAlign');
         this.opacityInput = document.getElementById('styleOpacity');
         this.opacityValue = document.getElementById('styleOpacityValue');
-        this.minWidthInput = document.getElementById('styleMinWidth');
-        this.minHeightInput = document.getElementById('styleMinHeight');
         this.customClassInput = document.getElementById('styleCustomClass');
+
+        // Drag state
+        this.isDragging = false;
+        this.dragOffset = { x: 0, y: 0 };
 
         // Tab elements
         this.tabs = document.querySelectorAll('.style-tab');
@@ -179,6 +181,52 @@ export class BlockStyleManager {
                 this.cancelStyleSelectionMode();
             }
         });
+
+        // Drag панели за заголовок
+        const header = this.panel?.querySelector('h4');
+        if (header) {
+            header.style.cursor = 'move';
+            header.addEventListener('mousedown', (e) => this.startDrag(e));
+        }
+        document.addEventListener('mousemove', (e) => this.onDrag(e));
+        document.addEventListener('mouseup', () => this.endDrag());
+    }
+
+    /**
+     * Начать перетаскивание панели
+     */
+    startDrag(e) {
+        if (!this.panel) return;
+        this.isDragging = true;
+        const rect = this.panel.getBoundingClientRect();
+        this.dragOffset = {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
+        this.panel.style.transition = 'none';
+    }
+
+    /**
+     * Перетаскивание панели
+     */
+    onDrag(e) {
+        if (!this.isDragging || !this.panel) return;
+        const x = Math.max(0, Math.min(e.clientX - this.dragOffset.x, window.innerWidth - this.panel.offsetWidth));
+        const y = Math.max(0, Math.min(e.clientY - this.dragOffset.y, window.innerHeight - this.panel.offsetHeight));
+        this.panel.style.left = `${x}px`;
+        this.panel.style.top = `${y}px`;
+        this.panel.style.right = 'auto';
+    }
+
+    /**
+     * Завершить перетаскивание
+     */
+    endDrag() {
+        if (!this.isDragging) return;
+        this.isDragging = false;
+        if (this.panel) {
+            this.panel.style.transition = '';
+        }
     }
 
     /**
@@ -201,6 +249,9 @@ export class BlockStyleManager {
         this.currentElement = blockElement;
         this.panel?.classList.add('visible');
 
+        // Скрыть grid overlay пока панель открыта
+        this.hideGridOverlay();
+
         // Загрузить текущие стили блока
         this.loadCurrentStyles(blockId);
     }
@@ -212,6 +263,29 @@ export class BlockStyleManager {
         this.panel?.classList.remove('visible');
         this.currentBlockId = null;
         this.currentElement = null;
+
+        // Восстановить grid overlay
+        this.showGridOverlay();
+    }
+
+    /**
+     * Скрыть grid overlay диаграммы
+     */
+    hideGridOverlay() {
+        const overlay = document.querySelector('.diagram-grid-overlay');
+        if (overlay) {
+            overlay.style.display = 'none';
+        }
+    }
+
+    /**
+     * Показать grid overlay диаграммы
+     */
+    showGridOverlay() {
+        const overlay = document.querySelector('.diagram-grid-overlay');
+        if (overlay) {
+            overlay.style.display = '';
+        }
     }
 
     /**
@@ -338,8 +412,6 @@ export class BlockStyleManager {
             this.opacityInput.value = styles.opacity || 100;
             if (this.opacityValue) this.opacityValue.textContent = `${styles.opacity || 100}%`;
         }
-        if (this.minWidthInput) this.minWidthInput.value = styles.minWidth || '';
-        if (this.minHeightInput) this.minHeightInput.value = styles.minHeight || '';
         if (this.customClassInput) this.customClassInput.value = styles.customClass || '';
 
         // Снять выделение с пресетов
@@ -380,8 +452,6 @@ export class BlockStyleManager {
             textAlign: this.textAlignSelect?.value,
             // Numeric values with bounds validation
             opacity: this.clampNumericValue(this.opacityInput?.value, 10, 100, null),
-            minWidth: this.clampNumericValue(this.minWidthInput?.value, 0, 2000, null),
-            minHeight: this.clampNumericValue(this.minHeightInput?.value, 0, 2000, null),
             customClass: this.customClassInput?.value || null
         };
 
