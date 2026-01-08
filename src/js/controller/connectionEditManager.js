@@ -305,6 +305,8 @@ class ConnectionEditManager {
             clearTimeout(this.saveTimeout);
         }
         this.saveTimeout = setTimeout(() => {
+            // Guard против stale операций после закрытия панели
+            if (!this.currentConnection) return;
             dispatch('UpdateConnectionBlock', {
                 sourceId: this.sourceBlockId,
                 targetId: this.targetBlockId,
