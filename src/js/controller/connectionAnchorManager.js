@@ -32,8 +32,9 @@ class ConnectionAnchorManager {
     /**
      * Активировать режим показа якорей
      * Вызывается при входе в режим connectToBlock или connectSelectSource
+     * @param {HTMLElement} currentBlock - блок, на котором уже находится курсор (опционально)
      */
-    activate() {
+    activate(currentBlock = null) {
         if (this.isActive) return;
         this.isActive = true;
 
@@ -42,6 +43,12 @@ class ConnectionAnchorManager {
 
         // Добавляем класс к body для CSS
         document.body.classList.add('connection-mode-active');
+
+        // Если курсор уже на блоке - показать якоря сразу
+        if (currentBlock) {
+            this.currentHoveredBlock = currentBlock;
+            this.addAnchorsToBlock(currentBlock);
+        }
     }
 
     /**

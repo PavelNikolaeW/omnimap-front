@@ -165,6 +165,22 @@ Key optimizations:
 
 `Painter` → `BlockCreator` → DOM. Uses CSS Grid for layout (`gridLayoutCalculator.js`, `gridClassManager.js`).
 
+### Offline Queue (sincManager/offlineQueue.js)
+
+Operations are queued when offline and synced when connection restored:
+
+```javascript
+// Queue stores operations with timestamps
+{ type: 'createBlock', data: {...}, timestamp: Date.now() }
+{ type: 'updateBlock', data: {...}, timestamp: Date.now() }
+{ type: 'deleteBlock', data: {...}, timestamp: Date.now() }
+```
+
+Key methods:
+- `enqueue(operation)`: Add operation to queue
+- `processQueue()`: Sync all pending operations
+- `getQueueLength()`: Check pending operations count
+
 ## Key Directories
 
 ```
@@ -201,13 +217,39 @@ Cookie-based JWT tokens (`access`, `refresh`). API client auto-refreshes on 401.
 
 ## Testing
 
+### Unit Tests (Jest)
+
 ```bash
 npm test              # Run all tests
 npm run test:watch    # Watch mode
 npm run test:coverage # With coverage report
+
+# Run a single test file
+npx jest src/js/__tests__/controller/blockStyleManager.test.js
+
+# Run tests matching a pattern
+npx jest --testNamePattern="should apply shape preset"
 ```
 
 Test files are located in `src/js/__tests__/` mirroring the source structure.
+
+### E2E Tests (Playwright)
+
+```bash
+npm run test:e2e           # Run all E2E tests
+npm run test:e2e:ui        # Interactive UI mode
+npm run test:e2e:debug     # Debug mode with inspector
+npm run test:e2e:headed    # Run with visible browser
+npm run test:e2e:chromium  # Run only in Chromium
+
+# Run a single E2E test file
+npx playwright test e2e/tests/search.spec.ts
+
+# Run tests with specific tag
+npx playwright test --grep "@smoke"
+```
+
+E2E tests are in `e2e/tests/`. Auth fixture handles login automatically.
 
 ## Workflow Rules
 
@@ -406,3 +448,5 @@ CONNECTION_TYPES = {
 
 - Code comments are in Russian
 - Production build generates a Service Worker for offline support
+- React components (zustand stores, react-query) are used for chat UI in `src/js/controller/popups/`
+- jsPlumb library (`@jsplumb/browser-ui`) handles arrow/connection rendering

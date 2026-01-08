@@ -640,7 +640,7 @@ export const commands = [
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
                 document.body.classList.add('connect-mode')
-                connectionAnchorManager.activate()  // Показать anchors при hover
+                connectionAnchorManager.activate(sourceEl)  // Показать anchors при hover (и на текущем блоке)
                 showHint('Кликните на блок или точку привязки для создания соединения')
             }
             // Шаг 1 альтернатива: Блок не выбран - ждём выбора источника
@@ -744,7 +744,7 @@ export const commands = [
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
                 document.body.classList.add('connect-mode')
-                connectionAnchorManager.activate()
+                connectionAnchorManager.activate(sourceEl)
                 showHint('Кликните на блок или точку привязки для пунктирного соединения')
             }
             // Шаг 1 альтернатива: Блок не выбран - ждём выбора источника
@@ -827,7 +827,7 @@ export const commands = [
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
                 document.body.classList.add('connect-mode')
-                connectionAnchorManager.activate()
+                connectionAnchorManager.activate(sourceEl)
                 showHint('Кликните на блок или точку привязки для двустороннего соединения')
             }
             // Шаг 1 альтернатива: Блок не выбран - ждём выбора источника
@@ -910,7 +910,7 @@ export const commands = [
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
                 document.body.classList.add('connect-mode')
-                connectionAnchorManager.activate()
+                connectionAnchorManager.activate(sourceEl)
                 showHint('Кликните на блок или точку привязки для изогнутого соединения')
             }
             // Шаг 1 альтернатива: Блок не выбран - ждём выбора источника
@@ -993,7 +993,7 @@ export const commands = [
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
                 document.body.classList.add('connect-mode')
-                connectionAnchorManager.activate()
+                connectionAnchorManager.activate(sourceEl)
                 showHint('Кликните на блок или точку привязки для прямого соединения')
             }
             // Шаг 1 альтернатива: Блок не выбран - ждём выбора источника
@@ -1077,7 +1077,7 @@ export const commands = [
                 sourceEl.classList.add('block-selected')
                 ctx.sourceEl = sourceEl
                 document.body.classList.add('connect-mode')
-                connectionAnchorManager.activate()
+                connectionAnchorManager.activate(sourceEl)
                 showHint('Кликните на блок или точку привязки для ортогонального соединения')
             }
             // Шаг 1 альтернатива: Блок не выбран - ждём выбора источника

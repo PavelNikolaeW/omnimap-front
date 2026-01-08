@@ -1960,7 +1960,9 @@ export class LocalStateManager {
                                  overlays,
                                  anchors,
                                  endpoint,
-                                 endpointStyle
+                                 endpointStyle,
+                                 sourceAnchor,
+                                 targetAnchor
                              }) {
         const sourceBlock = this.blocks.get(sourceId);
         if (!sourceBlock) {
@@ -1978,11 +1980,19 @@ export class LocalStateManager {
             overlays,
             anchors,
             endpoint,
-            endpointStyle
+            endpointStyle,
+            sourceAnchor,
+            targetAnchor
         };
 
+        // Проверяем уникальность по source + target + anchors
+        // Это позволяет создавать несколько соединений между одной парой блоков
+        // если они подключены к разным anchor points
         const existingConnection = sourceBlock.data.connections.find(
-            connection => connection.sourceId === sourceId && connection.targetId === targetId
+            connection => connection.sourceId === sourceId &&
+                         connection.targetId === targetId &&
+                         connection.sourceAnchor === sourceAnchor &&
+                         connection.targetAnchor === targetAnchor
         );
 
         if (existingConnection) {
