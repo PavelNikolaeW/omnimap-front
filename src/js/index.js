@@ -20,6 +20,7 @@ import '../style/layout.css';
 import {dispatch} from "./utils/utils";
 import {LocalStateManager} from "./stateLocal/localStateManager";
 import {addedSizeStyles} from "./painter/styles";
+import './painter/sizeValidator'; // Экспортирует window.sizeValidator
 import localforage from "localforage";
 import api from "./api/api";
 import {SincManager} from "./sincManager/sincManager";
@@ -124,6 +125,11 @@ async function initApp() {
     })
     const localState = new LocalStateManager()
     const sincManager = new SincManager()
+
+    // Экспорт для отладки размеров (доступно в консоли браузера)
+    if (process.env.NODE_ENV !== 'production') {
+        window.__omnimap = { localState };
+    }
     const breadcrumbs = new Breadcrumbs()
     const treeNavigation = new TreeNavigation()
     const undoStack = new UndoStack()

@@ -1,3 +1,5 @@
+import { SIZE_THRESHOLDS, ASPECT_RATIO, SHAPES, SIZE_ORDER } from '../painter/config/sizeConfig.js';
+
 export function dispatch(name, data = {}) {
     console.log(`Dispatching event ${name}`)
     const event = new CustomEvent(name, {
@@ -11,9 +13,17 @@ let WINDOW_HEIGHT = window.innerHeight
 window.addEventListener('resize', () => {
     WINDOW_WIDTH = window.innerWidth
     WINDOW_HEIGHT = window.innerHeight
-    // console.log( {width: WINDOW_WIDTH, height: WINDOW_HEIGHT})
 });
-export function getElementSizeClass(element, size, screen = {width: WINDOW_WIDTH, height: WINDOW_HEIGHT}) {
+
+/**
+ * Определить размерный класс элемента
+ *
+ * @param {HTMLElement|null} element - DOM элемент (если null, используется size)
+ * @param {{width: number, height: number}} size - размеры (если element не передан)
+ * @param {{width: number, height: number}} screen - размеры экрана
+ * @returns {{width: number, height: number, layout: string}} размеры и layout класс
+ */
+export function getElementSizeClass(element, size, screen = { width: WINDOW_WIDTH, height: WINDOW_HEIGHT }) {
     let width, height;
     if (element) {
         width = element.offsetWidth;
@@ -23,42 +33,47 @@ export function getElementSizeClass(element, size, screen = {width: WINDOW_WIDTH
         height = size.height;
     }
 
-    // Рассчитываем площадь экрана и элемента
     const screenArea = screen.width * screen.height;
     const elementArea = width * height;
     const areaRatio = elementArea / screenArea;
 
-    let baseSize;
-    // Определяем базовый размер по отношению площади.
-    // Пороговые значения можно корректировать под конкретный дизайн.
-    if (areaRatio > 0.45) {
-        baseSize = "xxl";
-    } else if (areaRatio > 0.225) {
-        baseSize = "xl";
-    } else if (areaRatio > 0.1125) {
-        baseSize = "l";
-    } else if (areaRatio > 0.059) {
-        baseSize = "m";
-    } else if (areaRatio > 0.024){
-        baseSize = "s";
-    } else if (areaRatio > 0.012) {
-        baseSize = 'xs'
-    } else if (areaRatio > 0.001) {
-        baseSize = 'xxs'
-    } else baseSize = 'xxxs'
+    // Определяем базовый размер по порогам из конфигурации
+    const baseSize = calculateBaseSize(areaRatio);
 
-    // Определяем суффикс в зависимости от соотношения сторон
-    const aspectRatio = width / height;
-    let shapeSuffix;
-    if (aspectRatio >= 0.7 && aspectRatio <= 1.49) {
-        shapeSuffix = "-sq";
-    } else if (aspectRatio > 1.49) {
-        shapeSuffix = "-w";
-    } else {
-        shapeSuffix = "-h";
+    // Определяем форму по соотношению сторон
+    const shapeSuffix = calculateShape(width / height);
+
+    return { width, height, layout: baseSize + shapeSuffix };
+}
+
+/**
+ * Определить базовый размер по отношению площади
+ * @param {number} areaRatio - отношение площади элемента к экрану
+ * @returns {string} размер (xxl, xl, l, m, s, xs, xxs, xxxs)
+ */
+function calculateBaseSize(areaRatio) {
+    for (const size of SIZE_ORDER) {
+        const threshold = SIZE_THRESHOLDS[size];
+        if (threshold !== undefined && areaRatio > threshold) {
+            return size;
+        }
     }
+    return 'xxxs';
+}
 
-    return {width, height, layout: baseSize + shapeSuffix};
+/**
+ * Определить форму элемента по соотношению сторон
+ * @param {number} aspectRatio - width / height
+ * @returns {string} суффикс формы (-sq, -w, -h)
+ */
+function calculateShape(aspectRatio) {
+    if (aspectRatio >= ASPECT_RATIO.SQUARE_MIN && aspectRatio <= ASPECT_RATIO.SQUARE_MAX) {
+        return `-${SHAPES.SQUARE}`;
+    }
+    if (aspectRatio > ASPECT_RATIO.SQUARE_MAX) {
+        return `-${SHAPES.WIDE}`;
+    }
+    return `-${SHAPES.TALL}`;
 }
 
 

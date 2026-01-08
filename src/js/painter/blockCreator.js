@@ -5,6 +5,7 @@ import {auth} from './views/auth'
 import {registration} from './views/registration'
 import {log} from "@jsplumb/browser-ui";
 import {styleConfig} from "./styles";
+import { calculateGap } from "./config/gapConfig";
 
 
 const viewRenderers = {
@@ -86,14 +87,7 @@ class BlockCreator {
         const [size, form] = block.size.layout.split('-')
         const gap = styleConfig[size][form ?? 'table'].gap
         if (block.data?.customGrid && Object.keys(block.data?.customGrid).length) return [block.size.layout, 'gap_0px']
-        return [block.size.layout, `gap_${this._calculateGap(block.children.length, gap, 2, )}px`]
-    }
-    _calculateGap(numElements, gapMax, gapMin) {
-        // Используем формулу с коэффициентом, определяющим кривую снижения.
-        // Чем больше constant, тем медленнее снижается gap для больших блоков.
-        const constant = 10;
-        // Формула, гарантирующая, что при numElements = 0 будет gapMax, а при бесконечном числе элементов – gapMin.
-        return  Math.floor(gapMax - (gapMax - gapMin) * (numElements / (numElements + constant)));
+        return [block.size.layout, `gap_${calculateGap(block.children.length, gap)}px`]
     }
 
     createLink(block, parentBlock, screen, depth) {

@@ -8,6 +8,7 @@ import {
     DEFAULT_MASONRY_CONFIG
 } from "./layoutTypes";
 import { layoutTemplateService } from "../services/layoutTemplateService";
+import { calculateGap } from "./config/gapConfig";
 
 
 class GridClassManager {
@@ -421,7 +422,7 @@ class GridClassManager {
         const [size, form] = layout.split('-')
         const style = styleConfig[size][form ?? 'table']
         const padding = parentBlock.id === 'rootContainer' ? 0 : style.padding
-        let gap = (!block.data?.customGrid?.grid) ? this._calculateGap(parentBlock.children.length, style.gap, 2,) : 0
+        let gap = (!block.data?.customGrid?.grid) ? calculateGap(parentBlock.children.length, style.gap) : 0
         if (parentBlock.data?.groupSizes) {
             let acc = 0
             for (let i = 0; i < parentBlock.data.groupSizes.length; i++) {
@@ -448,14 +449,6 @@ class GridClassManager {
             gapRow: gapRowCorrection,
             content: parentBlock.contentHeight
         }
-    }
-
-    _calculateGap(numElements, gapMax, gapMin) {
-        // Используем формулу с коэффициентом, определяющим кривую снижения.
-        // Чем больше constant, тем медленнее снижается gap для больших блоков.
-        const constant = 5;
-        // Формула, гарантирующая, что при numElements = 0 будет gapMax, а при бесконечном числе элементов – gapMin.
-        return Math.floor(gapMax - (gapMax - gapMin) * (numElements / (numElements + constant)));
     }
 }
 
