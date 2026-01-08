@@ -353,6 +353,13 @@
     border-top: 1px solid #e5e7eb;
 }
 
+/* Убираем верхнюю границу у первой секции */
+.block-style-panel .style-section:first-of-type {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+}
+
 .style-section-label {
     display: block;
     font-size: 11px;
@@ -809,14 +816,10 @@
    Block Text Color (наследование для вложенных элементов)
    ───────────────────────────────────────────────────────────────────────────── */
 
-[block][style*="color"],
-[blocklink][style*="color"] {
-    /* Вложенные элементы наследуют color */
-}
-
-[block][style*="color"] *,
-[blocklink][style*="color"] * {
-    color: inherit !important;
+/* Вложенные элементы наследуют text color */
+[block] *,
+[blocklink] * {
+    color: inherit;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

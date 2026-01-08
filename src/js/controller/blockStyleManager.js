@@ -22,6 +22,7 @@ export class BlockStyleManager {
 
         // Style elements
         this.shadowSelect = document.getElementById('styleShadow');
+        this.fontSizeSelect = document.getElementById('styleFontSize');
         this.textAlignSelect = document.getElementById('styleTextAlign');
         this.borderColorInput = document.getElementById('styleBorderColor');
         this.textColorInput = document.getElementById('styleTextColor');
@@ -117,6 +118,7 @@ export class BlockStyleManager {
         const autoApplyHandler = () => this.applyStyle();
 
         this.shadowSelect?.addEventListener('change', autoApplyHandler);
+        this.fontSizeSelect?.addEventListener('change', autoApplyHandler);
         this.textAlignSelect?.addEventListener('change', autoApplyHandler);
         this.borderColorInput?.addEventListener('change', autoApplyHandler);
         this.textColorInput?.addEventListener('change', autoApplyHandler);
@@ -364,12 +366,20 @@ export class BlockStyleManager {
 
         // Загрузить текущие значения в UI
         if (this.shadowSelect) this.shadowSelect.value = styles.shadow || '';
+        if (this.fontSizeSelect) this.fontSizeSelect.value = styles.fontSize || '';
         if (this.textAlignSelect) this.textAlignSelect.value = styles.textAlign || '';
         if (this.borderColorInput) this.borderColorInput.value = styles.borderColor || '#e5e7eb';
         if (this.textColorInput) this.textColorInput.value = styles.textColor || '#000000';
 
-        // Снять выделение с пресетов форм
-        this.shapePresets?.forEach(p => p.classList.remove('active'));
+        // Выделить активный пресет формы если есть
+        this.shapePresets?.forEach(p => {
+            const preset = this.presetShapes[p.dataset.shape];
+            if (preset && styles.shape === preset.shape) {
+                p.classList.add('active');
+            } else {
+                p.classList.remove('active');
+            }
+        });
     }
 
     /**
@@ -389,12 +399,24 @@ export class BlockStyleManager {
 
     /**
      * Применить выбранный стиль к блоку
+     * Сохраняет существующие стили (shape, background, border) если они не изменяются
      */
     async applyStyle() {
         if (!this.currentBlockId) return;
 
+        // Получить текущие стили блока, чтобы сохранить shape/background/border
+        const cleanId = this.currentBlockId?.includes('*') ? this.currentBlockId.split('*').pop() : this.currentBlockId;
+        const block = await this.getBlock(cleanId);
+        const existingStyles = block?.data?.customStyles || {};
+
         const styles = {
+            // Сохраняем существующие стили форм
+            shape: existingStyles.shape,
+            background: existingStyles.background,
+            border: existingStyles.border,
+            // Обновляем из UI
             shadow: this.shadowSelect?.value,
+            fontSize: this.fontSizeSelect?.value,
             textAlign: this.textAlignSelect?.value,
             borderColor: this.borderColorInput?.value,
             textColor: this.textColorInput?.value
@@ -402,7 +424,7 @@ export class BlockStyleManager {
 
         // Удалить пустые значения
         Object.keys(styles).forEach(key => {
-            if (styles[key] === '' || styles[key] === null) {
+            if (styles[key] === '' || styles[key] === null || styles[key] === undefined) {
                 delete styles[key];
             }
         });
@@ -441,15 +463,12 @@ export class BlockStyleManager {
      * Применить пресет формы (для диаграмм)
      * Сразу применяет стиль к блоку без нажатия Apply
      */
-    applyShapePreset(presetName) {
+    async applyShapePreset(presetName) {
         const preset = this.presetShapes[presetName];
         if (!preset || !this.currentBlockId) return;
 
-        // Обновить UI
-        if (this.backgroundInput) this.backgroundInput.value = preset.background;
+        // Обновить доступные UI элементы
         if (this.borderColorInput) this.borderColorInput.value = preset.borderColor;
-        if (this.borderSelect) this.borderSelect.value = preset.border;
-        if (this.shapeSelect) this.shapeSelect.value = preset.shape;
         if (this.shadowSelect) this.shadowSelect.value = preset.shadow;
 
         // Выделить активный пресет формы
@@ -457,8 +476,39 @@ export class BlockStyleManager {
             p.classList.toggle('active', p.dataset.shape === presetName);
         });
 
-        // Сразу применить стиль
-        this.applyStyle();
+        // Собрать полный стиль включая форму
+        const cleanId = this.currentBlockId?.includes('*') ? this.currentBlockId.split('*').pop() : this.currentBlockId;
+        const block = await this.getBlock(cleanId);
+        const existingStyles = block?.data?.customStyles || {};
+
+        const styles = {
+            // Стили из пресета формы
+            shape: preset.shape,
+            background: preset.background,
+            border: preset.border,
+            borderColor: preset.borderColor,
+            shadow: preset.shadow,
+            // Сохраняем существующие текстовые стили
+            fontSize: existingStyles.fontSize || this.fontSizeSelect?.value,
+            textAlign: existingStyles.textAlign || this.textAlignSelect?.value,
+            textColor: existingStyles.textColor || this.textColorInput?.value
+        };
+
+        // Удалить пустые значения
+        Object.keys(styles).forEach(key => {
+            if (styles[key] === '' || styles[key] === null || styles[key] === undefined) {
+                delete styles[key];
+            }
+        });
+
+        // Обновить данные блока
+        dispatch('UpdateBlockStyles', {
+            blockId: this.currentBlockId,
+            customStyles: styles
+        });
+
+        // Применить стили сразу к элементу для немедленного отображения
+        this.applyStylesToElement(this.currentElement, styles);
     }
 
     /**
@@ -469,6 +519,7 @@ export class BlockStyleManager {
 
         // Сбросить UI к дефолтным значениям
         if (this.shadowSelect) this.shadowSelect.value = '';
+        if (this.fontSizeSelect) this.fontSizeSelect.value = '';
         if (this.textAlignSelect) this.textAlignSelect.value = '';
         if (this.borderColorInput) this.borderColorInput.value = '#e5e7eb';
         if (this.textColorInput) this.textColorInput.value = '#000000';
