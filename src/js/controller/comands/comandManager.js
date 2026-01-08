@@ -126,6 +126,25 @@ export class CommandManager {
 
     clickOnRootContainerHandler(event) {
         const target = event.target
+
+        // Обработать клик на anchor point в режимах connect
+        if (target.classList.contains('anchor-point')) {
+            const mode = this.ctxManager.mode;
+            if (mode === 'connectToBlock' || mode === 'connectSelectSource') {
+                this.ctxManager.clickedAnchor = {
+                    blockId: target.dataset.blockId,
+                    position: target.dataset.position
+                };
+                // Установить blockElement от anchor
+                const blockEl = document.getElementById(target.dataset.blockId);
+                if (blockEl) {
+                    this.ctxManager.blockElement = blockEl;
+                    this.executeCommand(this.ctxManager);
+                    return;
+                }
+            }
+        }
+
         // переходим по url ссылке
         if (target.tagName === 'A') {
             event.preventDefault();

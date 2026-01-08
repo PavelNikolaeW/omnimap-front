@@ -20,6 +20,9 @@ export class ContextManager {
         this.selectedBlocks = new Set()       // Set<blockId>
         this.selectedElements = new Map()     // Map<blockId, {element, linkElement}>
 
+        // Отслеживание кликнутого anchor point для соединений
+        this.clickedAnchor = null  // { blockId, position } или null
+
         this.rootContainer = rootContainer
         this.breadcrumb = breadcrumb
         this.treeNavigation = treeNavigation
@@ -131,6 +134,15 @@ export class ContextManager {
     }
 
     mouseOverBlockHandler(event) {
+        // Проверить наведение на anchor point для режима соединений
+        if (event.target.classList.contains('anchor-point')) {
+            this.clickedAnchor = {
+                blockId: event.target.dataset.blockId,
+                position: event.target.dataset.position  // например 'top-left', 'right-center'
+            };
+        } else {
+            this.clickedAnchor = null;
+        }
         // Обновляем активный блок всегда, включая режим shiftLock для мульти-выделения
         this.setActiveBlock(event.target)
     }
