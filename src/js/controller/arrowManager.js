@@ -325,44 +325,7 @@ class ArrowManager {
     loadConnections({arrows}) {
         this.instance.reset();
 
-        // DEBUG: Детальная проверка видимости с логированием
-        const checkVisibility = (el, elementId) => {
-            if (!el) return { visible: false, reason: 'element is null' };
-            const r = el.getBoundingClientRect();
-            const o = 10;
-            const corners = [
-                { name: 'top-left', x: r.left + o, y: r.top + o },
-                { name: 'top-right', x: r.right - o, y: r.top + o },
-                { name: 'bottom-left', x: r.left + o, y: r.bottom - o },
-                { name: 'bottom-right', x: r.right - o, y: r.bottom - o },
-            ];
-
-            const failedCorners = [];
-            for (const corner of corners) {
-                const at = document.elementFromPoint(corner.x, corner.y);
-                const isOk = el.contains(at) || at === el;
-                if (!isOk) {
-                    failedCorners.push({
-                        corner: corner.name,
-                        x: corner.x,
-                        y: corner.y,
-                        foundElement: at ? `${at.tagName}#${at.id || '(no-id)'}.${at.className || '(no-class)'}` : 'null',
-                    });
-                }
-            }
-
-            if (failedCorners.length > 0) {
-                return {
-                    visible: false,
-                    reason: 'corners obscured',
-                    rect: { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height },
-                    failedCorners
-                };
-            }
-            return { visible: true };
-        };
-
-        // FIX: Проверка видимости учитывает overflow родителей.
+        // Проверка видимости учитывает overflow родителей.
         // Элемент должен быть видим в viewport И внутри всех родительских
         // контейнеров со скроллом (overflow: auto/scroll/hidden).
         const isVisible = (el) => {
@@ -394,33 +357,12 @@ class ArrowManager {
             return r.bottom > 0 && r.top < viewportHeight && r.right > 0 && r.left < viewportWidth;
         };
 
-        // DEBUG: Статистика
-        let totalConnections = 0;
-        let drawnConnections = 0;
-        let skippedConnections = [];
-
         arrows.forEach(({connections, layout}) => {
             connections.forEach(conn => {
-                totalConnections++;
                 const src = document.getElementById(conn.sourceId);
                 const tgt = document.getElementById(conn.targetId);
 
-                // DEBUG: Проверяем причину пропуска
-                if (!src || !tgt || !isVisible(src) || !isVisible(tgt)) {
-                    const skipInfo = {
-                        sourceId: conn.sourceId,
-                        targetId: conn.targetId,
-                        layout,
-                        srcFound: !!src,
-                        tgtFound: !!tgt,
-                    };
-                    if (src) skipInfo.srcVisibility = checkVisibility(src, conn.sourceId);
-                    if (tgt) skipInfo.tgtVisibility = checkVisibility(tgt, conn.targetId);
-                    skippedConnections.push(skipInfo);
-                }
-
                 if (src && tgt && isVisible(src) && isVisible(tgt)) {
-                    drawnConnections++;
                     // Если есть сохранённый тип соединения, используем его конфигурацию
                     let config = null;
                     if (conn.connectionType && isValidConnectionType(conn.connectionType)) {
@@ -459,25 +401,6 @@ class ArrowManager {
                 }
             });
         });
-
-        // DEBUG: Выводим статистику
-        if (totalConnections > 0) {
-            console.group('🔗 Arrow Debug: loadConnections');
-            console.log(`Total: ${totalConnections}, Drawn: ${drawnConnections}, Skipped: ${skippedConnections.length}`);
-            if (skippedConnections.length > 0) {
-                console.warn('Skipped connections:');
-                skippedConnections.forEach((skip, i) => {
-                    console.groupCollapsed(`  [${i + 1}] ${skip.sourceId} → ${skip.targetId}`);
-                    console.log('Layout:', skip.layout);
-                    console.log('Source in DOM:', skip.srcFound);
-                    console.log('Target in DOM:', skip.tgtFound);
-                    if (skip.srcVisibility) console.log('Source visibility:', skip.srcVisibility);
-                    if (skip.tgtVisibility) console.log('Target visibility:', skip.tgtVisibility);
-                    console.groupEnd();
-                });
-            }
-            console.groupEnd();
-        }
     }
 
     getLayoutFactor(layout) {
