@@ -477,18 +477,6 @@ export class DiagramEditor {
             }
         }
 
-        // Создать элемент-индикатор для drag (один элемент вместо подсветки множества ячеек)
-        this.dragIndicator = document.createElement('div');
-        this.dragIndicator.className = 'diagram-drag-indicator';
-        this.dragIndicator.style.cssText = `
-            display: none;
-            border: 2px dashed #4f46e5;
-            background: rgba(99, 102, 241, 0.1);
-            border-radius: 4px;
-            pointer-events: none;
-        `;
-        this.gridOverlay.appendChild(this.dragIndicator);
-
         this.parentElement.style.position = 'relative';
         this.parentElement.appendChild(this.gridOverlay);
     }
@@ -506,7 +494,6 @@ export class DiagramEditor {
         this.highlightedCells.clear();
         this.cachedGridSize = null;
         this.lastHighlightPos = null;
-        this.dragIndicator = null;
     }
 
     /**
@@ -839,29 +826,37 @@ export class DiagramEditor {
 
     /**
      * Подсветить область при drag (размер блока)
-     * Использует один элемент-индикатор вместо подсветки множества ячеек
      */
     highlightDragArea(startCol, startRow) {
-        if (!this.dragIndicator || !this.dragBlockSize) return;
+        if (!this.gridCellsMap || !this.dragBlockSize) return;
 
         // Оптимизация: пропустить если позиция не изменилась
         const posKey = `${startCol}-${startRow}`;
         if (this.lastHighlightPos === posKey) return;
         this.lastHighlightPos = posKey;
 
+        // Очистить предыдущую подсветку
+        this.clearHighlight();
+
         // Использовать кэшированный размер сетки
         const { cols, rows } = this.cachedGridSize || this.parseGridSize();
         const blockCols = this.dragBlockSize.cols;
         const blockRows = this.dragBlockSize.rows;
 
-        // Вычислить область для индикатора
+        // Вычислить область для подсветки
         const endCol = Math.min(startCol + blockCols, cols + 1);
         const endRow = Math.min(startRow + blockRows, rows + 2);
 
-        // Позиционировать индикатор через grid-column/grid-row
-        this.dragIndicator.style.display = 'block';
-        this.dragIndicator.style.gridColumn = `${startCol} / ${endCol}`;
-        this.dragIndicator.style.gridRow = `${startRow} / ${endRow}`;
+        // Использовать Map для быстрого доступа к ячейкам
+        for (let r = startRow; r < endRow; r++) {
+            for (let c = startCol; c < endCol; c++) {
+                const cell = this.gridCellsMap.get(`${c}-${r}`);
+                if (cell) {
+                    cell.classList.add('diagram-grid-cell-highlight');
+                    this.highlightedCells.add(cell);
+                }
+            }
+        }
     }
 
     /**
@@ -1027,11 +1022,7 @@ export class DiagramEditor {
      * Убрать подсветку
      */
     clearHighlight() {
-        // Скрыть drag индикатор
-        if (this.dragIndicator) {
-            this.dragIndicator.style.display = 'none';
-        }
-        // Очистить подсветку ячеек (для resize)
+        // Использовать кэшированный Set вместо querySelectorAll
         for (const cell of this.highlightedCells) {
             cell.classList.remove('diagram-grid-cell-highlight');
         }
