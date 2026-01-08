@@ -13,6 +13,7 @@ export const MODES = {
     NORMAL: 'normal',
     TEXT_EDIT: 'textEdit',
     CONNECT_TO_BLOCK: 'connectToBlock',
+    CONNECT_SELECT_SOURCE: 'connectSelectSource',  // Ожидание выбора блока-источника
     CUT_BLOCK: 'cutBlock',
     DIAGRAM: 'diagram',
     CHAT: 'chat'

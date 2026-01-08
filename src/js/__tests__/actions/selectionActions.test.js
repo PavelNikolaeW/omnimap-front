@@ -41,6 +41,7 @@ describe('selectionActions', () => {
             expect(MODES.NORMAL).toBe('normal');
             expect(MODES.TEXT_EDIT).toBe('textEdit');
             expect(MODES.CONNECT_TO_BLOCK).toBe('connectToBlock');
+            expect(MODES.CONNECT_SELECT_SOURCE).toBe('connectSelectSource');
             expect(MODES.CUT_BLOCK).toBe('cutBlock');
             expect(MODES.DIAGRAM).toBe('diagram');
             expect(MODES.CHAT).toBe('chat');

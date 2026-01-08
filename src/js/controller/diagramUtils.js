@@ -287,12 +287,21 @@ export class DiagramUtils {
     }
 
     hiddenInputs() {
+        // Удалить класс выделения блока-диаграммы
+        if (this.element) {
+            this.element.classList.remove('diagram-target-block')
+        }
+
         // Деактивировать интерактивный редактор
         this.diagramEditor.deactivate()
 
         // Закрыть панели стилей
         this.blockStyleManager.hide()
         this.connectionStyleManager.hide()
+
+        // Сбросить ссылки
+        this.blockId = undefined
+        this.element = undefined
     }
 
     parseGridClasses(classList) {

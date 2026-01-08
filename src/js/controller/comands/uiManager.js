@@ -1,5 +1,6 @@
 import {commands} from "./commands";
 import localforage from "localforage";
+import { MODES } from "../../actions/selectionActions";
 
 /**
  * Конфигурация подменю
@@ -24,23 +25,16 @@ export const submenuConfig = {
             'diagramGridRowPlus', 'diagramGridRowMinus',
             'diagramSizeXs', 'diagramSizeS', 'diagramSizeM', 'diagramSizeL',
             'diagramAddBlock', 'diagramDeleteBlock',
-            'submenu-blockStyles', 'submenu-connections',
+            'diagramBlockStyle', 'submenu-connections',
             'diagramReset'
         ]
-    },
-    // Подменю "Стили блока" - вложено в "Диаграмма"
-    blockStyles: {
-        id: 'submenu-blockStyles',
-        label: 'Стили блока',
-        icon: 'fa-palette',
-        items: ['diagramBlockStyle', 'diagramResetBlockStyle']
     },
     // Подменю "Соединения" - вложено в "Диаграмма"
     connections: {
         id: 'submenu-connections',
         label: 'Соединения',
         icon: 'fa-bezier-curve',
-        items: ['connectBlock', 'connectDashed', 'connectDouble', 'deleteConnectBlock']
+        items: ['connectBlock', 'connectDashed', 'connectDouble', 'connectCurved', 'connectStraight', 'deleteConnectBlock']
     },
     // Подменю "Дополнительно" - редактирование, ссылки, права, уведомления
     extra: {
@@ -68,7 +62,7 @@ const hiddenInSubmenu = new Set([
     'diagramAddBlock', 'diagramDeleteBlock', 'diagramBlockStyle', 'diagramResetBlockStyle',
     'diagramConnectionSettings', 'diagramReset',
     // Connections команды (теперь в подменю diagram)
-    'connectBlock', 'deleteConnectBlock', 'connectDashed', 'connectDouble',
+    'connectBlock', 'deleteConnectBlock', 'connectDashed', 'connectDouble', 'connectCurved', 'connectStraight',
     // Extra команды
     'createUrl', 'editBlock', 'editAccessBlock',
     'notificationSettings', 'setReminder', 'watchBlock',
@@ -436,6 +430,11 @@ export class UIManager {
         this.diagramMode = true
         this.diagramBlockId = blockId
         this.diagramElement = blockElement
+
+        // Устанавливаем режим для корректной обработки ESC
+        if (ctx) {
+            ctx.mode = MODES.DIAGRAM
+        }
 
         // Визуальная индикация выбранного блока-диаграммы
         blockElement.classList.add('diagram-target-block')

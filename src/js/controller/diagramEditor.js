@@ -22,7 +22,6 @@ export class DiagramEditor {
         this.isDragging = false;
         this.draggedBlockId = null;
         this.dragStartCell = null;
-        this.dragGhost = null;
 
         // Resize state
         this.isResizing = false;
@@ -32,6 +31,10 @@ export class DiagramEditor {
 
         // Grid overlay
         this.gridOverlay = null;
+        this.gridCellsMap = null;  // Map для быстрого доступа к ячейкам: "col-row" -> element
+        this.highlightedCells = new Set();  // Текущие подсвеченные ячейки
+        this.cachedGridSize = null;  // Кэш размера сетки
+        this.lastHighlightPos = null;  // Последняя позиция подсветки для оптимизации
 
         // Connection drag state (для anchor points)
         this.isConnecting = false;
@@ -46,6 +49,10 @@ export class DiagramEditor {
         this.quickModeActive = false;
         this.quickModeBlockId = null;
         this.quickModeElement = null;
+
+        // Performance optimization
+        this.rafId = null;
+        this.pendingMouseEvent = null;
 
         // Bind methods
         this.handleMouseDown = this.handleMouseDown.bind(this);
@@ -221,12 +228,6 @@ export class DiagramEditor {
         }
         this.quickModeElement = null;
 
-        // Удалить ghost если остался
-        if (this.dragGhost) {
-            this.dragGhost.remove();
-            this.dragGhost = null;
-        }
-
         // Очистить состояние соединения если активно
         if (this.isConnecting) {
             this.cleanupConnection();
@@ -357,6 +358,12 @@ export class DiagramEditor {
             this.parentElement.classList.remove('diagram-edit-mode');
         }
 
+        // Очистить выделение блока
+        if (this.selectedBlock) {
+            this.selectedBlock.classList.remove('diagram-block-selected');
+            this.selectedBlock = null;
+        }
+
         this.isActive = false;
         this.parentBlockId = null;
         this.parentElement = null;
@@ -422,6 +429,12 @@ export class DiagramEditor {
 
         const { cols, rows } = this.parseGridSize();
 
+        // Кэшируем размер сетки
+        this.cachedGridSize = { cols, rows };
+
+        // Инициализируем Map для быстрого доступа к ячейкам
+        this.gridCellsMap = new Map();
+
         this.gridOverlay = document.createElement('div');
         this.gridOverlay.className = 'diagram-grid-overlay';
         this.gridOverlay.style.cssText = `
@@ -442,9 +455,12 @@ export class DiagramEditor {
         for (let c = 0; c < cols; c++) {
             const cell = document.createElement('div');
             cell.className = 'diagram-grid-cell diagram-grid-cell-header';
-            cell.dataset.col = c + 1;
-            cell.dataset.row = 1;
+            const col = c + 1;
+            const row = 1;
+            cell.dataset.col = col;
+            cell.dataset.row = row;
             this.gridOverlay.appendChild(cell);
+            this.gridCellsMap.set(`${col}-${row}`, cell);
         }
 
         // Остальные строки
@@ -452,9 +468,12 @@ export class DiagramEditor {
             for (let c = 0; c < cols; c++) {
                 const cell = document.createElement('div');
                 cell.className = 'diagram-grid-cell';
-                cell.dataset.col = c + 1;
-                cell.dataset.row = r + 2; // +2 потому что первая строка - контент
+                const col = c + 1;
+                const row = r + 2; // +2 потому что первая строка - контент
+                cell.dataset.col = col;
+                cell.dataset.row = row;
                 this.gridOverlay.appendChild(cell);
+                this.gridCellsMap.set(`${col}-${row}`, cell);
             }
         }
 
@@ -470,6 +489,11 @@ export class DiagramEditor {
             this.gridOverlay.remove();
             this.gridOverlay = null;
         }
+        // Очистить кэши
+        this.gridCellsMap = null;
+        this.highlightedCells.clear();
+        this.cachedGridSize = null;
+        this.lastHighlightPos = null;
     }
 
     /**
@@ -588,32 +612,76 @@ export class DiagramEditor {
             return;
         }
 
-        // Проверить, нажали ли на блок для drag
+        // Проверить, нажали ли на блок
         const blockEl = this.findBlockElement(e.target);
         if (blockEl && blockEl.parentElement === this.parentElement) {
-            this.startDrag(e, blockEl);
+            // Сохранить данные для потенциального drag или click
+            this.potentialDragBlock = blockEl;
+            this.potentialDragStartPos = { x: e.clientX, y: e.clientY };
+            this.potentialDragStartTime = Date.now();
             e.preventDefault();
             e.stopPropagation();
         }
     }
 
     /**
-     * Обработчик mousemove
+     * Обработчик mousemove с requestAnimationFrame для оптимизации
      */
     handleMouseMove(e) {
-        if (this.isDragging) {
-            this.updateDrag(e);
-        } else if (this.isResizing) {
-            this.updateResize(e);
-        } else if (this.isConnecting) {
-            this.updateConnection(e);
+        // Проверить, нужно ли начать drag (если есть потенциальный drag блок)
+        if (this.potentialDragBlock && !this.isDragging) {
+            const dx = e.clientX - this.potentialDragStartPos.x;
+            const dy = e.clientY - this.potentialDragStartPos.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            // Начать drag только если смещение больше 5 пикселей
+            if (distance > 5) {
+                this.startDrag({
+                    clientX: this.potentialDragStartPos.x,
+                    clientY: this.potentialDragStartPos.y
+                }, this.potentialDragBlock);
+                this.potentialDragBlock = null;
+                this.potentialDragStartPos = null;
+                this.potentialDragStartTime = null;
+            }
         }
+
+        if (!this.isDragging && !this.isResizing && !this.isConnecting) return;
+
+        // Сохраняем последнее событие
+        this.pendingMouseEvent = e;
+
+        // Если уже запланирован RAF, пропускаем
+        if (this.rafId) return;
+
+        this.rafId = requestAnimationFrame(() => {
+            this.rafId = null;
+            const event = this.pendingMouseEvent;
+            if (!event) return;
+
+            if (this.isDragging) {
+                this.updateDrag(event);
+            } else if (this.isResizing) {
+                this.updateResize(event);
+            } else if (this.isConnecting) {
+                this.updateConnection(event);
+            }
+        });
     }
 
     /**
      * Обработчик mouseup
      */
     handleMouseUp(e) {
+        // Если был потенциальный drag, но drag не начался - это клик (выбор блока)
+        if (this.potentialDragBlock && !this.isDragging) {
+            this.selectBlock(this.potentialDragBlock);
+            this.potentialDragBlock = null;
+            this.potentialDragStartPos = null;
+            this.potentialDragStartTime = null;
+            return;
+        }
+
         if (this.isDragging) {
             this.endDrag(e);
         } else if (this.isResizing) {
@@ -621,6 +689,29 @@ export class DiagramEditor {
         } else if (this.isConnecting) {
             this.endConnection(e);
         }
+    }
+
+    /**
+     * Выбрать блок (для применения стилей, соединений и т.д.)
+     */
+    selectBlock(blockElement) {
+        // Снять выделение с предыдущего блока
+        if (this.selectedBlock && this.selectedBlock !== blockElement) {
+            this.selectedBlock.classList.remove('diagram-block-selected');
+        }
+
+        // Выбрать новый блок
+        this.selectedBlock = blockElement;
+        blockElement.classList.add('diagram-block-selected');
+
+        // Обновить контекст для команд
+        const blockId = blockElement.id;
+        const cleanBlockId = blockId.includes('*') ? blockId.split('*').pop() : blockId;
+
+        // Dispatch событие для обновления контекста
+        window.dispatchEvent(new CustomEvent('DiagramBlockSelected', {
+            detail: { blockId: cleanBlockId, element: blockElement, fullId: blockId }
+        }));
     }
 
     /**
@@ -693,9 +784,8 @@ export class DiagramEditor {
     startDrag(e, blockElement) {
         this.isDragging = true;
         this.draggedBlockId = blockElement.id;
-        this.dragStartCell = this.getCellFromPoint(e.clientX, e.clientY);
 
-        // Сохранить размеры блока в ячейках для подсветки области
+        // Сохранить размеры и позицию блока
         const cleanBlockId = blockElement.id.includes('*') ? blockElement.id.split('*').pop() : blockElement.id;
         const pos = this.parseBlockPosition(cleanBlockId);
         if (pos) {
@@ -703,70 +793,120 @@ export class DiagramEditor {
                 cols: pos.colEnd - pos.colStart,
                 rows: pos.rowEnd - pos.rowStart
             };
+            // Сохранить начальную позицию блока в grid
+            this.dragStartBlockPos = {
+                colStart: pos.colStart,
+                rowStart: pos.rowStart
+            };
         } else {
             this.dragBlockSize = { cols: 1, rows: 1 };
+            this.dragStartBlockPos = { colStart: 1, rowStart: 2 };
         }
 
-        // Сохранить смещение клика относительно левого верхнего угла блока
-        const rect = blockElement.getBoundingClientRect();
-        this.dragOffset = {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
-        };
+        // Сохранить начальную позицию курсора
+        this.dragStartCell = this.getCellFromPoint(e.clientX, e.clientY);
 
-        // Создать ghost элемент
-        this.dragGhost = document.createElement('div');
-        this.dragGhost.className = 'diagram-drag-ghost';
-        this.dragGhost.style.width = rect.width + 'px';
-        this.dragGhost.style.height = rect.height + 'px';
-        // Позиционировать ghost - left/top указывают на левый верхний угол
-        // Удалить transform из CSS для упрощения позиционирования
-        this.dragGhost.style.transform = 'none';
-        this.dragGhost.style.left = (e.clientX - this.dragOffset.x) + 'px';
-        this.dragGhost.style.top = (e.clientY - this.dragOffset.y) + 'px';
-        document.body.appendChild(this.dragGhost);
+        // Создать легковесный индикатор drag (один элемент вместо множества ячеек)
+        this.createDragIndicator(blockElement);
 
         blockElement.classList.add('diagram-dragging');
+    }
+
+    /**
+     * Создать индикатор перетаскивания
+     */
+    createDragIndicator(blockElement) {
+        // Удалить старый если есть
+        this.removeDragIndicator();
+
+        const rect = blockElement.getBoundingClientRect();
+        const parentRect = this.parentElement.getBoundingClientRect();
+
+        this.dragIndicator = document.createElement('div');
+        this.dragIndicator.className = 'diagram-drag-indicator';
+        this.dragIndicator.style.cssText = `
+            position: absolute;
+            width: ${rect.width}px;
+            height: ${rect.height}px;
+            left: ${rect.left - parentRect.left}px;
+            top: ${rect.top - parentRect.top}px;
+            border: 2px dashed #4f46e5;
+            background: rgba(99, 102, 241, 0.15);
+            border-radius: 4px;
+            pointer-events: none;
+            z-index: 100;
+            transition: left 0.1s ease-out, top 0.1s ease-out;
+        `;
+        this.parentElement.appendChild(this.dragIndicator);
+
+        // Кэшировать размеры ячеек для быстрого позиционирования
+        this.cachedCellSize = this.calculateCellSize();
+    }
+
+    /**
+     * Вычислить размер ячейки grid
+     */
+    calculateCellSize() {
+        if (!this.parentElement) return { width: 100, height: 100, contentHeight: 0 };
+
+        const rect = this.parentElement.getBoundingClientRect();
+        const { cols, rows } = this.cachedGridSize || this.parseGridSize();
+        const contentRow = this.parentElement.querySelector('.defaultContent');
+        const contentHeight = contentRow ? contentRow.offsetHeight : 0;
+
+        return {
+            width: rect.width / cols,
+            height: (rect.height - contentHeight) / rows,
+            contentHeight
+        };
+    }
+
+    /**
+     * Удалить индикатор перетаскивания
+     */
+    removeDragIndicator() {
+        if (this.dragIndicator) {
+            this.dragIndicator.remove();
+            this.dragIndicator = null;
+        }
+        this.cachedCellSize = null;
     }
 
     /**
      * Обновить drag
      */
     updateDrag(e) {
-        if (!this.dragGhost) return;
+        // Вычислить смещение курсора от начальной позиции
+        const currentCell = this.getCellFromPoint(e.clientX, e.clientY);
+        const deltaCol = currentCell.col - this.dragStartCell.col;
+        const deltaRow = currentCell.row - this.dragStartCell.row;
 
-        // Обновить позицию ghost - left/top указывают на левый верхний угол
-        this.dragGhost.style.left = (e.clientX - this.dragOffset.x) + 'px';
-        this.dragGhost.style.top = (e.clientY - this.dragOffset.y) + 'px';
-
-        // Подсветить область, где будет размещён блок
-        const cell = this.getCellFromPoint(e.clientX, e.clientY);
-        this.highlightDragArea(cell.col, cell.row);
+        // Обновить позицию индикатора
+        const newColStart = this.dragStartBlockPos.colStart + deltaCol;
+        const newRowStart = this.dragStartBlockPos.rowStart + deltaRow;
+        this.updateDragIndicator(newColStart, newRowStart);
     }
 
     /**
-     * Подсветить область при drag (размер блока)
+     * Обновить позицию индикатора перетаскивания
      */
-    highlightDragArea(startCol, startRow) {
-        this.clearHighlight();
-        if (!this.gridOverlay || !this.dragBlockSize) return;
+    updateDragIndicator(startCol, startRow) {
+        if (!this.dragIndicator || !this.cachedCellSize) return;
 
-        const { cols, rows } = this.parseGridSize();
-        const blockCols = this.dragBlockSize.cols;
-        const blockRows = this.dragBlockSize.rows;
+        // Оптимизация: пропустить если позиция не изменилась
+        const posKey = `${startCol}-${startRow}`;
+        if (this.lastHighlightPos === posKey) return;
+        this.lastHighlightPos = posKey;
 
-        // Вычислить область для подсветки
-        const endCol = Math.min(startCol + blockCols, cols + 1);
-        const endRow = Math.min(startRow + blockRows, rows + 2);
+        const { width, height, contentHeight } = this.cachedCellSize;
 
-        for (let r = startRow; r < endRow; r++) {
-            for (let c = startCol; c < endCol; c++) {
-                const cell = this.gridOverlay.querySelector(`[data-col="${c}"][data-row="${r}"]`);
-                if (cell) {
-                    cell.classList.add('diagram-grid-cell-highlight');
-                }
-            }
-        }
+        // Вычислить новую позицию (row-2 потому что первая строка - контент)
+        const left = (startCol - 1) * width;
+        const top = contentHeight + (startRow - 2) * height;
+
+        // Обновить позицию через transform для лучшей производительности
+        this.dragIndicator.style.left = `${left}px`;
+        this.dragIndicator.style.top = `${top}px`;
     }
 
     /**
@@ -775,6 +915,13 @@ export class DiagramEditor {
     async endDrag(e) {
         if (!this.isDragging) return;
 
+        // Отменить pending RAF
+        if (this.rafId) {
+            cancelAnimationFrame(this.rafId);
+            this.rafId = null;
+        }
+        this.pendingMouseEvent = null;
+
         const endCell = this.getCellFromPoint(e.clientX, e.clientY);
         const blockEl = document.getElementById(this.draggedBlockId);
 
@@ -782,12 +929,8 @@ export class DiagramEditor {
             blockEl.classList.remove('diagram-dragging');
         }
 
-        if (this.dragGhost) {
-            this.dragGhost.remove();
-            this.dragGhost = null;
-        }
-
-        this.clearHighlight();
+        // Удалить индикатор перетаскивания
+        this.removeDragIndicator();
 
         // Вычислить смещение
         const deltaCol = endCell.col - this.dragStartCell.col;
@@ -801,7 +944,8 @@ export class DiagramEditor {
         this.draggedBlockId = null;
         this.dragStartCell = null;
         this.dragBlockSize = null;
-        this.dragOffset = null;
+        this.dragStartBlockPos = null;
+        this.lastHighlightPos = null;  // Сбросить для следующего drag
 
         // Установить флаг для предотвращения клика после drag
         this.justFinishedDrag = true;
@@ -845,6 +989,13 @@ export class DiagramEditor {
     async endResize(e) {
         if (!this.isResizing) return;
 
+        // Отменить pending RAF
+        if (this.rafId) {
+            cancelAnimationFrame(this.rafId);
+            this.rafId = null;
+        }
+        this.pendingMouseEvent = null;
+
         const endCell = this.getCellFromPoint(e.clientX, e.clientY);
         const blockEl = document.getElementById(this.resizingBlockId);
 
@@ -874,11 +1025,12 @@ export class DiagramEditor {
     highlightCell(col, row) {
         this.clearHighlight();
 
-        if (!this.gridOverlay) return;
+        if (!this.gridCellsMap) return;
 
-        const cell = this.gridOverlay.querySelector(`[data-col="${col}"][data-row="${row}"]`);
+        const cell = this.gridCellsMap.get(`${col}-${row}`);
         if (cell) {
             cell.classList.add('diagram-grid-cell-highlight');
+            this.highlightedCells.add(cell);
         }
     }
 
@@ -894,7 +1046,7 @@ export class DiagramEditor {
             : this.resizingBlockId;
 
         const pos = this.parseBlockPosition(cleanBlockId);
-        if (!pos || !this.gridOverlay) return;
+        if (!pos || !this.gridCellsMap) return;
 
         let { colStart, colEnd, rowStart, rowEnd } = pos;
 
@@ -905,12 +1057,13 @@ export class DiagramEditor {
         if (dir.includes('w')) colStart = Math.min(endCell.col, colEnd - 1);
         if (dir.includes('e')) colEnd = Math.max(endCell.col + 1, colStart + 1);
 
-        // Подсветить всю область
+        // Подсветить всю область используя Map
         for (let r = rowStart; r < rowEnd; r++) {
             for (let c = colStart; c < colEnd; c++) {
-                const cell = this.gridOverlay.querySelector(`[data-col="${c}"][data-row="${r}"]`);
+                const cell = this.gridCellsMap.get(`${c}-${r}`);
                 if (cell) {
                     cell.classList.add('diagram-grid-cell-highlight');
+                    this.highlightedCells.add(cell);
                 }
             }
         }
@@ -920,10 +1073,11 @@ export class DiagramEditor {
      * Убрать подсветку
      */
     clearHighlight() {
-        if (!this.gridOverlay) return;
-        this.gridOverlay.querySelectorAll('.diagram-grid-cell-highlight').forEach(cell => {
+        // Использовать кэшированный Set вместо querySelectorAll
+        for (const cell of this.highlightedCells) {
             cell.classList.remove('diagram-grid-cell-highlight');
-        });
+        }
+        this.highlightedCells.clear();
     }
 
     /**
@@ -1338,7 +1492,6 @@ export class DiagramEditor {
         this.parentElement = null;
         this.quickModeElement = null;
         this.gridOverlay = null;
-        this.dragGhost = null;
         this.connectionLine = null;
     }
 }
