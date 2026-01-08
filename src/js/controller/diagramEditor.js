@@ -415,39 +415,30 @@ export class DiagramEditor {
     }
 
     /**
-     * Вычислить коэффициент прореживания сетки на основе размера ячеек
-     * @returns {number} - показывать каждую N-ую линию (1 = все, 2 = каждую вторую, и т.д.)
-     */
-    _calculateGridThinningFactor(cols, rows) {
-        if (!this.parentElement) return 1;
-
-        const rect = this.parentElement.getBoundingClientRect();
-        const cellWidth = rect.width / cols;
-        const cellHeight = rect.height / (rows + 1); // +1 для header row
-        const minCellSize = Math.min(cellWidth, cellHeight);
-
-        // Минимальный комфортный размер ячейки ~40px
-        // При меньших размерах прореживаем линии
-        if (minCellSize < 15) return 4;  // очень мелкие - каждую 4-ю
-        if (minCellSize < 25) return 3;  // мелкие - каждую 3-ю
-        if (minCellSize < 40) return 2;  // средние - каждую 2-ю
-        return 1;  // нормальные - все линии
-    }
-
-    /**
      * Создать оверлей с грид-линиями (CSS gradient - 0 DOM элементов)
+     * Адаптивное количество линий: целевой размер ячейки ~60px
      */
     createGridOverlay() {
         if (this.gridOverlay) return;
 
         const { cols, rows } = this.parseGridSize();
-        const thinningFactor = this._calculateGridThinningFactor(cols, rows);
+        const rect = this.parentElement?.getBoundingClientRect();
 
-        // Эффективные размеры с учётом прореживания
-        const effectiveCols = Math.ceil(cols / thinningFactor);
-        const effectiveRows = Math.ceil(rows / thinningFactor);
+        // Целевой размер ячейки для комфортного восприятия
+        const TARGET_CELL_SIZE = 60;
+        const MIN_LINES = 3;
+        const MAX_LINES = 12;
 
-        const lineColor = 'rgba(100, 100, 200, 0.3)';
+        // Вычисляем оптимальное количество линий на основе размера блока
+        let visibleCols = cols;
+        let visibleRows = rows;
+
+        if (rect) {
+            visibleCols = Math.min(MAX_LINES, Math.max(MIN_LINES, Math.floor(rect.width / TARGET_CELL_SIZE)));
+            visibleRows = Math.min(MAX_LINES, Math.max(MIN_LINES, Math.floor(rect.height / TARGET_CELL_SIZE)));
+        }
+
+        const lineColor = 'rgba(100, 100, 200, 0.25)';
 
         this.gridOverlay = document.createElement('div');
         this.gridOverlay.className = 'diagram-grid-overlay';
@@ -463,8 +454,8 @@ export class DiagramEditor {
                 linear-gradient(to right, ${lineColor} 1px, transparent 1px),
                 linear-gradient(to bottom, ${lineColor} 1px, transparent 1px);
             background-size:
-                calc(100% / ${effectiveCols}) 100%,
-                100% calc(100% / ${effectiveRows});
+                calc(100% / ${visibleCols}) 100%,
+                100% calc(100% / ${visibleRows});
             background-position: 0 0;
         `;
 
