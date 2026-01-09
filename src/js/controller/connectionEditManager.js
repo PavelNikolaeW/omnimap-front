@@ -15,6 +15,8 @@ class ConnectionEditManager {
         this.currentConnection = null;
         this.sourceBlockId = null;
         this.targetBlockId = null;
+        this.sourceAnchor = null;
+        this.targetAnchor = null;
         this.panel = null;
         this.isInitialized = false;
 
@@ -196,6 +198,10 @@ class ConnectionEditManager {
         this.sourceBlockId = connection.source?.id;
         this.targetBlockId = connection.target?.id;
 
+        // Получить anchor info из connection endpoints
+        this.sourceAnchor = this.getAnchorNameFromEndpoint(connection.endpoints?.[0]);
+        this.targetAnchor = this.getAnchorNameFromEndpoint(connection.endpoints?.[1]);
+
         this.populatePanel();
         this.toggleAdvancedSettings();
         this.highlightConnection();
@@ -206,6 +212,49 @@ class ConnectionEditManager {
         this.panel.style.left = 'auto';
 
         this.panel.classList.add('visible');
+    }
+
+    /**
+     * Получить имя anchor из endpoint jsPlumb
+     * Конвертирует координаты [x, y, dx, dy] в имя позиции
+     */
+    getAnchorNameFromEndpoint(endpoint) {
+        if (!endpoint?.anchor) return null;
+
+        const anchor = endpoint.anchor;
+        // jsPlumb anchor может быть объектом с x, y или массивом
+        const x = anchor.x ?? anchor[0];
+        const y = anchor.y ?? anchor[1];
+
+        if (x === undefined || y === undefined) return null;
+
+        // Маппинг координат на имена anchor
+        // Top side: y = 0
+        if (y === 0 || y < 0.1) {
+            if (x <= 0.3) return 'top-left';
+            if (x <= 0.6) return 'top-center';
+            return 'top-right';
+        }
+        // Bottom side: y = 1
+        if (y === 1 || y > 0.9) {
+            if (x >= 0.7) return 'bottom-right';
+            if (x >= 0.4) return 'bottom-center';
+            return 'bottom-left';
+        }
+        // Left side: x = 0
+        if (x === 0 || x < 0.1) {
+            if (y >= 0.7) return 'left-bottom';
+            if (y >= 0.4) return 'left-center';
+            return 'left-top';
+        }
+        // Right side: x = 1
+        if (x === 1 || x > 0.9) {
+            if (y <= 0.3) return 'right-top';
+            if (y <= 0.6) return 'right-center';
+            return 'right-bottom';
+        }
+
+        return null; // Continuous anchor или неизвестная позиция
     }
 
     /**
@@ -458,10 +507,12 @@ class ConnectionEditManager {
     deleteConnection() {
         if (!this.currentConnection) return;
 
-        // Диспатчим событие удаления
+        // Диспатчим событие удаления с anchor info для точного удаления
         dispatch('RemoveConnectionBlock', {
             sourceId: this.sourceBlockId,
-            targetId: this.targetBlockId
+            targetId: this.targetBlockId,
+            sourceAnchor: this.sourceAnchor,
+            targetAnchor: this.targetAnchor
         });
 
         // Удаляем соединение из jsPlumb
@@ -505,6 +556,8 @@ class ConnectionEditManager {
         this.currentConnection = null;
         this.sourceBlockId = null;
         this.targetBlockId = null;
+        this.sourceAnchor = null;
+        this.targetAnchor = null;
     }
 
     /**

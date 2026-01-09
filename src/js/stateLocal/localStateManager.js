@@ -2039,14 +2039,24 @@ export class LocalStateManager {
         }
     }
 
-    async removeConnectionBlock({sourceId, targetId}) {
+    async removeConnectionBlock({sourceId, targetId, sourceAnchor, targetAnchor}) {
         const sourceBlock = this.blocks.get(sourceId);
         if (!sourceBlock || !sourceBlock.data?.connections) {
             console.error('Source block or connections not found:', sourceId);
             return;
         }
 
-        sourceBlock.data.connections = sourceBlock.data.connections.filter((el) => el.targetId !== targetId);
+        // Если переданы anchors - удаляем конкретное соединение
+        // Если нет - удаляем все соединения к target (обратная совместимость)
+        if (sourceAnchor !== undefined || targetAnchor !== undefined) {
+            sourceBlock.data.connections = sourceBlock.data.connections.filter(
+                (el) => !(el.targetId === targetId &&
+                         el.sourceAnchor === sourceAnchor &&
+                         el.targetAnchor === targetAnchor)
+            );
+        } else {
+            sourceBlock.data.connections = sourceBlock.data.connections.filter((el) => el.targetId !== targetId);
+        }
         sourceBlock.updated_at = new Date().toISOString();
         await this.saveBlock(sourceBlock);
 
