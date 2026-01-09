@@ -119,6 +119,7 @@ export class DiagramUtils {
                 blockId: this.blockId,
                 data: {customGrid: {}}
             })
+            this.diagramEditor.deactivate()
             return
         }
 
@@ -132,6 +133,18 @@ export class DiagramUtils {
             blockId: this.blockId,
             data: {customGrid, connections}
         })
+
+        // Активируем редактор диаграммы для отображения сетки (передаём customGrid напрямую)
+        const gridData = this.parseGridClasses(customGrid.grid)
+        this.updateGridDisplay(gridData.rows, gridData.cols)
+
+        if (this.diagramEditor.isActive) {
+            this.diagramEditor.customGrid = customGrid
+            this.diagramEditor.removeGridOverlay()
+            this.diagramEditor.createGridOverlay()
+        } else {
+            await this.diagramEditor.activate(this.blockId, this.element, customGrid)
+        }
     }
 
     /**
@@ -251,6 +264,7 @@ export class DiagramUtils {
                 blockId: this.blockId,
                 data: {customGrid: {}}
             })
+            this.diagramEditor.deactivate()
             return
         }
         const createConnections = this.connections?.checked || false
@@ -262,6 +276,18 @@ export class DiagramUtils {
             blockId: this.blockId,
             data: {customGrid, connections}
         })
+
+        // Активируем редактор диаграммы для отображения сетки (передаём customGrid напрямую)
+        const gridData = this.parseGridClasses(customGrid.grid)
+        this.updateGridDisplay(gridData.rows, gridData.cols)
+
+        if (this.diagramEditor.isActive) {
+            this.diagramEditor.customGrid = customGrid
+            this.diagramEditor.removeGridOverlay()
+            this.diagramEditor.createGridOverlay()
+        } else {
+            await this.diagramEditor.activate(this.blockId, this.element, customGrid)
+        }
     }
 
     async getBlock(id) {

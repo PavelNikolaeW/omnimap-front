@@ -313,8 +313,11 @@ export class DiagramEditor {
 
     /**
      * Активировать режим редактирования диаграммы для блока
+     * @param {string} blockId - ID блока
+     * @param {HTMLElement} blockElement - DOM элемент блока
+     * @param {Object} customGridData - опционально, customGrid для немедленной активации без чтения из localforage
      */
-    async activate(blockId, blockElement) {
+    async activate(blockId, blockElement, customGridData = null) {
         if (this.isActive) {
             this.deactivate();
         }
@@ -322,13 +325,18 @@ export class DiagramEditor {
         this.parentBlockId = blockId;
         this.parentElement = blockElement;
 
-        const block = await this.getBlock(blockId);
-        if (!block?.data?.customGrid || !Object.keys(block.data.customGrid).length) {
-            console.warn('Block has no customGrid, cannot activate diagram editor');
-            return false;
+        // Если customGrid передан напрямую, используем его, иначе читаем из localforage
+        let customGrid = customGridData;
+        if (!customGrid) {
+            const block = await this.getBlock(blockId);
+            if (!block?.data?.customGrid || !Object.keys(block.data.customGrid).length) {
+                console.warn('Block has no customGrid, cannot activate diagram editor');
+                return false;
+            }
+            customGrid = block.data.customGrid;
         }
 
-        this.customGrid = block.data.customGrid;
+        this.customGrid = customGrid;
         this.isActive = true;
 
         // Добавить визуальные элементы
