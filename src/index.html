@@ -267,140 +267,150 @@
 
 <!-- Connection Style Panel -->
 <div class="block-style-panel" id="connectionPanel">
-    <h4>Connection Style</h4>
+    <h4>Стиль соединения</h4>
 
     <!-- Presets section -->
-    <div class="connection-presets">
-        <button class="connection-preset active" data-preset="default" title="Standard">
-            <i class="fas fa-arrow-right"></i>
-        </button>
-        <button class="connection-preset" data-preset="dashed" title="Dashed">
-            <i class="fas fa-ellipsis"></i>
-        </button>
-        <button class="connection-preset" data-preset="curved" title="Curved">
-            <i class="fas fa-bezier-curve"></i>
-        </button>
-        <button class="connection-preset" data-preset="double" title="Bidirectional">
-            <i class="fas fa-arrows-left-right"></i>
-        </button>
-        <button class="connection-preset" data-preset="inheritance" title="Inheritance (UML)">
-            <i class="fas fa-sitemap"></i>
-        </button>
-        <button class="connection-preset" data-preset="composition" title="Composition (UML)">
-            <i class="fas fa-diamond"></i>
-        </button>
-    </div>
-
-    <div class="style-section-label">Connector</div>
-    <div class="style-row">
-        <label>Type</label>
-        <select id="connectorType">
-            <option value="Flowchart">Flowchart (Angled)</option>
-            <option value="Bezier">Bezier (Curved)</option>
-            <option value="Straight">Straight</option>
-            <option value="StateMachine">State Machine</option>
-        </select>
-    </div>
-
-    <div class="style-row">
-        <label>Color</label>
-        <div class="color-presets">
-            <input type="color" id="connectorColor" value="#516077">
-            <button class="color-preset" data-color="#516077" title="Default"></button>
-            <button class="color-preset" data-color="#dc3545" title="Red"></button>
-            <button class="color-preset" data-color="#28a745" title="Green"></button>
-            <button class="color-preset" data-color="#007bff" title="Blue"></button>
-            <button class="color-preset" data-color="#ffc107" title="Yellow"></button>
+    <div class="style-section">
+        <label class="style-section-label">Тип</label>
+        <div class="connection-presets">
+            <button class="connection-preset active" data-preset="default" title="Стандартная">
+                <i class="fas fa-arrow-right"></i>
+            </button>
+            <button class="connection-preset" data-preset="dashed" title="Пунктирная">
+                <i class="fas fa-ellipsis"></i>
+            </button>
+            <button class="connection-preset" data-preset="curved" title="Кривая">
+                <i class="fas fa-bezier-curve"></i>
+            </button>
+            <button class="connection-preset" data-preset="double" title="Двусторонняя">
+                <i class="fas fa-arrows-left-right"></i>
+            </button>
+            <button class="connection-preset" data-preset="inheritance" title="Наследование (UML)">
+                <i class="fas fa-sitemap"></i>
+            </button>
+            <button class="connection-preset" data-preset="composition" title="Композиция (UML)">
+                <i class="fas fa-diamond"></i>
+            </button>
         </div>
     </div>
 
     <div class="style-row">
-        <label>Width</label>
+        <label>Коннектор</label>
+        <select id="connectorType">
+            <option value="Flowchart">Ортогональный</option>
+            <option value="Bezier">Кривая Безье</option>
+            <option value="Straight">Прямая</option>
+            <option value="StateMachine">Автомат</option>
+        </select>
+    </div>
+
+    <div class="style-row">
+        <label>Цвет</label>
+        <div class="color-presets">
+            <input type="color" id="connectorColor" value="#516077">
+            <button class="color-preset" data-color="#516077" title="По умолчанию"></button>
+            <button class="color-preset" data-color="#dc3545" title="Красный"></button>
+            <button class="color-preset" data-color="#28a745" title="Зелёный"></button>
+            <button class="color-preset" data-color="#007bff" title="Синий"></button>
+            <button class="color-preset" data-color="#ffc107" title="Жёлтый"></button>
+        </div>
+    </div>
+
+    <div class="style-row">
+        <label>Толщина</label>
         <input type="range" id="connectorWidth" min="1" max="6" value="2">
         <span id="connectorWidthValue">2px</span>
     </div>
 
-    <div class="style-section-label">Line Style</div>
-    <div class="style-row">
-        <label>Pattern</label>
-        <select id="connectorDashStyle">
-            <option value="">Solid</option>
-            <option value="4 2">Dashed</option>
-            <option value="1 3">Dotted</option>
-            <option value="8 4 2 4">Dash-Dot</option>
-        </select>
+    <div class="style-section">
+        <label class="style-section-label">Стиль линии</label>
+        <div class="style-row">
+            <label>Паттерн</label>
+            <select id="connectorDashStyle">
+                <option value="">Сплошная</option>
+                <option value="4 2">Пунктир</option>
+                <option value="1 3">Точки</option>
+                <option value="8 4 2 4">Штрих-пунктир</option>
+            </select>
+        </div>
+
+        <div class="style-row">
+            <label>Скругление</label>
+            <input type="range" id="connectorCornerRadius" min="0" max="20" value="5">
+            <span id="connectorCornerRadiusValue">5px</span>
+        </div>
     </div>
 
-    <div class="style-row">
-        <label>Corner Radius</label>
-        <input type="range" id="connectorCornerRadius" min="0" max="20" value="5">
-        <span id="connectorCornerRadiusValue">5px</span>
+    <div class="style-section">
+        <label class="style-section-label">Якоря</label>
+        <div class="style-row">
+            <label>Источник</label>
+            <select id="connectorSourceAnchor">
+                <option value="Continuous">Авто</option>
+                <option value="Top">Сверху</option>
+                <option value="Bottom">Снизу</option>
+                <option value="Left">Слева</option>
+                <option value="Right">Справа</option>
+                <option value="TopLeft">Сверху слева</option>
+                <option value="TopRight">Сверху справа</option>
+                <option value="BottomLeft">Снизу слева</option>
+                <option value="BottomRight">Снизу справа</option>
+                <option value="Center">Центр</option>
+            </select>
+        </div>
+        <div class="style-row">
+            <label>Цель</label>
+            <select id="connectorTargetAnchor">
+                <option value="Continuous">Авто</option>
+                <option value="Top">Сверху</option>
+                <option value="Bottom">Снизу</option>
+                <option value="Left">Слева</option>
+                <option value="Right">Справа</option>
+                <option value="TopLeft">Сверху слева</option>
+                <option value="TopRight">Сверху справа</option>
+                <option value="BottomLeft">Снизу слева</option>
+                <option value="BottomRight">Снизу справа</option>
+                <option value="Center">Центр</option>
+            </select>
+        </div>
     </div>
 
-    <div class="style-section-label">Anchors</div>
-    <div class="style-row">
-        <label>Source</label>
-        <select id="connectorSourceAnchor">
-            <option value="Continuous">Auto</option>
-            <option value="Top">Top</option>
-            <option value="Bottom">Bottom</option>
-            <option value="Left">Left</option>
-            <option value="Right">Right</option>
-            <option value="TopLeft">Top Left</option>
-            <option value="TopRight">Top Right</option>
-            <option value="BottomLeft">Bottom Left</option>
-            <option value="BottomRight">Bottom Right</option>
-            <option value="Center">Center</option>
-        </select>
-    </div>
-    <div class="style-row">
-        <label>Target</label>
-        <select id="connectorTargetAnchor">
-            <option value="Continuous">Auto</option>
-            <option value="Top">Top</option>
-            <option value="Bottom">Bottom</option>
-            <option value="Left">Left</option>
-            <option value="Right">Right</option>
-            <option value="TopLeft">Top Left</option>
-            <option value="TopRight">Top Right</option>
-            <option value="BottomLeft">Bottom Left</option>
-            <option value="BottomRight">Bottom Right</option>
-            <option value="Center">Center</option>
-        </select>
+    <div class="style-section">
+        <label class="style-section-label">Стрелки</label>
+        <div class="style-row checkbox-row">
+            <label>
+                <input type="checkbox" id="connectorArrowStart">
+                В начале
+            </label>
+        </div>
+        <div class="style-row checkbox-row">
+            <label>
+                <input type="checkbox" id="connectorArrowEnd" checked>
+                В конце
+            </label>
+        </div>
+        <div class="style-row">
+            <label>Форма</label>
+            <select id="connectorArrowStyle">
+                <option value="arrow">Стрелка</option>
+                <option value="diamond">Ромб</option>
+                <option value="disc">Круг</option>
+                <option value="square">Квадрат</option>
+                <option value="hollow-arrow">Пустая стрелка</option>
+                <option value="hollow-diamond">Пустой ромб</option>
+            </select>
+        </div>
     </div>
 
-    <div class="style-section-label">Arrows</div>
-    <div class="style-row checkbox-row">
-        <label>
-            <input type="checkbox" id="connectorArrowStart">
-            Arrow at Start
-        </label>
-    </div>
-    <div class="style-row checkbox-row">
-        <label>
-            <input type="checkbox" id="connectorArrowEnd" checked>
-            Arrow at End
-        </label>
-    </div>
-    <div class="style-row">
-        <label>Arrow Style</label>
-        <select id="connectorArrowStyle">
-            <option value="arrow">Arrow</option>
-            <option value="diamond">Diamond</option>
-            <option value="disc">Disc</option>
-            <option value="square">Square</option>
-            <option value="hollow-arrow">Hollow Arrow</option>
-            <option value="hollow-diamond">Hollow Diamond</option>
-        </select>
-    </div>
-
-    <div class="style-section-label">Label</div>
-    <div class="style-row">
-        <input type="text" id="connectorLabel" placeholder="Connection label..." style="width: 100%;">
+    <div class="style-section">
+        <label class="style-section-label">Подпись</label>
+        <div class="style-row">
+            <input type="text" id="connectorLabel" placeholder="Текст подписи..." style="width: 100%;">
+        </div>
     </div>
 
     <button class="diagram-btn" id="createConnection" style="width: 100%; margin-top: 12px;">
-        <i class="fas fa-plus"></i> Create Connection
+        <i class="fas fa-plus"></i> Создать соединение
     </button>
 </div>
 

@@ -119,6 +119,7 @@ export class DiagramUtils {
                 blockId: this.blockId,
                 data: {customGrid: {}}
             })
+            this.diagramEditor.deactivate()
             return
         }
 
@@ -132,6 +133,29 @@ export class DiagramUtils {
             blockId: this.blockId,
             data: {customGrid, connections}
         })
+
+        await this.activateDiagramWithGrid(customGrid)
+    }
+
+    /**
+     * Активировать редактор диаграммы с переданным customGrid
+     * Вспомогательный метод для избежания дублирования кода
+     */
+    async activateDiagramWithGrid(customGrid) {
+        const gridData = this.parseGridClasses(customGrid.grid)
+        this.updateGridDisplay(gridData.rows, gridData.cols)
+
+        try {
+            if (this.diagramEditor.isActive) {
+                this.diagramEditor.customGrid = customGrid
+                this.diagramEditor.removeGridOverlay()
+                this.diagramEditor.createGridOverlay()
+            } else {
+                await this.diagramEditor.activate(this.blockId, this.element, customGrid)
+            }
+        } catch (error) {
+            console.error('Failed to activate diagram editor:', error)
+        }
     }
 
     /**
@@ -251,6 +275,7 @@ export class DiagramUtils {
                 blockId: this.blockId,
                 data: {customGrid: {}}
             })
+            this.diagramEditor.deactivate()
             return
         }
         const createConnections = this.connections?.checked || false
@@ -262,6 +287,8 @@ export class DiagramUtils {
             blockId: this.blockId,
             data: {customGrid, connections}
         })
+
+        await this.activateDiagramWithGrid(customGrid)
     }
 
     async getBlock(id) {
