@@ -1,14 +1,4 @@
-/**
- * Экранирует HTML символы для безопасного отображения
- * @param {string} text - Текст для экранирования
- * @returns {string} - Экранированный текст
- */
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
+import { escapeHtml } from '../../utils/utils.js';
 
 /**
  * Рендерит превью сетки с блоками

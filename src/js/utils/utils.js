@@ -98,3 +98,16 @@ export function checkClass(el, clas) {
         el = el.parentNode
     }
 }
+
+/**
+ * Экранирует HTML символы для безопасного отображения
+ * Предотвращает XSS при вставке пользовательского текста в innerHTML
+ * @param {string} text - Текст для экранирования
+ * @returns {string} - Экранированный текст
+ */
+export function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}

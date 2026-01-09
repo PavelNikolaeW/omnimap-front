@@ -1,5 +1,5 @@
 import { Popup } from '../popups/popup.js';
-import { dispatch } from '../../utils/utils.js';
+import { dispatch, escapeHtml } from '../../utils/utils.js';
 import { GridLayoutCalculator } from '../../painter/gridLayoutCalculator.js';
 import { LayoutCellManager } from './LayoutCellManager.js';
 import { LayoutPreview } from './LayoutPreview.js';
@@ -8,18 +8,6 @@ import { LayoutDataConverter } from './LayoutDataConverter.js';
 import { localStateManager } from '../../stateLocal/localStateManager.js';
 import { extractBlockId } from '../../actions/selectionActions.js';
 import { importBlocks, pollImportStatus, generateBlockId } from '../../api/importService.js';
-
-/**
- * Экранирует HTML символы для безопасного отображения
- * @param {string} text - Текст для экранирования
- * @returns {string} - Экранированный текст
- */
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
 
 // Singleton instance для предотвращения множественных окон
 let currentInstance = null;
@@ -1001,8 +989,38 @@ export class LayoutEditorPanel extends Popup {
 
     /**
      * Применяет раскладку
+     * Валидирует что все childBlocks имеют позиции
      */
     applyLayout() {
+        // Валидация: убеждаемся что все childBlocks имеют позиции
+        const missingBlocks = this.childBlocks.filter(b => !this.cells[b.id]);
+
+        if (missingBlocks.length > 0) {
+            // Автоматически размещаем блоки без позиций в свободные ячейки
+            for (const block of missingBlocks) {
+                const freeCell = this.cellManager?.findFreeCell();
+                if (freeCell) {
+                    this.cells[block.id] = {
+                        row: freeCell.row,
+                        col: freeCell.col,
+                        rowSpan: 1,
+                        colSpan: 1
+                    };
+                    // Обновляем occupancy grid
+                    this.cellManager?.rebuildOccupancyGrid();
+                } else {
+                    // Нет свободного места - добавляем новую строку
+                    this.gridSize.rows += 1;
+                    this.cells[block.id] = {
+                        row: this.gridSize.rows,
+                        col: 1,
+                        rowSpan: 1,
+                        colSpan: this.gridSize.cols
+                    };
+                }
+            }
+        }
+
         dispatch('UpdateDataBlock', {
             blockId: this.blockId,
             data: {
