@@ -13,6 +13,7 @@ import { CONNECTION_TYPES } from './connectionTypes';
 class ConnectionEditManager {
     constructor() {
         this.currentConnection = null;
+        this.connectionId = null;  // Уникальный ID соединения
         this.sourceBlockId = null;
         this.targetBlockId = null;
         this.sourceAnchor = null;
@@ -198,9 +199,11 @@ class ConnectionEditManager {
         this.sourceBlockId = connection.source?.id;
         this.targetBlockId = connection.target?.id;
 
-        // Получить anchor info из connection endpoints
-        this.sourceAnchor = this.getAnchorNameFromEndpoint(connection.endpoints?.[0]);
-        this.targetAnchor = this.getAnchorNameFromEndpoint(connection.endpoints?.[1]);
+        // Получить connectionId и anchor info из connection data (сохраняются при создании)
+        const connectionData = connection.getData?.() || {};
+        this.connectionId = connectionData.connectionId || null;
+        this.sourceAnchor = connectionData.sourceAnchor || this.getAnchorNameFromEndpoint(connection.endpoints?.[0]);
+        this.targetAnchor = connectionData.targetAnchor || this.getAnchorNameFromEndpoint(connection.endpoints?.[1]);
 
         this.populatePanel();
         this.toggleAdvancedSettings();
@@ -507,8 +510,9 @@ class ConnectionEditManager {
     deleteConnection() {
         if (!this.currentConnection) return;
 
-        // Диспатчим событие удаления с anchor info для точного удаления
+        // Диспатчим событие удаления с connectionId для точного удаления
         dispatch('RemoveConnectionBlock', {
+            connectionId: this.connectionId,  // Приоритетный способ идентификации
             sourceId: this.sourceBlockId,
             targetId: this.targetBlockId,
             sourceAnchor: this.sourceAnchor,
@@ -554,6 +558,7 @@ class ConnectionEditManager {
         this.unhighlightConnection();
         this.panel?.classList.remove('visible');
         this.currentConnection = null;
+        this.connectionId = null;
         this.sourceBlockId = null;
         this.targetBlockId = null;
         this.sourceAnchor = null;

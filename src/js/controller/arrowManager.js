@@ -143,7 +143,12 @@ class ArrowManager {
         const endpoint = this.getEndpoint({type: 'Dot', options: {radius: 4}}, layout);
         const endpointStyle = {fill: paintStyle.stroke || "#456", outlineWidth: 0};
 
-        this.instance.connect({
+        // Генерируем уникальный ID для соединения
+        const connectionId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : `conn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+        const connection = this.instance.connect({
             source: sourceId,
             target: targetId,
             anchors,
@@ -151,11 +156,13 @@ class ArrowManager {
             paintStyle,
             overlays,
             endpoint,
-            endpointStyle
+            endpointStyle,
+            data: { connectionId, sourceAnchor, targetAnchor }  // Сохраняем ID и anchors в jsPlumb connection
         });
 
         // Сохраняем соединение с информацией об anchors
         dispatch("AddConnectionBlock", {
+            id: connectionId,  // Передаём сгенерированный ID
             sourceId,
             targetId,
             connector: config.connector || this.defaultConnector,
@@ -271,9 +278,14 @@ class ArrowManager {
      * @param {Object} connection - Объект соединения jsPlumb.
      */
     deleteConnection(connection) {
+        // Извлекаем connectionId из data соединения для точного удаления
+        const connectionData = connection.getData?.() || {};
         dispatch("RemoveConnectionBlock", {
+            connectionId: connectionData.connectionId,
             sourceId: connection.source.id,
             targetId: connection.target.id,
+            sourceAnchor: connectionData.sourceAnchor,
+            targetAnchor: connectionData.targetAnchor
         });
         this.instance.deleteConnection(connection);
     }
@@ -399,7 +411,13 @@ class ArrowManager {
                         overlays,
                         endpoint,
                         endpointStyle,
-                        anchors
+                        anchors,
+                        // Сохраняем ID и anchors для идентификации при редактировании/удалении
+                        data: {
+                            connectionId: conn.id,
+                            sourceAnchor: conn.sourceAnchor,
+                            targetAnchor: conn.targetAnchor
+                        }
                     });
                 }
             });

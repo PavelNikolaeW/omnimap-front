@@ -77,6 +77,21 @@ function showHint(message, duration = 3000) {
     }, duration)
 }
 
+/**
+ * Обработка клика на якорь блока-источника в режиме создания соединения
+ * @param {Object} ctx - Контекст
+ * @returns {boolean} - true если клик был на якоре источника и обработан
+ */
+function handleSourceAnchorClick(ctx) {
+    if (ctx.clickedAnchor) {
+        ctx.sourceAnchor = ctx.clickedAnchor.position
+        ctx.clickedAnchor = null
+        showHint(`Точка привязки источника: ${ctx.sourceAnchor}`, 1500)
+        return true
+    }
+    return false
+}
+
 function hideHint() {
     const hint = document.getElementById('command-hint')
     if (hint) {
@@ -698,6 +713,9 @@ export const commands = [
                     setTimeout(() => {
                         ctx.setCmd('openBlock')
                     }, 50)
+                } else {
+                    // Клик на якорь того же блока-источника - обновить sourceAnchor
+                    handleSourceAnchorClick(ctx)
                 }
             }
         }
@@ -799,6 +817,10 @@ export const commands = [
                     setTimeout(() => {
                         ctx.setCmd('openBlock')
                     }, 50)
+                } else if (ctx.clickedAnchor) {
+                    ctx.sourceAnchor = ctx.clickedAnchor.position
+                    ctx.clickedAnchor = null
+                    showHint(`Точка привязки источника: ${ctx.sourceAnchor}`, 1500)
                 }
             }
         }
@@ -882,6 +904,10 @@ export const commands = [
                     setTimeout(() => {
                         ctx.setCmd('openBlock')
                     }, 50)
+                } else if (ctx.clickedAnchor) {
+                    ctx.sourceAnchor = ctx.clickedAnchor.position
+                    ctx.clickedAnchor = null
+                    showHint(`Точка привязки источника: ${ctx.sourceAnchor}`, 1500)
                 }
             }
         }
@@ -965,6 +991,10 @@ export const commands = [
                     setTimeout(() => {
                         ctx.setCmd('openBlock')
                     }, 50)
+                } else if (ctx.clickedAnchor) {
+                    ctx.sourceAnchor = ctx.clickedAnchor.position
+                    ctx.clickedAnchor = null
+                    showHint(`Точка привязки источника: ${ctx.sourceAnchor}`, 1500)
                 }
             }
         }
@@ -1048,6 +1078,10 @@ export const commands = [
                     setTimeout(() => {
                         ctx.setCmd('openBlock')
                     }, 50)
+                } else if (ctx.clickedAnchor) {
+                    ctx.sourceAnchor = ctx.clickedAnchor.position
+                    ctx.clickedAnchor = null
+                    showHint(`Точка привязки источника: ${ctx.sourceAnchor}`, 1500)
                 }
             }
         }
@@ -1132,6 +1166,10 @@ export const commands = [
                     setTimeout(() => {
                         ctx.setCmd('openBlock')
                     }, 50)
+                } else if (ctx.clickedAnchor) {
+                    ctx.sourceAnchor = ctx.clickedAnchor.position
+                    ctx.clickedAnchor = null
+                    showHint(`Точка привязки источника: ${ctx.sourceAnchor}`, 1500)
                 }
             }
         }

@@ -1953,6 +1953,7 @@ export class LocalStateManager {
     }
 
     async addConnectionBlock({
+                                 id,  // ID соединения (генерируется в arrowManager)
                                  sourceId,
                                  targetId,
                                  connector,
@@ -1972,7 +1973,15 @@ export class LocalStateManager {
         if (!sourceBlock.data) sourceBlock.data = {};
         if (!sourceBlock.data.connections) sourceBlock.data.connections = [];
 
+        // Используем переданный ID или генерируем новый (для обратной совместимости)
+        const connectionId = id || (
+            (typeof crypto !== 'undefined' && crypto.randomUUID)
+                ? crypto.randomUUID()
+                : `conn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        );
+
         const connectionData = {
+            id: connectionId,
             sourceId,
             targetId,
             connector,
@@ -1996,6 +2005,8 @@ export class LocalStateManager {
         );
 
         if (existingConnection) {
+            // Сохраняем оригинальный ID при обновлении
+            connectionData.id = existingConnection.id || connectionId;
             Object.assign(existingConnection, connectionData);
         } else {
             sourceBlock.data.connections.push(connectionData);
@@ -2039,22 +2050,30 @@ export class LocalStateManager {
         }
     }
 
-    async removeConnectionBlock({sourceId, targetId, sourceAnchor, targetAnchor}) {
+    async removeConnectionBlock({connectionId, sourceId, targetId, sourceAnchor, targetAnchor}) {
         const sourceBlock = this.blocks.get(sourceId);
         if (!sourceBlock || !sourceBlock.data?.connections) {
             console.error('Source block or connections not found:', sourceId);
             return;
         }
 
-        // Если переданы anchors - удаляем конкретное соединение
-        // Если нет - удаляем все соединения к target (обратная совместимость)
-        if (sourceAnchor !== undefined || targetAnchor !== undefined) {
+        // Приоритет 1: Удаление по уникальному connectionId (самый надёжный способ)
+        if (connectionId) {
+            sourceBlock.data.connections = sourceBlock.data.connections.filter(
+                (el) => el.id !== connectionId
+            );
+        }
+        // Приоритет 2: Удаление по anchors (для старых соединений без ID)
+        else if (sourceAnchor !== undefined && sourceAnchor !== null &&
+                 targetAnchor !== undefined && targetAnchor !== null) {
             sourceBlock.data.connections = sourceBlock.data.connections.filter(
                 (el) => !(el.targetId === targetId &&
                          el.sourceAnchor === sourceAnchor &&
                          el.targetAnchor === targetAnchor)
             );
-        } else {
+        }
+        // Приоритет 3: Удаление всех соединений к target (обратная совместимость)
+        else {
             sourceBlock.data.connections = sourceBlock.data.connections.filter((el) => el.targetId !== targetId);
         }
         sourceBlock.updated_at = new Date().toISOString();
