@@ -20,6 +20,9 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// Singleton instance для предотвращения множественных окон
+let currentInstance = null;
+
 /**
  * Визуальный редактор раскладки блоков
  * Позволяет настраивать положение дочерних блоков через drag-and-drop
@@ -63,6 +66,11 @@ export class LayoutEditorPanel extends Popup {
      * Статический метод для открытия редактора
      */
     static show(ctx) {
+        // Предотвращаем открытие нескольких окон
+        if (currentInstance) {
+            return currentInstance;
+        }
+
         const blockElement = ctx.blockElement;
         if (!blockElement) {
             console.warn('LayoutEditorPanel: No block element in context');
@@ -75,7 +83,15 @@ export class LayoutEditorPanel extends Popup {
             return null;
         }
 
-        return new LayoutEditorPanel({ ctx, blockId });
+        // Проверяем, не использует ли блок customGrid
+        const block = localStateManager.blocks.get(blockId);
+        if (block?.data?.customGrid) {
+            console.warn('LayoutEditorPanel: Block uses customGrid positioning');
+            return null;
+        }
+
+        currentInstance = new LayoutEditorPanel({ ctx, blockId });
+        return currentInstance;
     }
 
     /**
@@ -453,21 +469,24 @@ export class LayoutEditorPanel extends Popup {
     }
 
     /**
-     * Сбрасывает раскладку
+     * Сбрасывает раскладку к авто-режиму (удаляет layoutCells)
      */
     resetLayout() {
-        const childOrder = this.block.data?.childOrder || [];
-        const initial = GridLayoutCalculator.generateInitialCells(childOrder);
-        this.gridSize = initial.gridSize;
-        this.cells = initial.cells;
+        // Удаляем кастомную раскладку из блока
+        dispatch('UpdateDataBlock', {
+            blockId: this.blockId,
+            data: {
+                layout: null,
+                layoutCells: null
+            }
+        });
 
-        // Перестраиваем occupancy grid после изменения cells
-        if (this.cellManager) {
-            this.cellManager.rebuildOccupancyGrid();
-        }
+        this.close();
 
-        this.refreshPreview();
-        this.updateSettingsInputs();
+        // Перерендер блока
+        setTimeout(() => {
+            dispatch('ShowBlocks');
+        }, 100);
     }
 
     /**
@@ -542,7 +561,7 @@ export class LayoutEditorPanel extends Popup {
      * Закрытие редактора
      */
     close() {
-        // Устанавливаем флаг для прерывания асинхронных операций
+        // Устанавливаем флаг для прерывания операций
         this._isDestroyed = true;
 
         if (this.dragManager) {
@@ -552,6 +571,9 @@ export class LayoutEditorPanel extends Popup {
 
         this.cellManager = null;
         this.preview = null;
+
+        // Очищаем singleton
+        currentInstance = null;
 
         super.close();
     }

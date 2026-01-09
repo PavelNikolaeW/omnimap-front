@@ -170,6 +170,12 @@ export class LayoutPreview {
         el.addEventListener('dragstart', (e) => {
             e.dataTransfer.setData('text/plain', block.id);
             el.classList.add('layout-preview-block--dragging');
+
+            // Делаем все блоки "прозрачными" для событий мыши, чтобы drop работал на ячейках
+            this.blockElements.forEach(blockEl => {
+                blockEl.style.pointerEvents = 'none';
+            });
+
             if (this.onBlockDragStart) {
                 this.onBlockDragStart(block.id);
             }
@@ -177,6 +183,11 @@ export class LayoutPreview {
 
         el.addEventListener('dragend', () => {
             el.classList.remove('layout-preview-block--dragging');
+
+            // Восстанавливаем pointer-events
+            this.blockElements.forEach(blockEl => {
+                blockEl.style.pointerEvents = '';
+            });
         });
 
         // Resize handles
