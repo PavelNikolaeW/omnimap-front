@@ -278,9 +278,14 @@ class ArrowManager {
      * @param {Object} connection - Объект соединения jsPlumb.
      */
     deleteConnection(connection) {
+        // Извлекаем connectionId из data соединения для точного удаления
+        const connectionData = connection.getData?.() || {};
         dispatch("RemoveConnectionBlock", {
+            connectionId: connectionData.connectionId,
             sourceId: connection.source.id,
             targetId: connection.target.id,
+            sourceAnchor: connectionData.sourceAnchor,
+            targetAnchor: connectionData.targetAnchor
         });
         this.instance.deleteConnection(connection);
     }
