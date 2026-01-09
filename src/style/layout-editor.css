@@ -90,6 +90,33 @@
     transform: scale(0.95);
 }
 
+.layout-preview-block--placeholder {
+    background: #f0fdf4;
+    border: 2px dashed #22c55e;
+    cursor: default;
+}
+
+.layout-preview-block--placeholder:hover {
+    border-color: #16a34a;
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.25);
+}
+
+.layout-preview-block__new-icon {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 20px;
+    height: 20px;
+    background: #22c55e;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: bold;
+}
+
 .layout-preview-block__title {
     font-size: 12px;
     font-weight: 500;
@@ -253,6 +280,67 @@
 
 .layout-preset-btn:active {
     background: #d1d5db;
+}
+
+.layout-preset-btn--primary {
+    background: #4f46e5;
+    color: white;
+    border-color: #4f46e5;
+    width: 100%;
+    margin-top: 8px;
+}
+
+.layout-preset-btn--primary:hover {
+    background: #4338ca;
+    border-color: #4338ca;
+}
+
+.layout-preset-btn--disabled,
+.layout-preset-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background: #e5e7eb;
+    border-color: #d1d5db;
+    color: #9ca3af;
+}
+
+.layout-preset-btn--disabled:hover,
+.layout-preset-btn:disabled:hover {
+    background: #e5e7eb;
+    border-color: #d1d5db;
+}
+
+/* ===== Hints ===== */
+.layout-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    border: 1px solid #bae6fd;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #0369a1;
+    line-height: 1.4;
+}
+
+.layout-hint__icon {
+    flex-shrink: 0;
+    font-size: 14px;
+}
+
+.layout-hint__text {
+    flex: 1;
+}
+
+.layout-settings__info--small {
+    font-size: 11px;
+    padding: 6px 8px;
+    margin-bottom: 8px;
+}
+
+.layout-settings__info--small strong {
+    color: #4f46e5;
 }
 
 /* ===== Selected Block Info ===== */
@@ -434,4 +522,98 @@
     .popup-button--secondary:hover {
         background: #4b5563;
     }
+
+    .layout-preview-block--placeholder {
+        background: #14532d;
+        border-color: #22c55e;
+    }
+
+    .layout-preview-block--placeholder:hover {
+        border-color: #4ade80;
+    }
+
+    .layout-preset-btn--disabled,
+    .layout-preset-btn:disabled {
+        background: #374151;
+        border-color: #4b5563;
+        color: #6b7280;
+    }
+
+    .layout-preset-btn--disabled:hover,
+    .layout-preset-btn:disabled:hover {
+        background: #374151;
+        border-color: #4b5563;
+    }
+
+    .layout-hint {
+        background: linear-gradient(135deg, #1e3a5f 0%, #1e3a8a 100%);
+        border-color: #1d4ed8;
+        color: #93c5fd;
+    }
+
+    .layout-settings__info--small strong {
+        color: #818cf8;
+    }
+}
+
+/* ===== Layout Preset Styles ===== */
+
+/* Calendar preset */
+.layout-preset-calendar {
+    /* Сетка календаря */
+}
+
+[data-calendar-today="true"] {
+    outline: 3px solid #3b82f6 !important;
+    outline-offset: -3px;
+    z-index: 1;
+}
+
+/* Цвет выходных вычисляется автоматически в CalcColor.applyWeekendShift() */
+/* через block.data.isWeekend - сдвигает hue в тёплую сторону (оранжевый) */
+
+/* Kanban preset */
+[data-kanban-status="to_do"] {
+    border-left: 4px solid #f59e0b !important;
+}
+
+[data-kanban-status="in_progress"] {
+    border-left: 4px solid #3b82f6 !important;
+}
+
+[data-kanban-status="done"] {
+    border-left: 4px solid #22c55e !important;
+}
+
+/* Dashboard preset */
+[data-dashboard-role="main"] {
+    /* Основной блок */
+}
+
+[data-dashboard-role="widget"] {
+    /* Виджеты */
+}
+
+[data-dashboard-role="metric"] {
+    /* Метрики - компактный стиль */
+    font-size: 0.9em;
+}
+
+/* Holy Grail preset */
+[data-layout-role="header"],
+[data-layout-role="footer"] {
+    /* Header/Footer */
+}
+
+[data-layout-role="левый_сайдбар"],
+[data-layout-role="правый_сайдбар"] {
+    /* Sidebars */
+}
+
+/* Dark theme for preset styles */
+@media (prefers-color-scheme: dark) {
+    [data-calendar-today="true"] {
+        outline-color: #60a5fa;
+    }
+    /* Цвет выходных вычисляется через CalcColor с учётом родительского цвета */
 }

@@ -258,8 +258,17 @@ class GridClassManager {
             ];
         }
 
+        // Добавляем класс пресета для стилизации
+        const gridClasses = GridClassManager._setBlockGrid(result.totalGridRows, result.gridColumns);
+        if (layoutCells.presetType) {
+            gridClasses.push(`layout-preset-${layoutCells.presetType}`);
+        }
+
+        // Сохраняем presetType для использования в painter
+        block.layoutPresetType = layoutCells.presetType || null;
+
         return [
-            GridClassManager._setBlockGrid(result.totalGridRows, result.gridColumns),
+            gridClasses,
             GridClassManager._setContentPosition(result.totalGridRows, result.gridColumns),
             childrenPosition
         ];

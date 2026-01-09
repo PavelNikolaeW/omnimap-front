@@ -11,10 +11,46 @@ export default class CalcColor {
 
     calculateColor(element, block, parentBaseColor) {
         const baseColor = this.getInitialBaseColor(block, parentBaseColor);
-        const computed = this.computeColor(baseColor);
+        let computed = this.computeColor(baseColor);
+
+        // Для выходных дней (календарь) сдвигаем hue в тёплую сторону
+        if (block.data?.isWeekend) {
+            computed = this.applyWeekendShift(computed);
+        }
 
         this.applyColorToElement(element, computed, block);
         return computed;
+    }
+
+    /**
+     * Сдвигает цвет в тёплую сторону для выходных дней
+     * Используется в календарном пресете для визуального выделения Сб/Вс
+     * @param {Array} hsl - [h, s, l, depth]
+     * @returns {Array} - модифицированный [h, s, l, depth]
+     */
+    applyWeekendShift(hsl) {
+        const [h, s, l, depth] = hsl;
+        // Сдвигаем hue к тёплым тонам (оранжевый ~35-45)
+        // Если уже тёплый (0-60), немного усиливаем
+        // Если холодный (180-300), сдвигаем к оранжевому
+        let newH;
+        if (h >= 0 && h <= 60) {
+            // Уже тёплый - сдвигаем к оранжевому (40)
+            newH = 40;
+        } else if (h > 300 || h < 0) {
+            // Красноватый - сдвигаем к оранжевому
+            newH = 35;
+        } else {
+            // Холодный/нейтральный - меняем на тёплый оранжевый
+            newH = 38;
+        }
+
+        // Немного повышаем насыщенность для заметности
+        const newS = Math.min(s + 10, 80);
+        // Lightness оставляем близким к оригиналу, чуть светлее
+        const newL = Math.min(l + 5, 85);
+
+        return [newH, newS, newL, depth];
     }
 
     getInitialBaseColor(block, parentBaseColor) {

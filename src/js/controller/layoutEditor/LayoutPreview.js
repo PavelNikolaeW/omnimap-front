@@ -14,11 +14,12 @@ function escapeHtml(text) {
  * Рендерит превью сетки с блоками
  */
 export class LayoutPreview {
-    constructor(container, gridSize, cells, childBlocks) {
+    constructor(container, gridSize, cells, childBlocks, placeholders = []) {
         this.container = container;
         this.gridSize = gridSize;
         this.cells = cells;
         this.childBlocks = childBlocks;
+        this.placeholders = placeholders;
 
         this.gridElement = null;
         this.blockElements = new Map();  // childId → element
@@ -46,15 +47,19 @@ export class LayoutPreview {
         // Рендерим блоки
         this.renderBlocks();
 
+        // Рендерим placeholder'ы для новых блоков
+        this.renderPlaceholders();
+
         this.container.appendChild(this.gridElement);
     }
 
     /**
      * Обновляет превью
      */
-    update(gridSize, cells) {
+    update(gridSize, cells, placeholders = []) {
         this.gridSize = gridSize;
         this.cells = cells;
+        this.placeholders = placeholders;
         this.render();
     }
 
@@ -128,6 +133,37 @@ export class LayoutPreview {
             const blockEl = this.createBlockElement(block, cell);
             this.gridElement.appendChild(blockEl);
             this.blockElements.set(block.id, blockEl);
+        }
+    }
+
+    /**
+     * Рендерит placeholder'ы для новых блоков
+     */
+    renderPlaceholders() {
+        if (!this.placeholders || this.placeholders.length === 0) return;
+
+        for (let i = 0; i < this.placeholders.length; i++) {
+            const placeholder = this.placeholders[i];
+            const el = document.createElement('div');
+            el.className = 'layout-preview-block layout-preview-block--placeholder';
+            el.dataset.placeholderIndex = i;
+
+            // Позиционирование в grid
+            el.style.gridRow = `${placeholder.row} / ${placeholder.row + (placeholder.rowSpan || 1)}`;
+            el.style.gridColumn = `${placeholder.col} / ${placeholder.col + (placeholder.colSpan || 1)}`;
+
+            // Контент
+            const text = escapeHtml(placeholder.text || `Новый блок ${i + 1}`);
+            const spanInfo = placeholder.rowSpan > 1 || placeholder.colSpan > 1
+                ? ` <span class="span-badge">${placeholder.colSpan}x${placeholder.rowSpan}</span>`
+                : '';
+
+            el.innerHTML = `
+                <div class="layout-preview-block__title">${text}${spanInfo}</div>
+                <div class="layout-preview-block__new-icon">+</div>
+            `;
+
+            this.gridElement.appendChild(el);
         }
     }
 

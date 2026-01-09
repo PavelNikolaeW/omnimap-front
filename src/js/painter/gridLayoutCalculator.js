@@ -272,14 +272,14 @@ export class GridLayoutCalculator {
 
     /**
      * Находит первую свободную позицию в сетке
+     * Учитывает ВСЕ ячейки в cells, не только уже размещённые
      * @private
      */
     static _findFreePosition(gridSize, cells, placedChildren) {
         const occupied = new Set();
 
-        // Отмечаем занятые ячейки
-        for (const childId of placedChildren) {
-            const cell = cells[childId];
+        // Отмечаем занятые ячейки - ВСЕ из cells, не только placedChildren
+        for (const [childId, cell] of Object.entries(cells)) {
             if (cell) {
                 for (let r = cell.row; r < cell.row + (cell.rowSpan || 1); r++) {
                     for (let c = cell.col; c < cell.col + (cell.colSpan || 1); c++) {

@@ -81,6 +81,9 @@ class BlockCreator {
             // Применить кастомные стили блока (цвет, форма, тень и т.д.)
             this._applyCustomStyles(element, block.data?.customStyles)
 
+            // Применить data-атрибуты для layoutCells (календарь, kanban и т.д.)
+            this._applyLayoutCellsData(element, block, parentBlock)
+
             block.color = this.colorist.calculateColor(element, block, [...parentBlock.color])
             this._applyStyles(block.contentEl, block.contentPosition)
         } catch (e) {
@@ -298,6 +301,65 @@ class BlockCreator {
         }
         if (customStyles.shadow) {
             element.setAttribute('data-block-shadow', customStyles.shadow)
+        }
+    }
+
+    /**
+     * Применяет data-атрибуты для layoutCells (календарь, kanban и т.д.)
+     * @param {HTMLElement} element - DOM элемент блока
+     * @param {Object} block - данные блока
+     * @param {Object} parentBlock - родительский блок
+     */
+    _applyLayoutCellsData(element, block, parentBlock) {
+        if (!element || !block.data) return
+
+        const presetType = parentBlock?.layoutPresetType
+
+        // Календарь: подсветка текущего дня и выходных
+        if (presetType === 'calendar' || block.data.calendarDay) {
+            if (block.data.calendarDay) {
+                element.setAttribute('data-calendar-day', block.data.calendarDay)
+            }
+            if (block.data.isToday) {
+                element.setAttribute('data-calendar-today', 'true')
+            }
+            if (block.data.isWeekend) {
+                element.setAttribute('data-calendar-weekend', 'true')
+            }
+        }
+
+        // Kanban: статус колонки
+        if (presetType === 'kanban' || block.data.kanbanStatus) {
+            if (block.data.kanbanColumn) {
+                element.setAttribute('data-kanban-column', block.data.kanbanColumn)
+            }
+            if (block.data.kanbanStatus) {
+                element.setAttribute('data-kanban-status', block.data.kanbanStatus)
+            }
+        }
+
+        // Dashboard: роль элемента
+        if (presetType === 'dashboard' || block.data.dashboardRole) {
+            if (block.data.dashboardRole) {
+                element.setAttribute('data-dashboard-role', block.data.dashboardRole)
+            }
+        }
+
+        // Holy Grail: роль элемента (header, sidebar, content, footer)
+        if (presetType === 'holy-grail' || block.data.layoutRole) {
+            if (block.data.layoutRole) {
+                element.setAttribute('data-layout-role', block.data.layoutRole)
+            }
+        }
+
+        // Применяем inline стили из data.style если есть
+        if (block.data.style) {
+            if (block.data.style.backgroundColor) {
+                element.style.backgroundColor = block.data.style.backgroundColor
+            }
+            if (block.data.style.borderColor) {
+                element.style.borderColor = block.data.style.borderColor
+            }
         }
     }
 
