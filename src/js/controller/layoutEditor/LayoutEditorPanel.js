@@ -166,10 +166,21 @@ export class LayoutEditorPanel extends Popup {
         const layoutCells = this.block.data?.layoutCells;
         const childOrder = this.block.data?.childOrder || [];
 
+        // Множество актуальных ID для фильтрации orphan cells
+        const validChildIds = new Set(childOrder);
+
         if (layout === 'cells' && layoutCells?.cells) {
-            // Используем существующую конфигурацию cells
+            // Используем существующую конфигурацию cells, фильтруя удалённые блоки
             this.gridSize = layoutCells.gridSize || { rows: 3, cols: 12 };
-            this.cells = { ...layoutCells.cells };
+
+            // Фильтруем cells - оставляем только существующие блоки
+            this.cells = {};
+            for (const [childId, cell] of Object.entries(layoutCells.cells)) {
+                if (validChildIds.has(childId)) {
+                    this.cells[childId] = { ...cell };
+                }
+            }
+
             this.currentPresetType = layoutCells.presetType || null;
         } else if (this.block.childrenPositions) {
             // Извлекаем текущую авто-раскладку из отрендеренного блока

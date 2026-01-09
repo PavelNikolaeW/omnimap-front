@@ -11,11 +11,24 @@ export class LayoutCellManager {
 
     /**
      * Перестраивает карту занятости из текущих cells
+     * Автоматически очищает orphan cells (для удалённых блоков)
      */
     rebuildOccupancyGrid() {
         this.occupancyGrid.clear();
 
+        // Получаем актуальные ID дочерних блоков
+        const validChildIds = new Set(this.panel.childBlocks.map(b => b.id));
+
+        // Собираем orphan cells для удаления
+        const orphanIds = [];
+
         for (const [childId, cell] of Object.entries(this.panel.cells)) {
+            // Пропускаем orphan cells (блоки которые были удалены)
+            if (!validChildIds.has(childId)) {
+                orphanIds.push(childId);
+                continue;
+            }
+
             if (!cell) continue;
 
             for (let r = cell.row; r < cell.row + (cell.rowSpan || 1); r++) {
@@ -23,6 +36,15 @@ export class LayoutCellManager {
                     this.occupancyGrid.set(`${r}-${c}`, childId);
                 }
             }
+        }
+
+        // Удаляем orphan cells
+        for (const orphanId of orphanIds) {
+            delete this.panel.cells[orphanId];
+        }
+
+        if (orphanIds.length > 0) {
+            console.log(`LayoutCellManager: cleaned up ${orphanIds.length} orphan cells`);
         }
     }
 
