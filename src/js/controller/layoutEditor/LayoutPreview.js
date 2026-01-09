@@ -1,4 +1,16 @@
 /**
+ * Экранирует HTML символы для безопасного отображения
+ * @param {string} text - Текст для экранирования
+ * @returns {string} - Экранированный текст
+ */
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
  * Рендерит превью сетки с блоками
  */
 export class LayoutPreview {
@@ -14,6 +26,7 @@ export class LayoutPreview {
         this.onBlockSelect = null;
         this.onBlockDragStart = null;
         this.onBlockDragEnd = null;
+        this.onBlockResize = null;  // callback(blockId, newColSpan, newRowSpan)
     }
 
     /**
@@ -131,8 +144,9 @@ export class LayoutPreview {
         el.style.gridRow = `${cell.row} / ${cell.row + (cell.rowSpan || 1)}`;
         el.style.gridColumn = `${cell.col} / ${cell.col + (cell.colSpan || 1)}`;
 
-        // Контент
-        const title = block.data?.text?.substring(0, 40) || 'Блок';
+        // Контент - используем escapeHtml для защиты от XSS
+        const rawTitle = block.data?.text?.substring(0, 40) || 'Блок';
+        const title = escapeHtml(rawTitle);
         const spanInfo = cell.rowSpan > 1 || cell.colSpan > 1
             ? ` <span class="span-badge">${cell.colSpan}x${cell.rowSpan}</span>`
             : '';
@@ -238,18 +252,16 @@ export class LayoutPreview {
 
             const blockEl = this.blockElements.get(blockId);
             if (blockEl && (blockEl._tempColSpan || blockEl._tempRowSpan)) {
-                // Применяем новые значения
-                this.cells[blockId] = {
-                    ...cell,
-                    colSpan: blockEl._tempColSpan || cell.colSpan,
-                    rowSpan: blockEl._tempRowSpan || cell.rowSpan
-                };
+                const newColSpan = blockEl._tempColSpan || cell.colSpan;
+                const newRowSpan = blockEl._tempRowSpan || cell.rowSpan;
 
                 delete blockEl._tempColSpan;
                 delete blockEl._tempRowSpan;
 
-                // Обновляем отображение badge
-                this.render();
+                // Используем callback вместо прямой мутации cells
+                if (this.onBlockResize) {
+                    this.onBlockResize(blockId, newColSpan, newRowSpan);
+                }
             }
         };
 

@@ -133,34 +133,48 @@ export class LayoutCellManager {
         const cell = this.panel.cells[childId];
         if (!cell) return false;
 
+        // Валидация входных параметров
+        if (!Number.isFinite(delta)) return false;
+
+        const { rows, cols } = this.panel.gridSize;
         let newCell = { ...cell };
 
         switch (direction) {
             case 'right':
-                newCell.colSpan = Math.max(1, cell.colSpan + delta);
+                newCell.colSpan = Math.max(1, Math.min(cols, cell.colSpan + delta));
                 break;
             case 'down':
-                newCell.rowSpan = Math.max(1, cell.rowSpan + delta);
+                newCell.rowSpan = Math.max(1, Math.min(rows, cell.rowSpan + delta));
                 break;
             case 'left':
                 if (delta > 0) {
-                    newCell.col = Math.max(1, cell.col - delta);
-                    newCell.colSpan = cell.colSpan + delta;
+                    const actualDelta = Math.min(delta, cell.col - 1);
+                    newCell.col = cell.col - actualDelta;
+                    newCell.colSpan = cell.colSpan + actualDelta;
                 } else {
-                    newCell.col = cell.col - delta;
+                    newCell.col = Math.min(cols, cell.col - delta);
                     newCell.colSpan = Math.max(1, cell.colSpan + delta);
                 }
                 break;
             case 'up':
                 if (delta > 0) {
-                    newCell.row = Math.max(1, cell.row - delta);
-                    newCell.rowSpan = cell.rowSpan + delta;
+                    const actualDelta = Math.min(delta, cell.row - 1);
+                    newCell.row = cell.row - actualDelta;
+                    newCell.rowSpan = cell.rowSpan + actualDelta;
                 } else {
-                    newCell.row = cell.row - delta;
+                    newCell.row = Math.min(rows, cell.row - delta);
                     newCell.rowSpan = Math.max(1, cell.rowSpan + delta);
                 }
                 break;
+            default:
+                return false;
         }
+
+        // Финальная валидация границ
+        newCell.row = Math.max(1, Math.min(rows, newCell.row));
+        newCell.col = Math.max(1, Math.min(cols, newCell.col));
+        newCell.rowSpan = Math.max(1, Math.min(rows - newCell.row + 1, newCell.rowSpan));
+        newCell.colSpan = Math.max(1, Math.min(cols - newCell.col + 1, newCell.colSpan));
 
         return this.place(childId, newCell.row, newCell.col, newCell.rowSpan, newCell.colSpan);
     }

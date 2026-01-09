@@ -40,7 +40,11 @@ export class LayoutEditorPanel extends Popup {
         this.dragManager = null;
         this.dataConverter = new LayoutDataConverter();
 
-        this.init();
+        // Флаг для защиты от race conditions при закрытии
+        this._isDestroyed = false;
+        this._initPromise = null;
+
+        this._initPromise = this.init();
     }
 
     /**
@@ -63,10 +67,17 @@ export class LayoutEditorPanel extends Popup {
     async init() {
         try {
             await this.loadBlockData();
+
+            // Проверяем, не был ли редактор закрыт пока загружались данные
+            if (this._isDestroyed) return;
+
             this.initFromExistingLayout();
             this.renderEditor();
             this.initManagers();
         } catch (error) {
+            // Игнорируем ошибки если редактор уже закрыт
+            if (this._isDestroyed) return;
+
             console.error('LayoutEditorPanel init error:', error);
             this.showMessage('Ошибка загрузки данных блока', 'error');
         }
@@ -489,9 +500,17 @@ export class LayoutEditorPanel extends Popup {
      * Закрытие редактора
      */
     close() {
+        // Устанавливаем флаг для прерывания асинхронных операций
+        this._isDestroyed = true;
+
         if (this.dragManager) {
             this.dragManager.destroy();
+            this.dragManager = null;
         }
+
+        this.cellManager = null;
+        this.preview = null;
+
         super.close();
     }
 }

@@ -14,6 +14,17 @@ export class LayoutDragManager {
      * Инициализация
      */
     init() {
+        // Keyboard shortcuts - всегда регистрируем, даже если preview ещё нет
+        this.boundKeyHandler = this.handleKeyDown.bind(this);
+        document.addEventListener('keydown', this.boundKeyHandler);
+
+        this.bindPreviewCallbacks();
+    }
+
+    /**
+     * Привязывает callbacks к preview (можно вызвать повторно после обновления preview)
+     */
+    bindPreviewCallbacks() {
         if (!this.panel.preview) return;
 
         // Подписываемся на события превью
@@ -29,9 +40,35 @@ export class LayoutDragManager {
             this.endDrag(blockId, targetRow, targetCol);
         };
 
-        // Keyboard shortcuts
-        this.boundKeyHandler = this.handleKeyDown.bind(this);
-        document.addEventListener('keydown', this.boundKeyHandler);
+        this.panel.preview.onBlockResize = (blockId, newColSpan, newRowSpan) => {
+            this.handleResize(blockId, newColSpan, newRowSpan);
+        };
+    }
+
+    /**
+     * Обработка resize блока
+     */
+    handleResize(blockId, newColSpan, newRowSpan) {
+        const cell = this.panel.cells[blockId];
+        if (!cell) return;
+
+        // Пробуем разместить с новыми размерами через cellManager
+        const success = this.panel.cellManager.place(
+            blockId,
+            cell.row,
+            cell.col,
+            newRowSpan,
+            newColSpan
+        );
+
+        if (success) {
+            this.panel.cellManager.rebuildOccupancyGrid();
+            this.panel.refreshPreview();
+            this.panel.updateSelectedBlockInfo(blockId);
+        } else {
+            // Если не удалось - просто обновляем превью со старыми значениями
+            this.panel.refreshPreview();
+        }
     }
 
     /**
@@ -148,7 +185,19 @@ export class LayoutDragManager {
     destroy() {
         if (this.boundKeyHandler) {
             document.removeEventListener('keydown', this.boundKeyHandler);
+            this.boundKeyHandler = null;
         }
+
+        // Очищаем callbacks на preview чтобы избежать утечек памяти
+        if (this.panel.preview) {
+            this.panel.preview.onBlockSelect = null;
+            this.panel.preview.onBlockDragStart = null;
+            this.panel.preview.onBlockDragEnd = null;
+            this.panel.preview.onBlockResize = null;
+        }
+
+        this.isDragging = false;
+        this.draggedBlockId = null;
     }
 }
 
