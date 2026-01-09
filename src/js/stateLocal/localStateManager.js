@@ -1974,7 +1974,7 @@ export class LocalStateManager {
         if (!sourceBlock.data.connections) sourceBlock.data.connections = [];
 
         // Используем переданный ID или генерируем новый (для обратной совместимости)
-        const connectionId = id || `conn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const connectionId = id || crypto.randomUUID();
 
         const connectionData = {
             id: connectionId,
