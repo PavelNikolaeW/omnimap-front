@@ -1,0 +1,334 @@
+/**
+ * Рендерит превью сетки с блоками
+ */
+export class LayoutPreview {
+    constructor(container, gridSize, cells, childBlocks) {
+        this.container = container;
+        this.gridSize = gridSize;
+        this.cells = cells;
+        this.childBlocks = childBlocks;
+
+        this.gridElement = null;
+        this.blockElements = new Map();  // childId → element
+        this.selectedBlockId = null;
+        this.onBlockSelect = null;
+        this.onBlockDragStart = null;
+        this.onBlockDragEnd = null;
+    }
+
+    /**
+     * Рендерит превью
+     */
+    render() {
+        this.container.innerHTML = '';
+
+        // Создаём grid контейнер
+        this.gridElement = document.createElement('div');
+        this.gridElement.className = 'layout-preview-grid';
+        this.updateGridStyles();
+
+        // Рендерим ячейки сетки (для визуализации)
+        this.renderGridCells();
+
+        // Рендерим блоки
+        this.renderBlocks();
+
+        this.container.appendChild(this.gridElement);
+    }
+
+    /**
+     * Обновляет превью
+     */
+    update(gridSize, cells) {
+        this.gridSize = gridSize;
+        this.cells = cells;
+        this.render();
+    }
+
+    /**
+     * Обновляет CSS Grid стили
+     */
+    updateGridStyles() {
+        const { rows, cols } = this.gridSize;
+
+        this.gridElement.style.display = 'grid';
+        this.gridElement.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+        this.gridElement.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+        this.gridElement.style.gap = '4px';
+        this.gridElement.style.padding = '8px';
+        this.gridElement.style.height = '100%';
+        this.gridElement.style.minHeight = '300px';
+    }
+
+    /**
+     * Рендерит фоновые ячейки сетки
+     */
+    renderGridCells() {
+        const { rows, cols } = this.gridSize;
+
+        for (let r = 1; r <= rows; r++) {
+            for (let c = 1; c <= cols; c++) {
+                const cell = document.createElement('div');
+                cell.className = 'layout-preview-cell';
+                cell.dataset.row = r;
+                cell.dataset.col = c;
+                cell.style.gridRow = r;
+                cell.style.gridColumn = c;
+
+                // Drop zone для drag-and-drop
+                cell.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    cell.classList.add('layout-preview-cell--dragover');
+                });
+
+                cell.addEventListener('dragleave', () => {
+                    cell.classList.remove('layout-preview-cell--dragover');
+                });
+
+                cell.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    cell.classList.remove('layout-preview-cell--dragover');
+                    if (this.onBlockDragEnd) {
+                        this.onBlockDragEnd(
+                            e.dataTransfer.getData('text/plain'),
+                            parseInt(cell.dataset.row, 10),
+                            parseInt(cell.dataset.col, 10)
+                        );
+                    }
+                });
+
+                this.gridElement.appendChild(cell);
+            }
+        }
+    }
+
+    /**
+     * Рендерит блоки
+     */
+    renderBlocks() {
+        this.blockElements.clear();
+
+        for (const block of this.childBlocks) {
+            const cell = this.cells[block.id];
+            if (!cell) continue;
+
+            const blockEl = this.createBlockElement(block, cell);
+            this.gridElement.appendChild(blockEl);
+            this.blockElements.set(block.id, blockEl);
+        }
+    }
+
+    /**
+     * Создаёт элемент блока
+     */
+    createBlockElement(block, cell) {
+        const el = document.createElement('div');
+        el.className = 'layout-preview-block';
+        el.dataset.blockId = block.id;
+        el.draggable = true;
+
+        // Позиционирование в grid
+        el.style.gridRow = `${cell.row} / ${cell.row + (cell.rowSpan || 1)}`;
+        el.style.gridColumn = `${cell.col} / ${cell.col + (cell.colSpan || 1)}`;
+
+        // Контент
+        const title = block.data?.text?.substring(0, 40) || 'Блок';
+        const spanInfo = cell.rowSpan > 1 || cell.colSpan > 1
+            ? ` <span class="span-badge">${cell.colSpan}x${cell.rowSpan}</span>`
+            : '';
+
+        el.innerHTML = `
+            <div class="layout-preview-block__title">${title}${spanInfo}</div>
+            <div class="layout-preview-block__resize-handles">
+                <div class="resize-handle resize-handle--e" data-direction="right"></div>
+                <div class="resize-handle resize-handle--s" data-direction="down"></div>
+                <div class="resize-handle resize-handle--se" data-direction="both"></div>
+            </div>
+        `;
+
+        // Выделение по клику
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.selectBlock(block.id);
+        });
+
+        // Drag events
+        el.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/plain', block.id);
+            el.classList.add('layout-preview-block--dragging');
+            if (this.onBlockDragStart) {
+                this.onBlockDragStart(block.id);
+            }
+        });
+
+        el.addEventListener('dragend', () => {
+            el.classList.remove('layout-preview-block--dragging');
+        });
+
+        // Resize handles
+        this.bindResizeHandles(el, block.id);
+
+        return el;
+    }
+
+    /**
+     * Привязывает события resize handles
+     */
+    bindResizeHandles(blockEl, blockId) {
+        const handles = blockEl.querySelectorAll('.resize-handle');
+
+        handles.forEach(handle => {
+            handle.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                this.startResize(blockId, handle.dataset.direction, e);
+            });
+        });
+    }
+
+    /**
+     * Начинает resize блока
+     */
+    startResize(blockId, direction, startEvent) {
+        const cell = this.cells[blockId];
+        if (!cell) return;
+
+        const startX = startEvent.clientX;
+        const startY = startEvent.clientY;
+        const startColSpan = cell.colSpan || 1;
+        const startRowSpan = cell.rowSpan || 1;
+
+        // Размер одной ячейки
+        const gridRect = this.gridElement.getBoundingClientRect();
+        const cellWidth = gridRect.width / this.gridSize.cols;
+        const cellHeight = gridRect.height / this.gridSize.rows;
+
+        const onMouseMove = (e) => {
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+
+            let newColSpan = startColSpan;
+            let newRowSpan = startRowSpan;
+
+            if (direction === 'right' || direction === 'both') {
+                newColSpan = Math.max(1, startColSpan + Math.round(deltaX / cellWidth));
+                newColSpan = Math.min(newColSpan, this.gridSize.cols - cell.col + 1);
+            }
+
+            if (direction === 'down' || direction === 'both') {
+                newRowSpan = Math.max(1, startRowSpan + Math.round(deltaY / cellHeight));
+                newRowSpan = Math.min(newRowSpan, this.gridSize.rows - cell.row + 1);
+            }
+
+            // Обновляем визуально
+            const blockEl = this.blockElements.get(blockId);
+            if (blockEl) {
+                blockEl.style.gridColumn = `${cell.col} / ${cell.col + newColSpan}`;
+                blockEl.style.gridRow = `${cell.row} / ${cell.row + newRowSpan}`;
+            }
+
+            // Сохраняем временные значения
+            blockEl._tempColSpan = newColSpan;
+            blockEl._tempRowSpan = newRowSpan;
+        };
+
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+
+            const blockEl = this.blockElements.get(blockId);
+            if (blockEl && (blockEl._tempColSpan || blockEl._tempRowSpan)) {
+                // Применяем новые значения
+                this.cells[blockId] = {
+                    ...cell,
+                    colSpan: blockEl._tempColSpan || cell.colSpan,
+                    rowSpan: blockEl._tempRowSpan || cell.rowSpan
+                };
+
+                delete blockEl._tempColSpan;
+                delete blockEl._tempRowSpan;
+
+                // Обновляем отображение badge
+                this.render();
+            }
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    }
+
+    /**
+     * Выделяет блок
+     */
+    selectBlock(blockId) {
+        // Снимаем предыдущее выделение
+        if (this.selectedBlockId) {
+            const prevEl = this.blockElements.get(this.selectedBlockId);
+            if (prevEl) {
+                prevEl.classList.remove('layout-preview-block--selected');
+            }
+        }
+
+        // Выделяем новый
+        this.selectedBlockId = blockId;
+        const el = this.blockElements.get(blockId);
+        if (el) {
+            el.classList.add('layout-preview-block--selected');
+        }
+
+        // Callback
+        if (this.onBlockSelect) {
+            this.onBlockSelect(blockId);
+        }
+    }
+
+    /**
+     * Снимает выделение
+     */
+    deselectAll() {
+        if (this.selectedBlockId) {
+            const el = this.blockElements.get(this.selectedBlockId);
+            if (el) {
+                el.classList.remove('layout-preview-block--selected');
+            }
+            this.selectedBlockId = null;
+        }
+    }
+
+    /**
+     * Получает выделенный блок
+     */
+    getSelectedBlockId() {
+        return this.selectedBlockId;
+    }
+
+    /**
+     * Подсвечивает ячейку
+     */
+    highlightCell(row, col, highlight = true) {
+        const cells = this.gridElement.querySelectorAll('.layout-preview-cell');
+        cells.forEach(cell => {
+            if (parseInt(cell.dataset.row, 10) === row &&
+                parseInt(cell.dataset.col, 10) === col) {
+                if (highlight) {
+                    cell.classList.add('layout-preview-cell--highlight');
+                } else {
+                    cell.classList.remove('layout-preview-cell--highlight');
+                }
+            }
+        });
+    }
+
+    /**
+     * Очищает все подсветки
+     */
+    clearHighlights() {
+        const cells = this.gridElement.querySelectorAll('.layout-preview-cell');
+        cells.forEach(cell => {
+            cell.classList.remove('layout-preview-cell--highlight');
+            cell.classList.remove('layout-preview-cell--dragover');
+        });
+    }
+}
+
+export default LayoutPreview;

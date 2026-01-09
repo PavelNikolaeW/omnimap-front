@@ -10,7 +10,8 @@ export const LAYOUT_TYPES = {
     TABLE: 'table',               // Таблица (существующий)
     GRID: 'grid',                 // Настраиваемая сетка NxM
     MASONRY: 'masonry',           // Умное заполнение пустот
-    TEMPLATE: 'template'          // Кастомный шаблон
+    TEMPLATE: 'template',         // Кастомный шаблон
+    CELLS: 'cells'                // Ячеечная раскладка с индивидуальным span
 };
 
 // Алиасы для обратной совместимости
@@ -27,7 +28,8 @@ export const LAYOUT_LABELS = {
     [LAYOUT_TYPES.TABLE]: 'Таблица',
     [LAYOUT_TYPES.GRID]: 'Сетка',
     [LAYOUT_TYPES.MASONRY]: 'Masonry',
-    [LAYOUT_TYPES.TEMPLATE]: 'Шаблон'
+    [LAYOUT_TYPES.TEMPLATE]: 'Шаблон',
+    [LAYOUT_TYPES.CELLS]: 'Ячейки'
 };
 
 // Иконки FontAwesome для UI
@@ -38,7 +40,8 @@ export const LAYOUT_ICONS = {
     [LAYOUT_TYPES.TABLE]: 'fa-table-cells',
     [LAYOUT_TYPES.GRID]: 'fa-border-all',
     [LAYOUT_TYPES.MASONRY]: 'fa-th-large',
-    [LAYOUT_TYPES.TEMPLATE]: 'fa-clone'
+    [LAYOUT_TYPES.TEMPLATE]: 'fa-clone',
+    [LAYOUT_TYPES.CELLS]: 'fa-grip'
 };
 
 // Описания для подсказок
@@ -49,7 +52,8 @@ export const LAYOUT_DESCRIPTIONS = {
     [LAYOUT_TYPES.TABLE]: 'Табличная раскладка с настраиваемым числом строк и колонок',
     [LAYOUT_TYPES.GRID]: 'Фиксированная сетка NxM с равномерным распределением',
     [LAYOUT_TYPES.MASONRY]: 'Умное заполнение пустот как в Pinterest',
-    [LAYOUT_TYPES.TEMPLATE]: 'Использовать сохранённый шаблон раскладки'
+    [LAYOUT_TYPES.TEMPLATE]: 'Использовать сохранённый шаблон раскладки',
+    [LAYOUT_TYPES.CELLS]: 'Ячеечная раскладка с произвольными размерами блоков'
 };
 
 // Конфигурация по умолчанию для grid
@@ -63,6 +67,12 @@ export const DEFAULT_GRID_CONFIG = {
 export const DEFAULT_MASONRY_CONFIG = {
     minChildWidth: 100,   // Минимальная ширина дочернего блока
     maxColumns: 4         // Максимальное число колонок
+};
+
+// Конфигурация по умолчанию для cells
+export const DEFAULT_CELLS_CONFIG = {
+    gridSize: { rows: 3, cols: 12 },  // Сетка 3 строки x 12 колонок
+    cells: {}                          // Позиции блоков: {childId: {row, col, rowSpan, colSpan}}
 };
 
 /**

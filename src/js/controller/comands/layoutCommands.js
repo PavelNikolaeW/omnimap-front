@@ -4,6 +4,7 @@ import { extractBlockId } from "../../actions/selectionActions";
 import { LAYOUT_TYPES, LAYOUT_LABELS, LAYOUT_ICONS } from "../../painter/layoutTypes";
 import { GridLayoutPopup } from "../popups/gridLayoutPopup";
 import { MasonryLayoutPopup } from "../popups/masonryLayoutPopup";
+import { LayoutEditorPanel } from "../layoutEditor/LayoutEditorPanel";
 
 /**
  * Устанавливает layout для блока
@@ -162,6 +163,25 @@ export const layoutCommands = [
                 data: { layout: 'grid-4x4' }
             });
             setTimeout(() => setCmdOpenBlock(ctx), 100);
+        }
+    },
+
+    // Визуальный редактор раскладки
+    {
+        id: 'openLayoutEditor',
+        mode: ['normal'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Редактор раскладки',
+            classes: ['sidebar-button', 'fas', 'fa-grip', 'fas-lg']
+        },
+        defaultHotkey: 'l+e',
+        description: 'Открыть визуальный редактор раскладки с drag-and-drop',
+        execute(ctx) {
+            LayoutEditorPanel.show(ctx);
+        },
+        btnExec(ctx) {
+            LayoutEditorPanel.show(ctx);
         }
     }
 ];
