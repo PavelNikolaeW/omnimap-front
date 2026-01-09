@@ -8,6 +8,18 @@ import { LayoutDataConverter } from './LayoutDataConverter.js';
 import { localStateManager } from '../../stateLocal/localStateManager.js';
 
 /**
+ * Экранирует HTML символы для безопасного отображения
+ * @param {string} text - Текст для экранирования
+ * @returns {string} - Экранированный текст
+ */
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
  * Визуальный редактор раскладки блоков
  * Позволяет настраивать положение дочерних блоков через drag-and-drop
  */
@@ -268,6 +280,11 @@ export class LayoutEditorPanel extends Popup {
                 break;
         }
 
+        // Перестраиваем occupancy grid после изменения cells
+        if (this.cellManager) {
+            this.cellManager.rebuildOccupancyGrid();
+        }
+
         this.refreshPreview();
         this.updateSettingsInputs();
     }
@@ -438,6 +455,12 @@ export class LayoutEditorPanel extends Popup {
         const initial = GridLayoutCalculator.generateInitialCells(childOrder);
         this.gridSize = initial.gridSize;
         this.cells = initial.cells;
+
+        // Перестраиваем occupancy grid после изменения cells
+        if (this.cellManager) {
+            this.cellManager.rebuildOccupancyGrid();
+        }
+
         this.refreshPreview();
         this.updateSettingsInputs();
     }
@@ -456,7 +479,8 @@ export class LayoutEditorPanel extends Popup {
 
         const cell = this.cells[childId];
         const block = this.childBlocks.find(b => b.id === childId);
-        const title = block?.data?.text?.substring(0, 30) || 'Без названия';
+        const rawTitle = block?.data?.text?.substring(0, 30) || 'Без названия';
+        const title = escapeHtml(rawTitle);
 
         infoEl.innerHTML = `
             <div class="selected-block__title">${title}</div>
@@ -487,11 +511,24 @@ export class LayoutEditorPanel extends Popup {
                 const field = e.target.dataset.field;
                 const value = parseInt(e.target.value, 10) || 1;
 
-                if (!this.cells[childId]) {
-                    this.cells[childId] = { row: 1, col: 1, rowSpan: 1, colSpan: 1 };
+                const currentCell = this.cells[childId] || { row: 1, col: 1, rowSpan: 1, colSpan: 1 };
+                const newCell = { ...currentCell, [field]: value };
+
+                // Валидируем через cellManager перед применением
+                if (this.cellManager && this.cellManager.canPlace(
+                    childId,
+                    newCell.row,
+                    newCell.col,
+                    newCell.rowSpan,
+                    newCell.colSpan
+                )) {
+                    this.cellManager.place(childId, newCell.row, newCell.col, newCell.rowSpan, newCell.colSpan);
+                    this.cellManager.rebuildOccupancyGrid();
+                    this.refreshPreview();
+                } else {
+                    // Возвращаем старое значение если валидация не прошла
+                    e.target.value = currentCell[field];
                 }
-                this.cells[childId][field] = value;
-                this.refreshPreview();
             });
         });
     }
