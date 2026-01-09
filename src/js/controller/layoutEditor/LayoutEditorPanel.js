@@ -967,17 +967,17 @@ export class LayoutEditorPanel extends Popup {
         buttonsContainer.className = 'popup-buttons';
 
         const applyBtn = document.createElement('button');
-        applyBtn.className = 'popup-button popup-button--primary';
+        applyBtn.className = 'popup-button-submit';
         applyBtn.textContent = 'Применить';
         applyBtn.addEventListener('click', () => this.applyLayout());
 
         const cancelBtn = document.createElement('button');
-        cancelBtn.className = 'popup-button popup-button--secondary';
+        cancelBtn.className = 'popup-button-cancel';
         cancelBtn.textContent = 'Отмена';
         cancelBtn.addEventListener('click', () => this.close());
 
         const resetBtn = document.createElement('button');
-        resetBtn.className = 'popup-button popup-button--secondary';
+        resetBtn.className = 'popup-button-cancel';
         resetBtn.textContent = 'Сбросить';
         resetBtn.addEventListener('click', () => this.resetLayout());
 

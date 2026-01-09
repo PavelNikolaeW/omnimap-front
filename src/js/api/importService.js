@@ -1,11 +1,12 @@
 import api from './api.js';
+import { v4 as uuidV4 } from 'uuid';
 
 /**
  * Генерирует UUID v4 для нового блока
  * @returns {string} UUID
  */
 export function generateBlockId() {
-    return crypto.randomUUID();
+    return uuidV4();
 }
 
 /**
