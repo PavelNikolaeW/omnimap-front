@@ -2,26 +2,95 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <head>
-        <script>
-            document.addEventListener('DOMContentLoaded', function () {
-                const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-                const meta = document.createElement('meta');
-                meta.name = 'viewport';
-                if (isMobile) {
-                    // Для мобильных: уменьшаем масштаб, например initial-scale=0.7
-                    meta.content = 'width=device-width, initial-scale=0.75, maximum-scale=1.0';
-                } else {
-                    // Для десктопов: стандартная вёрстка без масштабирования
-                    meta.content = 'width=device-width, initial-scale=1.0';
-                }
-                document.head.appendChild(meta);
-            });
-        </script>
-    </head>
     <title>omniMap</title>
+    <!-- Runtime config - with offline fallback -->
+    <script>
+        // Default config for offline mode
+        window.__OMNIMAP_CONFIG__ = window.__OMNIMAP_CONFIG__ || {
+            APP_BACKEND_URL: 'https://omnimap.ru',
+            LLM_GATEWAY_URL: 'https://llm.omnimap.ru',
+            SINC_SERVICE_URL: 'wss://omnimap.ru/ws'
+        };
+        // Flag to track if external config loaded
+        window.__OMNIMAP_CONFIG_LOADED__ = false;
+    </script>
+    <script id="config-script" src="/config/config.js"></script>
+    <script>
+        // Check if config was loaded (CSP-safe approach instead of inline onerror)
+        document.getElementById('config-script').addEventListener('error', function() {
+            console.log('Config not loaded, using defaults');
+        });
+        document.getElementById('config-script').addEventListener('load', function() {
+            window.__OMNIMAP_CONFIG_LOADED__ = true;
+        });
+    </script>
+    <style>
+        /* Inline стили для загрузочного экрана - предотвращают FOUC */
+        #app-loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 99999;
+            transition: opacity 0.3s ease-out;
+        }
+        #app-loader.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .loader-spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid #e0e0e0;
+            border-top-color: #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        .loader-text {
+            margin-top: 16px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            color: #666;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        /* Скрываем основной контент до загрузки */
+        .layout {
+            opacity: 0;
+            transition: opacity 0.3s ease-in;
+        }
+        .layout.loaded {
+            opacity: 1;
+        }
+    </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+            const meta = document.createElement('meta');
+            meta.name = 'viewport';
+            if (isMobile) {
+                meta.content = 'width=device-width, initial-scale=0.75, maximum-scale=1.0, viewport-fit=cover';
+            } else {
+                meta.content = 'width=device-width, initial-scale=1.0';
+            }
+            document.head.appendChild(meta);
+        });
+    </script>
 </head>
 <body>
+
+<!-- Загрузочный экран -->
+<div id="app-loader">
+    <div class="loader-spinner"></div>
+    <div class="loader-text">Загрузка...</div>
+</div>
 
 <main class="layout">
     <div class="top-navigation" id="topSidebar">
@@ -86,12 +155,7 @@
 </div>
 
 <div class="diagram-inputs hidden" id="diagram-inputs">
-    <label class="hidden">Rows
-        <input id="diagramRow" type="number" max="300" min="2">
-    </label>
-    <label class="hidden">Cols
-        <input id="diagramCol" type="number" max="500" min="2">
-    </label>
+
 
     <label>Connections
         <input type="checkbox" id="CerateConnections" name="create" value="create">
@@ -107,14 +171,312 @@
         <option value="l">l</option>
     </select>
 
-    <button class="diagram-btn fas fa-plus-square fas-lg" id="addDiagram"></button>
-    <button class="diagram-btn fas fa-rotate fas-lg" id="reset"></button>
+    <button class="diagram-btn fas fa-plus-square fas-lg" id="addDiagram" title="Add block"></button>
+    <button class="diagram-btn fas fa-palette fas-lg" id="openStylePanel" title="Block styles"></button>
+    <button class="diagram-btn fas fa-bezier-curve fas-lg" id="openConnectionPanel" title="Connections"></button>
+    <button class="diagram-btn fas fa-rotate fas-lg" id="reset" title="Reset grid"></button>
+</div>
+
+<!-- Block Style Panel -->
+<div class="block-style-panel" id="blockStylePanel">
+    <h4>Block Style</h4>
+
+    <!-- Shape Presets for Diagrams -->
+    <div class="style-section">
+        <label class="style-section-label">Форма</label>
+        <div class="shape-presets">
+            <div class="shape-preset" data-shape="process" title="Процесс">
+                <div class="shape-preview shape-preview-process"></div>
+                <span>Процесс</span>
+            </div>
+            <div class="shape-preset" data-shape="decision" title="Решение">
+                <div class="shape-preview shape-preview-decision"></div>
+                <span>Решение</span>
+            </div>
+            <div class="shape-preset" data-shape="data" title="Данные">
+                <div class="shape-preview shape-preview-data"></div>
+                <span>Данные</span>
+            </div>
+            <div class="shape-preset" data-shape="database" title="База данных">
+                <div class="shape-preview shape-preview-database"></div>
+                <span>БД</span>
+            </div>
+            <div class="shape-preset" data-shape="document" title="Документ">
+                <div class="shape-preview shape-preview-document"></div>
+                <span>Документ</span>
+            </div>
+            <div class="shape-preset" data-shape="terminal" title="Начало/Конец">
+                <div class="shape-preview shape-preview-terminal"></div>
+                <span>Терминал</span>
+            </div>
+            <div class="shape-preset" data-shape="manual" title="Ручной ввод">
+                <div class="shape-preview shape-preview-manual"></div>
+                <span>Ввод</span>
+            </div>
+            <div class="shape-preset" data-shape="subprocess" title="Подпроцесс">
+                <div class="shape-preview shape-preview-subprocess"></div>
+                <span>Подпроцесс</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="style-row">
+        <label>Тень</label>
+        <select id="styleShadow">
+            <option value="">Нет</option>
+            <option value="sm">Маленькая</option>
+            <option value="md">Средняя</option>
+            <option value="lg">Большая</option>
+        </select>
+    </div>
+
+    <div class="style-row">
+        <label>Размер текста</label>
+        <select id="styleFontSize">
+            <option value="">По умолчанию</option>
+            <option value="xs">Очень маленький</option>
+            <option value="sm">Маленький</option>
+            <option value="md">Средний</option>
+            <option value="lg">Большой</option>
+            <option value="xl">Очень большой</option>
+        </select>
+    </div>
+
+    <div class="style-row">
+        <label>Выравнивание</label>
+        <select id="styleTextAlign">
+            <option value="">По умолчанию</option>
+            <option value="left">Слева</option>
+            <option value="center">По центру</option>
+            <option value="right">Справа</option>
+        </select>
+    </div>
+
+    <div class="style-row">
+        <label>Цвет границы</label>
+        <input type="color" id="styleBorderColor" value="#e5e7eb">
+    </div>
+
+    <div class="style-row">
+        <label>Цвет текста</label>
+        <input type="color" id="styleTextColor" value="#000000">
+    </div>
+
+    <button class="diagram-btn diagram-btn-danger" id="resetBlockStyle" style="width: 100%; margin-top: 12px;">Сбросить стили</button>
+</div>
+
+<!-- Connection Style Panel -->
+<div class="block-style-panel" id="connectionPanel">
+    <h4>Connection Style</h4>
+
+    <!-- Presets section -->
+    <div class="connection-presets">
+        <button class="connection-preset active" data-preset="default" title="Standard">
+            <i class="fas fa-arrow-right"></i>
+        </button>
+        <button class="connection-preset" data-preset="dashed" title="Dashed">
+            <i class="fas fa-ellipsis"></i>
+        </button>
+        <button class="connection-preset" data-preset="curved" title="Curved">
+            <i class="fas fa-bezier-curve"></i>
+        </button>
+        <button class="connection-preset" data-preset="double" title="Bidirectional">
+            <i class="fas fa-arrows-left-right"></i>
+        </button>
+        <button class="connection-preset" data-preset="inheritance" title="Inheritance (UML)">
+            <i class="fas fa-sitemap"></i>
+        </button>
+        <button class="connection-preset" data-preset="composition" title="Composition (UML)">
+            <i class="fas fa-diamond"></i>
+        </button>
+    </div>
+
+    <div class="style-section-label">Connector</div>
+    <div class="style-row">
+        <label>Type</label>
+        <select id="connectorType">
+            <option value="Flowchart">Flowchart (Angled)</option>
+            <option value="Bezier">Bezier (Curved)</option>
+            <option value="Straight">Straight</option>
+            <option value="StateMachine">State Machine</option>
+        </select>
+    </div>
+
+    <div class="style-row">
+        <label>Color</label>
+        <div class="color-presets">
+            <input type="color" id="connectorColor" value="#516077">
+            <button class="color-preset" data-color="#516077" title="Default"></button>
+            <button class="color-preset" data-color="#dc3545" title="Red"></button>
+            <button class="color-preset" data-color="#28a745" title="Green"></button>
+            <button class="color-preset" data-color="#007bff" title="Blue"></button>
+            <button class="color-preset" data-color="#ffc107" title="Yellow"></button>
+        </div>
+    </div>
+
+    <div class="style-row">
+        <label>Width</label>
+        <input type="range" id="connectorWidth" min="1" max="6" value="2">
+        <span id="connectorWidthValue">2px</span>
+    </div>
+
+    <div class="style-section-label">Line Style</div>
+    <div class="style-row">
+        <label>Pattern</label>
+        <select id="connectorDashStyle">
+            <option value="">Solid</option>
+            <option value="4 2">Dashed</option>
+            <option value="1 3">Dotted</option>
+            <option value="8 4 2 4">Dash-Dot</option>
+        </select>
+    </div>
+
+    <div class="style-row">
+        <label>Corner Radius</label>
+        <input type="range" id="connectorCornerRadius" min="0" max="20" value="5">
+        <span id="connectorCornerRadiusValue">5px</span>
+    </div>
+
+    <div class="style-section-label">Anchors</div>
+    <div class="style-row">
+        <label>Source</label>
+        <select id="connectorSourceAnchor">
+            <option value="Continuous">Auto</option>
+            <option value="Top">Top</option>
+            <option value="Bottom">Bottom</option>
+            <option value="Left">Left</option>
+            <option value="Right">Right</option>
+            <option value="TopLeft">Top Left</option>
+            <option value="TopRight">Top Right</option>
+            <option value="BottomLeft">Bottom Left</option>
+            <option value="BottomRight">Bottom Right</option>
+            <option value="Center">Center</option>
+        </select>
+    </div>
+    <div class="style-row">
+        <label>Target</label>
+        <select id="connectorTargetAnchor">
+            <option value="Continuous">Auto</option>
+            <option value="Top">Top</option>
+            <option value="Bottom">Bottom</option>
+            <option value="Left">Left</option>
+            <option value="Right">Right</option>
+            <option value="TopLeft">Top Left</option>
+            <option value="TopRight">Top Right</option>
+            <option value="BottomLeft">Bottom Left</option>
+            <option value="BottomRight">Bottom Right</option>
+            <option value="Center">Center</option>
+        </select>
+    </div>
+
+    <div class="style-section-label">Arrows</div>
+    <div class="style-row checkbox-row">
+        <label>
+            <input type="checkbox" id="connectorArrowStart">
+            Arrow at Start
+        </label>
+    </div>
+    <div class="style-row checkbox-row">
+        <label>
+            <input type="checkbox" id="connectorArrowEnd" checked>
+            Arrow at End
+        </label>
+    </div>
+    <div class="style-row">
+        <label>Arrow Style</label>
+        <select id="connectorArrowStyle">
+            <option value="arrow">Arrow</option>
+            <option value="diamond">Diamond</option>
+            <option value="disc">Disc</option>
+            <option value="square">Square</option>
+            <option value="hollow-arrow">Hollow Arrow</option>
+            <option value="hollow-diamond">Hollow Diamond</option>
+        </select>
+    </div>
+
+    <div class="style-section-label">Label</div>
+    <div class="style-row">
+        <input type="text" id="connectorLabel" placeholder="Connection label..." style="width: 100%;">
+    </div>
+
+    <button class="diagram-btn" id="createConnection" style="width: 100%; margin-top: 12px;">
+        <i class="fas fa-plus"></i> Create Connection
+    </button>
+</div>
+
+<!-- Connection Edit Panel (для редактирования существующих соединений) -->
+<div class="block-style-panel" id="connectionEditPanel">
+    <h4>Редактирование соединения</h4>
+
+    <div class="style-section">
+        <div class="style-section-label">Тип линии</div>
+        <select id="editConnectorType">
+            <option value="Flowchart">Ортогональная (Flowchart)</option>
+            <option value="Bezier">Изогнутая (Bezier)</option>
+            <option value="Straight">Прямая</option>
+            <option value="StateMachine">Петля (StateMachine)</option>
+        </select>
+    </div>
+
+    <!-- Расширенные настройки для Flowchart -->
+    <div id="editAdvancedSection" class="style-section">
+        <div class="style-section-label">Отступ (stub): <span id="editStubValue">30px</span></div>
+        <input type="range" id="editConnectorStub" min="5" max="100" value="30" style="width: 100%;">
+        <div class="style-hint">Меньше значение = меньше изгибов для близких блоков</div>
+
+        <div class="style-section-label" style="margin-top: 8px;">Скругление: <span id="editCornerRadiusValue">5px</span></div>
+        <input type="range" id="editConnectorCornerRadius" min="0" max="20" value="5" style="width: 100%;">
+    </div>
+
+    <div class="style-section">
+        <div class="style-section-label">Цвет</div>
+        <input type="color" id="editConnectorColor" value="#516077" style="width: 100%;">
+    </div>
+
+    <div class="style-section">
+        <div class="style-section-label">Толщина: <span id="editWidthValue">2px</span></div>
+        <input type="range" id="editConnectorWidth" min="1" max="10" value="2" style="width: 100%;">
+    </div>
+
+    <div class="style-section">
+        <div class="style-section-label">Стиль линии</div>
+        <select id="editConnectorDashStyle">
+            <option value="">Сплошная</option>
+            <option value="4 2">Пунктирная</option>
+            <option value="1 3">Точечная</option>
+            <option value="6 3">Длинный пунктир</option>
+        </select>
+    </div>
+
+    <div class="style-section">
+        <div class="style-section-label">Стрелки</div>
+        <div class="style-row checkbox-row">
+            <label>
+                <input type="checkbox" id="editArrowStart"> Начало
+            </label>
+            <label style="margin-left: 16px;">
+                <input type="checkbox" id="editArrowEnd" checked> Конец
+            </label>
+        </div>
+    </div>
+
+    <div class="style-section">
+        <div class="style-section-label">Подпись</div>
+        <input type="text" id="editConnectorLabel" placeholder="Текст на соединении..." style="width: 100%;">
+    </div>
+
+    <div class="style-section connection-edit-actions">
+        <button id="deleteConnectionEdit" class="diagram-btn diagram-btn-danger" style="width: 100%;">
+            <i class="fas fa-trash"></i> Удалить соединение
+        </button>
+    </div>
 </div>
 
 <!-- Fullscreen chat container - React will mount here -->
 <div id="fullscreen-chat-root"></div>
 
-
+<!-- Version info -->
+<div id="app-version" style="position:fixed;bottom:4px;right:8px;font-size:10px;color:#999;font-family:monospace;z-index:1;pointer-events:none;"></div>
 
 </body>
 </html>

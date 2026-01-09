@@ -1,6 +1,8 @@
 import {Popup} from "./popup";
 import {pollTaskStatus} from "../../api/api";
 import {customConfirm} from "../../utils/custom-dialog";
+import chatApi from "../../api/chatApi";
+import {GroupChatView} from "./groupChatView";
 
 /**
  * Функция для вывода сообщений в попапе.
@@ -440,9 +442,177 @@ export class AccessPopup extends Popup {
         groupSection.appendChild(groupForm);
         this.contentArea.appendChild(groupSection);
 
+        // --- Секция для группового чата ---
+        this.createChatSection();
+
         // Загружаем данные при открытии попапа
         this.loadAccessList();
         this.loadGroups();
+        this.loadBlockChat();
+    }
+
+    /**
+     * Создаёт секцию "Групповой чат" для блока
+     */
+    createChatSection() {
+        const chatSection = document.createElement("div");
+        chatSection.className = "popup-section";
+
+        const chatTitle = document.createElement("div");
+        chatTitle.className = "popup-section__title";
+        chatTitle.textContent = "Групповой чат";
+        chatSection.appendChild(chatTitle);
+
+        // Контейнер для информации о чате
+        this.chatContainer = document.createElement("div");
+        this.chatContainer.className = "popup-chat-section";
+        this.chatContainer.innerHTML = "Загрузка...";
+        chatSection.appendChild(this.chatContainer);
+
+        this.contentArea.appendChild(chatSection);
+    }
+
+    /**
+     * Загружает информацию о чате для блока
+     */
+    async loadBlockChat() {
+        try {
+            const response = await chatApi.getBlockChat(this.blockId);
+            const data = response.data;
+            this.renderChatSection(data);
+        } catch (error) {
+            console.error("Failed to load block chat:", error);
+            this.renderChatSection({ has_chat: false, chat: null });
+        }
+    }
+
+    /**
+     * Рендерит секцию чата
+     * @param {Object} data - { has_chat, chat }
+     */
+    renderChatSection(data) {
+        this.chatContainer.innerHTML = "";
+
+        if (data.has_chat && data.chat) {
+            // Чат уже существует - показываем информацию
+            const chatInfo = document.createElement("div");
+            chatInfo.className = "popup-chat-info";
+
+            const chatIcon = document.createElement("span");
+            chatIcon.className = "popup-chat-icon";
+            chatIcon.innerHTML = "💬";
+
+            const chatDetails = document.createElement("div");
+            chatDetails.className = "popup-chat-details";
+
+            const chatName = document.createElement("div");
+            chatName.className = "popup-chat-name";
+            chatName.textContent = data.chat.name || "Групповой чат";
+
+            const chatMeta = document.createElement("div");
+            chatMeta.className = "popup-chat-meta";
+            chatMeta.textContent = `${data.chat.members_count || 0} участников`;
+
+            chatDetails.appendChild(chatName);
+            chatDetails.appendChild(chatMeta);
+
+            const openBtn = document.createElement("button");
+            openBtn.className = "popup-btn popup-btn--primary popup-btn--sm";
+            openBtn.textContent = "Открыть →";
+            openBtn.addEventListener("click", () => {
+                this.openGroupChat(data.chat);
+            });
+
+            chatInfo.appendChild(chatIcon);
+            chatInfo.appendChild(chatDetails);
+            chatInfo.appendChild(openBtn);
+
+            this.chatContainer.appendChild(chatInfo);
+
+            // Чекбокс для автодобавления
+            const autoAddContainer = document.createElement("div");
+            autoAddContainer.className = "popup-chat-auto-add";
+
+            const autoAddCheckbox = document.createElement("input");
+            autoAddCheckbox.type = "checkbox";
+            autoAddCheckbox.id = "chat-auto-add-members";
+            autoAddCheckbox.checked = data.chat.auto_add_members || false;
+            autoAddCheckbox.addEventListener("change", () => {
+                this.toggleAutoAddMembers(data.chat.id, autoAddCheckbox.checked);
+            });
+
+            const autoAddLabel = document.createElement("label");
+            autoAddLabel.htmlFor = "chat-auto-add-members";
+            autoAddLabel.textContent = "Автоматически добавлять новых пользователей в чат";
+
+            autoAddContainer.appendChild(autoAddCheckbox);
+            autoAddContainer.appendChild(autoAddLabel);
+
+            this.chatContainer.appendChild(autoAddContainer);
+        } else {
+            // Чата нет - показываем кнопку создания
+            const createChatBtn = document.createElement("button");
+            createChatBtn.className = "popup-btn popup-btn--success";
+            createChatBtn.innerHTML = "💬 Создать чат для этого блока";
+            createChatBtn.addEventListener("click", () => {
+                this.createBlockChat();
+            });
+
+            const createChatHint = document.createElement("div");
+            createChatHint.className = "popup-chat-hint";
+            createChatHint.textContent = "Автоматически добавит всех пользователей с правами доступа";
+
+            this.chatContainer.appendChild(createChatBtn);
+            this.chatContainer.appendChild(createChatHint);
+        }
+    }
+
+    /**
+     * Создаёт групповой чат для блока
+     */
+    async createBlockChat() {
+        try {
+            const chatName = `Чат: ${this.options.blockTitle || this.blockId.substring(0, 8)}`;
+            const response = await chatApi.createChatGroup(chatName, this.blockId);
+            const newChat = response.data;
+
+            showMessage(this.messageContainer, "Групповой чат создан", "success");
+            this.renderChatSection({ has_chat: true, chat: newChat });
+        } catch (error) {
+            console.error("Failed to create block chat:", error);
+            showMessage(this.messageContainer, "Ошибка создания чата");
+        }
+    }
+
+    /**
+     * Открывает групповой чат
+     * @param {Object} chat - Данные чата
+     */
+    openGroupChat(chat) {
+        this.close();
+        new GroupChatView({
+            id: chat.id,
+            name: chat.name,
+            is_admin: chat.is_admin || false
+        });
+    }
+
+    /**
+     * Переключает автодобавление участников
+     * @param {string} chatId - ID чата
+     * @param {boolean} enabled - Включить/выключить
+     */
+    async toggleAutoAddMembers(chatId, enabled) {
+        try {
+            await chatApi.updateChatGroup(chatId, { auto_add_members: enabled });
+            showMessage(this.messageContainer,
+                enabled ? "Автодобавление включено" : "Автодобавление отключено",
+                "success"
+            );
+        } catch (error) {
+            console.error("Failed to toggle auto-add:", error);
+            showMessage(this.messageContainer, "Ошибка изменения настройки");
+        }
     }
 
     _updateAccess(permission, groupName, groupNameInput) {

@@ -1,0 +1,1615 @@
+/* ═══════════════════════════════════════════════════════════════════════════════
+   DIAGRAM EDITOR STYLES
+   Стили для интерактивного редактирования диаграмм
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Режим редактирования диаграммы
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.diagram-edit-mode {
+    position: relative;
+    overflow: visible !important; /* Предотвращает скроллы от resize handles и anchor points */
+}
+
+.diagram-edit-mode > [block],
+.diagram-edit-mode > [blocklink] {
+    cursor: move;
+    transition: transform 0.1s ease, box-shadow 0.2s ease;
+    overflow: visible !important; /* Предотвращает скроллы от resize handles */
+}
+
+.diagram-edit-mode > [block]:hover,
+.diagram-edit-mode > [blocklink]:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 5;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Grid Overlay - визуализация сетки
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.diagram-grid-overlay {
+    pointer-events: none;
+}
+
+.diagram-grid-cell {
+    border: 1px dashed rgba(100, 100, 200, 0.3);
+    background: transparent;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.diagram-grid-cell-header {
+    border-color: rgba(100, 200, 100, 0.3);
+    background: rgba(100, 200, 100, 0.05);
+}
+
+.diagram-grid-cell-highlight {
+    background: rgba(99, 102, 241, 0.2) !important;
+    border-color: rgba(99, 102, 241, 0.6) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Resize Handles
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.diagram-resizable {
+    position: relative;
+    overflow: visible !important; /* Предотвращает появление скроллов от resize handles */
+}
+
+.resize-handle {
+    position: absolute;
+    background: #4f46e5;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    width: 12px;
+    height: 12px;
+    z-index: 20;
+    opacity: 0;
+    transition: opacity 0.2s ease, transform 0.15s ease;
+    pointer-events: auto;
+}
+
+.diagram-edit-mode .resize-handle {
+    opacity: 0.7;
+}
+
+.resize-handle:hover {
+    opacity: 1 !important;
+    transform: scale(1.2);
+}
+
+/* Corner handles */
+.resize-handle-nw { top: -6px; left: -6px; cursor: nw-resize; }
+.resize-handle-ne { top: -6px; right: -6px; cursor: ne-resize; }
+.resize-handle-sw { bottom: -6px; left: -6px; cursor: sw-resize; }
+.resize-handle-se { bottom: -6px; right: -6px; cursor: se-resize; }
+
+/* Edge handles */
+.resize-handle-n { top: -6px; left: 50%; transform: translateX(-50%); cursor: n-resize; }
+.resize-handle-s { bottom: -6px; left: 50%; transform: translateX(-50%); cursor: s-resize; }
+.resize-handle-w { left: -6px; top: 50%; transform: translateY(-50%); cursor: w-resize; }
+.resize-handle-e { right: -6px; top: 50%; transform: translateY(-50%); cursor: e-resize; }
+
+.resize-handle-n:hover,
+.resize-handle-s:hover { transform: translateX(-50%) scale(1.2); }
+.resize-handle-w:hover,
+.resize-handle-e:hover { transform: translateY(-50%) scale(1.2); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Состояния блоков при drag/resize
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.diagram-dragging {
+    opacity: 0.5;
+    outline: 2px dashed #4f46e5 !important;
+}
+
+.diagram-resizing {
+    outline: 2px solid #4f46e5 !important;
+}
+
+/* Выделенный блок в режиме диаграммы */
+.diagram-block-selected {
+    outline: 3px solid #4f46e5 !important;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 6px rgba(79, 70, 229, 0.2) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Обновленная панель управления диаграммой
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.diagram-inputs {
+    position: absolute;
+    top: 56px;
+    right: 10px;
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    align-items: center;
+    z-index: 1000;
+    background: rgba(255, 255, 255, 0.95);
+    padding: 8px 12px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(4px);
+}
+
+.diagram-inputs label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    color: #374151;
+    white-space: nowrap;
+}
+
+.diagram-inputs input[type="number"] {
+    width: 50px;
+    padding: 4px 6px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.diagram-inputs input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #4f46e5;
+}
+
+.diagram-inputs select {
+    padding: 4px 8px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 13px;
+    background: white;
+}
+
+/*.diagram-inputs.hidden {*/
+/*    display: none ;*/
+/*}*/
+
+.diagram-btn {
+    background-color: #f9fafb;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 14px;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.diagram-btn:hover {
+    background-color: #f3f4f6;
+    border-color: #4f46e5;
+    color: #4f46e5;
+}
+
+.diagram-btn:active {
+    transform: scale(0.95);
+}
+
+.diagram-btn-group {
+    display: flex;
+    gap: 4px;
+}
+
+.diagram-btn-small {
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+.diagram-separator {
+    width: 1px;
+    height: 24px;
+    background: #d1d5db;
+    margin: 0 4px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Grid Size Controls - кнопки +/- для строк и колонок
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.grid-size-control {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.grid-size-control span {
+    font-size: 12px;
+    color: #6b7280;
+    min-width: 50px;
+    text-align: center;
+}
+
+.grid-size-btn {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: bold;
+    line-height: 1;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Панель стилей блока
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.block-style-panel {
+    position: fixed;
+    top: 100px;
+    right: 10px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    padding: 16px;
+    z-index: 1001;
+    width: 220px;
+    display: none;
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+}
+
+.block-style-panel.visible {
+    display: block;
+}
+
+.block-style-panel h4 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #111827;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 8px;
+}
+
+.style-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.style-row label {
+    font-size: 12px;
+    color: #4b5563;
+}
+
+.style-row input[type="color"] {
+    width: 32px;
+    height: 24px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 0;
+}
+
+.style-row input[type="range"] {
+    width: 100px;
+    accent-color: #4f46e5;
+}
+
+.style-row select {
+    padding: 4px 8px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 12px;
+    min-width: 80px;
+}
+
+.style-presets {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.style-preset {
+    width: 100%;
+    aspect-ratio: 1;
+    border: 2px solid #e5e7eb;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.style-preset:hover {
+    border-color: #4f46e5;
+    transform: scale(1.1);
+}
+
+.style-preset.active {
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.3);
+}
+
+/* Preset colors */
+.style-preset-default { background: linear-gradient(135deg, #f9fafb, #e5e7eb); }
+.style-preset-blue { background: linear-gradient(135deg, #dbeafe, #93c5fd); }
+.style-preset-green { background: linear-gradient(135deg, #dcfce7, #86efac); }
+.style-preset-yellow { background: linear-gradient(135deg, #fef3c7, #fcd34d); }
+.style-preset-red { background: linear-gradient(135deg, #fee2e2, #fca5a5); }
+.style-preset-purple { background: linear-gradient(135deg, #ede9fe, #c4b5fd); }
+.style-preset-pink { background: linear-gradient(135deg, #fce7f3, #f9a8d4); }
+.style-preset-gray { background: linear-gradient(135deg, #f3f4f6, #9ca3af); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Shape Presets for Diagrams
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.style-section {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #e5e7eb;
+}
+
+/* Убираем верхнюю границу у первой секции */
+.block-style-panel .style-section:first-of-type {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+}
+
+.style-section-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.shape-presets {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+}
+
+.shape-preset {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 4px;
+    border: 2px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: #f9fafb;
+}
+
+.shape-preset:hover {
+    border-color: #4f46e5;
+    background: white;
+}
+
+.shape-preset.active {
+    border-color: #4f46e5;
+    background: white;
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+}
+
+.shape-preset span {
+    font-size: 9px;
+    color: #6b7280;
+    text-align: center;
+    line-height: 1.2;
+}
+
+.shape-preview {
+    width: 28px;
+    height: 20px;
+    border: 2px solid;
+}
+
+/* Shape preview styles */
+.shape-preview-process {
+    background: #ffffff;
+    border-color: #374151;
+    border-radius: 2px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.shape-preview-decision {
+    background: #fef3c7;
+    border-color: #f59e0b;
+    transform: rotate(45deg) scale(0.7);
+    border-radius: 2px;
+}
+
+.shape-preview-data {
+    background: #dbeafe;
+    border-color: #3b82f6;
+    transform: skewX(-15deg);
+    border-radius: 2px;
+}
+
+.shape-preview-database {
+    background: #f3f4f6;
+    border-color: #6b7280;
+    border-radius: 50% / 30%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+.shape-preview-document {
+    background: #ffffff;
+    border-color: #9ca3af;
+    border-radius: 2px 2px 0 0;
+    position: relative;
+}
+
+.shape-preview-document::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: -2px;
+    right: -2px;
+    height: 6px;
+    background: inherit;
+    border: inherit;
+    border-top: none;
+    border-radius: 0 0 50% 50% / 0 0 100% 100%;
+}
+
+.shape-preview-terminal {
+    background: #dcfce7;
+    border-color: #22c55e;
+    border-radius: 50%;
+}
+
+.shape-preview-manual {
+    background: #fce7f3;
+    border-color: #ec4899;
+    clip-path: polygon(10% 0%, 100% 0%, 90% 100%, 0% 100%);
+    border-radius: 2px;
+}
+
+.shape-preview-subprocess {
+    background: #ede9fe;
+    border-color: #8b5cf6;
+    border-radius: 6px;
+    border-width: 3px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Кастомные стили для блоков (применяются через data атрибуты)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Style Panel Tabs
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.style-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+    background: #f3f4f6;
+    padding: 4px;
+    border-radius: 6px;
+}
+
+.style-tab {
+    flex: 1;
+    padding: 6px 8px;
+    border: none;
+    background: transparent;
+    font-size: 12px;
+    font-weight: 500;
+    color: #6b7280;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+}
+
+.style-tab:hover {
+    color: #374151;
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.style-tab.active {
+    background: white;
+    color: #4f46e5;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.style-tab-content {
+    display: none;
+}
+
+.style-tab-content.active {
+    display: block;
+}
+
+/* Reset button sticky at bottom */
+#resetBlockStyle {
+    position: sticky;
+    bottom: 0;
+    background: #fee2e2;
+    border-color: #fca5a5;
+    color: #dc2626;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+}
+
+#resetBlockStyle:hover {
+    background: #fecaca;
+    border-color: #f87171;
+}
+
+/* Additional inputs in style panel */
+.style-row input[type="number"] {
+    width: 60px;
+    padding: 4px 6px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.style-row input[type="text"] {
+    width: 100px;
+    padding: 4px 6px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.style-row span {
+    font-size: 11px;
+    color: #6b7280;
+    min-width: 35px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Block Shapes - формы блоков для блок-схем
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Базовые формы */
+[data-block-shape="rounded"] {
+    border-radius: 16px !important;
+}
+
+[data-block-shape="pill"] {
+    border-radius: 100px !important;
+}
+
+[data-block-shape="diamond"] {
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    padding: 25% 15% !important; /* Дополнительный padding чтобы текст не обрезался */
+}
+
+[data-block-shape="diamond"] > titleBlock,
+[data-block-shape="diamond"] > contentBlock {
+    text-align: center;
+}
+
+[data-block-shape="hexagon"] {
+    clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+    padding: 10% 20% !important; /* Дополнительный padding чтобы текст не обрезался */
+}
+
+[data-block-shape="hexagon"] > titleBlock,
+[data-block-shape="hexagon"] > contentBlock {
+    text-align: center;
+}
+
+/* Новые формы для блок-схем */
+[data-block-shape="parallelogram"] {
+    transform: skewX(-10deg);
+}
+
+[data-block-shape="parallelogram"] > * {
+    transform: skewX(10deg);
+}
+
+[data-block-shape="trapezoid"] {
+    clip-path: polygon(10% 0%, 90% 0%, 100% 100%, 0% 100%);
+    padding: 8px 15% !important; /* Дополнительный padding чтобы текст не обрезался */
+}
+
+[data-block-shape="trapezoid"] > titleBlock,
+[data-block-shape="trapezoid"] > contentBlock {
+    text-align: center;
+}
+
+[data-block-shape="cylinder"] {
+    border-radius: 50% / 10% !important;
+    position: relative;
+    padding-top: 20% !important; /* Компенсация для ::before overlay */
+}
+
+[data-block-shape="cylinder"]::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 20%;
+    background: inherit;
+    border-radius: 50%;
+    border-bottom: 2px solid rgba(0, 0, 0, 0.1);
+}
+
+[data-block-shape="document"] {
+    border-radius: 0 0 0 0 !important;
+    clip-path: polygon(0% 0%, 100% 0%, 100% 85%, 50% 100%, 0% 85%);
+    padding-bottom: 20% !important; /* Оставить место для волны внизу */
+}
+
+[data-block-shape="ellipse"] {
+    border-radius: 50% !important;
+    padding: 15% !important; /* Padding для овальной формы */
+}
+
+[data-block-shape="ellipse"] > titleBlock,
+[data-block-shape="ellipse"] > contentBlock {
+    text-align: center;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Z-index для контента блоков с формами - текст всегда поверх
+   ───────────────────────────────────────────────────────────────────────────── */
+
+[data-block-shape] > titleBlock,
+[data-block-shape] > contentBlock {
+    position: relative;
+    z-index: 1;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Тени для форм с clip-path - используем filter: drop-shadow
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Для форм с clip-path box-shadow не работает, используем drop-shadow */
+[data-block-shape="diamond"][data-block-shadow],
+[data-block-shape="hexagon"][data-block-shadow],
+[data-block-shape="trapezoid"][data-block-shadow],
+[data-block-shape="document"][data-block-shadow] {
+    box-shadow: none !important; /* Отключаем box-shadow */
+}
+
+[data-block-shape="diamond"][data-block-shadow="sm"],
+[data-block-shape="hexagon"][data-block-shadow="sm"],
+[data-block-shape="trapezoid"][data-block-shadow="sm"],
+[data-block-shape="document"][data-block-shadow="sm"] {
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+}
+
+[data-block-shape="diamond"][data-block-shadow="md"],
+[data-block-shape="hexagon"][data-block-shadow="md"],
+[data-block-shape="trapezoid"][data-block-shadow="md"],
+[data-block-shape="document"][data-block-shadow="md"] {
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+}
+
+[data-block-shape="diamond"][data-block-shadow="lg"],
+[data-block-shape="hexagon"][data-block-shadow="lg"],
+[data-block-shape="trapezoid"][data-block-shadow="lg"],
+[data-block-shape="document"][data-block-shadow="lg"] {
+    filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.1));
+}
+
+[data-block-shape="diamond"][data-block-shadow="xl"],
+[data-block-shape="hexagon"][data-block-shadow="xl"],
+[data-block-shape="trapezoid"][data-block-shadow="xl"],
+[data-block-shape="document"][data-block-shadow="xl"] {
+    filter: drop-shadow(0 20px 25px rgba(0, 0, 0, 0.15));
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Block Borders - ширина и стиль через data-атрибут, цвет через inline style
+   ───────────────────────────────────────────────────────────────────────────── */
+
+[data-block-border="thin"] {
+    border-width: 1px !important;
+    border-style: solid !important;
+}
+
+[data-block-border="medium"] {
+    border-width: 2px !important;
+    border-style: solid !important;
+}
+
+[data-block-border="thick"] {
+    border-width: 4px !important;
+    border-style: solid !important;
+}
+
+[data-block-border="dashed"] {
+    border-width: 2px !important;
+    border-style: dashed !important;
+}
+
+[data-block-border="dotted"] {
+    border-width: 2px !important;
+    border-style: dotted !important;
+}
+
+[data-block-border="double"] {
+    border-width: 4px !important;
+    border-style: double !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Block Shadows
+   ───────────────────────────────────────────────────────────────────────────── */
+
+[data-block-shadow="sm"] {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
+}
+
+[data-block-shadow="md"] {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
+}
+
+[data-block-shadow="lg"] {
+    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1) !important;
+}
+
+[data-block-shadow="xl"] {
+    box-shadow: 0 20px 25px rgba(0, 0, 0, 0.15) !important;
+}
+
+[data-block-shadow="inner"] {
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Block Font Sizes (применяется к блоку и всем вложенным элементам)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+[data-block-font-size="xs"],
+[data-block-font-size="xs"] * {
+    font-size: 10px !important;
+}
+
+[data-block-font-size="sm"],
+[data-block-font-size="sm"] * {
+    font-size: 12px !important;
+}
+
+[data-block-font-size="md"],
+[data-block-font-size="md"] * {
+    font-size: 14px !important;
+}
+
+[data-block-font-size="lg"],
+[data-block-font-size="lg"] * {
+    font-size: 18px !important;
+}
+
+[data-block-font-size="xl"],
+[data-block-font-size="xl"] * {
+    font-size: 24px !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Block Text Alignment (применяется к блоку и вложенным контейнерам)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+[data-block-text-align="left"],
+[data-block-text-align="left"] > * {
+    text-align: left !important;
+}
+
+[data-block-text-align="center"],
+[data-block-text-align="center"] > * {
+    text-align: center !important;
+}
+
+[data-block-text-align="right"],
+[data-block-text-align="right"] > * {
+    text-align: right !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Block Text Color (наследование для вложенных элементов)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Вложенные элементы наследуют text color */
+[block] *,
+[blocklink] * {
+    color: inherit;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Connection Style Panel Enhancements
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Connection presets grid */
+.connection-presets {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.connection-preset {
+    width: 100%;
+    aspect-ratio: 1;
+    border: 2px solid #e5e7eb;
+    border-radius: 6px;
+    background: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #6b7280;
+    transition: all 0.15s ease;
+}
+
+.connection-preset:hover {
+    border-color: #4f46e5;
+    color: #4f46e5;
+}
+
+.connection-preset.active {
+    border-color: #4f46e5;
+    background: #eff6ff;
+    color: #4f46e5;
+}
+
+/* Color presets row */
+.color-presets {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.color-preset {
+    width: 20px;
+    height: 20px;
+    border: 2px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.color-preset:hover {
+    transform: scale(1.1);
+    border-color: rgba(0, 0, 0, 0.2);
+}
+
+.color-preset[data-color="#516077"] { background: #516077; }
+.color-preset[data-color="#dc3545"] { background: #dc3545; }
+.color-preset[data-color="#28a745"] { background: #28a745; }
+.color-preset[data-color="#007bff"] { background: #007bff; }
+.color-preset[data-color="#ffc107"] { background: #ffc107; }
+
+/* Section labels */
+.style-section-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 12px 0 8px 0;
+    padding-top: 8px;
+    border-top: 1px solid #f3f4f6;
+}
+
+.style-section-label:first-of-type {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+}
+
+/* Checkbox rows */
+.style-row.checkbox-row {
+    justify-content: flex-start;
+}
+
+.style-row.checkbox-row label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.style-row.checkbox-row input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #4f46e5;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Sidebar Diagram Tools - меню в боковой панели
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.sidebar-diagram-tools {
+    margin-top: auto;
+    padding: 8px 4px;
+    border-top: 1px solid #d1d5db;
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.sidebar-diagram-tools.hidden {
+    display: none;
+}
+
+.sidebar-section-title {
+    font-size: 10px;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    text-align: center;
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+}
+
+.sidebar-diagram-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.grid-size-inline {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    background: #f3f4f6;
+    border-radius: 4px;
+    padding: 2px;
+}
+
+.sidebar-btn-small {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: bold;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.sidebar-btn-small:hover {
+    background: #e8f4ff;
+    border-color: #4f46e5;
+}
+
+.grid-size-label {
+    font-size: 10px;
+    color: #6b7280;
+    min-width: 24px;
+    text-align: center;
+}
+
+.sidebar-size-select {
+    width: 100%;
+    padding: 4px 6px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 11px;
+    background: white;
+}
+
+.sidebar-btn-row {
+    display: flex;
+    gap: 4px;
+    width: 100%;
+}
+
+.sidebar-btn-row .sidebar-button {
+    flex: 1;
+}
+
+.sidebar-section-divider {
+    width: 100%;
+    height: 1px;
+    background: #d1d5db;
+    margin: 4px 0;
+}
+
+.sidebar-section-subtitle {
+    font-size: 9px;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    text-align: center;
+    margin-bottom: 4px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Адаптивность
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+    .diagram-inputs {
+        flex-wrap: wrap;
+        max-width: calc(100vw - 20px);
+        right: 5px;
+        top: 50px;
+        padding: 6px 10px;
+    }
+
+    .diagram-separator {
+        display: none;
+    }
+
+    .resize-handle {
+        width: 16px;
+        height: 16px;
+    }
+
+    .resize-handle-nw { top: -8px; left: -8px; }
+    .resize-handle-ne { top: -8px; right: -8px; }
+    .resize-handle-sw { bottom: -8px; left: -8px; }
+    .resize-handle-se { bottom: -8px; right: -8px; }
+    .resize-handle-n { top: -8px; }
+    .resize-handle-s { bottom: -8px; }
+    .resize-handle-w { left: -8px; }
+    .resize-handle-e { right: -8px; }
+
+    .block-style-panel {
+        right: 5px;
+        width: calc(100vw - 20px);
+        max-width: 300px;
+    }
+}
+
+@media (max-width: 480px) {
+    .diagram-inputs {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .grid-size-control {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Diagram Size Buttons - текстовые кнопки размеров в подменю
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.diagram-size-btn {
+    font-weight: bold;
+    font-size: 12px;
+    min-width: 32px;
+    text-align: center;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Diagram Selection Mode - режим выбора блока для редактирования диаграммы
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Подсказка о выборе блока */
+.diagram-selection-hint {
+    position: fixed;
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #4f46e5, #6366f1);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    z-index: 10000;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.4);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.diagram-selection-hint.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Подсветка блоков при наведении в режиме выбора */
+.diagram-selection-mode [block]:hover,
+.diagram-selection-mode [blocklink]:hover {
+    outline: 3px dashed #4f46e5 !important;
+    outline-offset: 2px;
+    cursor: pointer !important;
+}
+
+.diagram-selection-mode [block]:hover::before,
+.diagram-selection-mode [blocklink]:hover::before {
+    content: '⬆ Выбрать этот блок';
+    position: absolute;
+    top: -28px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #4f46e5;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    z-index: 1000;
+}
+
+/* Выбранный блок-диаграмма (активный для редактирования) */
+.diagram-target-block {
+    outline: 3px solid #10b981 !important;
+    outline-offset: 2px;
+    position: relative;
+}
+
+.diagram-target-block::after {
+    content: 'Редактирование диаграммы';
+    position: absolute;
+    top: -28px;
+    left: 0;
+    background: #10b981;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    z-index: 1000;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Submenu Back Button Style
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.submenu-back {
+    background-color: #f3f4f6 !important;
+    border: 1px solid #d1d5db !important;
+    margin-bottom: 8px;
+}
+
+.submenu-back:hover {
+    background-color: #e5e7eb !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Anchor Points - 12 точек для создания соединений (по 3 на каждой стороне)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.anchor-point {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: #4f46e5;
+    border: 2px solid white;
+    border-radius: 50%;
+    cursor: crosshair;
+    opacity: 0;
+    transition: opacity 0.15s ease, transform 0.15s ease, background-color 0.15s ease;
+    z-index: 100;
+    pointer-events: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Блок с anchor points должен иметь position: relative */
+.connection-target {
+    position: relative !important;
+}
+
+/* Показать anchor points при наведении на блок или в connect-mode */
+.diagram-resizable:hover .anchor-point,
+.anchor-point.anchor-visible,
+body.connect-mode [block] .anchor-point {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.anchor-point:hover {
+    background: #10b981;
+    transform: scale(1.3);
+}
+
+/* ===== Позиции 12 anchor points ===== */
+
+/* Верхняя сторона - 3 точки */
+.anchor-point-top-left {
+    top: -5px;
+    left: 25%;
+    transform: translateX(-50%);
+}
+
+.anchor-point-top-center {
+    top: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.anchor-point-top-right {
+    top: -5px;
+    left: 75%;
+    transform: translateX(-50%);
+}
+
+/* Правая сторона - 3 точки */
+.anchor-point-right-top {
+    right: -5px;
+    top: 25%;
+    transform: translateY(-50%);
+}
+
+.anchor-point-right-center {
+    right: -5px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.anchor-point-right-bottom {
+    right: -5px;
+    top: 75%;
+    transform: translateY(-50%);
+}
+
+/* Нижняя сторона - 3 точки */
+.anchor-point-bottom-right {
+    bottom: -5px;
+    left: 75%;
+    transform: translateX(-50%);
+}
+
+.anchor-point-bottom-center {
+    bottom: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.anchor-point-bottom-left {
+    bottom: -5px;
+    left: 25%;
+    transform: translateX(-50%);
+}
+
+/* Левая сторона - 3 точки */
+.anchor-point-left-bottom {
+    left: -5px;
+    top: 75%;
+    transform: translateY(-50%);
+}
+
+.anchor-point-left-center {
+    left: -5px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.anchor-point-left-top {
+    left: -5px;
+    top: 25%;
+    transform: translateY(-50%);
+}
+
+/* ===== Hover стили с сохранением позиции ===== */
+
+/* Верхняя сторона hover */
+.anchor-point-top-left:hover,
+.anchor-point-top-center:hover,
+.anchor-point-top-right:hover {
+    transform: translateX(-50%) scale(1.3);
+}
+
+/* Правая сторона hover */
+.anchor-point-right-top:hover,
+.anchor-point-right-center:hover,
+.anchor-point-right-bottom:hover {
+    transform: translateY(-50%) scale(1.3);
+}
+
+/* Нижняя сторона hover */
+.anchor-point-bottom-right:hover,
+.anchor-point-bottom-center:hover,
+.anchor-point-bottom-left:hover {
+    transform: translateX(-50%) scale(1.3);
+}
+
+/* Левая сторона hover */
+.anchor-point-left-bottom:hover,
+.anchor-point-left-center:hover,
+.anchor-point-left-top:hover {
+    transform: translateY(-50%) scale(1.3);
+}
+
+/* ===== Активный anchor (источник соединения) ===== */
+.anchor-point.anchor-active {
+    opacity: 1;
+    background: #10b981;
+    pointer-events: none;
+}
+
+/* Активные anchors с сохранением позиции */
+.anchor-point-top-left.anchor-active,
+.anchor-point-top-center.anchor-active,
+.anchor-point-top-right.anchor-active,
+.anchor-point-bottom-right.anchor-active,
+.anchor-point-bottom-center.anchor-active,
+.anchor-point-bottom-left.anchor-active {
+    transform: translateX(-50%) scale(1.4);
+}
+
+.anchor-point-right-top.anchor-active,
+.anchor-point-right-center.anchor-active,
+.anchor-point-right-bottom.anchor-active,
+.anchor-point-left-bottom.anchor-active,
+.anchor-point-left-center.anchor-active,
+.anchor-point-left-top.anchor-active {
+    transform: translateY(-50%) scale(1.4);
+}
+
+/* ===== Подсветка целевого anchor ===== */
+.anchor-point.anchor-highlight {
+    opacity: 1;
+    background: #f59e0b;
+    animation: pulse-anchor 0.6s ease-in-out infinite;
+}
+
+/* Подсветка с сохранением позиции */
+.anchor-point-top-left.anchor-highlight,
+.anchor-point-top-center.anchor-highlight,
+.anchor-point-top-right.anchor-highlight,
+.anchor-point-bottom-right.anchor-highlight,
+.anchor-point-bottom-center.anchor-highlight,
+.anchor-point-bottom-left.anchor-highlight {
+    transform: translateX(-50%) scale(1.4);
+}
+
+.anchor-point-right-top.anchor-highlight,
+.anchor-point-right-center.anchor-highlight,
+.anchor-point-right-bottom.anchor-highlight,
+.anchor-point-left-bottom.anchor-highlight,
+.anchor-point-left-center.anchor-highlight,
+.anchor-point-left-top.anchor-highlight {
+    transform: translateY(-50%) scale(1.4);
+}
+
+@keyframes pulse-anchor {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 0 8px rgba(245, 158, 11, 0);
+    }
+}
+
+/* Блок-источник соединения */
+.connection-source {
+    outline: 2px solid #10b981 !important;
+    outline-offset: 2px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Shift+Drag Quick Mode - быстрое перемещение без входа в режим редактирования
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Индикация готовности к Shift+drag */
+.shift-drag-ready [blockcustomgrid] > [block],
+.shift-drag-ready [blockcustomgrid] > [blocklink] {
+    cursor: grab !important;
+    transition: box-shadow 0.2s ease;
+}
+
+.shift-drag-ready [blockcustomgrid] > [block]:hover,
+.shift-drag-ready [blockcustomgrid] > [blocklink]:hover {
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.5), 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Quick mode активен */
+.diagram-quick-mode {
+    position: relative;
+}
+
+.diagram-quick-mode > [block],
+.diagram-quick-mode > [blocklink] {
+    cursor: grabbing !important;
+}
+
+/* Показать resize handles в quick mode */
+.diagram-quick-mode .resize-handle {
+    opacity: 0.8;
+}
+
+.diagram-quick-mode .resize-handle:hover {
+    opacity: 1;
+    transform: scale(1.2);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Connection Edit Panel - редактирование существующих соединений
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Выделенное соединение */
+.connection-selected,
+.jtk-connector.connection-selected path {
+    stroke-width: 4px !important;
+    filter: drop-shadow(0 0 6px rgba(79, 70, 229, 0.5));
+}
+
+/* Панель редактирования соединения */
+#connectionEditPanel {
+    position: fixed;
+    right: 20px;
+    top: 100px;
+    width: 280px;
+    background: var(--bg-secondary, #1e1e2e);
+    border: 1px solid var(--border-color, #363646);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    display: none;
+}
+
+#connectionEditPanel.visible {
+    display: block;
+    animation: slideInRight 0.2s ease-out;
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+#connectionEditPanel h4 {
+    margin: 0 0 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary, #e4e4e7);
+}
+
+#connectionEditPanel .style-section {
+    margin-bottom: 14px;
+}
+
+#connectionEditPanel .style-section-label {
+    font-size: 12px;
+    color: var(--text-secondary, #a1a1aa);
+    margin-bottom: 6px;
+}
+
+#connectionEditPanel select,
+#connectionEditPanel input[type="text"] {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--bg-tertiary, #27272a);
+    border: 1px solid var(--border-color, #363646);
+    border-radius: 6px;
+    color: var(--text-primary, #e4e4e7);
+    font-size: 13px;
+}
+
+#connectionEditPanel select:focus,
+#connectionEditPanel input[type="text"]:focus {
+    outline: none;
+    border-color: #4f46e5;
+}
+
+#connectionEditPanel input[type="color"] {
+    width: 100%;
+    height: 36px;
+    padding: 2px;
+    background: var(--bg-tertiary, #27272a);
+    border: 1px solid var(--border-color, #363646);
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+#connectionEditPanel input[type="range"] {
+    width: 100%;
+    height: 6px;
+    background: var(--bg-tertiary, #27272a);
+    border-radius: 3px;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+#connectionEditPanel input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background: #4f46e5;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+}
+
+#connectionEditPanel input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+#connectionEditPanel .checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-right: 16px;
+    font-size: 13px;
+    color: var(--text-primary, #e4e4e7);
+    cursor: pointer;
+}
+
+#connectionEditPanel .checkbox-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #4f46e5;
+    cursor: pointer;
+}
+
+#connectionEditPanel .actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color, #363646);
+}
+
+#connectionEditPanel .primary-btn {
+    flex: 1;
+    padding: 10px 16px;
+    background: #4f46e5;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+#connectionEditPanel .primary-btn:hover {
+    background: #4338ca;
+}
+
+#connectionEditPanel .danger-btn {
+    padding: 10px 16px;
+    background: transparent;
+    color: #ef4444;
+    border: 1px solid #ef4444;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+#connectionEditPanel .danger-btn:hover {
+    background: #ef4444;
+    color: white;
+}
+
+/* Подсказка в панели */
+#connectionEditPanel .style-hint {
+    font-size: 11px;
+    color: var(--text-secondary, #71717a);
+    margin-top: 4px;
+    font-style: italic;
+}
+
+/* Курсор для перетаскивания заголовка */
+#connectionEditPanel h4 {
+    cursor: move;
+    user-select: none;
+    padding: 4px;
+    margin: -4px -4px 12px -4px;
+    border-radius: 4px;
+}
+
+#connectionEditPanel h4:hover {
+    background: rgba(255, 255, 255, 0.05);
+}

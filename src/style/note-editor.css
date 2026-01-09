@@ -130,6 +130,12 @@
     transform: translateY(1px) scale(.99);
 }
 
+/* Активное состояние для кнопок превью */
+.note-editor-toolbar .btn.active {
+    color: var(--ne-accent);
+    background: color-mix(in oklab, var(--ne-accent) 15%, var(--ne-border));
+}
+
 .note-editor-toolbar .btn:focus-visible {
     outline: 2px solid color-mix(in oklab, var(--ne-accent) 65%, transparent);
     outline-offset: 2px;
@@ -137,9 +143,8 @@
 }
 
 /* Важные действия — чуть заметнее */
-.note-editor-toolbar .btn.fa-floppy-o,
+.note-editor-toolbar .btn.fa-floppy-disk,
 .note-editor-toolbar .btn.fa-eye,
-.note-editor-toolbar .btn.fa-columns,
 .note-editor-toolbar .btn.fa-magic,
 .note-editor-toolbar .btn.fa-check {
     color: var(--ne-fg);
@@ -155,11 +160,11 @@
 /* Скрываем «редко используемые» для минимализма.
    Убрать эти строки, если хочешь видеть всё. */
 .note-editor-toolbar .fa-strikethrough,
-.note-editor-toolbar .fa-header,
-.note-editor-toolbar .fa-picture-o,
+.note-editor-toolbar .fa-heading,
+.note-editor-toolbar .fa-image,
 .note-editor-toolbar .fa-quote-right,
 .note-editor-toolbar .fa-minus,
-.note-editor-toolbar .fa-question-circle {
+.note-editor-toolbar .fa-circle-question {
     display: none;
 }
 
@@ -202,7 +207,6 @@
 /* ───── Preview ───── */
 .note-editor-preview {
     display: none; /* JS включает */
-    margin-top: 10px;
     padding: var(--ne-pad);
     border: 1px solid var(--ne-border);
     border-radius: var(--ne-radius);
@@ -211,23 +215,17 @@
     overflow: auto;
 }
 
-/* Side-by-side режим */
-.side-by-side .note-editor-textarea,
-.side-by-side .note-editor-preview {
+/* Preview-active режим — показываем только превью, скрываем textarea */
+.preview-active .note-editor-textarea {
+    display: none;
+}
+
+.preview-active .note-editor-preview {
     display: block;
-}
-
-.side-by-side {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    align-items: start;
-}
-
-@media (max-width: 900px) {
-    .side-by-side {
-        grid-template-columns: 1fr; /* на мобилках — столбцом */
-    }
+    flex: 1;
+    min-height: 300px;
+    max-height: none;
+    overflow: auto;
 }
 
 /* ───── Типографика превью ───── */
@@ -347,7 +345,7 @@
     }
 
     /* на мобильных оставим только «ядро» кнопок, остальное скрыть */
-    .note-editor-toolbar .fa-level-down,
+    .note-editor-toolbar .fa-turn-down,
     .note-editor-toolbar .fa-list-ol,
     .note-editor-toolbar .fa-table {
         display: none;
@@ -364,4 +362,138 @@
     font-size: 12px;
     color: var(--ne-muted);
     margin-top: 6px;
+}
+
+/* ───── Баннер конфликта при одновременном редактировании ───── */
+.note-editor-conflict-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+
+    padding: 10px 14px;
+    margin-bottom: 8px;
+
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border: 1px solid #f59e0b;
+    border-radius: var(--ne-radius);
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
+
+    font-size: 14px;
+    color: #92400e;
+    animation: slideIn 0.3s ease-out;
+}
+
+.note-editor-conflict-banner.pulse {
+    animation: pulse 0.5s ease-in-out;
+}
+
+.conflict-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.conflict-text {
+    flex: 1;
+    min-width: 150px;
+    font-weight: 500;
+}
+
+.conflict-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.conflict-btn {
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.conflict-btn-reload {
+    background: #f59e0b;
+    color: #fff;
+}
+
+.conflict-btn-reload:hover {
+    background: #d97706;
+}
+
+.conflict-btn-dismiss {
+    background: rgba(255, 255, 255, 0.7);
+    color: #92400e;
+    border: 1px solid #f59e0b;
+}
+
+.conflict-btn-dismiss:hover {
+    background: rgba(255, 255, 255, 0.9);
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
+    }
+    50% {
+        transform: scale(1.02);
+        box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
+    }
+}
+
+/* Мобильные адаптации для баннера */
+@media (max-width: 640px) {
+    .note-editor-conflict-banner {
+        padding: 8px 10px;
+        font-size: 13px;
+    }
+
+    .conflict-icon {
+        font-size: 16px;
+    }
+
+    .conflict-btn {
+        padding: 5px 10px;
+        font-size: 12px;
+    }
+}
+
+/* Тёмная тема для баннера */
+.active.ne-dark .note-editor-conflict-banner {
+    background: linear-gradient(135deg, #451a03 0%, #78350f 100%);
+    border-color: #b45309;
+    color: #fef3c7;
+}
+
+.active.ne-dark .conflict-btn-reload {
+    background: #b45309;
+}
+
+.active.ne-dark .conflict-btn-reload:hover {
+    background: #92400e;
+}
+
+.active.ne-dark .conflict-btn-dismiss {
+    background: rgba(0, 0, 0, 0.3);
+    color: #fef3c7;
+    border-color: #b45309;
+}
+
+.active.ne-dark .conflict-btn-dismiss:hover {
+    background: rgba(0, 0, 0, 0.5);
 }

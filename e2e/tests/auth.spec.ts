@@ -1,21 +1,25 @@
-import { test, expect } from '../fixtures/auth.fixture';
+import { test, expect, TEST_USERS } from '../fixtures/auth.fixture';
 import { setupApiMocks } from '../fixtures/test-data.fixture';
 
-test.describe('Авторизация', () => {
+/**
+ * Тесты авторизации @auth
+ *
+ * OmniMap - SPA приложение. Почти всегда одна страница на /.
+ * Если не авторизован - видна форма логина.
+ * Если авторизован - видны блоки пользователя.
+ */
+test.describe('Авторизация @auth', () => {
   test.beforeEach(async ({ page }) => {
-    // Настраиваем моки API для изолированных тестов
     await setupApiMocks(page);
   });
 
-  test('должен показать страницу логина для неавторизованного пользователя', async ({ loginPage }) => {
-    await loginPage.goto();
-
-    // Проверяем, что форма логина видима
-    // Если редирект на логин не происходит, приложение может требовать другую проверку
-    await loginPage.page.waitForLoadState('domcontentloaded');
+  test('должен показать форму логина для неавторизованного пользователя', async ({ mainPage }) => {
+    await mainPage.goto();
+    await mainPage.waitForLoginForm();
+    await mainPage.assertOnLoginForm();
   });
 
-  test('должен успешно залогиниться с корректными данными', async ({ page, loginPage }) => {
+  test('должен успешно залогиниться с корректными данными', async ({ page, mainPage }) => {
     // Мок успешного ответа авторизации
     await page.route('**/api/v1/auth/login/**', async (route) => {
       await route.fulfill({
@@ -28,19 +32,17 @@ test.describe('Авторизация', () => {
       });
     });
 
-    await loginPage.goto();
+    await mainPage.goto();
+    await mainPage.waitForLoginForm();
 
-    // Если есть форма логина, заполняем её
-    const hasLoginForm = await loginPage.usernameInput.isVisible().catch(() => false);
-
+    const hasLoginForm = await mainPage.usernameInput.isVisible().catch(() => false);
     if (hasLoginForm) {
-      await loginPage.login('test_user', 'test_password');
-      // После логина должны увидеть главную страницу
-      await expect(loginPage.rootContainer).toBeVisible({ timeout: 10000 });
+      await mainPage.login('test_user', 'test_password');
+      await expect(mainPage.rootContainer).toBeVisible({ timeout: 10000 });
     }
   });
 
-  test('должен показать ошибку при неверных учетных данных', async ({ page, loginPage }) => {
+  test('должен показать ошибку при неверных учетных данных', async ({ page, mainPage }) => {
     // Мок ошибки авторизации
     await page.route('**/api/v1/auth/login/**', async (route) => {
       await route.fulfill({
@@ -52,15 +54,14 @@ test.describe('Авторизация', () => {
       });
     });
 
-    await loginPage.goto();
+    await mainPage.goto();
+    await mainPage.waitForLoginForm();
 
-    const hasLoginForm = await loginPage.usernameInput.isVisible().catch(() => false);
-
+    const hasLoginForm = await mainPage.usernameInput.isVisible().catch(() => false);
     if (hasLoginForm) {
-      await loginPage.login('wrong_user', 'wrong_password');
-
-      // Должна появиться ошибка или мы останемся на странице логина
-      await expect(loginPage.usernameInput).toBeVisible();
+      await mainPage.login('wrong_user', 'wrong_password');
+      // Должна появиться ошибка или мы останемся на форме логина
+      await expect(mainPage.usernameInput).toBeVisible();
     }
   });
 
@@ -74,20 +75,15 @@ test.describe('Авторизация', () => {
 
     if (hasExitButton) {
       await exitButton.click();
-
-      // После выхода должны быть перенаправлены на логин или очищена сессия
       await authenticatedPage.page.waitForTimeout(1000);
     }
   });
 });
 
-test.describe('Проверка сессии', () => {
+test.describe('Проверка сессии @auth', () => {
   test('должен обновить токен при истечении access token', async ({ page }) => {
-    let refreshCalled = false;
-
     // Мок для refresh token
     await page.route('**/api/v1/auth/refresh/**', async (route) => {
-      refreshCalled = true;
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -115,8 +111,5 @@ test.describe('Проверка сессии', () => {
 
     await page.goto('/');
     await page.waitForTimeout(2000);
-
-    // Refresh токен должен быть вызван при 401 ответе
-    // Это зависит от реализации API клиента
   });
 });

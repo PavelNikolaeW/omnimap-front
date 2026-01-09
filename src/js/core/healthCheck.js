@@ -1,5 +1,6 @@
 import localforage from "localforage";
 import api from "../api/api";
+import config from "../config";
 
 /**
  * Результат проверки здоровья системы
@@ -155,9 +156,7 @@ async function checkWebSocketService() {
     }
 
     try {
-        const wsUrl = typeof SINC_SERVICE_URL !== 'undefined'
-            ? SINC_SERVICE_URL
-            : 'wss://localhost:7999/ws';
+        const wsUrl = config.SINC_SERVICE_URL;
 
         // Преобразуем ws:// в http:// для health check
         const httpUrl = wsUrl
@@ -166,7 +165,11 @@ async function checkWebSocketService() {
             .replace('/ws', '/health');
 
         const response = await withTimeout(
-            fetch(httpUrl, { method: 'GET' }),
+            fetch(httpUrl, {
+                method: 'GET',
+                mode: 'cors',
+                credentials: 'omit'
+            }),
             CHECK_TIMEOUT,
             name
         );
@@ -183,6 +186,58 @@ async function checkWebSocketService() {
         };
     } catch (error) {
         // WebSocket сервис недоступен - не критично
+        return {
+            ok: false,
+            name,
+            error: error.message,
+            critical: false
+        };
+    }
+}
+
+/**
+ * Проверяет состояние LLM Gateway сервиса
+ * @returns {Promise<HealthCheckResult>}
+ */
+async function checkLLMGateway() {
+    const name = 'LLM Gateway';
+
+    // Если офлайн - это не критическая ошибка
+    if (!navigator.onLine) {
+        return {
+            ok: true,
+            name,
+            error: 'Офлайн режим'
+        };
+    }
+
+    try {
+        const llmUrl = config.LLM_GATEWAY_URL;
+
+        const healthUrl = `${llmUrl}/health`;
+
+        const response = await withTimeout(
+            fetch(healthUrl, {
+                method: 'GET',
+                mode: 'cors',
+                credentials: 'omit'
+            }),
+            CHECK_TIMEOUT,
+            name
+        );
+
+        if (response.ok) {
+            return { ok: true, name };
+        }
+
+        return {
+            ok: false,
+            name,
+            error: `LLM Gateway вернул статус ${response.status}`,
+            critical: false
+        };
+    } catch (error) {
+        // LLM Gateway недоступен - не критично
         return {
             ok: false,
             name,
@@ -252,7 +307,8 @@ export async function runHealthChecks() {
         checkIndexedDB(),
         checkNetwork(),
         checkBackendAPI(),
-        checkWebSocketService()
+        checkWebSocketService(),
+        checkLLMGateway()
     ]);
 
     const errors = checks

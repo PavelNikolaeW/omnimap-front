@@ -17,19 +17,13 @@ module.exports = merge(common, {
     module: {
         rules: [
             {
-                test: /\.(js|jsx)$/,
-                include: [
-                    path.resolve(__dirname, 'src/js'),
-                    path.resolve(__dirname, 'src/llm_chat')
-                ],
+                test: /\.js$/,
+                include: path.resolve(__dirname, 'src/js'),
                 exclude: /node_modules/,
                 use: {
                     loader: 'babel-loader',
                     options: {
-                        presets: [
-                            '@babel/preset-env',
-                            ['@babel/preset-react', { runtime: 'automatic' }]
-                        ],
+                        presets: ['@babel/preset-env'],
                     },
                 },
             },
@@ -73,6 +67,17 @@ module.exports = merge(common, {
             // Подключаем кастомный код для Background Sync
             importScripts: ['sw-custom.js'],
             runtimeCaching: [
+                // Config.js - критично для оффлайна, используем NetworkFirst с быстрым таймаутом
+                // При офлайне сразу отдаём из кэша
+                {
+                    urlPattern: /\/config\/config\.js$/,
+                    handler: 'NetworkFirst',
+                    options: {
+                        cacheName: 'config-cache',
+                        networkTimeoutSeconds: 2,
+                        plugins: [],
+                    },
+                },
                 // API кэширование для offline доступа
                 {
                     urlPattern: /\/api\/v1\/load-trees\/?$/,
@@ -132,12 +137,17 @@ module.exports = merge(common, {
                         networkTimeoutSeconds: 3,
                     },
                 },
-                // JS и CSS
+                // JS и CSS с contenthash — используем CacheFirst
+                // (хеш в имени гарантирует что файл уникален, перекачивать не нужно)
                 {
                     urlPattern: ({request}) => request.destination === 'script' || request.destination === 'style',
-                    handler: 'StaleWhileRevalidate',
+                    handler: 'CacheFirst',
                     options: {
                         cacheName: 'static-resources',
+                        expiration: {
+                            maxEntries: 100,
+                            maxAgeSeconds: 30 * 24 * 60 * 60, // 30 дней
+                        },
                     },
                 },
                 // Шрифты
@@ -157,7 +167,9 @@ module.exports = merge(common, {
         new webpack.DefinePlugin({
             APP_BACKEND_URL: JSON.stringify(process.env.APP_BACKEND_URL || 'https://omnimap.ru'),
             SINC_SERVICE_URL: JSON.stringify(process.env.SINC_SERVICE_URL || 'wss://omnimap.ru/ws'),
-            LLM_GATEWAY_URL: JSON.stringify(process.env.LLM_GATEWAY_URL || 'https://llm.omnimap.ru')
+            LLM_GATEWAY_URL: JSON.stringify(process.env.LLM_GATEWAY_URL || 'https://llm.omnimap.ru'),
+            APP_VERSION: JSON.stringify(process.env.APP_VERSION || 'dev'),
+            APP_BUILD_TIME: JSON.stringify(new Date().toISOString())
         })
     ],
     optimization: {
@@ -166,7 +178,8 @@ module.exports = merge(common, {
             new TerserPlugin({
                 terserOptions: {
                     compress: {
-                        drop_console: true,
+                        // Временно оставляем console для отладки sync
+                        drop_console: false,
                     },
                 },
             }),

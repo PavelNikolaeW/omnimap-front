@@ -19,7 +19,9 @@ export const CONNECTION_TYPES = {
     DEPENDENCY: 'dependency', // Зависимость (пунктир со стрелкой)
     INHERITANCE: 'inheritance', // Наследование (пустой треугольник)
     COMPOSITION: 'composition', // Композиция (закрашенный ромб)
-    AGGREGATION: 'aggregation'  // Агрегация (пустой ромб)
+    AGGREGATION: 'aggregation', // Агрегация (пустой ромб)
+    ORTHOGONAL: 'orthogonal',   // Ортогональное (прямые углы)
+    STATEMACHINE: 'statemachine' // Петля (self-loop)
 };
 
 /**
@@ -38,7 +40,9 @@ export const CONNECTION_LABELS = {
     [CONNECTION_TYPES.DEPENDENCY]: 'Зависимость',
     [CONNECTION_TYPES.INHERITANCE]: 'Наследование',
     [CONNECTION_TYPES.COMPOSITION]: 'Композиция',
-    [CONNECTION_TYPES.AGGREGATION]: 'Агрегация'
+    [CONNECTION_TYPES.AGGREGATION]: 'Агрегация',
+    [CONNECTION_TYPES.ORTHOGONAL]: 'Ортогональное',
+    [CONNECTION_TYPES.STATEMACHINE]: 'Петля'
 };
 
 /**
@@ -57,7 +61,9 @@ export const CONNECTION_ICONS = {
     [CONNECTION_TYPES.DEPENDENCY]: 'fa-link',
     [CONNECTION_TYPES.INHERITANCE]: 'fa-sitemap',
     [CONNECTION_TYPES.COMPOSITION]: 'fa-diamond',
-    [CONNECTION_TYPES.AGGREGATION]: 'fa-square'
+    [CONNECTION_TYPES.AGGREGATION]: 'fa-square',
+    [CONNECTION_TYPES.ORTHOGONAL]: 'fa-right-left',
+    [CONNECTION_TYPES.STATEMACHINE]: 'fa-rotate'
 };
 
 /**
@@ -78,7 +84,7 @@ export const CONNECTION_CONFIGS = {
     [CONNECTION_TYPES.DEFAULT]: {
         connector: {
             type: "Flowchart",
-            options: { stub: 50, alwaysRespectStubs: true, cornerRadius: 5 }
+            options: { stub: 30, alwaysRespectStubs: false, cornerRadius: 5, midpoint: 0.5 }
         },
         paintStyle: { ...BASE_PAINT_STYLES },
         overlays: [
@@ -257,6 +263,29 @@ export const CONNECTION_CONFIGS = {
                     paintStyle: { fill: "white", stroke: "#516077", strokeWidth: 2 }
                 }
             }
+        ]
+    },
+
+    // ORTHOGONAL - используем Flowchart с меньшим stub для близких блоков
+    [CONNECTION_TYPES.ORTHOGONAL]: {
+        connector: {
+            type: "Flowchart",
+            options: { stub: 15, cornerRadius: 5, alwaysRespectStubs: false, midpoint: 0.5 }
+        },
+        paintStyle: { ...BASE_PAINT_STYLES },
+        overlays: [
+            { type: "Arrow", options: { width: 10, length: 10, location: 1 } }
+        ]
+    },
+
+    [CONNECTION_TYPES.STATEMACHINE]: {
+        connector: {
+            type: "StateMachine",
+            options: { margin: 5, curviness: 10, proximityLimit: 80 }
+        },
+        paintStyle: { ...BASE_PAINT_STYLES },
+        overlays: [
+            { type: "Arrow", options: { width: 10, length: 10, location: 1 } }
         ]
     }
 };

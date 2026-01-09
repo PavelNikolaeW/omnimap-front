@@ -20,6 +20,9 @@ export class ContextManager {
         this.selectedBlocks = new Set()       // Set<blockId>
         this.selectedElements = new Map()     // Map<blockId, {element, linkElement}>
 
+        // Отслеживание кликнутого anchor point для соединений
+        this.clickedAnchor = null  // { blockId, position } или null
+
         this.rootContainer = rootContainer
         this.breadcrumb = breadcrumb
         this.treeNavigation = treeNavigation
@@ -33,6 +36,11 @@ export class ContextManager {
         // надо отписываться от собитыий при перерендере?
         window.addEventListener('ShowedBlocks', (e) => {
             this.rotationElements(e.detail)
+        });
+
+        // Обработка выбора блока в режиме диаграммы
+        window.addEventListener('DiagramBlockSelected', (e) => {
+            this.handleDiagramBlockSelected(e.detail);
         });
 
         this.rootContainer.addEventListener('mouseover', this.mouseOverBlockHandlerBound);
@@ -54,6 +62,27 @@ export class ContextManager {
         window.addEventListener('keyup', this.keyupHandler.bind(this));
     }
 
+    /**
+     * Обработать выбор блока в режиме диаграммы
+     */
+    handleDiagramBlockSelected({ blockId, element, fullId }) {
+        // Обновить контекст
+        this.blockId = blockId;
+        this.blockElement = element;
+
+        // Проверить, является ли это blocklink
+        if (element.hasAttribute('blocklink')) {
+            this.blockLinkElement = element;
+            this.blockLinkId = element.getAttribute('blocklink');
+        } else {
+            this.blockLinkElement = undefined;
+            this.blockLinkId = undefined;
+        }
+
+        // Добавить визуальное выделение
+        this.addActiveClass();
+    }
+
     keydownHandler(e) {
         if (e.key === 'Shift' || e.key == '-') {
             this.shiftLock = true;
@@ -67,7 +96,14 @@ export class ContextManager {
     }
 
     rotationElements({path, activeId}) {
-        if (!activeId) activeId = this.blockElement?.id.split('*')[0]
+        // Если есть сохранённый ID для восстановления выделения (например при перемещении стрелками),
+        // используем его вместо стандартной логики
+        if (this._preserveSelectionId) {
+            activeId = this._preserveSelectionId
+        } else if (!activeId) {
+            activeId = this.blockElement?.id.split('*')[0]
+        }
+
         this.blockElement = undefined
         this.blockLinkElement = undefined
 
@@ -98,6 +134,15 @@ export class ContextManager {
     }
 
     mouseOverBlockHandler(event) {
+        // Проверить наведение на anchor point для режима соединений
+        if (event.target.classList.contains('anchor-point')) {
+            this.clickedAnchor = {
+                blockId: event.target.dataset.blockId,
+                position: event.target.dataset.position  // например 'top-left', 'right-center'
+            };
+        } else {
+            this.clickedAnchor = null;
+        }
         // Обновляем активный блок всегда, включая режим shiftLock для мульти-выделения
         this.setActiveBlock(event.target)
     }
@@ -453,3 +498,31 @@ export class ContextManager {
     }
 
 }
+
+// Singleton instance для использования в других модулях
+// Инициализируется в CommandManager, здесь - заглушка для импорта
+let contextManagerInstance = null;
+
+export function setContextManager(instance) {
+    contextManagerInstance = instance;
+}
+
+export const contextManager = {
+    /**
+     * Получить контекст текущего состояния редактора
+     * @returns {Object} Объект с текущим состоянием
+     */
+    getContext: () => {
+        if (!contextManagerInstance) return {};
+        return {
+            blockId: contextManagerInstance.blockElement?.id?.split('*').pop(),
+            blockElement: contextManagerInstance.blockElement,
+            blockLinkElement: contextManagerInstance.blockLinkElement,
+            blockLinkId: contextManagerInstance.blockLinkId,
+            selectedBlocks: contextManagerInstance.getSelectedBlockIds(),
+            mode: contextManagerInstance.mode,
+            cmdId: contextManagerInstance.cmdId
+        };
+    },
+    getInstance: () => contextManagerInstance
+};

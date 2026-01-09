@@ -7,6 +7,7 @@ import {
     isValidConnectionType,
     applyColorToConfig
 } from "./connectionTypes";
+import {connectionEditManager} from "./connectionEditManager";
 
 
 const SMALL_LAYOUTS = ["xxxs-sq", "xxxs-w", "xxxs-h"];
@@ -60,6 +61,126 @@ class ArrowManager {
             this.currentArrows = new Set(e.detail.arrows);
             this.loadConnections(e.detail);
         });
+
+        // Обработчик создания соединения через anchor points
+        window.addEventListener('CreateConnectionFromAnchors', (e) => {
+            const { sourceId, targetId, sourceAnchor, targetAnchor, connectionType } = e.detail;
+            this.createConnectionWithAnchors(sourceId, targetId, sourceAnchor, targetAnchor, connectionType);
+        });
+    }
+
+    /**
+     * Преобразует позицию anchor в формат jsPlumb
+     * @param {string} position - Позиция anchor (12 позиций: top-left, top-center, etc.)
+     * @returns {Array} - Массив координат для jsPlumb [x, y, dx, dy]
+     */
+    anchorPositionToJsPlumb(position) {
+        const anchors = {
+            // Верхняя сторона
+            'top-left': [0.25, 0, 0, -1],
+            'top-center': [0.5, 0, 0, -1],
+            'top': [0.5, 0, 0, -1],  // alias для совместимости
+            'top-right': [0.75, 0, 0, -1],
+            // Правая сторона
+            'right-top': [1, 0.25, 1, 0],
+            'right-center': [1, 0.5, 1, 0],
+            'right': [1, 0.5, 1, 0],  // alias
+            'right-bottom': [1, 0.75, 1, 0],
+            // Нижняя сторона
+            'bottom-right': [0.75, 1, 0, 1],
+            'bottom-center': [0.5, 1, 0, 1],
+            'bottom': [0.5, 1, 0, 1],  // alias
+            'bottom-left': [0.25, 1, 0, 1],
+            // Левая сторона
+            'left-bottom': [0, 0.75, -1, 0],
+            'left-center': [0, 0.5, -1, 0],
+            'left': [0, 0.5, -1, 0],  // alias
+            'left-top': [0, 0.25, -1, 0]
+        };
+        return anchors[position] || [0.5, 0.5, 0, 0];
+    }
+
+    /**
+     * Унифицированный метод создания соединения с опциональными anchor points
+     * @param {string} sourceId - ID элемента-источника
+     * @param {string} targetId - ID элемента-цели
+     * @param {string} connectionType - Тип соединения (из CONNECTION_TYPES)
+     * @param {string|null} sourceAnchor - Позиция anchor на источнике или null для auto ("Continuous")
+     * @param {string|null} targetAnchor - Позиция anchor на цели или null для auto ("Continuous")
+     * @param {string|null} color - Цвет соединения (опционально)
+     */
+    createConnection(sourceId, targetId, connectionType = CONNECTION_TYPES.DEFAULT, sourceAnchor = null, targetAnchor = null, color = null) {
+        if (!sourceId || !targetId) return;
+
+        // Разрешить self-loop только для StateMachine типа
+        if (sourceId === targetId && connectionType !== CONNECTION_TYPES.STATEMACHINE) {
+            return;
+        }
+
+        const sourceEl = document.getElementById(sourceId);
+        const targetEl = document.getElementById(targetId);
+        if (!sourceEl || !targetEl) return;
+
+        const layout = sourceEl?.getAttribute("data-layout");
+
+        // Получаем конфигурацию по типу соединения
+        let config = getConnectionConfig(connectionType);
+
+        // Применяем цвет если указан
+        if (color) {
+            config = applyColorToConfig(config, color);
+        }
+
+        // Определяем anchors: конкретная позиция или "Continuous" для auto
+        const anchors = [
+            sourceAnchor ? this.anchorPositionToJsPlumb(sourceAnchor) : "Continuous",
+            targetAnchor ? this.anchorPositionToJsPlumb(targetAnchor) : "Continuous"
+        ];
+
+        const connector = this.getConnector(config.connector || this.defaultConnector, layout);
+        const paintStyle = this.getPaintStyle(config.paintStyle || this.defaultPaintStyle, layout);
+        const overlays = this.getOverlays(config.overlays || this.defaultOverlays, layout);
+        const endpoint = this.getEndpoint({type: 'Dot', options: {radius: 4}}, layout);
+        const endpointStyle = {fill: paintStyle.stroke || "#456", outlineWidth: 0};
+
+        this.instance.connect({
+            source: sourceId,
+            target: targetId,
+            anchors,
+            connector,
+            paintStyle,
+            overlays,
+            endpoint,
+            endpointStyle
+        });
+
+        // Сохраняем соединение с информацией об anchors
+        dispatch("AddConnectionBlock", {
+            sourceId,
+            targetId,
+            connector: config.connector || this.defaultConnector,
+            paintStyle: config.paintStyle || this.defaultPaintStyle,
+            overlays: config.overlays || this.defaultOverlays,
+            anchors,
+            endpoint,
+            endpointStyle,
+            connectionType,
+            color,
+            sourceAnchor,  // Сохраняем имя позиции для восстановления
+            targetAnchor
+        });
+    }
+
+    /**
+     * Создает соединение с указанными anchor points (делегирует createConnection)
+     * @param {string} sourceId - ID элемента-источника
+     * @param {string} targetId - ID элемента-цели
+     * @param {string} sourceAnchor - Позиция anchor на источнике
+     * @param {string} targetAnchor - Позиция anchor на цели
+     * @param {string} connectionType - Тип соединения
+     */
+    createConnectionWithAnchors(sourceId, targetId, sourceAnchor, targetAnchor, connectionType = CONNECTION_TYPES.DEFAULT) {
+        this.createConnection(sourceId, targetId, connectionType, sourceAnchor, targetAnchor, null);
     }
 
     /**
@@ -72,8 +193,8 @@ class ArrowManager {
             if (this.removeArrow) {
                 this.deleteConnection(info);
             } else {
-                // todo переделать добаление лейбла
-                // this.handleConnectionLabel(info);
+                // Показать панель редактирования соединения
+                connectionEditManager.show(info);
             }
         });
     }
@@ -159,55 +280,17 @@ class ArrowManager {
 
 
     /**
-     * Завершает создание соединения к целевому элементу.
+     * Завершает создание соединения к целевому элементу (делегирует createConnection)
+     * Использует auto-anchors ("Continuous") для автоматического позиционирования
      * @param {string} sourceId - ID элемента-источника.
      * @param {string} targetId - ID элемента-цели.
      * @param {string} connectionType - Тип соединения (из CONNECTION_TYPES).
      * @param {string} color - Цвет соединения (опционально).
+     * @param {string|null} sourceAnchor - Опциональная позиция anchor на источнике
+     * @param {string|null} targetAnchor - Опциональная позиция anchor на цели
      */
-    completeConnectionToElement(sourceId, targetId, connectionType = CONNECTION_TYPES.DEFAULT, color = null) {
-        if (!sourceId || !targetId || sourceId === targetId) return;
-
-        const sourceEl = document.getElementById(sourceId);
-        const layout = sourceEl?.getAttribute("data-layout");
-
-        // Получаем конфигурацию по типу соединения
-        let config = getConnectionConfig(connectionType);
-
-        // Применяем цвет если указан
-        if (color) {
-            config = applyColorToConfig(config, color);
-        }
-
-        const connector = this.getConnector(config.connector || this.defaultConnector, layout);
-        const paintStyle = this.getPaintStyle(config.paintStyle || this.defaultPaintStyle, layout);
-        const overlays = this.getOverlays(config.overlays || this.defaultOverlays, layout);
-        const endpoint = this.getEndpoint({type: 'Dot', options: {radius: 4}}, layout);
-        const endpointStyle = {fill: paintStyle.stroke || "#456", outlineWidth: 0};
-
-        this.instance.connect({
-            source: sourceId,
-            target: targetId,
-            anchors: this.defaultAnchors,
-            connector,
-            paintStyle,
-            overlays,
-            endpoint,
-            endpointStyle
-        });
-
-        this.saveConnection(
-            sourceId,
-            targetId,
-            config.connector || this.defaultConnector,
-            config.paintStyle || this.defaultPaintStyle,
-            config.overlays || this.defaultOverlays,
-            this.defaultAnchors,
-            endpoint,
-            endpointStyle,
-            connectionType,
-            color
-        );
+    completeConnectionToElement(sourceId, targetId, connectionType = CONNECTION_TYPES.DEFAULT, color = null, sourceAnchor = null, targetAnchor = null) {
+        this.createConnection(sourceId, targetId, connectionType, sourceAnchor, targetAnchor, color);
     }
 
     /**
@@ -245,18 +328,36 @@ class ArrowManager {
     loadConnections({arrows}) {
         this.instance.reset();
 
+        // Проверка видимости учитывает overflow родителей.
+        // Элемент должен быть видим в viewport И внутри всех родительских
+        // контейнеров со скроллом (overflow: auto/scroll/hidden).
         const isVisible = (el) => {
             if (!el) return false;
-            const r = el.getBoundingClientRect(), o = 10;
-            return [
-                [r.left + o, r.top + o],
-                [r.right - o, r.top + o],
-                [r.left + o, r.bottom - o],
-                [r.right - o, r.bottom - o],
-            ].every(([x, y]) => {
-                const at = document.elementFromPoint(x, y);
-                return el.contains(at) || at === el;
-            });
+            const r = el.getBoundingClientRect();
+            // Элемент должен иметь размеры > 0
+            if (r.width <= 0 || r.height <= 0) return false;
+
+            // Проверяем видимость внутри всех родителей с overflow
+            let parent = el.parentElement;
+            while (parent && parent !== document.body) {
+                const style = getComputedStyle(parent);
+                const overflow = style.overflow + style.overflowX + style.overflowY;
+                // Если родитель имеет overflow (не visible), проверяем bounds
+                if (overflow.includes('auto') || overflow.includes('scroll') || overflow.includes('hidden')) {
+                    const parentRect = parent.getBoundingClientRect();
+                    // Элемент должен быть хотя бы частично видим внутри родителя
+                    if (r.bottom <= parentRect.top || r.top >= parentRect.bottom ||
+                        r.right <= parentRect.left || r.left >= parentRect.right) {
+                        return false;
+                    }
+                }
+                parent = parent.parentElement;
+            }
+
+            // Элемент должен быть хотя бы частично в viewport
+            const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+            const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+            return r.bottom > 0 && r.top < viewportHeight && r.right > 0 && r.left < viewportWidth;
         };
 
         arrows.forEach(({connections, layout}) => {

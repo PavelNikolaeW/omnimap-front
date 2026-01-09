@@ -16,10 +16,24 @@ class GridClassManager {
     constructor() {
     }
 
+    /**
+     * Безопасно получает количество детей блока
+     * Использует childOrder как источник истины для рендеринга
+     * @param {Object} block - Блок
+     * @returns {number} Количество детей
+     */
+    static getChildCount(block) {
+        // childOrder - источник истины для рендеринга (определяет порядок)
+        const childOrderLen = block.data?.childOrder?.length || 0;
+        const childrenLen = block.children?.length || 0;
+        // Используем меньшее значение для безопасности (если рассинхронизированы)
+        return Math.min(childOrderLen, childrenLen);
+    }
+
     manager(block, parentBlock) {
         this.calcBlockSize(block, parentBlock)
         const sizeLayout = block.size.layout
-        const len = block.children.length
+        const len = GridClassManager.getChildCount(block)
         const blockLayout = block.data?.layout || 'default'
 
         // Парсим тип layout и конфигурацию
@@ -54,7 +68,7 @@ class GridClassManager {
     }
 
     static layoutVertical(block) {
-        const lenChildren = block.children.length
+        const lenChildren = GridClassManager.getChildCount(block)
         const childrenPosition = {}
         let startRow = 2
         for (let i = 0; i < lenChildren; i++) {
@@ -72,7 +86,7 @@ class GridClassManager {
     }
 
     static layoutHorizontal(block) {
-        const lenChildren = block.children.length
+        const lenChildren = GridClassManager.getChildCount(block)
         const childrenPosition = {}
         let startCol = 0
         let endCol = 1
@@ -98,7 +112,7 @@ class GridClassManager {
     layoutGrid(block, config) {
         const gridConfig = config || block.data?.gridConfig || DEFAULT_GRID_CONFIG
         const { rows, columns } = gridConfig
-        const lenChildren = block.children.length
+        const lenChildren = GridClassManager.getChildCount(block)
         const childrenPosition = {}
 
         // Рассчитываем реальное число строк (может быть больше чем задано, если детей много)
@@ -134,7 +148,7 @@ class GridClassManager {
     layoutMasonry(block, config) {
         const masonryConfig = config || block.data?.masonryConfig || DEFAULT_MASONRY_CONFIG
         const { minChildWidth, maxColumns } = masonryConfig
-        const lenChildren = block.children.length
+        const lenChildren = GridClassManager.getChildCount(block)
         const childrenPosition = {}
 
         // Рассчитываем оптимальное число колонок на основе ширины блока
@@ -212,7 +226,7 @@ class GridClassManager {
      */
     layoutDefault(block) {
         const sizeLayout = block.size.layout;
-        const len = block.children.length;
+        const len = GridClassManager.getChildCount(block);
         const layoutOptions = this.calc_optionsLayout(sizeLayout, len, block.data?.groupSizes);
         const rez = GridLayoutCalculator.computeGridLayoutGroups(len, layoutOptions);
         return GridClassManager.returnClasses(block, rez.totalGridRows, rez.gridColumns, rez.rectangles, rez.groupSizes);
@@ -299,7 +313,8 @@ class GridClassManager {
     }
 
     static table(block) {
-        const gridSize = Math.ceil(Math.sqrt(block.children.length))
+        const lenChildren = GridClassManager.getChildCount(block)
+        const gridSize = Math.ceil(Math.sqrt(lenChildren))
         let [row, col] = [gridSize + 1, gridSize]
         if (block.data.table) {
             [row, col] = [block.data.table.row, block.data.table.col]
@@ -313,7 +328,7 @@ class GridClassManager {
         const columnsPerChild = 1;
 
         // Итерация по каждой позиции дочернего элемента в объекте
-        for (let i = 0; i < block.children.length; i++) {
+        for (let i = 0; i < lenChildren; i++) {
             const id = block.data.childOrder[i]
             // Проверка, нужно ли переходить на новую строку
             if (childIndex !== 0 && childIndex % col === 0) {
@@ -364,7 +379,7 @@ class GridClassManager {
      */
     static _setChildrenPosition(block, row, col, rectangles = []) {
         const children_position = {}
-        const totalChildren = block.children.length;
+        const totalChildren = GridClassManager.getChildCount(block);
         for (let i = 0; i < totalChildren; i++) {
             const id = block.data.childOrder[i]
             const rect = rectangles[i]

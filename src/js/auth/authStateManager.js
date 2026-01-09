@@ -17,6 +17,7 @@ class AuthStateManager {
         this.currentUser = null;
         this.isLinkView = false;
         this.tokenCheckTimer = null;
+        this._initialized = false;
 
         // UI элементы
         this.elements = {
@@ -27,18 +28,26 @@ class AuthStateManager {
             controlPanel: null
         };
 
-        this.init();
+        // Подписываемся на события сразу (они могут прийти до init)
+        this.addEventListeners();
     }
 
+    /**
+     * Инициализация менеджера
+     * ВАЖНО: Вызывать только после localforage.ready()
+     */
     async init() {
+        console.log('[AuthStateManager] init called, _initialized:', this._initialized);
+        if (this._initialized) return;
+        this._initialized = true;
+
         // Кэшируем DOM элементы
         this.cacheElements();
+        console.log('[AuthStateManager] elements:', this.elements);
 
         // Проверяем, открыта ли страница по ссылке
         this.isLinkView = window.location.search.includes('?');
-
-        // Подписываемся на события
-        this.addEventListeners();
+        console.log('[AuthStateManager] isLinkView:', this.isLinkView);
 
         // Инициализируем состояние
         await this.checkAuthState();
@@ -66,6 +75,8 @@ class AuthStateManager {
         const user = await localforage.getItem('currentUser');
         const hasTokens = Cookies.get('refresh') !== undefined;
 
+        console.log('[AuthStateManager] checkAuthState:', { user, hasTokens });
+
         if (user && user !== 'anonim' && hasTokens) {
             this.isAuthenticated = true;
             this.currentUser = user;
@@ -74,6 +85,7 @@ class AuthStateManager {
             this.currentUser = user === 'anonim' ? 'anonim' : null;
         }
 
+        console.log('[AuthStateManager] state:', { isAuthenticated: this.isAuthenticated, currentUser: this.currentUser });
         this.updateUI();
     }
 

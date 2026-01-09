@@ -34,7 +34,7 @@ test.describe('Поиск блоков (SearchPopup)', () => {
   test.describe('Открытие и закрытие поиска', () => {
     test('должен открыть поиск через команду', async ({ authenticatedPage }) => {
       // Ищем кнопку поиска в панели или используем хоткей
-      const searchBtn = authenticatedPage.controlPanel.locator('#search, .fa-search, [title*="search" i]');
+      const searchBtn = authenticatedPage.controlPanel.locator('#findBlock, .fa-search, [title*="search" i]');
 
       if (await searchBtn.isVisible()) {
         await searchBtn.click();
@@ -46,7 +46,7 @@ test.describe('Поиск блоков (SearchPopup)', () => {
     });
 
     test('должен закрыть поиск через Escape', async ({ authenticatedPage }) => {
-      const searchBtn = authenticatedPage.controlPanel.locator('#search, .fa-search');
+      const searchBtn = authenticatedPage.controlPanel.locator('#findBlock, .fa-search');
 
       if (await searchBtn.isVisible()) {
         await searchBtn.click();
@@ -64,7 +64,7 @@ test.describe('Поиск блоков (SearchPopup)', () => {
 
   test.describe('Ввод и результаты поиска', () => {
     test('должен показать результаты поиска при вводе текста', async ({ authenticatedPage }) => {
-      const searchBtn = authenticatedPage.controlPanel.locator('#search, .fa-search');
+      const searchBtn = authenticatedPage.controlPanel.locator('#findBlock, .fa-search');
 
       if (await searchBtn.isVisible()) {
         await searchBtn.click();
@@ -100,7 +100,7 @@ test.describe('Поиск блоков (SearchPopup)', () => {
         });
       });
 
-      const searchBtn = authenticatedPage.controlPanel.locator('#search, .fa-search');
+      const searchBtn = authenticatedPage.controlPanel.locator('#findBlock, .fa-search');
 
       if (await searchBtn.isVisible()) {
         await searchBtn.click();
@@ -120,7 +120,7 @@ test.describe('Поиск блоков (SearchPopup)', () => {
     });
 
     test('должен открыть блок при клике на результат', async ({ authenticatedPage }) => {
-      const searchBtn = authenticatedPage.controlPanel.locator('#search, .fa-search');
+      const searchBtn = authenticatedPage.controlPanel.locator('#findBlock, .fa-search');
 
       if (await searchBtn.isVisible()) {
         await searchBtn.click();
@@ -145,7 +145,7 @@ test.describe('Поиск блоков (SearchPopup)', () => {
     });
 
     test('должен скопировать ID блока через кнопку в результате', async ({ authenticatedPage }) => {
-      const searchBtn = authenticatedPage.controlPanel.locator('#search, .fa-search');
+      const searchBtn = authenticatedPage.controlPanel.locator('#findBlock, .fa-search');
 
       if (await searchBtn.isVisible()) {
         await searchBtn.click();
@@ -169,7 +169,7 @@ test.describe('Поиск блоков (SearchPopup)', () => {
 
   test.describe('Опции поиска', () => {
     test('должен переключить опцию "Искать везде"', async ({ authenticatedPage }) => {
-      const searchBtn = authenticatedPage.controlPanel.locator('#search, .fa-search');
+      const searchBtn = authenticatedPage.controlPanel.locator('#findBlock, .fa-search');
 
       if (await searchBtn.isVisible()) {
         await searchBtn.click();

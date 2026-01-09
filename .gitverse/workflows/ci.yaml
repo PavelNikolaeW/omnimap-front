@@ -1,0 +1,38 @@
+# CI/CD for omnimap-front service
+#
+# Triggers deployment via helm repo (GitOps)
+# Actual build and deploy logic is in omnimap-helm repo
+
+name: CI/CD Frontend
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  trigger-deploy:
+    name: Trigger Deploy
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Trigger helm repo deploy
+        run: |
+          echo "Triggering deploy-service.yml for frontend..."
+          HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.DEPLOY_TOKEN }}" \
+            -H "Accept: application/vnd.gitverse.object+json;version=1" \
+            "https://api.gitverse.ru/repos/PavelNikolaeW/omnimap-helm/actions/workflows/deploy-service.yml/dispatches?branch=main" \
+            -d '{"service":"frontend"}')
+
+          echo "HTTP Status: $HTTP_CODE"
+          if [ "$HTTP_CODE" != "204" ]; then
+            echo "ERROR: Failed to trigger workflow"
+            cat /tmp/response.txt
+            exit 1
+          fi
+          echo "Successfully triggered deploy workflow for frontend"

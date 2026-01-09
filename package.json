@@ -17,7 +17,15 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
-    "test:e2e:headed": "playwright test --headed"
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:smoke": "playwright test --project=smoke",
+    "test:e2e:chromium": "playwright test --project=chromium",
+    "test:e2e:setup": "playwright test --project=setup",
+    "test:e2e:report": "open e2e/playwright-report/index.html || xdg-open e2e/playwright-report/index.html || start e2e/playwright-report/index.html",
+    "test:e2e:report:serve": "playwright show-report e2e/playwright-report",
+    "test:e2e:open": "PLAYWRIGHT_HTML_OPEN=always playwright test",
+    "lint": "echo 'No linter configured yet'",
+    "typecheck": "echo 'No TypeScript configured yet'"
   },
   "keywords": [],
   "author": "",

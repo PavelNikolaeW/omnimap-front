@@ -1,25 +1,235 @@
 import localforage from "localforage";
 import {dispatch} from "../utils/utils";
+import {diagramEditor} from "./diagramEditor";
+import {blockStyleManager, connectionStyleManager} from "./blockStyleManager";
+import {contextManager} from "./comands/contextManager";
 
 export class DiagramUtils {
     constructor() {
+        // Старые элементы (для обратной совместимости)
         this.inputs = document.getElementById('diagram-inputs')
-        this.row = this.inputs.querySelector('#diagramRow')
-        this.col = this.inputs.querySelector('#diagramCol')
-        this.connections = this.inputs.querySelector('#CerateConnections')
-        this.addButton = this.inputs.querySelector('#addDiagram')
-        this.sizeSelector = this.inputs.querySelector('#sizeSelector')
-        this.resetBtn = this.inputs.querySelector('#reset')
+        this.connections = this.inputs?.querySelector('#CerateConnections')
+        this.addButton = this.inputs?.querySelector('#addDiagram')
+        this.sizeSelector = this.inputs?.querySelector('#sizeSelector')
+        this.resetBtn = this.inputs?.querySelector('#reset')
+        this.openStylePanelBtn = document.getElementById('openStylePanel')
+        this.openConnectionPanelBtn = document.getElementById('openConnectionPanel')
+
         this.block = undefined
+        this.diagramEditor = diagramEditor
+        this.blockStyleManager = blockStyleManager
+        this.connectionStyleManager = connectionStyleManager
         this.bindEvents()
+        this.createGridControls()
+    }
+
+    /**
+     * Начать режим создания соединения определённого типа
+     */
+    startConnectionMode(type) {
+        const ctx = contextManager.getContext()
+        const activeElement = ctx.blockElement || ctx.blockLinkElement
+
+        if (!activeElement) {
+            console.warn('Выберите блок-источник перед созданием соединения')
+            return
+        }
+
+        // Сохраняем тип соединения и запускаем режим
+        this.connectionType = type
+        this.connectionStyleManager.connectionType = type
+        this.connectionStyleManager.startConnectionMode()
     }
 
     bindEvents() {
-        this.row.addEventListener('input', () => this.inputHandler())
-        this.col.addEventListener('input', () => this.inputHandler())
-        this.addButton.addEventListener('click', (e) => this.addBtnHandler(e))
-        this.sizeSelector.addEventListener('change', (e) => this.selectSizeHandler(e))
-        this.resetBtn.addEventListener('click', () => this.resetHandler())
+        this.addButton?.addEventListener('click', (e) => this.addBtnHandler(e))
+        this.sizeSelector?.addEventListener('change', (e) => this.selectSizeHandler(e))
+        this.resetBtn?.addEventListener('click', () => this.resetHandler())
+
+        // Кнопки панелей стилей и соединений
+        this.openStylePanelBtn?.addEventListener('click', () => {
+            // Получить выбранный блок из contextManager
+            const selectedBlockId = this.getSelectedChildBlockId()
+            if (selectedBlockId) {
+                const selectedElement = document.getElementById(selectedBlockId)
+                this.blockStyleManager.toggle(selectedBlockId, selectedElement)
+            } else {
+                // Если нет выбранного блока, показать уведомление
+                console.warn('Выберите блок для применения стилей')
+            }
+            this.connectionStyleManager.hide()
+        })
+        this.openConnectionPanelBtn?.addEventListener('click', () => {
+            this.connectionStyleManager.toggle()
+            this.blockStyleManager.hide()
+        })
+    }
+
+    /**
+     * Создать дополнительные элементы управления сеткой
+     */
+    createGridControls() {
+        // Кнопки +/- для строк
+        const rowControl = document.createElement('div')
+        rowControl.className = 'grid-size-control'
+        rowControl.innerHTML = `
+            <button class="diagram-btn grid-size-btn" id="rowMinus">-</button>
+            <span id="rowDisplay">R: 0</span>
+            <button class="diagram-btn grid-size-btn" id="rowPlus">+</button>
+        `
+
+        // Кнопки +/- для колонок
+        const colControl = document.createElement('div')
+        colControl.className = 'grid-size-control'
+        colControl.innerHTML = `
+            <button class="diagram-btn grid-size-btn" id="colMinus">-</button>
+            <span id="colDisplay">C: 0</span>
+            <button class="diagram-btn grid-size-btn" id="colPlus">+</button>
+        `
+
+        // Разделитель
+        const separator = document.createElement('div')
+        separator.className = 'diagram-separator'
+
+        // Вставить после sizeSelector
+        const sizeLabel = this.sizeSelector.previousElementSibling
+        sizeLabel.after(separator)
+        separator.after(rowControl)
+        rowControl.after(colControl)
+
+        // Привязать обработчики
+        this.rowDisplay = document.getElementById('rowDisplay')
+        this.colDisplay = document.getElementById('colDisplay')
+
+        document.getElementById('rowPlus').addEventListener('click', () => this.adjustGridSize('row', 1))
+        document.getElementById('rowMinus').addEventListener('click', () => this.adjustGridSize('row', -1))
+        document.getElementById('colPlus').addEventListener('click', () => this.adjustGridSize('col', 1))
+        document.getElementById('colMinus').addEventListener('click', () => this.adjustGridSize('col', -1))
+    }
+
+    /**
+     * Установить размер сетки по пресету (xs, s, m, l)
+     * Вызывается из команд подменю диаграммы
+     */
+    async setGridSize(size) {
+        if (!size || size === '-') return
+
+        if (size === 'default') {
+            dispatch('UpdateDataBlock', {
+                blockId: this.blockId,
+                data: {customGrid: {}}
+            })
+            return
+        }
+
+        const block = await this.getBlock(this.blockId)
+        if (!block?.data?.childOrder) return
+
+        const createConnections = this.connections?.checked || false
+        const { connections, customGrid } = this.generateGrid(block.data.childOrder, size, createConnections)
+
+        dispatch('UpdateDataBlock', {
+            blockId: this.blockId,
+            data: {customGrid, connections}
+        })
+    }
+
+    /**
+     * Изменить размер сетки на delta
+     */
+    async adjustGridSize(dimension, delta) {
+        if (!this.blockId) {
+            console.warn('DiagramUtils: blockId не установлен')
+            return
+        }
+
+        const block = await this.getBlock(this.blockId)
+        if (!block?.data) return
+
+        // Инициализируем customGrid если его нет
+        if (!block.data.customGrid || !block.data.customGrid.grid) {
+            // Создаём минимальную сетку 3x3
+            block.data.customGrid = {
+                grid: [
+                    'grid-template-columns_1fr__1fr__1fr__',
+                    'grid-template-rows_auto__1fr__1fr__1fr__'
+                ],
+                contentPosition: ['grid-column_1_sl_4'],
+                childrenPositions: {}
+            }
+        }
+
+        const gridData = this.parseGridClasses(block.data.customGrid.grid)
+        let newRows = gridData.rows || 3
+        let newCols = gridData.cols || 3
+
+        if (dimension === 'row') {
+            newRows = Math.max(1, newRows + delta)
+        } else {
+            newCols = Math.max(1, newCols + delta)
+        }
+
+        block.data.customGrid.grid = [
+            `grid-template-columns_${'1fr__'.repeat(newCols)}`,
+            `grid-template-rows_auto__${'1fr__'.repeat(newRows)}`
+        ]
+        block.data.customGrid.contentPosition = [`grid-column_1_sl_${newCols + 1}`]
+
+        dispatch('UpdateCustomGridBlock', {
+            blockId: this.blockId,
+            customGrid: block.data.customGrid
+        })
+
+        this.updateGridDisplay(newRows, newCols)
+
+        // Обновить редактор если активен
+        if (this.diagramEditor.isActive) {
+            this.diagramEditor.customGrid = block.data.customGrid
+            this.diagramEditor.removeGridOverlay()
+            this.diagramEditor.createGridOverlay()
+        } else {
+            // Активируем редактор если он не был активен
+            await this.diagramEditor.activate(this.blockId, this.element)
+        }
+    }
+
+    /**
+     * Обновить отображение размеров сетки
+     */
+    updateGridDisplay(rows, cols) {
+        if (this.rowDisplay) this.rowDisplay.textContent = `R: ${rows}`
+        if (this.colDisplay) this.colDisplay.textContent = `C: ${cols}`
+    }
+
+    /**
+     * Получить ID выбранного дочернего блока внутри диаграммы
+     * Возвращает ID активного блока, если он является дочерним текущего блока диаграммы
+     */
+    getSelectedChildBlockId() {
+        const ctx = contextManager.getContext()
+        const activeBlockId = ctx.blockId
+
+        // Проверить, что активный блок является дочерним блоком диаграммы
+        if (activeBlockId && this.element) {
+            const activeElement = document.getElementById(activeBlockId)
+            if (activeElement && this.element.contains(activeElement)) {
+                return activeBlockId
+            }
+        }
+
+        // Проверить мульти-выделение
+        const selectedBlocks = ctx.selectedBlocks
+        if (selectedBlocks && selectedBlocks.length > 0) {
+            // Взять первый выбранный блок, который является дочерним диаграммы
+            for (const blockId of selectedBlocks) {
+                const el = document.getElementById(blockId)
+                if (el && this.element?.contains(el)) {
+                    return blockId
+                }
+            }
+        }
+
+        return null
     }
 
     async resetHandler() {
@@ -28,43 +238,30 @@ export class DiagramUtils {
         dispatch("UpdateDataBlock", {blockId: this.blockId, data: block.data})
     }
 
-    async inputHandler() {
-        const block = await this.getBlock(this.blockId)
-        block.data.customGrid.grid = [
-            `grid-template-columns_${'1fr__'.repeat(parseInt(this.col.value))}`,
-            `grid-template-rows_auto__${'1fr__'.repeat(parseInt(this.row.value) - 1)}`
-        ]
-        dispatch('UpdateCustomGridBlock', {
-            blockId: this.blockId,
-            customGrid: block.data.customGrid
-        })
-    }
-
     addBtnHandler(e) {
         dispatch('CreateBlock', {parentId: this.blockId, title: ''})
     }
 
     async selectSizeHandler() {
-        const selectedSize = this.sizeSelector.value
+        const selectedSize = this.sizeSelector?.value || this.sidebarSizeSelector?.value
         const block = await this.getBlock(this.blockId)
-        if (selectedSize === '-') return
+        if (!selectedSize || selectedSize === '-') return
         if (selectedSize === 'default') {
             dispatch('UpdateDataBlock', {
                 blockId: this.blockId,
                 data: {customGrid: {}}
             })
-            this.showRowCol([])
             return
         }
+        const createConnections = this.connections?.checked || false
         const {
             connections,
             customGrid
-        } = this.generateGrid(block.data.childOrder, selectedSize, this.connections.checked)
+        } = this.generateGrid(block.data.childOrder, selectedSize, createConnections)
         dispatch('UpdateDataBlock', {
             blockId: this.blockId,
             data: {customGrid, connections}
         })
-        this.showRowCol(customGrid.grid)
     }
 
     async getBlock(id) {
@@ -72,37 +269,39 @@ export class DiagramUtils {
         return await localforage.getItem(`Block_${id}_${user}`)
     }
 
-    showRowCol(grid) {
-        const gridData = this.parseGridClasses(grid)
-        if (gridData?.rows) {
-            this.row.parentNode.classList.remove('hidden')
-            this.col.parentNode.classList.remove('hidden')
-            this.row.value = gridData.rows || ''
-            this.col.value = gridData.cols || ''
-            this.row.focus()
-        } else {
-            this.row.parentNode.classList.add('hidden')
-            this.col.parentNode.classList.add('hidden')
-        }
-    }
-
     async showInputs(blockId, element) {
         this.blockId = blockId
         this.element = element
 
-        this.inputs.classList.remove('hidden')
         const block = await this.getBlock(blockId)
-        this.sizeSelector.focus()
-        if (block.data.customGrid?.grid) {
-            this.showRowCol(block.data.customGrid?.grid)
-        }
 
+        if (block.data.customGrid?.grid) {
+            const gridData = this.parseGridClasses(block.data.customGrid.grid)
+            this.updateGridDisplay(gridData.rows, gridData.cols)
+
+            // Активировать интерактивный редактор
+            await this.diagramEditor.activate(blockId, element)
+        } else {
+            this.updateGridDisplay(0, 0)
+        }
     }
 
     hiddenInputs() {
-        this.inputs.classList.add('hidden')
-        this.row.parentNode.classList.add('hidden')
-        this.col.parentNode.classList.add('hidden')
+        // Удалить класс выделения блока-диаграммы
+        if (this.element) {
+            this.element.classList.remove('diagram-target-block')
+        }
+
+        // Деактивировать интерактивный редактор
+        this.diagramEditor.deactivate()
+
+        // Закрыть панели стилей
+        this.blockStyleManager.hide()
+        this.connectionStyleManager.hide()
+
+        // Сбросить ссылки
+        this.blockId = undefined
+        this.element = undefined
     }
 
     parseGridClasses(classList) {

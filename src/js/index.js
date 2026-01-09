@@ -13,12 +13,14 @@ import '../style/importPopup.css';
 import '../style/imageUpload.css';
 import '../style/solid.css';
 import '../style/fontawesome.css';
-// import '../style/chat.css';
+import '../style/chat.css';
 import '../style/note-editor.css';
 import '../style/layout.css';
+import '../style/p2p-chat.css';
+import '../style/diagram-editor.css';
 
 import {dispatch} from "./utils/utils";
-import {LocalStateManager} from "./stateLocal/localStateManager";
+import {localStateManager} from "./stateLocal/localStateManager";
 import {addedSizeStyles} from "./painter/styles";
 import './painter/sizeValidator'; // Экспортирует window.sizeValidator
 import localforage from "localforage";
@@ -31,30 +33,161 @@ import {RedoStack, UndoStack} from "./controller/undoStack";
 import Cookies from "js-cookie";
 import {isExcludedElement} from "./utils/functions";
 import {authStateManager} from "./auth/authStateManager";
-import {offlineQueue} from "./sincManager/offlineQueue";
 import {networkStatusUI} from "./sincManager/networkStatusUI";
 import {handleTelegramLinkCallback} from "./controller/telegramLinkHandler";
 import {statusIndicators} from "./core/statusIndicators";
 import {initDevCacheManager} from "./core/devCacheManager";
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+    // Храним ссылку на updatefound handler для возможности cleanup
+    let updateFoundHandler = null;
+    let swRegistration = null;
+    let currentScope = null;
+    // Debounce для online событий - предотвращает множественные проверки
+    let updateCheckTimeout = null;
+    let isCheckingUpdate = false;
+
     window.addEventListener('load', () => {
         navigator.serviceWorker
             .register('/service-worker.js')
             .then(registration => {
+                // Предотвращаем повторную регистрацию обработчиков (сравниваем по scope)
+                if (currentScope === registration.scope) {
+                    return;
+                }
+                // Удаляем старый обработчик если был
+                if (updateFoundHandler && swRegistration) {
+                    swRegistration.removeEventListener('updatefound', updateFoundHandler);
+                }
+                swRegistration = registration;
+                currentScope = registration.scope;
                 console.log('Service Worker зарегистрирован с объемом: ', registration.scope);
+
+                // Слушаем обновления SW
+                updateFoundHandler = () => {
+                    const newWorker = registration.installing;
+                    if (newWorker) {
+                        let cleanupTimeout;
+                        const stateChangeHandler = () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                // Новая версия SW готова, уведомляем пользователя
+                                console.log('Новая версия приложения доступна, обновите страницу');
+                                dispatch('AppUpdateAvailable');
+                            }
+                            // Cleanup listener when SW reaches terminal state
+                            if (newWorker.state === 'activated' || newWorker.state === 'redundant') {
+                                clearTimeout(cleanupTimeout);
+                                newWorker.removeEventListener('statechange', stateChangeHandler);
+                            }
+                        };
+                        newWorker.addEventListener('statechange', stateChangeHandler);
+                        // Fallback cleanup after 60 seconds if SW gets stuck
+                        cleanupTimeout = setTimeout(() => {
+                            newWorker.removeEventListener('statechange', stateChangeHandler);
+                        }, 60000);
+                    }
+                };
+                registration.addEventListener('updatefound', updateFoundHandler);
             })
             .catch(error => {
                 console.log('Ошибка регистрации Service Worker: ', error);
             });
     });
+
+    // Cleanup при выгрузке страницы
+    window.addEventListener('beforeunload', () => {
+        try {
+            if (updateFoundHandler && swRegistration) {
+                swRegistration.removeEventListener('updatefound', updateFoundHandler);
+            }
+            clearTimeout(updateCheckTimeout);
+        } catch (e) {
+            // Игнорируем ошибки cleanup при выгрузке страницы
+        }
+    });
+
+    // При восстановлении соединения проверяем обновления с debounce
+    let cooldownTimeout = null;
+    window.addEventListener('online', () => {
+        // Debounce: игнорируем повторные события пока идёт проверка или cooldown
+        if (isCheckingUpdate) return;
+
+        clearTimeout(updateCheckTimeout);
+        updateCheckTimeout = setTimeout(() => {
+            isCheckingUpdate = true;
+            navigator.serviceWorker.ready
+                .then(registration => {
+                    if (registration.active) {
+                        registration.active.postMessage({ type: 'CHECK_UPDATES' });
+                    }
+                })
+                .catch(err => {
+                    console.warn('SW ready failed:', err);
+                })
+                .finally(() => {
+                    // Cooldown: разрешаем следующую проверку через 5 секунд
+                    clearTimeout(cooldownTimeout);
+                    cooldownTimeout = setTimeout(() => {
+                        isCheckingUpdate = false;
+                    }, 5000);
+                });
+        }, 1000); // Задержка 1 секунда перед проверкой
+    });
+
+    // Обработчик события обновления приложения - показываем уведомление
+    window.addEventListener('AppUpdateAvailable', () => {
+        // Проверяем, нет ли уже уведомления
+        if (document.querySelector('.app-update-notification')) {
+            return;
+        }
+
+        // Создаём уведомление безопасным способом (без innerHTML)
+        const notification = document.createElement('div');
+        notification.className = 'app-update-notification';
+
+        const messageSpan = document.createElement('span');
+        messageSpan.textContent = 'Доступна новая версия';
+
+        const updateBtn = document.createElement('button');
+        updateBtn.textContent = 'Обновить';
+        updateBtn.addEventListener('click', () => {
+            // Проверяем наличие несохранённых данных перед обновлением
+            // networkStatusUI.getPendingCount() - синхронный метод с кэшированным значением
+            const pendingCount = networkStatusUI.getPendingCount();
+            if (pendingCount > 0) {
+                if (!confirm(`У вас есть ${pendingCount} несохранённых изменений. Обновить страницу?`)) {
+                    return;
+                }
+            }
+            window.location.reload();
+        });
+
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '✕';
+        closeBtn.addEventListener('click', () => notification.remove());
+
+        notification.appendChild(messageSpan);
+        notification.appendChild(updateBtn);
+        notification.appendChild(closeBtn);
+        document.body.appendChild(notification);
+    });
 }
 
 
-// Import LLMFullscreenChat to expose it to window
-import '../llm_chat/src/fullscreen/index.jsx';
-
 document.addEventListener('DOMContentLoaded', async () => {
+    // Показываем версию приложения
+    // Приоритет: runtime config (ConfigMap) > build-time (webpack)
+    const versionEl = document.getElementById('app-version');
+    if (versionEl) {
+        const runtimeConfig = window.__OMNIMAP_CONFIG__ || {};
+        const version = runtimeConfig.APP_VERSION ||
+            (typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'dev');
+        const env = runtimeConfig.APP_ENVIRONMENT || '';
+        versionEl.textContent = env && env !== 'production'
+            ? `v${version} (${env})`
+            : `v${version}`;
+    }
+
     // Инициализируем менеджер кэша для dev режима
     await initDevCacheManager();
 
@@ -67,6 +200,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         alert(`Ошибка инициализации: ${error.message}`);
     }
 });
+
+/**
+ * Скрывает загрузочный экран и показывает основной контент
+ */
+function hideLoader() {
+    const loader = document.getElementById('app-loader');
+    const layout = document.querySelector('.layout');
+
+    if (loader) {
+        loader.classList.add('hidden');
+        // Удаляем loader из DOM после анимации
+        setTimeout(() => loader.remove(), 300);
+    }
+
+    if (layout) {
+        layout.classList.add('loaded');
+    }
+}
 
 /**
  * Быстрая инициализация приложения
@@ -82,6 +233,9 @@ async function fastInitialization() {
         description: ''
     });
     await localforage.ready();
+
+    // Инициализируем authStateManager после localforage
+    await authStateManager.init();
 
     // Запрашиваем persistent storage в фоне
     if ('storage' in navigator && 'persist' in navigator.storage) {
@@ -104,7 +258,10 @@ async function fastInitialization() {
     await initApp();
 
     // Инициализируем статус-индикаторы после того как интерфейс готов
-    statusIndicators.init('top-btn-container');
+    statusIndicators.init();
+
+    // Скрываем загрузочный экран после полной инициализации
+    hideLoader();
 }
 
 
@@ -123,7 +280,8 @@ async function initApp() {
             hotkeysMap ?? {},
         )
     })
-    const localState = new LocalStateManager()
+    // Инициализируем singleton LocalStateManager
+    localStateManager.getInstance();
     const sincManager = new SincManager()
 
     // Экспорт для отладки размеров (доступно в консоли браузера)
@@ -154,12 +312,39 @@ async function checkAuth() {
         dispatch('InitAnonimUser')
         return false
     }
-    if (!navigator.onLine && Cookies.get('refresh') !== undefined) {
+
+    // Проверяем наличие refresh токена
+    const hasRefreshToken = Cookies.get('refresh') !== undefined
+
+    // Если anonim, но есть токены - удаляем их (несогласованное состояние)
+    if (user === 'anonim' && hasRefreshToken) {
+        console.warn('[checkAuth] Inconsistent state: anonim user with tokens, clearing tokens');
+        Cookies.remove('access');
+        Cookies.remove('refresh');
         return true
     }
-    if (user !== 'anonim') {
-        return await api.refreshToken()
+
+    // Если пользователь авторизован, но токенов нет - logout
+    if (user !== 'anonim' && !hasRefreshToken) {
+        dispatch('Logout')
+        return false
     }
+
+    // Офлайн режим с валидным refresh токеном
+    if (!navigator.onLine && hasRefreshToken) {
+        return true
+    }
+
+    // Онлайн режим - пробуем обновить токен
+    if (user !== 'anonim') {
+        const refreshed = await api.refreshToken()
+        if (!refreshed) {
+            dispatch('Logout')
+            return false
+        }
+        return true
+    }
+
     return true
 }
 

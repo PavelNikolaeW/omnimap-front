@@ -2,7 +2,7 @@ import { runHealthChecks } from './healthCheck';
 
 /**
  * Компонент статус-индикаторов систем
- * Отображает состояние IndexedDB, Backend API, WebSocket как цветные диоды
+ * Отображает состояние IndexedDB, Backend API, WebSocket, LLM Gateway как цветные диоды
  */
 class StatusIndicators {
     constructor() {
@@ -12,18 +12,20 @@ class StatusIndicators {
     }
 
     /**
-     * Инициализирует компонент и вставляет его в указанный контейнер
-     * @param {string} containerId - ID контейнера для вставки
+     * Инициализирует компонент и вставляет его между top-navigation и content-wrapper
      */
-    init(containerId = 'top-btn-container') {
-        const container = document.getElementById(containerId);
-        if (!container) {
-            console.warn('StatusIndicators: container not found:', containerId);
+    init() {
+        const topNavigation = document.getElementById('topSidebar');
+        const contentWrapper = document.querySelector('.content-wrapper');
+
+        if (!topNavigation || !contentWrapper) {
+            console.warn('StatusIndicators: required elements not found');
             return;
         }
 
         this._createElement();
-        container.insertBefore(this.element, container.firstChild);
+        // Вставляем между top-navigation и content-wrapper
+        topNavigation.parentNode.insertBefore(this.element, contentWrapper);
 
         this._addEventListeners();
         this._runInitialChecks();
@@ -36,25 +38,21 @@ class StatusIndicators {
         this.element = document.createElement('div');
         this.element.className = 'status-indicators';
         this.element.innerHTML = `
-            <div class="status-indicator" data-system="db" title="IndexedDB">
-                <span class="status-led"></span>
-            </div>
-            <div class="status-indicator" data-system="api" title="Backend API">
-                <span class="status-led"></span>
-            </div>
-            <div class="status-indicator" data-system="ws" title="WebSocket">
-                <span class="status-led"></span>
-            </div>
+            <span class="status-led" data-system="db" title="DB — проверка..."></span>
+            <span class="status-led" data-system="api" title="API — проверка..."></span>
+            <span class="status-led" data-system="ws" title="Sync — проверка..."></span>
+            <span class="status-led" data-system="llm" title="LLM — проверка..."></span>
         `;
 
         // Сохраняем ссылки на индикаторы
         this.indicators = {
-            db: this.element.querySelector('[data-system="db"] .status-led'),
-            api: this.element.querySelector('[data-system="api"] .status-led'),
-            ws: this.element.querySelector('[data-system="ws"] .status-led')
+            db: this.element.querySelector('[data-system="db"]'),
+            api: this.element.querySelector('[data-system="api"]'),
+            ws: this.element.querySelector('[data-system="ws"]'),
+            llm: this.element.querySelector('[data-system="llm"]')
         };
 
-        // Начальное состояние - жёлтый (проверка)
+        // Начальное состояние - серый (проверка)
         Object.values(this.indicators).forEach(led => {
             led.classList.add('checking');
         });
@@ -82,7 +80,20 @@ class StatusIndicators {
             if (!e.detail.online) {
                 this.setStatus('api', 'error');
                 this.setStatus('ws', 'error');
+                this.setStatus('llm', 'error');
+            } else {
+                // При восстановлении сети перепроверяем статусы
+                this._runInitialChecks();
             }
+        });
+
+        // Слушаем события LLM Gateway
+        window.addEventListener('LLMGatewayConnected', () => {
+            this.setStatus('llm', 'ok');
+        });
+
+        window.addEventListener('LLMGatewayError', () => {
+            this.setStatus('llm', 'warning');
         });
 
         // Слушаем успешную авторизацию как признак работающего API
@@ -94,6 +105,39 @@ class StatusIndicators {
         window.addEventListener('ApiError', () => {
             this.setStatus('api', 'warning');
         });
+
+        // Синхронизация: моргание API индикатора
+        window.addEventListener('ApiSyncStarted', () => {
+            this.startSyncBlink('api');
+        });
+
+        window.addEventListener('ApiSyncFinished', () => {
+            this.stopSyncBlink('api');
+        });
+    }
+
+    /**
+     * Запускает моргание индикатора для отображения активности синхронизации
+     * @param {string} system - Система ('db', 'api', 'ws', 'llm')
+     */
+    startSyncBlink(system) {
+        const led = this.indicators[system];
+        if (!led) return;
+
+        // Добавляем класс моргания
+        led.classList.add('syncing');
+    }
+
+    /**
+     * Останавливает моргание индикатора
+     * @param {string} system - Система ('db', 'api', 'ws', 'llm')
+     */
+    stopSyncBlink(system) {
+        const led = this.indicators[system];
+        if (!led) return;
+
+        // Убираем класс моргания
+        led.classList.remove('syncing');
     }
 
     /**
@@ -109,13 +153,15 @@ class StatusIndicators {
                 this.setStatus('api', check.ok ? 'ok' : (check.critical ? 'error' : 'warning'));
             } else if (check.name === 'WebSocket Service') {
                 this.setStatus('ws', check.ok ? 'ok' : (check.critical ? 'error' : 'warning'));
+            } else if (check.name === 'LLM Gateway') {
+                this.setStatus('llm', check.ok ? 'ok' : (check.critical ? 'error' : 'warning'));
             }
         });
     }
 
     /**
      * Устанавливает статус индикатора
-     * @param {string} system - Система ('db', 'api', 'ws')
+     * @param {string} system - Система ('db', 'api', 'ws', 'llm')
      * @param {string} status - Статус ('ok', 'warning', 'error', 'checking')
      */
     setStatus(system, status) {
@@ -126,22 +172,10 @@ class StatusIndicators {
         led.classList.remove('ok', 'warning', 'error', 'checking');
         led.classList.add(status);
 
-        // Обновляем title
-        const indicator = led.closest('.status-indicator');
-        if (indicator) {
-            const systemNames = {
-                db: 'IndexedDB',
-                api: 'Backend API',
-                ws: 'WebSocket'
-            };
-            const statusTexts = {
-                ok: 'Работает',
-                warning: 'Проблемы',
-                error: 'Недоступен',
-                checking: 'Проверка...'
-            };
-            indicator.title = `${systemNames[system]}: ${statusTexts[status]}`;
-        }
+        // Обновляем title для нативной браузерной подсказки
+        const names = { db: 'DB', api: 'API', ws: 'Sync', llm: 'LLM' };
+        const texts = { ok: 'работает', warning: 'проблемы', error: 'недоступен', checking: 'проверка...' };
+        led.title = `${names[system]} — ${texts[status]}`;
     }
 
     /**

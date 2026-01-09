@@ -5,11 +5,12 @@ import {v4 as uuidV4} from 'uuid';
 import {LimitedMapQueue} from "../utils/limitedQueue";
 import {log} from "@jsplumb/browser-ui";
 import localforage from "localforage";
+import config from "../config";
 
 class Api {
     constructor() {
-        // Убираем trailing slash для предотвращения двойных слэшей в URL
-        this.backendUrl = (APP_BACKEND_URL || 'http://localhost:8000').replace(/\/+$/, '');
+        // Используем централизованный config (runtime config + build-time fallback)
+        this.backendUrl = config.APP_BACKEND_URL;
 
         // Настройка базового URL и создание экземпляра axios
         this.operationChache = new LimitedMapQueue(50)
@@ -39,7 +40,10 @@ class Api {
 
         this.api.interceptors.request.use(
             config => {
-                this.setLoading(true)
+                // Не показываем loading cursor для фоновых sync операций
+                if (!config.skipLoadingCursor) {
+                    this.setLoading(true);
+                }
                 const token = Cookies.get('access');
                 if (token) {
                     config.headers['Authorization'] = `Bearer ${token}`;
@@ -53,36 +57,65 @@ class Api {
             async response => {
                 const operation = this.operationChache.get(response.headers['x-operation-uuid'])
 
-                operation['isFail'] = false
-                operation['responseData'] = JSON.parse(JSON.stringify(response.data))
+                if (operation) {
+                    operation['isFail'] = false
+                    operation['responseData'] = JSON.parse(JSON.stringify(response.data))
 
-                if (response.headers['x-copy-block-id']) {
-                    operation['copyId'] = response.headers['x-copy-block-id']
+                    if (response.headers['x-copy-block-id']) {
+                        operation['copyId'] = response.headers['x-copy-block-id']
+                    }
+
+                    dispatch("UndoStackAdd", {operation})
                 }
-
-                dispatch("UndoStackAdd", {operation})
 
                 return response
             }, async error => {
-                const operation = this.operationChache.get(error.response.headers['x-operation-uuid'])
-                operation['isFail'] = error.response.status >= 400
-                if (error.response.status >= 500) this.sendHistoryOperations()
+                // Guard against network errors where response is undefined
+                if (error.response?.headers) {
+                    const operation = this.operationChache.get(error.response.headers['x-operation-uuid'])
+                    if (operation) {
+                        operation['isFail'] = error.response.status >= 400
+                    }
+                    if (error.response.status >= 500) this.sendHistoryOperations()
+                }
                 return Promise.reject(error);
             })
 
         // Добавление интерцептора ответа для обработки истечения токена
         this.api.interceptors.response.use(
             async response => {
-                this.setLoading(false)
+                // Не меняем cursor для фоновых sync операций
+                if (!response.config?.skipLoadingCursor) {
+                    this.setLoading(false);
+                }
                 return response
             },
             async error => {
                 log(error)
                 const originalRequest = error.config;
-                this.setLoading(false)
+                // Не меняем cursor для фоновых sync операций
+                if (!originalRequest?.skipLoadingCursor) {
+                    this.setLoading(false);
+                }
 
-                if (error.response?.status === 401 && !originalRequest._retry) {
+                // Guard against missing config (network errors)
+                if (!originalRequest) {
+                    return Promise.reject(error);
+                }
+
+                // Skip retry for token refresh endpoint to prevent infinite loop
+                const isRefreshRequest = originalRequest.url?.includes('/token/refresh/');
+
+                if (error.response?.status === 401 && !originalRequest._retry && !isRefreshRequest) {
                     originalRequest._retry = true;
+
+                    // Если нет refresh токена - сразу logout
+                    const hasRefreshToken = !!Cookies.get('refresh');
+                    if (!hasRefreshToken) {
+                        this.logout();
+                        return Promise.reject(error);
+                    }
+
                     try {
                         const tokenRefreshed = await this.refreshToken();
                         if (tokenRefreshed) {
@@ -106,7 +139,8 @@ class Api {
     }
 
     setLoading(value) {
-        dispatch('SetLoading', value);
+        // Loading cursor отключён — синхронизация показывается морганием API диода
+        // dispatch('SetLoading', value);
     }
 
     /**
@@ -135,8 +169,12 @@ class Api {
             return await this.api.post('/token/refresh/', {refresh})
                 .then(res => {
                     if (res.status === 200) {
-                        const {access} = res.data;
-                        Cookies.set('access', access);
+                        const {access, refresh: newRefresh} = res.data;
+                        Cookies.set('access', access, {expires: 30});
+                        // Сохраняем новый refresh token (важно при ROTATE_REFRESH_TOKENS=True)
+                        if (newRefresh) {
+                            Cookies.set('refresh', newRefresh, {expires: 30});
+                        }
                         return true;
                     }
                 }).catch(err => {
@@ -252,7 +290,14 @@ class Api {
     }
 
     removeTree(blockId) {
-        return this.api.delete(`delete-tree/${blockId}/`)
+        console.log('🗑️ Delete tree request:', blockId);
+        return this.api.delete(`delete-tree/${blockId}/`).then(res => {
+            console.log('🗑️ Delete tree response:', res.status, res.data);
+            return res;
+        }).catch(err => {
+            console.error('🗑️ Delete tree error:', err.response?.status, err.response?.data);
+            throw err;
+        });
     }
 
     pasteBlock(data) {
@@ -431,10 +476,26 @@ class Api {
     /**
      * Импорт блоков (асинхронная задача)
      * @param {Array} payload - Массив блоков для импорта
+     * @param {Object} options - Опции запроса
+     * @param {boolean} options.skipLoadingCursor - Не показывать loading cursor
      * @returns {Promise} - { task_id: string }
      */
-    importBlocks(payload) {
-        return this.api.post('import/', { payload })
+    importBlocks(payload, options = {}) {
+        return this.api.post('import/', { payload }, {
+            skipLoadingCursor: options.skipLoadingCursor
+        })
+    }
+
+    /**
+     * Проверяет статус задачи (для sync операций без loading cursor)
+     * @param {string} taskId - ID задачи
+     * @param {Object} options - Опции запроса
+     * @returns {Promise}
+     */
+    checkStatusTaskSilent(taskId, options = {}) {
+        return this.api.get(`tasks/${taskId}/`, {
+            skipLoadingCursor: options.skipLoadingCursor
+        })
     }
 
     // =====================================================

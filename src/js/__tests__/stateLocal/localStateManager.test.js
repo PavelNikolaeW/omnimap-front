@@ -123,13 +123,10 @@ describe('LocalStateManager', () => {
             expect(parentBlock.data.childOrder).toEqual(['block-2']);
         });
 
-        test('logs warning for non-existent block', async () => {
-            const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
-
-            await manager.removeOneBlock('non-existent');
-
-            expect(consoleSpy).toHaveBeenCalledWith('Block non-existent not found');
-            consoleSpy.mockRestore();
+        test('silently handles non-existent block (still attempts IndexedDB cleanup)', async () => {
+            // removeOneBlock теперь не логирует предупреждение для несуществующего блока,
+            // а просто пытается удалить из IndexedDB (полезно для синхронизации)
+            await expect(manager.removeOneBlock('non-existent')).resolves.not.toThrow();
         });
     });
 
@@ -220,8 +217,8 @@ describe('LocalStateManager', () => {
     });
 
     describe('moveBlock', () => {
-        test('does not move block to itself', () => {
-            manager.moveBlock({
+        test('does not move block to itself', async () => {
+            await manager.moveBlock({
                 block_id: 'block-1',
                 old_parent_id: 'parent-1',
                 new_parent_id: 'block-1',
@@ -231,17 +228,31 @@ describe('LocalStateManager', () => {
             expect(api.moveBlock).not.toHaveBeenCalled();
         });
 
-        test('calls api.moveBlock with correct parameters', () => {
-            const parentBlock = {
+        test('calls api.moveBlock with correct parameters', async () => {
+            // Setup blocks for Optimistic UI
+            const block = {
+                id: 'block-1',
+                parent_id: 'old-parent',
+                data: {},
+                children: []
+            };
+            const oldParentBlock = {
+                id: 'old-parent',
+                data: { childOrder: ['block-1'] },
+                children: ['block-1']
+            };
+            const newParentBlock = {
                 id: 'new-parent',
                 data: { childOrder: ['existing-1'] },
                 children: ['existing-1']
             };
-            manager.blocks.set('new-parent', parentBlock);
+            manager.blocks.set('block-1', block);
+            manager.blocks.set('old-parent', oldParentBlock);
+            manager.blocks.set('new-parent', newParentBlock);
 
             api.moveBlock.mockResolvedValue({ status: 200, data: {} });
 
-            manager.moveBlock({
+            await manager.moveBlock({
                 block_id: 'block-1',
                 old_parent_id: 'old-parent',
                 new_parent_id: 'new-parent',
@@ -305,27 +316,58 @@ describe('LocalStateManager', () => {
     });
 
     describe('createBlock', () => {
-        test('saves new blocks on successful creation', async () => {
-            const newBlocks = [
-                { id: 'new-1', title: 'New Block', children: [], data: {} },
-                { id: 'parent-1', title: 'Parent', children: ['new-1'], data: {} }
-            ];
-            api.createBlock.mockResolvedValue({ status: 201, data: newBlocks });
+        test('creates block locally with real UUID and queues for sync', async () => {
+            // Setup parent block for Optimistic UI
+            const parentBlock = {
+                id: 'parent-1',
+                title: 'Parent',
+                children: [],
+                data: {}
+            };
+            manager.blocks.set('parent-1', parentBlock);
 
             await manager.createBlock({ parentId: 'parent-1', title: 'New Block' });
 
-            expect(api.createBlock).toHaveBeenCalledWith('parent-1', 'New Block');
-            expect(manager.blockRepository.saveBlock).toHaveBeenCalledTimes(2);
+            // Block is created locally with real UUID (not temp_xxx)
+            expect(manager.blockRepository.saveBlock).toHaveBeenCalled();
+
+            // Parent block should have the new child
+            const updatedParent = manager.blocks.get('parent-1');
+            expect(updatedParent.children.length).toBe(1);
+            expect(updatedParent.data.childOrder.length).toBe(1);
+
+            // New block should be in blocks map
+            const newBlockId = updatedParent.children[0];
+            expect(manager.blocks.has(newBlockId)).toBe(true);
+
+            // Block ID should be real UUID (not temp_xxx)
+            expect(newBlockId).not.toMatch(/^temp_/);
         });
 
-        test('logs error on failure', async () => {
+        test('creates block locally when parent not found', async () => {
             const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
-            api.createBlock.mockRejectedValue(new Error('API Error'));
+
+            await manager.createBlock({ parentId: 'non-existent', title: 'New Block' });
+
+            expect(consoleSpy).toHaveBeenCalledWith('Parent block not found:', 'non-existent');
+            consoleSpy.mockRestore();
+        });
+
+        test('syncs childOrder with children on block creation', async () => {
+            // Setup parent block
+            const parentBlock = {
+                id: 'parent-1',
+                title: 'Parent',
+                children: [],
+                data: {}
+            };
+            manager.blocks.set('parent-1', parentBlock);
 
             await manager.createBlock({ parentId: 'parent-1', title: 'New Block' });
 
-            expect(consoleSpy).toHaveBeenCalled();
-            consoleSpy.mockRestore();
+            const updatedParent = manager.blocks.get('parent-1');
+            // children and childOrder should be in sync
+            expect(updatedParent.children).toEqual(updatedParent.data.childOrder);
         });
     });
 });

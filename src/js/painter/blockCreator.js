@@ -3,9 +3,9 @@ import cssConverter from "./cssConverter";
 import CalcColor from "./calcBlockColor"
 import {auth} from './views/auth'
 import {registration} from './views/registration'
-import {log} from "@jsplumb/browser-ui";
 import {styleConfig} from "./styles";
 import { calculateGap } from "./config/gapConfig";
+import {offlineQueue} from "../sincManager/offlineQueue";
 
 
 const viewRenderers = {
@@ -34,18 +34,24 @@ class BlockCreator {
         block.data?.arrows?.forEach((arrow) => {
             this.arrows.add(arrow)
         })
+        let element
         if (block.empty) {
-            return this.createEmpty(block, parentBlock, screen, depth)
+            element = this.createEmpty(block, parentBlock, screen, depth)
+            return element
         } else {
             if (view === 'link') {
-                return this.createLink(block, parentBlock, screen, depth)
+                element = this.createLink(block, parentBlock, screen, depth)
             } else if (view === 'iframe') {
-                return this.createIframe(block, parentBlock)
+                element = this.createIframe(block, parentBlock)
             } else if (view) {
-                return this.createCustomView(block, parentBlock, screen, depth)
+                element = this.createCustomView(block, parentBlock, screen, depth)
             } else {
-                return this.create(block, parentBlock, screen, depth)
+                element = this.create(block, parentBlock, screen, depth)
             }
+
+            // Добавляем индикатор синхронизации если блок pending
+            this._addSyncIndicator(element, block.id)
+            return element
         }
     }
 
@@ -72,6 +78,9 @@ class BlockCreator {
 
             this._setAttributes(element, block)
             this._applyStyles(element, ['block', ...this.styleLayout(block), ...(block.grid), ...(parentBlock.childrenPositions[block.id]), ...customClasses])
+
+            // Применить кастомные стили блока (цвет, форма, тень и т.д.)
+            this._applyCustomStyles(element, block.data?.customStyles)
 
             block.color = this.colorist.calculateColor(element, block, [...parentBlock.color])
             this._applyStyles(block.contentEl, block.contentPosition)
@@ -234,6 +243,55 @@ class BlockCreator {
             element.classList.add(...styles)
             cssConverter.generateStylesheet(styles)
             cssConverter.applyCssClasses(element, styles)
+        }
+    }
+
+    /**
+     * Добавляет индикатор статуса синхронизации к блоку
+     * Показывает "галочку" если блок ожидает синхронизации
+     * @param {HTMLElement} element - DOM элемент блока
+     * @param {string} blockId - ID блока
+     */
+    _addSyncIndicator(element, blockId) {
+        if (!element || !blockId) return
+
+        // Проверяем, является ли блок pending (ожидает синхронизации)
+        if (offlineQueue.isPendingBlock(blockId)) {
+            // Убеждаемся что у блока position: relative для абсолютного позиционирования индикатора
+            element.style.position = 'relative'
+
+            const indicator = document.createElement('div')
+            indicator.className = 'block-sync-indicator pending'
+            indicator.setAttribute('data-block-sync', blockId)
+            element.appendChild(indicator)
+        }
+    }
+
+    /**
+     * Применить кастомные стили к элементу блока
+     * @param {HTMLElement} element - DOM элемент блока
+     * @param {Object} customStyles - Объект стилей
+     */
+    _applyCustomStyles(element, customStyles) {
+        if (!element || !customStyles) return
+
+        // Inline styles для цветов
+        if (customStyles.background) {
+            element.style.backgroundColor = customStyles.background
+        }
+        if (customStyles.borderColor) {
+            element.style.borderColor = customStyles.borderColor
+        }
+
+        // Data-атрибуты для CSS селекторов
+        if (customStyles.border) {
+            element.setAttribute('data-block-border', customStyles.border)
+        }
+        if (customStyles.shape) {
+            element.setAttribute('data-block-shape', customStyles.shape)
+        }
+        if (customStyles.shadow) {
+            element.setAttribute('data-block-shadow', customStyles.shadow)
         }
     }
 

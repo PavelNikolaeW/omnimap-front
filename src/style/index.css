@@ -344,16 +344,6 @@ th {
 }
 
 
-.diagram-inputs {
-    position: absolute;
-    top: 56px;
-    right: 10px;
-    display: flex;
-    flex-direction: row;
-    gap: 10px;
-    align-items: center;
-    z-index: 1000
-}
 
 .diagram-btn {
     background-color: white;
@@ -372,10 +362,6 @@ th {
 @media (max-width: 600px) {
     .fas-lg {
         font-size: 1em;
-    }
-    .diagram-inputs {
-        flex-direction: column;
-        background-color: white;
     }
 }
 
@@ -488,6 +474,261 @@ button:focus {
     }
     50% {
         opacity: 0.5;
+    }
+}
+
+/* Offline Logout Screen */
+.offline-logout-screen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e4e9f2 100%);
+}
+
+.offline-logout-content {
+    text-align: center;
+    padding: 40px;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    max-width: 400px;
+}
+
+.offline-logout-icon {
+    font-size: 64px;
+    color: #6b7280;
+    margin-bottom: 20px;
+}
+
+.offline-logout-content h2 {
+    font-size: 24px;
+    color: #1f2937;
+    margin: 0 0 12px 0;
+}
+
+.offline-logout-content p {
+    font-size: 16px;
+    color: #6b7280;
+    margin: 0 0 24px 0;
+    line-height: 1.5;
+}
+
+.offline-refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.offline-refresh-btn:hover {
+    background: #2563eb;
+}
+
+.offline-refresh-btn i {
+    font-size: 14px;
+}
+
+/* Offline Indicator Bar - compact, bottom right (above network-status) */
+.offline-indicator-bar {
+    position: fixed;
+    bottom: 70px;
+    right: 20px;
+    background: #fef2f2;
+    color: #dc2626;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    z-index: 1000;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: none;
+}
+
+.offline-indicator-bar.visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.offline-indicator-bar i {
+    font-size: 16px;
+}
+
+.offline-indicator-bar .pending-count {
+    background: #fee2e2;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-weight: 500;
+    font-size: 12px;
+}
+
+/* App Update Notification - появляется при обнаружении новой версии SW */
+.app-update-notification {
+    position: fixed;
+    bottom: 120px;
+    right: 20px;
+    background: #eff6ff;
+    color: #1e40af;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    z-index: 1001;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    animation: slideInUp 0.3s ease;
+}
+
+.app-update-notification button {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background 0.2s;
+}
+
+.app-update-notification button:hover {
+    background: #2563eb;
+}
+
+.app-update-notification button:last-child {
+    background: transparent;
+    color: #64748b;
+    padding: 4px 8px;
+}
+
+.app-update-notification button:last-child:hover {
+    background: #e2e8f0;
+}
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Block Sync Status Indicator
+   Индикатор статуса синхронизации блока (как в мессенджерах)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Контейнер индикатора */
+.block-sync-indicator {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    z-index: 10;
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+/* Состояние: отправляется (одна галочка, серая) */
+.block-sync-indicator.pending {
+    color: rgba(0, 0, 0, 0.4);
+}
+
+.block-sync-indicator.pending::before {
+    content: '✓';
+    font-size: 12px;
+    font-weight: bold;
+}
+
+/* Состояние: синхронизировано (две галочки, зеленые) */
+.block-sync-indicator.synced {
+    color: #22c55e;
+    opacity: 0;
+    transform: scale(0.5);
+    animation: sync-complete 0.5s ease forwards;
+}
+
+.block-sync-indicator.synced::before {
+    content: '✓✓';
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: -3px;
+}
+
+@keyframes sync-complete {
+    0% {
+        opacity: 1;
+        transform: scale(1.2);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+}
+
+/* Для маленьких блоков - меньший индикатор */
+.block[layout^="xxxs"] .block-sync-indicator,
+.block[layout^="xxs"] .block-sync-indicator {
+    width: 12px;
+    height: 12px;
+    font-size: 8px;
+    bottom: 2px;
+    right: 2px;
+}
+
+.block[layout^="xxxs"] .block-sync-indicator::before,
+.block[layout^="xxs"] .block-sync-indicator::before {
+    font-size: 8px;
+}
+
+/* Анимация "пульсации" для pending */
+.block-sync-indicator.pending::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.3;
+    animation: sync-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes sync-pulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 0.3;
+    }
+    50% {
+        transform: scale(1.5);
+        opacity: 0;
     }
 }
 

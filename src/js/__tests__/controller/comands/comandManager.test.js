@@ -47,7 +47,8 @@ jest.mock('../../../controller/comands/contextManager', () => ({
         setEvent: jest.fn(),
         setCmd: jest.fn(),
         getCmd: jest.fn().mockReturnValue('testCommand1')
-    }))
+    })),
+    setContextManager: jest.fn()
 }));
 
 jest.mock('../../../controller/comands/uiManager', () => ({

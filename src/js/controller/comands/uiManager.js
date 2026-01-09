@@ -1,9 +1,10 @@
 import {commands} from "./commands";
 import localforage from "localforage";
+import { MODES } from "../../actions/selectionActions";
 
 /**
  * Конфигурация подменю
- * @type {Object.<string, {id: string, label: string, icon: string, items: string[]}>}
+ * @type {Object.<string, {id: string, label: string, icon: string, items: string[], requiresDiagramMode?: boolean}>}
  */
 export const submenuConfig = {
     // Подменю "Раскладка" - управление layout блока
@@ -13,12 +14,27 @@ export const submenuConfig = {
         icon: 'fa-th-large',
         items: ['layoutDefault', 'layoutRows', 'layoutColumns', 'layoutGrid', 'layoutMasonry', 'layoutTable']
     },
-    // Подменю "Соединения" - объединяет работу со стрелками
+    // Подменю "Диаграмма" - редактирование диаграмм и стрелок
+    diagram: {
+        id: 'submenu-diagram',
+        label: 'Диаграмма',
+        icon: 'fa-diagram-project',
+        requiresDiagramMode: true,  // Требует выбора блока-диаграммы
+        items: [
+            'diagramGridColPlus', 'diagramGridColMinus',
+            'diagramGridRowPlus', 'diagramGridRowMinus',
+            'diagramSizeXs', 'diagramSizeS', 'diagramSizeM', 'diagramSizeL',
+            'diagramAddBlock', 'diagramDeleteBlock',
+            'diagramBlockStyle', 'submenu-connections',
+            'diagramReset'
+        ]
+    },
+    // Подменю "Соединения" - вложено в "Диаграмма"
     connections: {
         id: 'submenu-connections',
         label: 'Соединения',
-        icon: 'fa-project-diagram',
-        items: ['connectBlock', 'deleteConnectBlock', 'connectDashed', 'connectDouble']
+        icon: 'fa-bezier-curve',
+        items: ['connectBlock', 'connectDashed', 'connectDouble', 'connectCurved', 'connectStraight', 'deleteConnectBlock']
     },
     // Подменю "Дополнительно" - редактирование, ссылки, права, уведомления
     extra: {
@@ -40,8 +56,13 @@ export const submenuConfig = {
 const hiddenInSubmenu = new Set([
     // Layout команды
     'layoutDefault', 'layoutRows', 'layoutColumns', 'layoutGrid', 'layoutMasonry', 'layoutTable',
-    // Connections команды
-    'connectBlock', 'deleteConnectBlock', 'connectDashed', 'connectDouble',
+    // Diagram команды
+    'diagramGridColPlus', 'diagramGridColMinus', 'diagramGridRowPlus', 'diagramGridRowMinus',
+    'diagramSizeXs', 'diagramSizeS', 'diagramSizeM', 'diagramSizeL',
+    'diagramAddBlock', 'diagramDeleteBlock', 'diagramBlockStyle', 'diagramResetBlockStyle',
+    'diagramConnectionSettings', 'diagramReset',
+    // Connections команды (теперь в подменю diagram)
+    'connectBlock', 'deleteConnectBlock', 'connectDashed', 'connectDouble', 'connectCurved', 'connectStraight',
     // Extra команды
     'createUrl', 'editBlock', 'editAccessBlock',
     'notificationSettings', 'setReminder', 'watchBlock',
@@ -57,7 +78,66 @@ export class UIManager {
             'top-btn-container': document.getElementById('top-btn-container'),
         }
         this.activeSubmenu = null
+        this.submenuHistory = []  // Стек истории подменю для навигации назад
         this.commandsById = null
+        // Состояние для режима диаграммы
+        this.diagramMode = false
+        this.diagramBlockId = null
+        this.diagramElement = null
+        this.pendingDiagramSubmenu = false  // Ожидает выбора блока
+        this.isOffline = !navigator.onLine
+
+        // Обработчик ESC для выхода из режимов
+        this.handleEscKey = this.handleEscKey.bind(this)
+        document.addEventListener('keydown', this.handleEscKey)
+
+        // Слушаем изменения статуса сети
+        window.addEventListener('NetworkStatusChange', (e) => {
+            this.isOffline = !e.detail.online
+            this.updateOfflineButtons()
+        })
+    }
+
+    /**
+     * Обновляет состояние кнопок, недоступных в офлайн режиме
+     */
+    updateOfflineButtons() {
+        if (!this.commandsById) return
+
+        Object.values(this.commandsById).forEach((cmd) => {
+            if (cmd.offlineDisabled && cmd.btn) {
+                const button = document.getElementById(cmd.id)
+                if (button) {
+                    if (this.isOffline) {
+                        button.classList.add('offline-disabled')
+                        button.setAttribute('title', `${cmd.btn.label} [только онлайн]`)
+                    } else {
+                        button.classList.remove('offline-disabled')
+                        button.setAttribute('title', `${cmd.btn.label} [${cmd.currentHotkey || ''}]`)
+                    }
+                }
+            }
+        })
+    }
+
+    /**
+     * Обработчик клавиши ESC
+     */
+    handleEscKey(e) {
+        if (e.key !== 'Escape') return
+
+        // Если в режиме ожидания выбора блока - отменяем
+        if (this.pendingDiagramSubmenu) {
+            this.pendingDiagramSubmenu = false
+            this.hideDiagramSelectionHint()
+            return
+        }
+
+        // Если открыто подменю - возвращаемся назад
+        if (this.activeSubmenu) {
+            this.goBackSubmenu()
+            return
+        }
     }
 
     /**
@@ -70,6 +150,11 @@ export class UIManager {
         this.commandsById = commandsById
         localforage.getItem('currentUser').then(user => {
             if ((user && user !== 'anonim') || window.location.search) {
+                // Очищаем контейнеры перед рендерингом, чтобы избежать дублирования кнопок
+                Object.values(this.elements).forEach(element => {
+                    if (element) element.innerHTML = ''
+                })
+
                 // Используем DocumentFragment для оптимизации DOM-операций
                 const fragment = document.createDocumentFragment()
 
@@ -95,6 +180,9 @@ export class UIManager {
 
                 // Добавляем кнопки подменю
                 this.renderSubmenuButtons()
+
+                // Обновляем состояние кнопок для офлайн режима
+                this.updateOfflineButtons()
             }
         })
     }
@@ -115,6 +203,10 @@ export class UIManager {
                 i.classList.add(...icon)
                 element.appendChild(i)
             })
+        }
+        // Поддержка текстовых кнопок (для размеров диаграммы)
+        if (cmd.btn.text) {
+            element.textContent = cmd.btn.text
         }
         element.setAttribute('title', `${cmd.btn.label} [${cmd.currentHotkey || ''}]`)
         return element
@@ -146,19 +238,19 @@ export class UIManager {
             container.appendChild(layoutBtn)
         }
 
-        // Кнопка подменю "Соединения"
-        const connectionsBtn = this.createSubmenuButton(submenuConfig.connections)
+        // Кнопка подменю "Диаграмма"
+        const diagramBtn = this.createSubmenuButton(submenuConfig.diagram)
         if (layoutBtn.nextSibling) {
-            container.insertBefore(connectionsBtn, layoutBtn.nextSibling)
+            container.insertBefore(diagramBtn, layoutBtn.nextSibling)
         } else {
-            container.appendChild(connectionsBtn)
+            container.appendChild(diagramBtn)
         }
 
         // Кнопка подменю "Дополнительно" (заменяет старую options)
         const extraBtn = this.createSubmenuButton(submenuConfig.extra)
-        // Вставляем после кнопки соединений
-        if (connectionsBtn.nextSibling) {
-            container.insertBefore(extraBtn, connectionsBtn.nextSibling)
+        // Вставляем после кнопки диаграммы
+        if (diagramBtn.nextSibling) {
+            container.insertBefore(extraBtn, diagramBtn.nextSibling)
         } else {
             container.appendChild(extraBtn)
         }
@@ -196,6 +288,11 @@ export class UIManager {
         if (!config) {
             console.warn(`UIManager: submenu config not found for ${submenuId}`)
             return
+        }
+
+        // Сохраняем текущее подменю в историю перед открытием нового
+        if (this.activeSubmenu && this.activeSubmenu !== submenuId) {
+            this.submenuHistory.push(this.activeSubmenu)
         }
 
         // Сохраняем текущее состояние
@@ -249,7 +346,30 @@ export class UIManager {
      */
     closeSubmenu() {
         this.activeSubmenu = null
+        this.submenuHistory = []  // Очищаем историю
         this.reRenderBtn(this.commandsById)
+    }
+
+    /**
+     * Возвращается на один уровень назад в истории подменю
+     * Если история пуста - закрывает подменю полностью
+     */
+    goBackSubmenu(ctx) {
+        // Если выходим из diagram подменю - деактивируем режим
+        if (this.activeSubmenu === 'submenu-diagram') {
+            this.exitDiagramMode(ctx)
+        }
+
+        // Проверяем, есть ли история
+        if (this.submenuHistory.length > 0) {
+            // Возвращаемся к предыдущему подменю
+            const previousSubmenu = this.submenuHistory.pop()
+            this.activeSubmenu = null  // Сбрасываем, чтобы openSubmenu не добавил в историю
+            this.openSubmenu(previousSubmenu, ctx)
+        } else {
+            // История пуста - закрываем подменю
+            this.closeSubmenu()
+        }
     }
 
     /**
@@ -270,16 +390,130 @@ export class UIManager {
         if (!targetId) return false
 
         if (targetId === 'submenu-back') {
-            this.closeSubmenu()
+            // Используем goBackSubmenu для правильной навигации по истории
+            this.goBackSubmenu(ctx)
             return true
         }
 
         if (targetId.startsWith('submenu-')) {
+            const configKey = targetId.replace('submenu-', '')
+            const config = submenuConfig[configKey]
+
+            // Проверяем, требует ли подменю выбора блока-диаграммы
+            if (config?.requiresDiagramMode) {
+                // Если уже есть выбранный блок под курсором - используем его
+                if (ctx?.blockElement) {
+                    const blockId = ctx.blockElement.id?.split('*').pop()
+                    if (blockId) {
+                        this.enterDiagramMode(ctx, blockId, ctx.blockElement)
+                        this.openSubmenu(targetId, ctx)
+                        return true
+                    }
+                }
+                // Иначе переходим в режим ожидания выбора блока
+                this.pendingDiagramSubmenu = true
+                this.showDiagramSelectionHint()
+                return true
+            }
+
             this.openSubmenu(targetId, ctx)
             return true
         }
 
         return false
+    }
+
+    /**
+     * Входит в режим редактирования диаграммы
+     */
+    enterDiagramMode(ctx, blockId, blockElement) {
+        this.diagramMode = true
+        this.diagramBlockId = blockId
+        this.diagramElement = blockElement
+
+        // Устанавливаем режим для корректной обработки ESC
+        if (ctx) {
+            ctx.mode = MODES.DIAGRAM
+        }
+
+        // Визуальная индикация выбранного блока-диаграммы
+        blockElement.classList.add('diagram-target-block')
+
+        // Активируем diagramUtils для этого блока
+        if (ctx?.diagramUtils) {
+            ctx.diagramUtils.showInputs(blockId, blockElement)
+        }
+
+        this.hideDiagramSelectionHint()
+    }
+
+    /**
+     * Выходит из режима редактирования диаграммы
+     */
+    exitDiagramMode(ctx) {
+        if (this.diagramElement) {
+            this.diagramElement.classList.remove('diagram-target-block')
+        }
+
+        // Деактивируем diagramUtils
+        if (ctx?.diagramUtils) {
+            ctx.diagramUtils.hiddenInputs()
+        }
+
+        this.diagramMode = false
+        this.diagramBlockId = null
+        this.diagramElement = null
+        this.pendingDiagramSubmenu = false
+        this.hideDiagramSelectionHint()
+    }
+
+    /**
+     * Обработчик выбора блока в режиме ожидания diagram
+     * Вызывается из commandManager при клике на блок
+     */
+    handleDiagramBlockSelection(ctx, blockId, blockElement) {
+        if (!this.pendingDiagramSubmenu) return false
+
+        this.enterDiagramMode(ctx, blockId, blockElement)
+        this.pendingDiagramSubmenu = false
+        this.openSubmenu('submenu-diagram', ctx)
+        return true
+    }
+
+    /**
+     * Показать подсказку о выборе блока-диаграммы
+     */
+    showDiagramSelectionHint() {
+        let hint = document.getElementById('diagram-selection-hint')
+        if (!hint) {
+            hint = document.createElement('div')
+            hint.id = 'diagram-selection-hint'
+            hint.className = 'diagram-selection-hint'
+            hint.textContent = 'Выберите блок для редактирования диаграммы'
+            document.body.appendChild(hint)
+        }
+        hint.classList.add('visible')
+
+        // Включаем подсветку блоков при наведении
+        document.body.classList.add('diagram-selection-mode')
+    }
+
+    /**
+     * Скрыть подсказку о выборе блока-диаграммы
+     */
+    hideDiagramSelectionHint() {
+        const hint = document.getElementById('diagram-selection-hint')
+        if (hint) {
+            hint.classList.remove('visible')
+        }
+        document.body.classList.remove('diagram-selection-mode')
+    }
+
+    /**
+     * Проверить, находимся ли в режиме ожидания выбора diagram блока
+     */
+    isPendingDiagramSelection() {
+        return this.pendingDiagramSubmenu
     }
 
     /**

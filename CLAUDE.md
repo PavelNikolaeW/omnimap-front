@@ -93,9 +93,93 @@ Context (`ctx`) includes: `blockElement`, `mode`, `blockId`, `selectedBlocks`, e
 - **ContextManager**: Tracks UI state (selection, mode, focus)
 - **UndoStack**: Manages undo/redo via operation UUIDs
 
+### Real-Time Synchronization Architecture
+
+The app uses a 3-tier sync architecture: Backend → Sync Service → Frontend.
+
+```
+┌─────────────────┐     RabbitMQ      ┌─────────────────┐      WebSocket      ┌─────────────────┐
+│  omnimap-back   │ ──────────────→  │  omnimap-sync   │ ──────────────────→  │  omnimap-front  │
+│  (Django)       │                   │  (FastAPI)      │                      │  (JS)           │
+└─────────────────┘                   └─────────────────┘                      └─────────────────┘
+```
+
+#### Backend → RabbitMQ Messages (api/tasks.py)
+
+| Task Function | RabbitMQ Action | When Used |
+|---------------|-----------------|-----------|
+| `send_message_block_update` | `update_block` | Single block CRUD |
+| `send_message_blocks_update` | `update_blocks` | Batch import (created + updated) |
+| `send_message_unsubscribe_user` | `unsubscribe` | Block deletion |
+| `send_message_subscribe_user` | `subscribe` | Grant access |
+| `send_message_access_update` | `update_access` | Permission changes |
+
+#### Sync Service → WebSocket Messages (omnimap-sync)
+
+| WebSocket Message Type | Source | Format |
+|------------------------|--------|--------|
+| `block_updates` | Response to `get_updates` request | `{type, updates: [block, ...]}` |
+| `block_update` | Single block change | `{type, block_uuid, data: block}` |
+| `block_updates_batch` | Multiple blocks for one user | `{type, updates: [{type, block_uuid, data}, ...]}` |
+| `block_update_access` | Permission change | `{type, start_block_ids, block_uuids, permission}` |
+
+#### Frontend WebSocket Handling (sincManager/webSocket.js)
+
+```javascript
+// Message routing with debounce for live updates
+'block_updates'       → dispatch immediately (initial sync)
+'block_update'        → _queueBlockUpdates() → 50ms debounce → dispatch
+'block_updates_batch' → _queueBlockUpdates() → 50ms debounce → dispatch
+'block_update_access' → dispatch immediately
+```
+
+Key optimizations:
+- **Debounce (50ms)**: Accumulates rapid `block_update` messages into single batch
+- **Deduplication**: Same block ID in buffer → last update wins
+- **Subtree deletion**: `removeBlock()` recursively removes children
+
+#### Block Data Format (from backend)
+
+```javascript
+{
+  id: 'uuid',
+  title: 'Block title',
+  data: '{"text": "...", "childOrder": [...]}',  // JSON string
+  parent_id: 'parent-uuid' | false,
+  updated_at: 1234567890,  // Unix timestamp
+  children: '["child-uuid-1", "child-uuid-2"]',  // JSON string
+  deleted: true  // Optional, for deletion sync
+}
+```
+
+#### Key Sync Events
+
+| Event | Dispatched By | Handled By |
+|-------|---------------|------------|
+| `WebSocUpdateBlock` | webSocket.js | LocalStateManager.webSocUpdateBlock() |
+| `WebSocUpdateBlockAccess` | webSocket.js | LocalStateManager.WebSocUpdateBlockAccess() |
+| `WebSocketConnected` | webSocket.js | statusIndicators |
+| `WebSocketDisconnected` | webSocket.js | statusIndicators |
+
 ### Rendering Pipeline
 
 `Painter` → `BlockCreator` → DOM. Uses CSS Grid for layout (`gridLayoutCalculator.js`, `gridClassManager.js`).
+
+### Offline Queue (sincManager/offlineQueue.js)
+
+Operations are queued when offline and synced when connection restored:
+
+```javascript
+// Queue stores operations with timestamps
+{ type: 'createBlock', data: {...}, timestamp: Date.now() }
+{ type: 'updateBlock', data: {...}, timestamp: Date.now() }
+{ type: 'deleteBlock', data: {...}, timestamp: Date.now() }
+```
+
+Key methods:
+- `enqueue(operation)`: Add operation to queue
+- `processQueue()`: Sync all pending operations
+- `getQueueLength()`: Check pending operations count
 
 ## Key Directories
 
@@ -133,13 +217,39 @@ Cookie-based JWT tokens (`access`, `refresh`). API client auto-refreshes on 401.
 
 ## Testing
 
+### Unit Tests (Jest)
+
 ```bash
 npm test              # Run all tests
 npm run test:watch    # Watch mode
 npm run test:coverage # With coverage report
+
+# Run a single test file
+npx jest src/js/__tests__/controller/blockStyleManager.test.js
+
+# Run tests matching a pattern
+npx jest --testNamePattern="should apply shape preset"
 ```
 
 Test files are located in `src/js/__tests__/` mirroring the source structure.
+
+### E2E Tests (Playwright)
+
+```bash
+npm run test:e2e           # Run all E2E tests
+npm run test:e2e:ui        # Interactive UI mode
+npm run test:e2e:debug     # Debug mode with inspector
+npm run test:e2e:headed    # Run with visible browser
+npm run test:e2e:chromium  # Run only in Chromium
+
+# Run a single E2E test file
+npx playwright test e2e/tests/search.spec.ts
+
+# Run tests with specific tag
+npx playwright test --grep "@smoke"
+```
+
+E2E tests are in `e2e/tests/`. Auth fixture handles login automatically.
 
 ## Workflow Rules
 
@@ -173,7 +283,170 @@ Test files are located in `src/js/__tests__/` mirroring the source structure.
 
 **Причина:** Каждый сервис имеет свои тесты. Изменения без прогона тестов ломают CI/CD.
 
+## Diagram Mode & Block Styling
+
+### Режимы приложения (MODES)
+
+Определены в `src/js/actions/selectionActions.js`:
+
+```javascript
+MODES = {
+    NORMAL: 'normal',              // Обычный режим навигации
+    TEXT_EDIT: 'textEdit',         // Редактирование текста блока
+    CONNECT_TO_BLOCK: 'connectToBlock',      // Ожидание выбора целевого блока для соединения
+    CONNECT_SELECT_SOURCE: 'connectSelectSource', // Ожидание выбора блока-источника
+    CUT_BLOCK: 'cutBlock',         // Режим вырезания блока
+    DIAGRAM: 'diagram',            // Режим редактирования диаграммы
+    CHAT: 'chat'                   // Режим чата
+}
+```
+
+**Важно:** При создании соединений сохраняй `ctx.previousMode` чтобы вернуться в исходный режим (DIAGRAM или NORMAL).
+
+### Менеджеры стилей
+
+**Файл:** `src/js/controller/blockStyleManager.js`
+
+#### BlockStyleManager
+
+Управляет визуальными стилями блоков:
+
+```javascript
+// Singleton экземпляр
+import { blockStyleManager } from './blockStyleManager';
+
+// Показать панель для блока
+blockStyleManager.show(blockId, blockElement);
+
+// Режим выбора блока (кнопка → клик на блок)
+blockStyleManager.startStyleSelectionMode();
+
+// Применить пресет формы
+blockStyleManager.applyShapePreset('decision');  // diamond shape
+blockStyleManager.applyShapePresetDirect('process', blockId, element);  // без панели
+```
+
+#### ConnectionStyleManager
+
+Управляет стилями соединений (стрелок):
+
+```javascript
+import { connectionStyleManager } from './blockStyleManager';
+
+connectionStyleManager.toggle();  // Показать/скрыть панель
+connectionStyleManager.startConnectionMode();  // Начать создание соединения
+```
+
+### Типы соединений (CONNECTION_TYPES)
+
+**Файл:** `src/js/controller/connectionTypes.js`
+
+```javascript
+CONNECTION_TYPES = {
+    DEFAULT: 'default',      // Стандартное (Flowchart)
+    DASHED: 'dashed',        // Пунктирная линия
+    DOTTED: 'dotted',        // Точечная линия
+    DOUBLE: 'double',        // Двусторонняя стрелка
+    CURVED: 'curved',        // Bezier кривая
+    STRAIGHT: 'straight',    // Прямая линия
+    // ... и другие UML типы
+}
+```
+
+**ВАЖНО:** Типы в нижнем регистре! Не используй `'DASHED'`, используй `'dashed'`.
+
+### Пресеты форм для диаграмм
+
+Определены в `BlockStyleManager.presetShapes`:
+
+| Пресет | Форма | Использование |
+|--------|-------|---------------|
+| `process` | Rectangle | Обычный процесс |
+| `decision` | Diamond | Условие/решение |
+| `data` | Parallelogram | Ввод/вывод данных |
+| `database` | Cylinder | База данных |
+| `document` | Document | Документ |
+| `terminal` | Ellipse | Начало/конец |
+| `manual` | Trapezoid | Ручной ввод |
+| `subprocess` | Rounded | Подпроцесс |
+
+### CSS Data-атрибуты для стилей блоков
+
+**Файл:** `src/style/diagram-editor.css`
+
+Стили применяются через data-атрибуты на элементе блока:
+
+```html
+<div block
+     data-block-shape="diamond"
+     data-block-border="medium"
+     data-block-shadow="md"
+     data-block-font-size="lg"
+     data-block-text-align="center"
+     style="background-color: #fef3c7; border-color: #f59e0b;">
+```
+
+#### Формы (data-block-shape)
+- `rounded`, `pill`, `diamond`, `hexagon`, `parallelogram`, `trapezoid`, `cylinder`, `document`, `ellipse`
+
+#### Границы (data-block-border)
+- `thin` (1px), `medium` (2px), `thick` (4px), `dashed`, `dotted`, `double`
+- **Цвет** задаётся через inline `style="border-color: #xxx"`
+
+#### Тени (data-block-shadow)
+- `sm`, `md`, `lg`, `xl`, `inner`
+- Для форм с `clip-path` (diamond, hexagon, trapezoid, document) используется `filter: drop-shadow`
+
+#### Размер шрифта (data-block-font-size)
+- `xs`, `sm`, `md`, `lg`, `xl`
+
+#### Выравнивание (data-block-text-align)
+- `left`, `center`, `right`
+
+### Команды соединений
+
+**Файл:** `src/js/controller/comands/commands.js`
+
+Все команды поддерживают flow: кнопка → клик источник → клик цель
+
+| Команда | Тип | Hotkey |
+|---------|-----|--------|
+| `connectBlock` | default | `a` |
+| `connectDashed` | dashed | - |
+| `connectDouble` | double | - |
+| `connectCurved` | curved | - |
+| `connectStraight` | straight | - |
+| `deleteConnectBlock` | удаление | `shift+a` |
+
+### Добавление новой формы блока
+
+1. Добавь CSS в `src/style/diagram-editor.css`:
+   ```css
+   [data-block-shape="newshape"] {
+       /* clip-path или border-radius */
+   }
+   ```
+
+2. Если используешь `clip-path`, добавь поддержку теней:
+   ```css
+   [data-block-shape="newshape"][data-block-shadow="md"] {
+       filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+   }
+   ```
+
+3. Добавь пресет в `BlockStyleManager.presetShapes`
+
+4. Добавь UI в `src/index.html` (секция `.shape-presets`)
+
+### Добавление нового типа соединения
+
+1. Добавь тип в `CONNECTION_TYPES` (`connectionTypes.js`)
+2. Добавь конфигурацию в `CONNECTION_CONFIGS` (jsPlumb настройки)
+3. Добавь команду в `commands.js` (опционально)
+
 ## Notes
 
 - Code comments are in Russian
 - Production build generates a Service Worker for offline support
+- React components (zustand stores, react-query) are used for chat UI in `src/js/controller/popups/`
+- jsPlumb library (`@jsplumb/browser-ui`) handles arrow/connection rendering

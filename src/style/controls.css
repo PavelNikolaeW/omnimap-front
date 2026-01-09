@@ -215,7 +215,7 @@
 /*Окно редактирования*/
 /* styles.css */
 .hidden {
-    display: none;
+    display: none !important;
 }
 
 .resize-edit-window {
@@ -290,26 +290,18 @@
 }
 
 
-/* Статус-индикаторы систем */
+/* Статус-индикаторы систем - только диоды на границе */
 .status-indicators {
     display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-right: 12px;
-    padding: 4px 8px;
-    background: rgba(0, 0, 0, 0.03);
-    border-radius: 12px;
+    justify-content: flex-end;
+    gap: 10px;
+    height: 0;
+    padding-right: 15px;
+    z-index: 100;
 }
 
 .status-indicators.hidden {
     display: none;
-}
-
-.status-indicator {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: help;
 }
 
 .status-led {
@@ -317,24 +309,25 @@
     height: 8px;
     border-radius: 50%;
     background-color: #888;
-    box-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 0 3px rgba(0, 0, 0, 0.2);
     transition: background-color 0.3s, box-shadow 0.3s;
+    transform: translateY(-50%);
 }
 
 .status-led.ok {
     background-color: #4caf50;
-    box-shadow: 0 0 4px rgba(76, 175, 80, 0.6);
+    box-shadow: 0 0 6px rgba(76, 175, 80, 0.9);
 }
 
 .status-led.warning {
     background-color: #ff9800;
-    box-shadow: 0 0 4px rgba(255, 152, 0, 0.6);
+    box-shadow: 0 0 6px rgba(255, 152, 0, 0.9);
     animation: blink-warning 1.5s ease-in-out infinite;
 }
 
 .status-led.error {
     background-color: #f44336;
-    box-shadow: 0 0 4px rgba(244, 67, 54, 0.6);
+    box-shadow: 0 0 6px rgba(244, 67, 54, 0.9);
 }
 
 .status-led.checking {
@@ -352,12 +345,26 @@
     50% { opacity: 1; }
 }
 
+/* Анимация моргания при синхронизации */
+.status-led.syncing {
+    animation: blink-syncing 0.3s ease-in-out infinite;
+}
+
+@keyframes blink-syncing {
+    0%, 100% {
+        opacity: 1;
+        box-shadow: 0 0 8px rgba(76, 175, 80, 1);
+    }
+    50% {
+        opacity: 0.3;
+        box-shadow: 0 0 2px rgba(76, 175, 80, 0.3);
+    }
+}
+
 /* Адаптивные стили для мобильных */
 @media (max-width: 600px) {
     .status-indicators {
-        gap: 4px;
-        margin-right: 8px;
-        padding: 3px 6px;
+        gap: 8px;
     }
 
     .status-led {

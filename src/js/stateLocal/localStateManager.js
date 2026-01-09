@@ -8,6 +8,7 @@ import {jsPlumbInstance} from "../controller/arrowManager";
 import {customConfirm} from "../utils/custom-dialog";
 import {treeService} from "../services/treeService";
 import {treeValidator} from "./treeValidator";
+import {offlineQueue} from "../sincManager/offlineQueue";
 
 /**
  * Экранирует специальные символы RegExp в строке
@@ -15,6 +16,9 @@ import {treeValidator} from "./treeValidator";
  * @returns {string} Экранированная строка
  */
 function escapeRegExp(string) {
+    if (typeof string !== 'string') {
+        return String(string ?? '');
+    }
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
@@ -120,8 +124,16 @@ export class LocalStateManager {
             this.removeConnectionBlock(e.detail);
         });
 
+        window.addEventListener('UpdateConnectionBlock', (e) => {
+            this.updateConnectionBlock(e.detail);
+        });
+
         window.addEventListener('UpdateCustomGridBlock', (e) => {
             this.updateCustomGridBlock(e.detail);
+        });
+
+        window.addEventListener('UpdateBlockStyles', (e) => {
+            this.updateBlockStyles(e.detail);
         });
 
         window.addEventListener('CreateBlock', (e) => {
@@ -148,15 +160,32 @@ export class LocalStateManager {
                 window.history.replaceState({}, '', window.location.pathname);
             }
 
-            dispatch('InitAnonimUser');
+            // Очищаем данные текущего пользователя из памяти
+            this.blocks.clear();
+            this.currentUser = null;
+            this.currentTree = null;
+            this.path = [];
 
+            // Очищаем данные из IndexedDB
+            await localforage.removeItem('currentTree');
+            await localforage.removeItem('currentUser');
+
+            // Скрываем UI элементы
             const sidebar = document.getElementById('sidebar');
             const topSidebar = document.getElementById('topSidebar');
             if (sidebar) sidebar.classList.add('hidden');
             if (topSidebar) topSidebar.classList.add('hidden');
 
-            // Показываем начальный экран для анонимного пользователя
-            this.showBlocks();
+            // Проверяем, онлайн ли мы
+            const isOnline = navigator.onLine;
+
+            if (isOnline) {
+                // Онлайн: загружаем публичные блоки
+                dispatch('InitAnonimUser');
+            } else {
+                // Офлайн: показываем пустой экран с сообщением
+                this.showOfflineLogoutScreen();
+            }
         });
 
         window.addEventListener('PasteBlock', async (e) => {
@@ -241,6 +270,11 @@ export class LocalStateManager {
         window.addEventListener('UpdateBlocks', (e) => {
             const data = e.detail
             data.blocks?.forEach(async (block) => {
+                // Защита: пропускаем блоки без id
+                if (!block?.id) {
+                    console.warn('⚠️ UpdateBlocks: skipping block without id:', block);
+                    return;
+                }
                 await this.saveBlock(block)
             })
             data.removed?.forEach(async (blockId) => {
@@ -258,6 +292,99 @@ export class LocalStateManager {
         window.addEventListener('RepairTree', () => {
             this.repairTree()
         })
+        // Обработка синхронизированного блока
+        window.addEventListener('BlockSynced', (e) => {
+            this.handleBlockSynced(e.detail)
+        })
+        // Обработка завершения batch import после офлайн синхронизации
+        window.addEventListener('BatchImportCompleted', (e) => {
+            this.handleBatchImportCompleted(e.detail)
+        })
+    }
+
+    /**
+     * Обрабатывает синхронизированный блок с сервера
+     * @param {Object} detail - {block}
+     */
+    async handleBlockSynced({block}) {
+        if (block) {
+            await this.saveBlock(block);
+            // Не вызываем ShowBlocks здесь, чтобы избежать лишних перерисовок
+        }
+    }
+
+    /**
+     * Обрабатывает завершение batch import после офлайн синхронизации
+     * Мержит данные с сервера с локальными данными
+     * @param {Object} detail - {blocks, deletedIds}
+     */
+    async handleBatchImportCompleted({blocks, deletedIds}) {
+        console.group('🔄 BatchImportCompleted');
+        console.log('Blocks from server:', blocks?.length || 0);
+        console.log('Deleted IDs:', deletedIds);
+
+        // Удаляем блоки, которые были удалены офлайн
+        for (const id of (deletedIds || [])) {
+            if (this.blocks.has(id)) {
+                console.log('Deleting block:', id);
+                this.blocks.delete(id);
+                await this.blockRepository.deleteBlock(id);
+            }
+        }
+
+        // Мержим данные с сервера с локальными
+        if (blocks && Array.isArray(blocks)) {
+            for (const serverBlock of blocks) {
+                // Пропускаем блоки без id
+                if (!serverBlock?.id) {
+                    console.warn('⚠️ Skipping block without id from server:', serverBlock);
+                    continue;
+                }
+                const localBlock = this.blocks.get(serverBlock.id);
+
+                if (localBlock) {
+                    // Мержим: сервер имеет приоритет для основных полей,
+                    // но сохраняем локальный childOrder если сервер его не прислал
+                    const mergedBlock = {
+                        ...localBlock,
+                        ...serverBlock,
+                        data: {
+                            ...localBlock.data,
+                            ...serverBlock.data,
+                            // Сохраняем локальный childOrder если серверный пустой или отсутствует
+                            childOrder: (serverBlock.data?.childOrder?.length > 0)
+                                ? serverBlock.data.childOrder
+                                : (localBlock.data?.childOrder || serverBlock.children || [])
+                        }
+                    };
+
+                    // Синхронизируем childOrder с children
+                    if (mergedBlock.children && mergedBlock.data.childOrder) {
+                        // childOrder должен содержать только те ID, которые есть в children
+                        mergedBlock.data.childOrder = mergedBlock.data.childOrder
+                            .filter(id => mergedBlock.children.includes(id));
+                        // Добавляем недостающие children в конец childOrder
+                        for (const childId of mergedBlock.children) {
+                            if (!mergedBlock.data.childOrder.includes(childId)) {
+                                mergedBlock.data.childOrder.push(childId);
+                            }
+                        }
+                    }
+
+                    console.log('Merging block:', serverBlock.id,
+                        'children:', mergedBlock.children?.length || 0,
+                        'childOrder:', mergedBlock.data?.childOrder?.length || 0);
+                    await this.saveBlock(mergedBlock);
+                } else {
+                    // Новый блок - сохраняем как есть
+                    console.log('Saving new block:', serverBlock.id);
+                    await this.saveBlock(serverBlock);
+                }
+            }
+        }
+
+        console.groupEnd();
+        dispatch('ShowBlocks');
     }
 
     async updateBlockImage({blockId, imageData}) {
@@ -294,6 +421,12 @@ export class LocalStateManager {
      * Создание нового дерева
      */
     async createTree({title}) {
+        // Офлайн режим
+        if (!offlineQueue.isNetworkOnline()) {
+            await this.createTreeOffline({title});
+            return;
+        }
+
         try {
             const res = await api.createTree(title)
             if (res.status === 201) {
@@ -303,12 +436,53 @@ export class LocalStateManager {
                 this.showBlocks()
             }
         } catch (error) {
-            console.error('Failed to create tree:', error)
+            // При ошибке сети создаём локально
+            if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+                await this.createTreeOffline({title});
+            } else {
+                console.error('Failed to create tree:', error)
+            }
         }
     }
 
     /**
-     * Удаление блока и всех его потомков
+     * Создаёт дерево локально в офлайн режиме
+     */
+    async createTreeOffline({title}) {
+        // Генерируем реальный UUID сразу
+        const blockId = offlineQueue.generateBlockId();
+
+        // Регистрируем блок как pending (ожидающий синхронизации)
+        offlineQueue.registerPendingBlock(blockId);
+
+        // Создаём блок-дерево с реальным ID
+        const newBlock = {
+            id: blockId,
+            title: title || 'Новое дерево',
+            parent_id: null,
+            children: [],
+            data: {},
+            updated_at: new Date().toISOString()
+        };
+
+        // Сохраняем блок
+        await this.saveBlock(newBlock);
+
+        // Добавляем в treeService
+        await treeService.addTree(blockId);
+
+        // Добавляем в очередь синхронизации
+        await offlineQueue.enqueue({
+            type: 'createTree',
+            data: { blockId, title }
+        });
+
+        this.showBlocks();
+        console.log('Tree created:', blockId, offlineQueue.isNetworkOnline() ? '(syncing)' : '(offline)');
+    }
+
+    /**
+     * Удаление блока и всех его потомков (Optimistic UI)
      */
     async deleteTreeBlock({blockId}) {
         if (!await customConfirm(`Вы уверены, что хотите удалить блок и всех его потомков?`)) return
@@ -325,30 +499,132 @@ export class LocalStateManager {
         const block = this.blocks.get(blockId)
         if (!block) return
 
+        // Проверяем, является ли блок pending (создан локально, но не на сервере)
+        const isPending = offlineQueue.isPendingBlock(blockId);
+
+        // Optimistic UI: сначала удаляем локально для мгновенного отклика
+        const deletedBlocks = new Map(); // Сохраняем для возможного rollback
+        const allChildIds = this.getAllChildIds(block);
+
+        // Собираем все pending блоки среди удаляемых
+        const pendingBlockIds = new Set();
+        for (const id of allChildIds) {
+            if (offlineQueue.isPendingBlock(id)) {
+                pendingBlockIds.add(id);
+            }
+        }
+
+        // Сохраняем копии для rollback
+        for (const id of allChildIds) {
+            const b = this.blocks.get(id);
+            if (b) deletedBlocks.set(id, {...b});
+        }
+
+        // Сохраняем родительский блок для rollback
+        const parentBlock = this.blocks.get(block.parent_id);
+        const parentBackup = parentBlock ? {
+            ...parentBlock,
+            children: [...(parentBlock.children || [])],
+            data: {...parentBlock.data, childOrder: [...(parentBlock.data?.childOrder || [])]}
+        } : null;
+
+        // Удаляем из treeService если это корневой блок
+        if (isRootTree) {
+            await treeService.removeTree(blockId)
+        }
+
+        // Обновляем родительский блок (удаляем из children и childOrder)
+        if (parentBlock) {
+            if (parentBlock.children) {
+                parentBlock.children = parentBlock.children.filter(id => id !== blockId);
+            }
+            if (parentBlock.data?.childOrder) {
+                parentBlock.data.childOrder = parentBlock.data.childOrder.filter(id => id !== blockId);
+            }
+            await this.saveBlock(parentBlock);
+        }
+
+        // Удаляем блок и всех потомков из кеша
+        for (const id of allChildIds) {
+            this.blockRepository.deleteBlock(id);
+            this.blocks.delete(id);
+        }
+
+        // Отменяем pending статус для удаляемых блоков
+        offlineQueue.cancelPendingBlocks(pendingBlockIds);
+
+        dispatch('ShowBlocks');
+
+        // Если блок pending - не вызываем API, просто добавляем в очередь удаления
+        // Import API обработает это: блок не будет создан, родитель обновится
+        if (isPending) {
+            console.log('Block is pending, skipping API delete:', blockId);
+            await offlineQueue.enqueue({
+                id: `delete_${blockId}_${Date.now()}`,
+                type: 'deleteBlock',
+                data: { id: blockId, parentId: block.parent_id }
+            });
+            return;
+        }
+
+        // Проверяем сеть
+        if (!offlineQueue.isNetworkOnline()) {
+            await offlineQueue.enqueue({
+                id: `delete_${blockId}_${Date.now()}`,
+                type: 'deleteBlock',
+                data: { id: blockId, parentId: block.parent_id }
+            });
+            console.log('Block delete queued for sync:', blockId);
+            return;
+        }
+
+        // Синхронизируем с сервером
         try {
             const res = await api.removeTree(blockId)
             if (res.status === 200) {
-                // Удаляем из treeService если это корневой блок
-                if (isRootTree) {
-                    await treeService.removeTree(blockId)
-                }
-
-                // Обновляем родительский блок
-                if (res.data.parent) {
+                // Обновляем родительский блок данными с сервера
+                if (res.data.parent?.id) {
                     await this.saveBlock(res.data.parent)
+                    dispatch('ShowBlocks');
                 }
-
-                // Удаляем блок и всех потомков из кеша
-                this.getAllChildIds(block).forEach((id) => {
-                    this.blockRepository.deleteBlock(id)
-                    this.blocks.delete(id)
-                })
-
-                this.showBlocks()
             }
         } catch (error) {
-            console.error('Failed to delete tree block:', error)
+            if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+                await offlineQueue.enqueue({
+                    id: `delete_${blockId}_${Date.now()}`,
+                    type: 'deleteBlock',
+                    data: { id: blockId, parentId: block.parent_id }
+                });
+                console.log('Block delete queued for sync:', blockId);
+            } else {
+                // Rollback при других ошибках
+                console.error('Delete failed, rolling back:', error);
+                await this.rollbackDeleteBlock(deletedBlocks, parentBackup, isRootTree, blockId);
+            }
         }
+    }
+
+    /**
+     * Откатывает удаление блока при ошибке
+     */
+    async rollbackDeleteBlock(deletedBlocks, parentBackup, isRootTree, blockId) {
+        // Восстанавливаем все удалённые блоки
+        for (const [id, block] of deletedBlocks) {
+            await this.saveBlock(block);
+        }
+
+        // Восстанавливаем родительский блок
+        if (parentBackup) {
+            await this.saveBlock(parentBackup);
+        }
+
+        // Восстанавливаем в treeService если это было дерево
+        if (isRootTree) {
+            await treeService.addTree(blockId);
+        }
+
+        dispatch('ShowBlocks');
+        dispatch('ShowError', { message: 'Не удалось удалить блок' });
     }
 
     /**
@@ -422,7 +698,7 @@ export class LocalStateManager {
             const res = await api.removeTree(blockId)
             if (res.status === 200) {
                 // Обновляем родительский блок
-                if (res.data.parent) {
+                if (res.data.parent?.id) {
                     await this.saveBlock(res.data.parent)
                 }
 
@@ -504,8 +780,126 @@ export class LocalStateManager {
 
             try {
                 if (block.deleted) {
+                    // Получаем блок до удаления чтобы найти родителя
+                    const localBlock = this.blocks.get(block.id);
+                    const parentId = localBlock?.parent_id;
+
+                    // Проверяем, находится ли пользователь на удаляемом блоке
+                    const currentScreen = this.path?.at(-1);
+                    const isOnDeletedBlock = currentScreen?.blockId === block.id;
+
+                    // Удаляем только этот блок (дети придут отдельными deleted событиями)
                     await this.removeOneBlock(block.id);
+
+                    // Если пользователь был на удалённом блоке — переходим к родителю
+                    if (isOnDeletedBlock) {
+                        console.log(`📍 Current block ${block.id} was deleted, navigating to parent`);
+                        // Удаляем текущий экран из path
+                        this.path.pop();
+
+                        if (parentId && this.blocks.has(parentId)) {
+                            // Переходим к родителю
+                            const parentBlock = this.blocks.get(parentId);
+                            const color = parentBlock.data?.color && parentBlock.data.color !== 'default_color' ? parentBlock.data.color : [];
+                            this.path.push({
+                                screenName: truncate(parentBlock.title, 10),
+                                color: color,
+                                blockId: parentId
+                            });
+                        } else if (this.path.length === 0 && this.currentTree) {
+                            // Если path пустой, переходим к корню дерева
+                            const rootBlock = this.blocks.get(this.currentTree);
+                            if (rootBlock) {
+                                const color = rootBlock.data?.color && rootBlock.data.color !== 'default_color' ? rootBlock.data.color : [];
+                                this.path.push({
+                                    screenName: truncate(rootBlock.title, 10),
+                                    color: color,
+                                    blockId: this.currentTree
+                                });
+                            }
+                        }
+
+                        // Сохраняем обновлённый path
+                        await localforage.setItem(`Path_${this.currentTree}${this.currentUser}`, this.path);
+                    }
+
+                    // Удаляем удалённый блок из path (может быть выше по иерархии)
+                    const deletedInPath = this.path.findIndex(p => p.blockId === block.id);
+                    if (deletedInPath !== -1) {
+                        // Обрезаем path до удалённого блока (не включая его)
+                        this.path = this.path.slice(0, deletedInPath);
+                        if (this.path.length === 0 && this.currentTree) {
+                            const rootBlock = this.blocks.get(this.currentTree);
+                            if (rootBlock) {
+                                const color = rootBlock.data?.color && rootBlock.data.color !== 'default_color' ? rootBlock.data.color : [];
+                                this.path.push({
+                                    screenName: truncate(rootBlock.title, 10),
+                                    color: color,
+                                    blockId: this.currentTree
+                                });
+                            }
+                        }
+                        await localforage.setItem(`Path_${this.currentTree}${this.currentUser}`, this.path);
+                    }
+
+                    // Обновляем родительский блок локально (убираем удалённого ребёнка)
+                    if (parentId) {
+                        const parentBlock = this.blocks.get(parentId);
+                        if (parentBlock) {
+                            // Убираем из children
+                            if (Array.isArray(parentBlock.children)) {
+                                parentBlock.children = parentBlock.children.filter(id => id !== block.id);
+                            }
+                            // Убираем из childOrder
+                            if (parentBlock.data?.childOrder) {
+                                parentBlock.data.childOrder = parentBlock.data.childOrder.filter(id => id !== block.id);
+                            }
+                            await this.saveBlock(parentBlock);
+                            // Добавляем родителя в processedBlocks чтобы перерисовать
+                            processedBlocks.push(parentBlock);
+                        }
+                    }
                 } else {
+                    // Получаем локальный блок для проверки
+                    const localBlock = this.blocks.get(block.id);
+                    const isPending = offlineQueue.isPendingBlock(block.id);
+                    const serverData = this._safeJsonParse(block.data, {});
+                    const serverChildren = this._safeJsonParse(block.children, []);
+
+                    // Если блок pending — проверяем, наше ли это изменение или чужое
+                    if (isPending && localBlock) {
+                        const isSameTitle = localBlock.title === block.title;
+                        // Сортируем ключи для корректного сравнения (порядок свойств может отличаться)
+                        const sortedStringify = (obj) => JSON.stringify(obj, Object.keys(obj || {}).sort());
+                        const isSameData = sortedStringify(localBlock.data || {}) === sortedStringify(serverData);
+
+                        // Сравниваем title и весь data объект
+                        const isOwnUpdate = isSameTitle && isSameData;
+
+                        if (isOwnUpdate) {
+                            // Это наше изменение вернулось с сервера — пропускаем рендер
+                            offlineQueue.resolvePendingBlock(block.id);
+
+                            await this.saveBlock({
+                                id: block.id,
+                                updated_at: new Date(block.updated_at * 1000).toISOString(),
+                                title: block.title,
+                                data: serverData,
+                                children: serverChildren,
+                                parent_id: normalizeParentId(block.parent_id)
+                            });
+
+                            console.log(`⏭️ Own update confirmed, skipping render: ${block.id}`);
+                            continue;
+                        } else {
+                            // Данные отличаются — это изменение от другого пользователя
+                            // Снимаем pending и рендерим (last write wins)
+                            offlineQueue.resolvePendingBlock(block.id);
+                            console.warn(`⚠️ Concurrent edit detected for block ${block.id}, applying server version`);
+                            // Продолжаем выполнение — блок будет сохранён и отрендерен ниже
+                        }
+                    }
+
                     // Если это корневой блок (дерево), добавляем через treeService
                     if (!block.parent_id) {
                         await treeService.refresh();
@@ -514,15 +908,36 @@ export class LocalStateManager {
                         }
                     }
 
-                    const data = this._safeJsonParse(block.data, {});
-                    const children = this._safeJsonParse(block.children, []);
+                    const localData = localBlock?.data || {};
+
+                    // Мёржим data: сервер имеет приоритет, но сохраняем локальный childOrder если серверный пустой
+                    const mergedData = {
+                        ...localData,
+                        ...serverData,
+                        // childOrder: берём серверный если он есть и не пустой, иначе локальный
+                        childOrder: (serverData.childOrder?.length > 0)
+                            ? serverData.childOrder
+                            : (localData.childOrder || [])
+                    };
+
+                    // Синхронизируем childOrder с children
+                    if (serverChildren.length > 0) {
+                        // Фильтруем childOrder — только те ID, которые есть в children
+                        mergedData.childOrder = mergedData.childOrder.filter(id => serverChildren.includes(id));
+                        // Добавляем недостающие children в конец childOrder
+                        for (const childId of serverChildren) {
+                            if (!mergedData.childOrder.includes(childId)) {
+                                mergedData.childOrder.push(childId);
+                            }
+                        }
+                    }
 
                     await this.saveBlock({
                         id: block.id,
                         updated_at: new Date(block.updated_at * 1000).toISOString(),
                         title: block.title,
-                        data,
-                        children,
+                        data: mergedData,
+                        children: serverChildren,
                         parent_id: normalizeParentId(block.parent_id)
                     });
                 }
@@ -626,6 +1041,20 @@ export class LocalStateManager {
     async repairTree() {
         console.group('🔧 Восстановление дерева блоков');
 
+        // Удаляем блоки с undefined/null ключами (ошибочные записи)
+        if (this.blocks.has(undefined)) {
+            console.warn('⚠️ Удаляю блок с undefined ключом');
+            this.blocks.delete(undefined);
+        }
+        if (this.blocks.has(null)) {
+            console.warn('⚠️ Удаляю блок с null ключом');
+            this.blocks.delete(null);
+        }
+        if (this.blocks.has('undefined')) {
+            console.warn('⚠️ Удаляю блок с "undefined" ключом');
+            this.blocks.delete('undefined');
+        }
+
         const result = treeValidator.validateAndRepair(this.blocks);
         console.log(treeValidator.formatReport(result));
 
@@ -699,38 +1128,121 @@ export class LocalStateManager {
         }
     }
 
-    moveBlock({block_id, old_parent_id, new_parent_id, before}) {
+    async moveBlock({block_id, old_parent_id, new_parent_id, before}) {
         if (block_id === new_parent_id) return
-        const parent = this.blocks.get(new_parent_id)
+        const newParent = this.blocks.get(new_parent_id)
 
         function reorderList(ids, id, idBefore) {
-            // Удаляем id из списка, если он уже есть
             const filteredIds = ids.filter(item => item !== id);
-            // Находим индекс idBefore
             const index = filteredIds.indexOf(idBefore);
             if (index !== -1) {
-                // Вставляем id перед idBefore
                 filteredIds.splice(index, 0, id);
             } else {
-                // Если idBefore нет, добавляем id в конец
                 filteredIds.push(id);
             }
-
             return filteredIds;
         }
 
-        if (parent && parent.data) {
-            const newOrder = reorderList(parent.data.childOrder || [], block_id, before)
-            api.moveBlock(block_id, {new_parent_id, old_parent_id, childOrder: newOrder})
-                .then((res) => {
-                    if (res.status === 200) {
-                        Object.values(res.data).forEach((block) => {
-                            this.saveBlock(block)
-                        })
-                        dispatch('ShowBlocks');
-                    }
-                })
+        if (!newParent) {
+            console.error('New parent not found:', new_parent_id);
+            return;
         }
+
+        if (!newParent.data) newParent.data = {};
+        const newOrder = reorderList(newParent.data.childOrder || [], block_id, before);
+
+        // Optimistic UI: сначала перемещаем локально
+        const block = this.blocks.get(block_id);
+        const oldParent = this.blocks.get(old_parent_id);
+
+        if (!block) {
+            console.error('Block not found:', block_id);
+            return;
+        }
+
+        // Сохраняем backup для rollback
+        const blockBackup = {...block, parent_id: block.parent_id};
+        const oldParentBackup = oldParent ? {...oldParent, children: [...(oldParent.children || [])], data: {...oldParent.data}} : null;
+        const newParentBackup = {...newParent, children: [...(newParent.children || [])], data: {...newParent.data}};
+
+        // Обновляем parent_id блока
+        block.parent_id = new_parent_id;
+        block.updated_at = new Date().toISOString();
+
+        // Удаляем из старого родителя
+        if (oldParent && oldParent.children) {
+            oldParent.children = oldParent.children.filter(id => id !== block_id);
+            if (oldParent.data?.childOrder) {
+                oldParent.data.childOrder = oldParent.data.childOrder.filter(id => id !== block_id);
+            }
+            await this.saveBlock(oldParent);
+        }
+
+        // Добавляем в нового родителя и синхронизируем children с childOrder
+        if (!newParent.children) newParent.children = [];
+        if (!newParent.children.includes(block_id)) {
+            newParent.children.push(block_id);
+        }
+        newParent.data.childOrder = newOrder;
+        // Синхронизируем children с childOrder для правильного порядка
+        newParent.children = newOrder.filter(id => newParent.children.includes(id));
+        newParent.updated_at = new Date().toISOString();
+
+        await this.saveBlock(block);
+        await this.saveBlock(newParent);
+        dispatch('ShowBlocks');
+
+        // Проверяем сеть
+        if (!offlineQueue.isNetworkOnline()) {
+            await offlineQueue.enqueue({
+                id: `move_${block_id}_${Date.now()}`,
+                type: 'moveBlock',
+                data: { blockId: block_id, oldParentId: old_parent_id, newParentId: new_parent_id, childOrder: newOrder }
+            });
+            console.log('Block move queued for sync:', block_id);
+            return;
+        }
+
+        // Синхронизируем с сервером
+        try {
+            const res = await api.moveBlock(block_id, {new_parent_id, old_parent_id, childOrder: newOrder});
+            if (res.status === 200) {
+                // Обновляем блоки данными с сервера
+                for (const serverBlock of Object.values(res.data)) {
+                    // Защита: пропускаем блоки без id
+                    if (!serverBlock?.id) {
+                        console.warn('⚠️ moveBlock: skipping block without id:', serverBlock);
+                        continue;
+                    }
+                    await this.saveBlock(serverBlock);
+                }
+                dispatch('ShowBlocks');
+            }
+        } catch (err) {
+            if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
+                await offlineQueue.enqueue({
+                    id: `move_${block_id}_${Date.now()}`,
+                    type: 'moveBlock',
+                    data: { blockId: block_id, oldParentId: old_parent_id, newParentId: new_parent_id, childOrder: newOrder }
+                });
+                console.log('Block move queued for sync:', block_id);
+            } else {
+                // Rollback при других ошибках
+                console.error('Move failed, rolling back:', err);
+                await this.rollbackMoveBlock(blockBackup, oldParentBackup, newParentBackup);
+            }
+        }
+    }
+
+    /**
+     * Откатывает перемещение блока при ошибке
+     */
+    async rollbackMoveBlock(blockBackup, oldParentBackup, newParentBackup) {
+        await this.saveBlock(blockBackup);
+        if (oldParentBackup) await this.saveBlock(oldParentBackup);
+        await this.saveBlock(newParentBackup);
+        dispatch('ShowBlocks');
+        dispatch('ShowError', { message: 'Не удалось переместить блок' });
     }
 
     async loadEmptyBlocks({emptyBlocks}) {
@@ -745,45 +1257,56 @@ export class LocalStateManager {
 
 
     async saveBlock(block) {
-        if (block) {
-            this.blocks.set(block.id, block)
-            if (this.blockRepository) {
-                await this.blockRepository.saveBlock(block);
-            } else {
-                console.warn('BlockRepository not initialized, block saved only in memory:', block.id);
-            }
+        if (!block) {
+            console.error('Save block undefined');
+            console.trace('saveBlock called with undefined');
+            return;
+        }
+        if (!block.id) {
+            console.error('Save block without id:', block);
+            console.trace('saveBlock called without id');
+            return;
+        }
+        this.blocks.set(block.id, block);
+        if (this.blockRepository) {
+            await this.blockRepository.saveBlock(block);
         } else {
-            console.error('Save block undefined')
+            console.warn('BlockRepository not initialized, block saved only in memory:', block.id);
         }
     }
 
     async removeOneBlock(blockId) {
         const block = this.blocks.get(blockId);
-        if (!block) {
-            console.warn(`Block ${blockId} not found`);
-            return;
-        }
-        const parentId = block.parent_id;
-        if (parentId) {
-            const parentBlock = this.blocks.get(parentId);
-            if (parentBlock) {
-                parentBlock.children = parentBlock.children.filter(id => id !== blockId);
-                parentBlock.data.childOrder = parentBlock.data.childOrder.filter(id => id !== blockId);
-                this.blockRepository.saveBlock(parentBlock)
+
+        // Обновляем родителя если блок найден в памяти
+        if (block) {
+            const parentId = block.parent_id;
+            if (parentId) {
+                const parentBlock = this.blocks.get(parentId);
+                if (parentBlock) {
+                    if (Array.isArray(parentBlock.children)) {
+                        parentBlock.children = parentBlock.children.filter(id => id !== blockId);
+                    }
+                    if (parentBlock.data?.childOrder) {
+                        parentBlock.data.childOrder = parentBlock.data.childOrder.filter(id => id !== blockId);
+                    }
+                    this.blockRepository.saveBlock(parentBlock)
+                }
             }
         }
 
+        // Удаляем из treeIds если это корневой блок
         let treeIds = await localforage.getItem(`treeIds${this.currentUser}`);
-
         if (Array.isArray(treeIds)) {
             treeIds = treeIds.filter(id => id !== blockId);
             await localforage.setItem(`treeIds${this.currentUser}`, treeIds);
         }
 
-        // Remove from internal map and delete from repository
+        // Удаляем из памяти
         this.blocks.delete(blockId);
-        await this.blockRepository.deleteBlock(blockId);
 
+        // Всегда пытаемся удалить из IndexedDB (даже если блока нет в памяти)
+        await this.blockRepository.deleteBlock(blockId);
     }
 
     // Corrected block and branch removal logic with parent update
@@ -855,6 +1378,34 @@ export class LocalStateManager {
         await localforage.setItem('currentTree', this.currentTree)
         await localforage.setItem(`treeIds${user}`, treeIds)
 
+        // Получаем существующие ключи блоков для этого пользователя
+        const keys = await localforage.keys();
+        const escapedUser = escapeRegExp(user);
+        const pattern = new RegExp(`^Block_.*_${escapedUser}$`);
+        const existingBlockKeys = new Set(keys.filter(key => pattern.test(key)));
+
+        // Новые ключи с сервера
+        const newBlockIds = new Set(blocks.keys());
+
+        // Удаляем блоки, которых нет на сервере (stale blocks)
+        const keysToDelete = [];
+        for (const key of existingBlockKeys) {
+            // Извлекаем blockId из ключа формата Block_{blockId}_{user}
+            const match = key.match(/^Block_(.+)_[^_]+$/);
+            if (match) {
+                const blockId = match[1];
+                if (!newBlockIds.has(blockId)) {
+                    keysToDelete.push(key);
+                }
+            }
+        }
+
+        // Удаляем устаревшие блоки из IndexedDB
+        if (keysToDelete.length > 0) {
+            console.log(`🧹 Cleaning ${keysToDelete.length} stale blocks from IndexedDB`);
+            await Promise.all(keysToDelete.map(key => localforage.removeItem(key)));
+        }
+
         // Сохраняем блоки с await для гарантии записи в IndexedDB
         for (const block of blocks.values()) {
             await this.saveBlock(block);
@@ -875,6 +1426,9 @@ export class LocalStateManager {
             await localforage.setItem(`Path_${tree}${this.currentUser}`, path);
         }
         this.path = await localforage.getItem(`Path_${this.currentTree}${this.currentUser}`)
+
+        // Уведомляем offlineQueue что данные загружены — следующий pull можно пропустить
+        offlineQueue.markPullCompleted();
     }
 
 
@@ -1041,91 +1595,244 @@ export class LocalStateManager {
     }
 
     async createBlock({parentId, title}) {
-        try {
-            const response = await api.createBlock(parentId, title);
-            if (response.status === 201) {
-                const newBlocks = response.data;
-                for (const block of newBlocks) {
-                    await this.saveBlock(block);
-                }
-                dispatch('ShowBlocks');
-            }
-        } catch (err) {
-            console.error(err);
+        // Генерируем реальный UUID сразу (не временный)
+        const blockId = offlineQueue.generateBlockId();
+
+        const parentBlock = this.blocks.get(parentId);
+        if (!parentBlock) {
+            console.error('Parent block not found:', parentId);
+            return;
         }
+
+        // Регистрируем блок как pending (ожидающий синхронизации)
+        offlineQueue.registerPendingBlock(blockId);
+
+        // Создаём блок с реальным ID
+        const newBlock = {
+            id: blockId,
+            title: title || '',
+            parent_id: parentId,
+            children: [],
+            data: { childOrder: [] },
+            updated_at: new Date().toISOString()
+        };
+
+        // Обновляем родительский блок
+        if (!parentBlock.children) parentBlock.children = [];
+        if (!parentBlock.data) parentBlock.data = {};
+        if (!parentBlock.data.childOrder) parentBlock.data.childOrder = [];
+
+        // ВАЖНО: добавляем blockId в оба массива синхронно
+        parentBlock.children.push(blockId);
+        parentBlock.data.childOrder.push(blockId);
+
+        // Обновляем timestamp родителя
+        parentBlock.updated_at = new Date().toISOString();
+
+        // Сохраняем локально и показываем сразу (мгновенный отклик)
+        await this.saveBlock(newBlock);
+        await this.saveBlock(parentBlock);
+        dispatch('ShowBlocks');
+
+        // Добавляем в очередь синхронизации (отправится через batch import)
+        await offlineQueue.enqueue({
+            type: 'createBlock',
+            data: { blockId, parentId }
+        });
+
+        console.log('Block created:', blockId, offlineQueue.isNetworkOnline() ? '(syncing)' : '(offline)');
     }
 
-    iframeCreate({parentId, src}) {
-        api.createBlock(parentId, '', {
+    /**
+     * Откатывает создание блока при ошибке
+     */
+    async rollbackCreateBlock(blockId, parentId) {
+        // Удаляем блок
+        this.blocks.delete(blockId);
+        await this.blockRepository.deleteBlock(blockId);
+
+        // Убираем из родительского блока (из children и childOrder)
+        const parentBlock = this.blocks.get(parentId);
+        if (parentBlock && parentBlock.children) {
+            parentBlock.children = parentBlock.children.filter(id => id !== blockId);
+
+            // Также убираем из childOrder
+            if (parentBlock.data?.childOrder) {
+                parentBlock.data.childOrder = parentBlock.data.childOrder.filter(id => id !== blockId);
+            }
+            await this.saveBlock(parentBlock);
+        }
+
+        dispatch('ShowBlocks');
+        dispatch('ShowError', { message: 'Не удалось создать блок' });
+    }
+
+    async iframeCreate({parentId, src}) {
+        const blockData = {
             view: 'iframe',
             attributes: [
                 {name: 'sandbox', value: 'allow-scripts allow-same-origin allow-forms'},
                 {name: 'src', value: src}
             ]
-        }).then(async (res) => {
-            if (res.status === 201) {
-                const newBlocks = res.data;
-                for (const block of newBlocks) {
-                    await this.saveBlock(block);
-                }
-                dispatch('ShowBlocks');
-            }
-        }).catch((err) => {
-            console.error(err)
-        })
+        };
+
+        // Генерируем реальный UUID сразу
+        const blockId = offlineQueue.generateBlockId();
+
+        const parentBlock = this.blocks.get(parentId);
+        if (!parentBlock) {
+            console.error('Parent block not found:', parentId);
+            return;
+        }
+
+        // Регистрируем блок как pending (ожидающий синхронизации)
+        offlineQueue.registerPendingBlock(blockId);
+
+        // Создаём iframe блок с реальным ID
+        const newBlock = {
+            id: blockId,
+            title: '',
+            parent_id: parentId,
+            children: [],
+            data: blockData,
+            updated_at: new Date().toISOString()
+        };
+
+        // Обновляем родительский блок
+        if (!parentBlock.children) parentBlock.children = [];
+        parentBlock.children.push(blockId);
+
+        // Синхронизируем childOrder с children
+        if (!parentBlock.data) parentBlock.data = {};
+        if (!parentBlock.data.childOrder) parentBlock.data.childOrder = [];
+        parentBlock.data.childOrder.push(blockId);
+
+        await this.saveBlock(newBlock);
+        await this.saveBlock(parentBlock);
+        dispatch('ShowBlocks');
+
+        // Добавляем в очередь синхронизации
+        await offlineQueue.enqueue({
+            type: 'createBlock',
+            data: { blockId, parentId }
+        });
+
+        console.log('Iframe created:', blockId, offlineQueue.isNetworkOnline() ? '(syncing)' : '(offline)');
     }
 
     async pasteBlock(data) {
+        // Копирование недоступно в офлайн режиме
+        if (!offlineQueue.isNetworkOnline()) {
+            dispatch('ShowError', { message: 'Копирование блоков доступно только в онлайн режиме' });
+            return;
+        }
+
         if (data.src.length > 0) {
             try {
                 const response = await api.pasteBlock(data);
                 if (response.status === 200) {
                     const newBlocks = response.data;
                     for (const block of Object.values(newBlocks)) {
+                        // Защита: пропускаем блоки без id
+                        if (!block?.id) {
+                            console.warn('⚠️ pasteBlock: skipping block without id:', block);
+                            continue;
+                        }
                         await this.saveBlock(block);
                     }
                     dispatch('ShowBlocks');
                 }
             } catch (err) {
-                console.error(err);
+                if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
+                    dispatch('ShowError', { message: 'Копирование блоков доступно только в онлайн режиме' });
+                } else {
+                    console.error(err);
+                }
             }
         }
     }
 
     async pasteLinkBlock(data) {
+        // Создание ссылок недоступно в офлайн режиме
+        if (!offlineQueue.isNetworkOnline()) {
+            dispatch('ShowError', { message: 'Создание ссылок доступно только в онлайн режиме' });
+            return;
+        }
+
         try {
             const response = await api.pasteLinkBlock(data);
             if (response.status === 201) {
                 const newBlocks = response.data;
                 for (const block of newBlocks) {
+                    // Защита: пропускаем блоки без id
+                    if (!block?.id) {
+                        console.warn('⚠️ pasteLinkBlock: skipping block without id:', block);
+                        continue;
+                    }
                     await this.saveBlock(block);
                 }
                 dispatch('ShowBlocks');
             }
         } catch (err) {
-            console.error(err);
+            if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
+                dispatch('ShowError', { message: 'Создание ссылок доступно только в онлайн режиме' });
+            } else {
+                console.error(err);
+            }
         }
     }
 
     async updateCustomGridBlock({blockId, customGrid}) {
-        const block = await this.blockRepository.loadBlock(blockId)
-        console.log(block)
-        block.data.customGrid = customGrid
-        await this.saveBlock(block).then(() => dispatch('ShowBlocks'))
+        // Optimistic UI: обновляем локально, синхронизация через batch import
+        const block = await this.blockRepository.loadBlock(blockId);
+        if (!block) {
+            console.error(`Block ${blockId} not found`);
+            return;
+        }
 
-        if (this.debounceTimer) clearTimeout(this.debounceTimer);
+        block.data.customGrid = customGrid;
+        block.updated_at = new Date().toISOString();
+        await this.saveBlock(block);
 
-        this.debounceTimer = setTimeout(async () => {
-            try {
-                const response = await api.updateBlock(blockId, {data: {customGrid}});
-                if (response.status === 200) {
-                    const updatedBlock = response.data;
-                    await this.saveBlock(updatedBlock);
-                }
-            } catch (err) {
-                console.error(err);
-            }
-        }, 1000);
+        // Регистрируем блок как pending для индикатора
+        offlineQueue.registerPendingBlock(blockId);
+
+        // Добавляем в очередь синхронизации
+        await offlineQueue.enqueue({
+            type: 'updateBlock',
+            data: { id: blockId }
+        });
+
+        dispatch('ShowBlocks');
+    }
+
+    /**
+     * Обновить кастомные стили блока
+     * @param {string} blockId - ID блока
+     * @param {Object} customStyles - Объект стилей (background, borderColor, border, shape, shadow)
+     */
+    async updateBlockStyles({blockId, customStyles}) {
+        // Optimistic UI: обновляем локально, синхронизация через batch import
+        const block = await this.blockRepository.loadBlock(blockId);
+        if (!block) {
+            console.error(`Block ${blockId} not found`);
+            return;
+        }
+
+        block.data.customStyles = customStyles;
+        block.updated_at = new Date().toISOString();
+        await this.saveBlock(block);
+
+        // Регистрируем блок как pending для индикатора
+        offlineQueue.registerPendingBlock(blockId);
+
+        // Добавляем в очередь синхронизации
+        await offlineQueue.enqueue({
+            type: 'updateBlock',
+            data: { id: blockId }
+        });
+
+        dispatch('ShowBlocks');
     }
 
     updateDataBlock({blockId, data}) {
@@ -1147,16 +1854,25 @@ export class LocalStateManager {
     }
 
     async textUpdate({blockId, text}) {
-        try {
-            const response = await api.updateBlock(blockId, {data: {text}});
-            if (response.status === 200) {
-                const updatedBlock = response.data;
-                await this.saveBlock(updatedBlock);
-                dispatch('ShowBlocks');
-            }
-        } catch (err) {
-            console.error(err);
-        }
+        // Optimistic UI: обновляем локально, синхронизация через batch import
+        const block = this.blocks.get(blockId);
+        if (!block) return;
+
+        if (!block.data) block.data = {};
+        block.data.text = text;
+        block.updated_at = new Date().toISOString();
+        await this.saveBlock(block);
+
+        // Регистрируем блок как pending для индикатора
+        offlineQueue.registerPendingBlock(blockId);
+
+        // Добавляем в очередь синхронизации
+        await offlineQueue.enqueue({
+            type: 'updateBlock',
+            data: { id: blockId }
+        });
+
+        dispatch('ShowBlocks');
     }
 
 
@@ -1167,49 +1883,73 @@ export class LocalStateManager {
     }
 
     async titleUpdate({blockId, title}) {
-        try {
-            const response = await api.updateBlock(blockId, {title});
-            if (response.status === 200) {
-                const updatedBlock = response.data;
-                await this.saveBlock(updatedBlock);
-                dispatch('ShowBlocks');
-            }
-        } catch (err) {
-            console.error(err);
-        }
+        // Optimistic UI: обновляем локально, синхронизация через batch import
+        const block = this.blocks.get(blockId);
+        if (!block) return;
+
+        block.title = title;
+        block.updated_at = new Date().toISOString();
+        await this.saveBlock(block);
+
+        // Регистрируем блок как pending для индикатора
+        offlineQueue.registerPendingBlock(blockId);
+
+        // Добавляем в очередь синхронизации
+        await offlineQueue.enqueue({
+            type: 'updateBlock',
+            data: { id: blockId }
+        });
+
+        dispatch('ShowBlocks');
     }
 
-    setIframe({blockId, src}) {
-        api.updateBlock(blockId, {
-            data: {
-                view: 'iframe',
-                text: '',
-                attributes: [
-                    {name: 'sandbox', value: 'allow-scripts allow-same-origin allow-forms'},
-                    {name: 'src', value: src}
-                ],
-            }
-        }).then((res) => {
-            if (res.status === 200) {
-                const updatedBlock = res.data;
-                this.saveBlock(updatedBlock);
-                dispatch('ShowBlocks');
-            }
-        })
+    async setIframe({blockId, src}) {
+        // Optimistic UI: обновляем локально, синхронизация через batch import
+        const block = this.blocks.get(blockId);
+        if (!block) return;
 
+        if (!block.data) block.data = {};
+        block.data.view = 'iframe';
+        block.data.text = '';
+        block.data.attributes = [
+            {name: 'sandbox', value: 'allow-scripts allow-same-origin allow-forms'},
+            {name: 'src', value: src}
+        ];
+        block.updated_at = new Date().toISOString();
+        await this.saveBlock(block);
+
+        // Регистрируем блок как pending для индикатора
+        offlineQueue.registerPendingBlock(blockId);
+
+        // Добавляем в очередь синхронизации
+        await offlineQueue.enqueue({
+            type: 'updateBlock',
+            data: { id: blockId }
+        });
+
+        dispatch('ShowBlocks');
     }
 
     async hueUpdate({blockId, hue}) {
-        try {
-            const response = await api.updateBlock(blockId, {data: {color: hue}});
-            if (response.status === 200) {
-                const updatedBlock = response.data;
-                await this.saveBlock(updatedBlock);
-                dispatch('ShowBlocks');
-            }
-        } catch (err) {
-            console.error(err);
-        }
+        // Optimistic UI: обновляем локально, синхронизация через batch import
+        const block = this.blocks.get(blockId);
+        if (!block) return;
+
+        if (!block.data) block.data = {};
+        block.data.color = hue;
+        block.updated_at = new Date().toISOString();
+        await this.saveBlock(block);
+
+        // Регистрируем блок как pending для индикатора
+        offlineQueue.registerPendingBlock(blockId);
+
+        // Добавляем в очередь синхронизации
+        await offlineQueue.enqueue({
+            type: 'updateBlock',
+            data: { id: blockId }
+        });
+
+        dispatch('ShowBlocks');
     }
 
     async addConnectionBlock({
@@ -1220,63 +1960,202 @@ export class LocalStateManager {
                                  overlays,
                                  anchors,
                                  endpoint,
-                                 endpointStyle
+                                 endpointStyle,
+                                 sourceAnchor,
+                                 targetAnchor
                              }) {
+        const sourceBlock = this.blocks.get(sourceId);
+        if (!sourceBlock) {
+            console.error('Source block not found:', sourceId);
+            return;
+        }
+        if (!sourceBlock.data) sourceBlock.data = {};
+        if (!sourceBlock.data.connections) sourceBlock.data.connections = [];
+
+        const connectionData = {
+            sourceId,
+            targetId,
+            connector,
+            paintStyle,
+            overlays,
+            anchors,
+            endpoint,
+            endpointStyle,
+            sourceAnchor,
+            targetAnchor
+        };
+
+        // Проверяем уникальность по source + target + anchors
+        // Это позволяет создавать несколько соединений между одной парой блоков
+        // если они подключены к разным anchor points
+        const existingConnection = sourceBlock.data.connections.find(
+            connection => connection.sourceId === sourceId &&
+                         connection.targetId === targetId &&
+                         connection.sourceAnchor === sourceAnchor &&
+                         connection.targetAnchor === targetAnchor
+        );
+
+        if (existingConnection) {
+            Object.assign(existingConnection, connectionData);
+        } else {
+            sourceBlock.data.connections.push(connectionData);
+        }
+
+        sourceBlock.updated_at = new Date().toISOString();
+        await this.saveBlock(sourceBlock);
+        dispatch('ShowBlocks');
+
+        // Офлайн режим: добавляем в очередь
+        if (!offlineQueue.isNetworkOnline()) {
+            await offlineQueue.enqueue({
+                id: `add_connection_${sourceId}_${targetId}_${Date.now()}`,
+                type: 'updateBlock',
+                data: {
+                    id: sourceId,
+                    blockData: {data: sourceBlock.data}
+                }
+            });
+            return;
+        }
+
         try {
-            const sourceBlock = this.blocks.get(sourceId);
-            if (!sourceBlock.data.connections) sourceBlock.data.connections = [];
-
-            const existingConnection = sourceBlock.data.connections.find(
-                connection => connection.sourceId === sourceId && connection.targetId === targetId
-            );
-
-            if (existingConnection) {
-                // Обновляем все свойства соединения
-                Object.assign(existingConnection, {
-                    connector,
-                    paintStyle,
-                    overlays,
-                    anchors,
-                    endpoint,
-                    endpointStyle
-                });
-            } else {
-                // Добавляем новое соединение
-                sourceBlock.data.connections.push({
-                    sourceId,
-                    targetId,
-                    connector,
-                    paintStyle,
-                    overlays,
-                    anchors,
-                    endpoint,
-                    endpointStyle
-                });
-            }
-
             const response = await api.updateBlock(sourceId, {data: sourceBlock.data});
-            if (response.status === 200) {
-                const updatedBlock = response.data;
-                await this.saveBlock(updatedBlock);
-                dispatch('ShowBlocks');
+            if (response.status === 200 && response.data?.id) {
+                await this.saveBlock(response.data);
             }
         } catch (err) {
-            console.error(err);
+            if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
+                await offlineQueue.enqueue({
+                    id: `add_connection_${sourceId}_${targetId}_${Date.now()}`,
+                    type: 'updateBlock',
+                    data: {
+                        id: sourceId,
+                        blockData: {data: sourceBlock.data}
+                    }
+                });
+            } else {
+                console.error(err);
+            }
         }
     }
 
     async removeConnectionBlock({sourceId, targetId}) {
-        try {
-            const sourceBlock = this.blocks.get(sourceId);
-            sourceBlock.data.connections = sourceBlock.data.connections.filter((el) => el.targetId !== targetId);
+        const sourceBlock = this.blocks.get(sourceId);
+        if (!sourceBlock || !sourceBlock.data?.connections) {
+            console.error('Source block or connections not found:', sourceId);
+            return;
+        }
 
+        sourceBlock.data.connections = sourceBlock.data.connections.filter((el) => el.targetId !== targetId);
+        sourceBlock.updated_at = new Date().toISOString();
+        await this.saveBlock(sourceBlock);
+
+        // Офлайн режим: добавляем в очередь
+        if (!offlineQueue.isNetworkOnline()) {
+            await offlineQueue.enqueue({
+                id: `remove_connection_${sourceId}_${targetId}_${Date.now()}`,
+                type: 'updateBlock',
+                data: {
+                    id: sourceId,
+                    blockData: {data: sourceBlock.data}
+                }
+            });
+            return;
+        }
+
+        try {
             const response = await api.updateBlock(sourceId, {data: sourceBlock.data});
-            if (response.status === 200) {
-                const updatedBlock = response.data;
-                await this.saveBlock(updatedBlock);
+            if (response.status === 200 && response.data?.id) {
+                await this.saveBlock(response.data);
             }
         } catch (err) {
-            console.error(err);
+            if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
+                await offlineQueue.enqueue({
+                    id: `remove_connection_${sourceId}_${targetId}_${Date.now()}`,
+                    type: 'updateBlock',
+                    data: {
+                        id: sourceId,
+                        blockData: {data: sourceBlock.data}
+                    }
+                });
+            } else {
+                console.error(err);
+            }
+        }
+    }
+
+    /**
+     * Обновляет существующее соединение между блоками
+     * @param {Object} connectionData - Данные соединения
+     */
+    async updateConnectionBlock({sourceId, targetId, connector, paintStyle, overlays, anchors, ...rest}) {
+        // Извлекаем чистый ID блока (без префиксов)
+        const cleanSourceId = sourceId?.split('*').pop() || sourceId;
+
+        const sourceBlock = this.blocks.get(cleanSourceId);
+        if (!sourceBlock || !sourceBlock.data?.connections) {
+            console.error('Source block or connections not found:', cleanSourceId);
+            return;
+        }
+
+        // Находим существующее соединение
+        const connIndex = sourceBlock.data.connections.findIndex(
+            c => c.sourceId === sourceId && c.targetId === targetId
+        );
+
+        if (connIndex === -1) {
+            console.warn('Connection not found for update:', sourceId, '->', targetId);
+            return;
+        }
+
+        // Обновляем данные соединения
+        sourceBlock.data.connections[connIndex] = {
+            sourceId,
+            targetId,
+            connector,
+            paintStyle,
+            overlays,
+            anchors,
+            ...rest
+        };
+
+        sourceBlock.updated_at = new Date().toISOString();
+        await this.saveBlock(sourceBlock);
+
+        // Примечание: не добавляем в undo stack, т.к. стили соединений
+        // не поддерживают формат операций для undo/redo
+
+        // Офлайн режим: добавляем в очередь
+        if (!offlineQueue.isNetworkOnline()) {
+            await offlineQueue.enqueue({
+                id: `update_connection_${cleanSourceId}_${targetId}_${Date.now()}`,
+                type: 'updateBlock',
+                data: {
+                    id: cleanSourceId,
+                    blockData: {data: sourceBlock.data}
+                }
+            });
+            return;
+        }
+
+        try {
+            const response = await api.updateBlock(cleanSourceId, {data: sourceBlock.data});
+            if (response.status === 200 && response.data?.id) {
+                await this.saveBlock(response.data);
+            }
+        } catch (err) {
+            if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
+                await offlineQueue.enqueue({
+                    id: `update_connection_${cleanSourceId}_${targetId}_${Date.now()}`,
+                    type: 'updateBlock',
+                    data: {
+                        id: cleanSourceId,
+                        blockData: {data: sourceBlock.data}
+                    }
+                });
+            } else {
+                console.error(err);
+            }
         }
     }
 
@@ -1312,4 +2191,50 @@ export class LocalStateManager {
         return removesIds;
     }
 
+    /**
+     * Показывает экран выхода в офлайн режиме
+     */
+    showOfflineLogoutScreen() {
+        // Очищаем rootContainer
+        if (this.rootContainer) {
+            this.rootContainer.innerHTML = '';
+        }
+
+        // Показываем сообщение о офлайн выходе
+        const offlineScreen = document.createElement('div');
+        offlineScreen.className = 'offline-logout-screen';
+        offlineScreen.innerHTML = `
+            <div class="offline-logout-content">
+                <i class="fas fa-wifi-slash offline-logout-icon"></i>
+                <h2>Вы вышли из системы</h2>
+                <p>Подключитесь к интернету и обновите страницу для входа.</p>
+                <button class="offline-refresh-btn" onclick="window.location.reload()">
+                    <i class="fas fa-sync-alt"></i> Обновить страницу
+                </button>
+            </div>
+        `;
+
+        if (this.rootContainer) {
+            this.rootContainer.appendChild(offlineScreen);
+        }
+    }
+
 }
+
+// Ленивый singleton для использования в других модулях
+let _localStateManagerInstance = null;
+
+export const localStateManager = {
+    get blocks() {
+        if (!_localStateManagerInstance) {
+            _localStateManagerInstance = new LocalStateManager();
+        }
+        return _localStateManagerInstance.blocks;
+    },
+    getInstance() {
+        if (!_localStateManagerInstance) {
+            _localStateManagerInstance = new LocalStateManager();
+        }
+        return _localStateManagerInstance;
+    }
+};
