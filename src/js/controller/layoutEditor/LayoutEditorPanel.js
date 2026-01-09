@@ -152,11 +152,11 @@ export class LayoutEditorPanel extends Popup {
     initFromExistingLayout() {
         const layout = this.block.data?.layout;
         const layoutCells = this.block.data?.layoutCells;
-        const childOrder = this.block.data?.childOrder || [];
 
-        // Используем childBlocks как источник правды (уже отфильтрованы в loadBlockData)
-        // Это согласовано с rebuildOccupancyGrid() который тоже использует childBlocks
-        const validChildIds = new Set(this.childBlocks.map(b => b.id));
+        // Используем childBlocks как единственный источник правды
+        // Это согласовано с rebuildOccupancyGrid() и applyPreset()
+        const childOrder = this.childBlocks.map(b => b.id);
+        const validChildIds = new Set(childOrder);
 
         if (layout === 'cells' && layoutCells?.cells) {
             // Используем существующую конфигурацию cells, фильтруя удалённые блоки
@@ -940,7 +940,7 @@ export class LayoutEditorPanel extends Popup {
      */
     refreshPreview() {
         if (this.preview) {
-            this.preview.update(this.gridSize, this.cells, this.placeholders);
+            this.preview.update(this.gridSize, this.cells, this.placeholders, this.childBlocks);
         }
         this.updateFillBlocksSection();
     }

@@ -45,11 +45,18 @@ export class LayoutPreview {
 
     /**
      * Обновляет превью
+     * @param {Object} gridSize - размер сетки {rows, cols}
+     * @param {Object} cells - позиции блоков {childId: {row, col, rowSpan, colSpan}}
+     * @param {Array} placeholders - placeholder'ы для новых блоков
+     * @param {Array} childBlocks - массив дочерних блоков (опционально)
      */
-    update(gridSize, cells, placeholders = []) {
+    update(gridSize, cells, placeholders = [], childBlocks = null) {
         this.gridSize = gridSize;
         this.cells = cells;
         this.placeholders = placeholders;
+        if (childBlocks !== null) {
+            this.childBlocks = childBlocks;
+        }
         this.render();
     }
 
