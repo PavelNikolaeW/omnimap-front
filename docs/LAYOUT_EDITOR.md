@@ -184,6 +184,9 @@ cellManager.remove(childId);                                  // Удалени�
 cellManager.rebuildOccupancyGrid();                          // Перестроить
 ```
 
+**Автоочистка orphan cells:**
+При вызове `rebuildOccupancyGrid()` автоматически удаляются записи для блоков, которых больше нет в `childBlocks`. Это важно когда блоки удаляются вне редактора — их позиции освобождаются автоматически.
+
 ### LayoutDragManager
 
 Обрабатывает drag-and-drop и resize блоков в превью.
@@ -272,6 +275,15 @@ DOM render with preset styles
 2. **Не работает с customGrid** — блоки с `data.customGrid` не поддерживаются
 3. **Placeholder блоки** — создаются через bulk import, требуется backend
 4. **Calendar preset** — даты вычисляются при применении пресета, не обновляются автоматически
+
+## Обработка удалённых блоков
+
+Когда блоки удаляются вне редактора, их записи в `layoutCells.cells` становятся "сиротами" (orphan cells). Система автоматически их очищает:
+
+1. **При загрузке:** `initFromExistingLayout()` фильтрует cells против текущего `childOrder`
+2. **При пересчёте:** `rebuildOccupancyGrid()` удаляет orphan cells из `panel.cells`
+
+Это гарантирует что удалённые блоки не занимают место в сетке и новые блоки могут занять освободившиеся позиции.
 
 ## TODO / Roadmap
 
