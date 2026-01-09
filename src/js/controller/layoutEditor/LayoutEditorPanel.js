@@ -229,8 +229,14 @@ export class LayoutEditorPanel extends Popup {
                 <div class="layout-settings__presets">
                     <button class="layout-preset-btn" data-preset="2x2">2x2</button>
                     <button class="layout-preset-btn" data-preset="3x3">3x3</button>
+                    <button class="layout-preset-btn" data-preset="4x4">4x4</button>
                     <button class="layout-preset-btn" data-preset="sidebar">Сайдбар</button>
+                    <button class="layout-preset-btn" data-preset="sidebar-right">Сайдбар R</button>
                     <button class="layout-preset-btn" data-preset="dashboard">Dashboard</button>
+                    <button class="layout-preset-btn" data-preset="kanban">Kanban</button>
+                    <button class="layout-preset-btn" data-preset="holy-grail">Holy Grail</button>
+                    <button class="layout-preset-btn" data-preset="gallery">Галерея</button>
+                    <button class="layout-preset-btn" data-preset="calendar" title="Создаст недостающие блоки">Календарь</button>
                 </div>
             </div>
 
@@ -275,7 +281,7 @@ export class LayoutEditorPanel extends Popup {
     /**
      * Применяет пресет раскладки
      */
-    applyPreset(presetName) {
+    async applyPreset(presetName) {
         const childOrder = this.block.data?.childOrder || [];
         const n = childOrder.length;
 
@@ -290,15 +296,44 @@ export class LayoutEditorPanel extends Popup {
                 this.cells = this.generateGridCells(childOrder, 3, 3);
                 break;
 
+            case '4x4':
+                this.gridSize = { rows: 4, cols: 4 };
+                this.cells = this.generateGridCells(childOrder, 4, 4);
+                break;
+
             case 'sidebar':
                 this.gridSize = { rows: Math.max(2, n - 1), cols: 12 };
-                this.cells = this.generateSidebarCells(childOrder);
+                this.cells = this.generateSidebarCells(childOrder, 'left');
+                break;
+
+            case 'sidebar-right':
+                this.gridSize = { rows: Math.max(2, n - 1), cols: 12 };
+                this.cells = this.generateSidebarCells(childOrder, 'right');
                 break;
 
             case 'dashboard':
                 this.gridSize = { rows: 3, cols: 12 };
                 this.cells = this.generateDashboardCells(childOrder);
                 break;
+
+            case 'kanban':
+                this.gridSize = { rows: Math.max(1, Math.ceil(n / 3)), cols: 3 };
+                this.cells = this.generateKanbanCells(childOrder);
+                break;
+
+            case 'holy-grail':
+                this.gridSize = { rows: 3, cols: 12 };
+                this.cells = this.generateHolyGrailCells(childOrder);
+                break;
+
+            case 'gallery':
+                this.gridSize = { rows: Math.ceil(n / 4), cols: 12 };
+                this.cells = this.generateGalleryCells(childOrder);
+                break;
+
+            case 'calendar':
+                await this.applyCalendarPreset();
+                return; // applyCalendarPreset handles refresh
         }
 
         // Перестраиваем occupancy grid после изменения cells
@@ -327,30 +362,173 @@ export class LayoutEditorPanel extends Popup {
 
     /**
      * Генерирует ячейки для sidebar пресета
+     * @param {Array} childOrder - порядок блоков
+     * @param {string} side - 'left' или 'right'
      */
-    generateSidebarCells(childOrder) {
+    generateSidebarCells(childOrder, side = 'left') {
         const cells = {};
         if (childOrder.length === 0) return cells;
 
-        // Первый блок - сайдбар слева (4 колонки, все строки)
+        const sidebarCol = side === 'left' ? 1 : 9;
+        const contentCol = side === 'left' ? 5 : 1;
+        const contentColSpan = 8;
+
+        // Первый блок - сайдбар (4 колонки, все строки)
         cells[childOrder[0]] = {
             row: 1,
-            col: 1,
+            col: sidebarCol,
             rowSpan: Math.max(1, childOrder.length - 1),
             colSpan: 4
         };
 
-        // Остальные блоки справа
+        // Остальные блоки - контент
         for (let i = 1; i < childOrder.length; i++) {
             cells[childOrder[i]] = {
                 row: i,
-                col: 5,
+                col: contentCol,
                 rowSpan: 1,
-                colSpan: 8
+                colSpan: contentColSpan
             };
         }
 
         return cells;
+    }
+
+    /**
+     * Генерирует ячейки для Kanban (3 колонки)
+     */
+    generateKanbanCells(childOrder) {
+        const cells = {};
+        const cols = 3;
+
+        for (let i = 0; i < childOrder.length; i++) {
+            const col = (i % cols) + 1;
+            const row = Math.floor(i / cols) + 1;
+            cells[childOrder[i]] = { row, col, rowSpan: 1, colSpan: 1 };
+        }
+
+        return cells;
+    }
+
+    /**
+     * Генерирует ячейки для Holy Grail layout
+     * Header (full width), Sidebar + Content + Sidebar, Footer (full width)
+     */
+    generateHolyGrailCells(childOrder) {
+        const cells = {};
+        const n = childOrder.length;
+
+        // Header - первый блок на всю ширину
+        if (childOrder[0]) {
+            cells[childOrder[0]] = { row: 1, col: 1, rowSpan: 1, colSpan: 12 };
+        }
+
+        // Средний ряд: sidebar-left, content, sidebar-right
+        if (childOrder[1]) {
+            cells[childOrder[1]] = { row: 2, col: 1, rowSpan: 1, colSpan: 3 };
+        }
+        if (childOrder[2]) {
+            cells[childOrder[2]] = { row: 2, col: 4, rowSpan: 1, colSpan: 6 };
+        }
+        if (childOrder[3]) {
+            cells[childOrder[3]] = { row: 2, col: 10, rowSpan: 1, colSpan: 3 };
+        }
+
+        // Footer - на всю ширину
+        if (childOrder[4]) {
+            cells[childOrder[4]] = { row: 3, col: 1, rowSpan: 1, colSpan: 12 };
+        }
+
+        // Остальные блоки - под footer
+        for (let i = 5; i < n; i++) {
+            const col = ((i - 5) % 3) * 4 + 1;
+            const row = Math.floor((i - 5) / 3) + 4;
+            cells[childOrder[i]] = { row, col, rowSpan: 1, colSpan: 4 };
+        }
+
+        return cells;
+    }
+
+    /**
+     * Генерирует ячейки для Gallery (разные размеры)
+     */
+    generateGalleryCells(childOrder) {
+        const cells = {};
+        const patterns = [
+            { colSpan: 6, rowSpan: 2 },  // большой
+            { colSpan: 3, rowSpan: 1 },  // маленький
+            { colSpan: 3, rowSpan: 1 },  // маленький
+            { colSpan: 4, rowSpan: 1 },  // средний
+            { colSpan: 4, rowSpan: 1 },  // средний
+            { colSpan: 4, rowSpan: 1 },  // средний
+        ];
+
+        let currentRow = 1;
+        let currentCol = 1;
+        const maxCols = 12;
+
+        for (let i = 0; i < childOrder.length; i++) {
+            const pattern = patterns[i % patterns.length];
+
+            // Если не помещается в строку - переходим на новую
+            if (currentCol + pattern.colSpan > maxCols + 1) {
+                currentRow++;
+                currentCol = 1;
+            }
+
+            cells[childOrder[i]] = {
+                row: currentRow,
+                col: currentCol,
+                rowSpan: pattern.rowSpan,
+                colSpan: pattern.colSpan
+            };
+
+            currentCol += pattern.colSpan;
+        }
+
+        return cells;
+    }
+
+    /**
+     * Применяет пресет календаря (создаёт недостающие блоки)
+     */
+    async applyCalendarPreset() {
+        const childOrder = this.block.data?.childOrder || [];
+        const daysNeeded = 35; // 5 недель × 7 дней
+        const currentCount = childOrder.length;
+
+        // Спрашиваем подтверждение если нужно создать блоки
+        if (currentCount < daysNeeded) {
+            const toCreate = daysNeeded - currentCount;
+            if (!confirm(`Для календаря нужно ${daysNeeded} блоков. Создать ${toCreate} новых блоков?`)) {
+                return;
+            }
+
+            // Создаём недостающие блоки
+            for (let i = 0; i < toCreate; i++) {
+                const dayNum = currentCount + i + 1;
+                dispatch('CreateNewChildBlock', {
+                    parentId: this.blockId,
+                    text: `${dayNum}`
+                });
+            }
+
+            // Ждём создания блоков и обновляем данные
+            await new Promise(resolve => setTimeout(resolve, 500));
+            this.loadBlockData();
+        }
+
+        // Генерируем раскладку 5×7
+        const updatedChildOrder = this.block.data?.childOrder || [];
+        this.gridSize = { rows: 5, cols: 7 };
+        this.cells = this.generateGridCells(updatedChildOrder, 5, 7);
+
+        if (this.cellManager) {
+            this.cellManager.rebuildOccupancyGrid();
+        }
+
+        this.refreshPreview();
+        this.updateSettingsInputs();
     }
 
     /**
