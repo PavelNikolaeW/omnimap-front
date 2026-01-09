@@ -285,9 +285,7 @@ async function initApp() {
     const sincManager = new SincManager()
 
     // Экспорт для отладки размеров (доступно в консоли браузера)
-    if (process.env.NODE_ENV !== 'production') {
-        window.__omnimap = { localState };
-    }
+    window.__omnimap = { localStateManager };
     const breadcrumbs = new Breadcrumbs()
     const treeNavigation = new TreeNavigation()
     const undoStack = new UndoStack()
