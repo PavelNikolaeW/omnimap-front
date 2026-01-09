@@ -396,16 +396,6 @@ export class LayoutEditorPanel extends Popup {
                     Кликните на блок для выбора
                 </div>
             </div>
-
-            <div class="layout-settings__section" id="fill-blocks-section" style="display: none;">
-                <h4 class="layout-settings__title">Новые блоки</h4>
-                <div class="layout-settings__info">
-                    <span id="placeholders-count">0</span> блоков будет создано
-                </div>
-                <button class="layout-preset-btn layout-preset-btn--primary" id="fill-blocks-btn">
-                    Создать блоки
-                </button>
-            </div>
         `;
 
         this.bindSettingsEvents();
@@ -436,29 +426,6 @@ export class LayoutEditorPanel extends Popup {
                 this.applyPreset(btn.dataset.preset);
             });
         });
-
-        // Fill blocks button
-        const fillBlocksBtn = this.settingsPanel.querySelector('#fill-blocks-btn');
-        fillBlocksBtn?.addEventListener('click', () => {
-            this.createPlaceholderBlocks();
-        });
-    }
-
-    /**
-     * Показывает/скрывает секцию создания блоков
-     */
-    updateFillBlocksSection() {
-        const section = this.settingsPanel?.querySelector('#fill-blocks-section');
-        const countEl = this.settingsPanel?.querySelector('#placeholders-count');
-
-        if (section && countEl) {
-            if (this.placeholders.length > 0) {
-                section.style.display = 'block';
-                countEl.textContent = this.placeholders.length;
-            } else {
-                section.style.display = 'none';
-            }
-        }
     }
 
     /**
@@ -507,14 +474,10 @@ export class LayoutEditorPanel extends Popup {
             }
 
             this.refreshPreview();
-            this.updateFillBlocksSection();
-
-            // Перерендер родительского блока
-            dispatch('ShowBlocks');
 
         } catch (error) {
             console.error('Failed to create blocks:', error);
-            this.showMessage(`Ошибка создания блоков: ${error.message}`, 'error');
+            throw error;  // Пробрасываем ошибку в applyLayout()
         }
     }
 
@@ -942,7 +905,6 @@ export class LayoutEditorPanel extends Popup {
         if (this.preview) {
             this.preview.update(this.gridSize, this.cells, this.placeholders);
         }
-        this.updateFillBlocksSection();
     }
 
     /**
@@ -990,56 +952,65 @@ export class LayoutEditorPanel extends Popup {
 
     /**
      * Применяет раскладку
-     * Валидирует что все childBlocks имеют позиции
+     * Если есть placeholders - сначала создаёт блоки из них
      */
-    applyLayout() {
-        // Валидация: убеждаемся что все childBlocks имеют позиции
-        const missingBlocks = this.childBlocks.filter(b => !this.cells[b.id]);
+    async applyLayout() {
+        try {
+            // Если есть placeholders - создаём блоки
+            if (this.placeholders.length > 0) {
+                await this.createPlaceholderBlocks();
+            }
 
-        if (missingBlocks.length > 0) {
-            // Автоматически размещаем блоки без позиций в свободные ячейки
-            for (const block of missingBlocks) {
-                const freeCell = this.cellManager?.findFreeCell();
-                if (freeCell) {
-                    this.cells[block.id] = {
-                        row: freeCell.row,
-                        col: freeCell.col,
-                        rowSpan: 1,
-                        colSpan: 1
-                    };
-                    // Обновляем occupancy grid
-                    this.cellManager?.rebuildOccupancyGrid();
-                } else {
-                    // Нет свободного места - добавляем новую строку
-                    this.gridSize.rows += 1;
-                    this.cells[block.id] = {
-                        row: this.gridSize.rows,
-                        col: 1,
-                        rowSpan: 1,
-                        colSpan: this.gridSize.cols
-                    };
+            // Валидация: убеждаемся что все childBlocks имеют позиции
+            const missingBlocks = this.childBlocks.filter(b => !this.cells[b.id]);
+
+            if (missingBlocks.length > 0) {
+                // Автоматически размещаем блоки без позиций в свободные ячейки
+                for (const block of missingBlocks) {
+                    const freeCell = this.cellManager?.findFreeCell();
+                    if (freeCell) {
+                        this.cells[block.id] = {
+                            row: freeCell.row,
+                            col: freeCell.col,
+                            rowSpan: 1,
+                            colSpan: 1
+                        };
+                        this.cellManager?.rebuildOccupancyGrid();
+                    } else {
+                        this.gridSize.rows += 1;
+                        this.cells[block.id] = {
+                            row: this.gridSize.rows,
+                            col: 1,
+                            rowSpan: 1,
+                            colSpan: this.gridSize.cols
+                        };
+                    }
                 }
             }
+
+            dispatch('UpdateDataBlock', {
+                blockId: this.blockId,
+                data: {
+                    layout: 'cells',
+                    layoutCells: {
+                        gridSize: this.gridSize,
+                        cells: this.cells,
+                        presetType: this.currentPresetType || null
+                    }
+                }
+            });
+
+            this.close();
+
+            // Перерендер блока
+            setTimeout(() => {
+                dispatch('ShowBlocks');
+            }, 100);
+
+        } catch (error) {
+            console.error('Failed to apply layout:', error);
+            this.showMessage(`Ошибка применения раскладки: ${error.message}`, 'error');
         }
-
-        dispatch('UpdateDataBlock', {
-            blockId: this.blockId,
-            data: {
-                layout: 'cells',
-                layoutCells: {
-                    gridSize: this.gridSize,
-                    cells: this.cells,
-                    presetType: this.currentPresetType || null
-                }
-            }
-        });
-
-        this.close();
-
-        // Перерендер блока
-        setTimeout(() => {
-            dispatch('ShowBlocks');
-        }, 100);
     }
 
     /**
