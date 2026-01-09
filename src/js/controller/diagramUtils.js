@@ -134,16 +134,27 @@ export class DiagramUtils {
             data: {customGrid, connections}
         })
 
-        // Активируем редактор диаграммы для отображения сетки (передаём customGrid напрямую)
+        await this.activateDiagramWithGrid(customGrid)
+    }
+
+    /**
+     * Активировать редактор диаграммы с переданным customGrid
+     * Вспомогательный метод для избежания дублирования кода
+     */
+    async activateDiagramWithGrid(customGrid) {
         const gridData = this.parseGridClasses(customGrid.grid)
         this.updateGridDisplay(gridData.rows, gridData.cols)
 
-        if (this.diagramEditor.isActive) {
-            this.diagramEditor.customGrid = customGrid
-            this.diagramEditor.removeGridOverlay()
-            this.diagramEditor.createGridOverlay()
-        } else {
-            await this.diagramEditor.activate(this.blockId, this.element, customGrid)
+        try {
+            if (this.diagramEditor.isActive) {
+                this.diagramEditor.customGrid = customGrid
+                this.diagramEditor.removeGridOverlay()
+                this.diagramEditor.createGridOverlay()
+            } else {
+                await this.diagramEditor.activate(this.blockId, this.element, customGrid)
+            }
+        } catch (error) {
+            console.error('Failed to activate diagram editor:', error)
         }
     }
 
@@ -277,17 +288,7 @@ export class DiagramUtils {
             data: {customGrid, connections}
         })
 
-        // Активируем редактор диаграммы для отображения сетки (передаём customGrid напрямую)
-        const gridData = this.parseGridClasses(customGrid.grid)
-        this.updateGridDisplay(gridData.rows, gridData.cols)
-
-        if (this.diagramEditor.isActive) {
-            this.diagramEditor.customGrid = customGrid
-            this.diagramEditor.removeGridOverlay()
-            this.diagramEditor.createGridOverlay()
-        } else {
-            await this.diagramEditor.activate(this.blockId, this.element, customGrid)
-        }
+        await this.activateDiagramWithGrid(customGrid)
     }
 
     async getBlock(id) {
