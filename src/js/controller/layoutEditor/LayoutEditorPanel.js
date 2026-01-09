@@ -166,8 +166,9 @@ export class LayoutEditorPanel extends Popup {
         const layoutCells = this.block.data?.layoutCells;
         const childOrder = this.block.data?.childOrder || [];
 
-        // Множество актуальных ID для фильтрации orphan cells
-        const validChildIds = new Set(childOrder);
+        // Используем childBlocks как источник правды (уже отфильтрованы в loadBlockData)
+        // Это согласовано с rebuildOccupancyGrid() который тоже использует childBlocks
+        const validChildIds = new Set(this.childBlocks.map(b => b.id));
 
         if (layout === 'cells' && layoutCells?.cells) {
             // Используем существующую конфигурацию cells, фильтруя удалённые блоки

@@ -42,10 +42,6 @@ export class LayoutCellManager {
         for (const orphanId of orphanIds) {
             delete this.panel.cells[orphanId];
         }
-
-        if (orphanIds.length > 0) {
-            console.log(`LayoutCellManager: cleaned up ${orphanIds.length} orphan cells`);
-        }
     }
 
     /**
@@ -237,8 +233,12 @@ export class LayoutCellManager {
         const conflicts = [];
         const seen = new Map();
 
+        // Используем только валидные блоки (исключаем orphan cells)
+        const validChildIds = new Set(this.panel.childBlocks.map(b => b.id));
+
         for (const [childId, cell] of Object.entries(this.panel.cells)) {
             if (!cell) continue;
+            if (!validChildIds.has(childId)) continue;  // Пропускаем orphan cells
 
             for (let r = cell.row; r < cell.row + (cell.rowSpan || 1); r++) {
                 for (let c = cell.col; c < cell.col + (cell.colSpan || 1); c++) {
