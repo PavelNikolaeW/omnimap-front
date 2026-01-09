@@ -523,7 +523,8 @@ export class LayoutEditorPanel extends Popup {
      * Пресеты показывают placeholders для недостающих блоков
      */
     applyPreset(presetName) {
-        const childOrder = this.block.data?.childOrder || [];
+        // Используем childBlocks как источник правды (согласовано с rebuildOccupancyGrid)
+        const childOrder = this.childBlocks.map(b => b.id);
         let result;
 
         switch (presetName) {
