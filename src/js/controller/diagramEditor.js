@@ -497,6 +497,7 @@ export class DiagramEditor {
 
     /**
      * Добавить resize handles к конкретному элементу
+     * В режиме диаграммы - только resize handles, без anchor points
      */
     addResizeHandlesToElement(element) {
         // Удалить старые handles если есть
@@ -513,8 +514,8 @@ export class DiagramEditor {
             element.appendChild(handle);
         });
 
-        // Добавить anchor points для соединений
-        this.addAnchorPointsToElement(element);
+        // Anchor points НЕ добавляем - они теперь показываются при hover в режиме connect
+        // через ConnectionAnchorManager
 
         // Добавить класс для позиционирования
         element.classList.add('diagram-resizable');
@@ -522,16 +523,26 @@ export class DiagramEditor {
 
     /**
      * Добавить anchor points для соединений к элементу
+     * 12 точек: по 3 на каждой стороне
      */
     addAnchorPointsToElement(element) {
-        const anchors = ['top', 'right', 'bottom', 'left'];
+        const anchors = [
+            // Верхняя сторона
+            'top-left', 'top-center', 'top-right',
+            // Правая сторона
+            'right-top', 'right-center', 'right-bottom',
+            // Нижняя сторона
+            'bottom-right', 'bottom-center', 'bottom-left',
+            // Левая сторона
+            'left-bottom', 'left-center', 'left-top'
+        ];
 
         anchors.forEach(position => {
             const anchor = document.createElement('div');
             anchor.className = `anchor-point anchor-point-${position}`;
             anchor.dataset.position = position;
             anchor.dataset.blockId = element.id;
-            anchor.title = 'Перетащите для создания соединения';
+            anchor.title = 'Кликните или перетащите для создания соединения';
             element.appendChild(anchor);
         });
     }

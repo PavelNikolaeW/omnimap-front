@@ -7,6 +7,7 @@ import {
     isValidConnectionType,
     applyColorToConfig
 } from "./connectionTypes";
+import {connectionEditManager} from "./connectionEditManager";
 
 
 const SMALL_LAYOUTS = ["xxxs-sq", "xxxs-w", "xxxs-h"];
@@ -70,29 +71,51 @@ class ArrowManager {
 
     /**
      * Преобразует позицию anchor в формат jsPlumb
-     * @param {string} position - Позиция anchor (top, right, bottom, left)
+     * @param {string} position - Позиция anchor (12 позиций: top-left, top-center, etc.)
      * @returns {Array} - Массив координат для jsPlumb [x, y, dx, dy]
      */
     anchorPositionToJsPlumb(position) {
         const anchors = {
-            top: [0.5, 0, 0, -1],
-            right: [1, 0.5, 1, 0],
-            bottom: [0.5, 1, 0, 1],
-            left: [0, 0.5, -1, 0]
+            // Верхняя сторона
+            'top-left': [0.25, 0, 0, -1],
+            'top-center': [0.5, 0, 0, -1],
+            'top': [0.5, 0, 0, -1],  // alias для совместимости
+            'top-right': [0.75, 0, 0, -1],
+            // Правая сторона
+            'right-top': [1, 0.25, 1, 0],
+            'right-center': [1, 0.5, 1, 0],
+            'right': [1, 0.5, 1, 0],  // alias
+            'right-bottom': [1, 0.75, 1, 0],
+            // Нижняя сторона
+            'bottom-right': [0.75, 1, 0, 1],
+            'bottom-center': [0.5, 1, 0, 1],
+            'bottom': [0.5, 1, 0, 1],  // alias
+            'bottom-left': [0.25, 1, 0, 1],
+            // Левая сторона
+            'left-bottom': [0, 0.75, -1, 0],
+            'left-center': [0, 0.5, -1, 0],
+            'left': [0, 0.5, -1, 0],  // alias
+            'left-top': [0, 0.25, -1, 0]
         };
         return anchors[position] || [0.5, 0.5, 0, 0];
     }
 
     /**
-     * Создает соединение с указанными anchor points
+     * Унифицированный метод создания соединения с опциональными anchor points
      * @param {string} sourceId - ID элемента-источника
      * @param {string} targetId - ID элемента-цели
-     * @param {string} sourceAnchor - Позиция anchor на источнике
-     * @param {string} targetAnchor - Позиция anchor на цели
-     * @param {string} connectionType - Тип соединения
+     * @param {string} connectionType - Тип соединения (из CONNECTION_TYPES)
+     * @param {string|null} sourceAnchor - Позиция anchor на источнике или null для auto ("Continuous")
+     * @param {string|null} targetAnchor - Позиция anchor на цели или null для auto ("Continuous")
+     * @param {string|null} color - Цвет соединения (опционально)
      */
-    createConnectionWithAnchors(sourceId, targetId, sourceAnchor, targetAnchor, connectionType = CONNECTION_TYPES.DEFAULT) {
-        if (!sourceId || !targetId || sourceId === targetId) return;
+    createConnection(sourceId, targetId, connectionType = CONNECTION_TYPES.DEFAULT, sourceAnchor = null, targetAnchor = null, color = null) {
+        if (!sourceId || !targetId) return;
+
+        // Разрешить self-loop только для StateMachine типа
+        if (sourceId === targetId && connectionType !== CONNECTION_TYPES.STATEMACHINE) {
+            return;
+        }
 
         const sourceEl = document.getElementById(sourceId);
         const targetEl = document.getElementById(targetId);
@@ -101,19 +124,24 @@ class ArrowManager {
         const layout = sourceEl?.getAttribute("data-layout");
 
         // Получаем конфигурацию по типу соединения
-        const config = getConnectionConfig(connectionType);
+        let config = getConnectionConfig(connectionType);
+
+        // Применяем цвет если указан
+        if (color) {
+            config = applyColorToConfig(config, color);
+        }
+
+        // Определяем anchors: конкретная позиция или "Continuous" для auto
+        const anchors = [
+            sourceAnchor ? this.anchorPositionToJsPlumb(sourceAnchor) : "Continuous",
+            targetAnchor ? this.anchorPositionToJsPlumb(targetAnchor) : "Continuous"
+        ];
 
         const connector = this.getConnector(config.connector || this.defaultConnector, layout);
         const paintStyle = this.getPaintStyle(config.paintStyle || this.defaultPaintStyle, layout);
         const overlays = this.getOverlays(config.overlays || this.defaultOverlays, layout);
         const endpoint = this.getEndpoint({type: 'Dot', options: {radius: 4}}, layout);
         const endpointStyle = {fill: paintStyle.stroke || "#456", outlineWidth: 0};
-
-        // Преобразуем anchor позиции
-        const anchors = [
-            this.anchorPositionToJsPlumb(sourceAnchor),
-            this.anchorPositionToJsPlumb(targetAnchor)
-        ];
 
         this.instance.connect({
             source: sourceId,
@@ -137,9 +165,22 @@ class ArrowManager {
             endpoint,
             endpointStyle,
             connectionType,
-            sourceAnchor,
+            color,
+            sourceAnchor,  // Сохраняем имя позиции для восстановления
             targetAnchor
         });
+    }
+
+    /**
+     * Создает соединение с указанными anchor points (делегирует createConnection)
+     * @param {string} sourceId - ID элемента-источника
+     * @param {string} targetId - ID элемента-цели
+     * @param {string} sourceAnchor - Позиция anchor на источнике
+     * @param {string} targetAnchor - Позиция anchor на цели
+     * @param {string} connectionType - Тип соединения
+     */
+    createConnectionWithAnchors(sourceId, targetId, sourceAnchor, targetAnchor, connectionType = CONNECTION_TYPES.DEFAULT) {
+        this.createConnection(sourceId, targetId, connectionType, sourceAnchor, targetAnchor, null);
     }
 
     /**
@@ -152,8 +193,8 @@ class ArrowManager {
             if (this.removeArrow) {
                 this.deleteConnection(info);
             } else {
-                // todo переделать добаление лейбла
-                // this.handleConnectionLabel(info);
+                // Показать панель редактирования соединения
+                connectionEditManager.show(info);
             }
         });
     }
@@ -239,55 +280,17 @@ class ArrowManager {
 
 
     /**
-     * Завершает создание соединения к целевому элементу.
+     * Завершает создание соединения к целевому элементу (делегирует createConnection)
+     * Использует auto-anchors ("Continuous") для автоматического позиционирования
      * @param {string} sourceId - ID элемента-источника.
      * @param {string} targetId - ID элемента-цели.
      * @param {string} connectionType - Тип соединения (из CONNECTION_TYPES).
      * @param {string} color - Цвет соединения (опционально).
+     * @param {string|null} sourceAnchor - Опциональная позиция anchor на источнике
+     * @param {string|null} targetAnchor - Опциональная позиция anchor на цели
      */
-    completeConnectionToElement(sourceId, targetId, connectionType = CONNECTION_TYPES.DEFAULT, color = null) {
-        if (!sourceId || !targetId || sourceId === targetId) return;
-
-        const sourceEl = document.getElementById(sourceId);
-        const layout = sourceEl?.getAttribute("data-layout");
-
-        // Получаем конфигурацию по типу соединения
-        let config = getConnectionConfig(connectionType);
-
-        // Применяем цвет если указан
-        if (color) {
-            config = applyColorToConfig(config, color);
-        }
-
-        const connector = this.getConnector(config.connector || this.defaultConnector, layout);
-        const paintStyle = this.getPaintStyle(config.paintStyle || this.defaultPaintStyle, layout);
-        const overlays = this.getOverlays(config.overlays || this.defaultOverlays, layout);
-        const endpoint = this.getEndpoint({type: 'Dot', options: {radius: 4}}, layout);
-        const endpointStyle = {fill: paintStyle.stroke || "#456", outlineWidth: 0};
-
-        this.instance.connect({
-            source: sourceId,
-            target: targetId,
-            anchors: this.defaultAnchors,
-            connector,
-            paintStyle,
-            overlays,
-            endpoint,
-            endpointStyle
-        });
-
-        this.saveConnection(
-            sourceId,
-            targetId,
-            config.connector || this.defaultConnector,
-            config.paintStyle || this.defaultPaintStyle,
-            config.overlays || this.defaultOverlays,
-            this.defaultAnchors,
-            endpoint,
-            endpointStyle,
-            connectionType,
-            color
-        );
+    completeConnectionToElement(sourceId, targetId, connectionType = CONNECTION_TYPES.DEFAULT, color = null, sourceAnchor = null, targetAnchor = null) {
+        this.createConnection(sourceId, targetId, connectionType, sourceAnchor, targetAnchor, color);
     }
 
     /**
