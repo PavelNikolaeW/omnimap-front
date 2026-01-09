@@ -143,8 +143,10 @@ class ArrowManager {
         const endpoint = this.getEndpoint({type: 'Dot', options: {radius: 4}}, layout);
         const endpointStyle = {fill: paintStyle.stroke || "#456", outlineWidth: 0};
 
-        // Генерируем уникальный ID для соединения (crypto.randomUUID() для надёжности)
-        const connectionId = crypto.randomUUID();
+        // Генерируем уникальный ID для соединения
+        const connectionId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : `conn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
         const connection = this.instance.connect({
             source: sourceId,
