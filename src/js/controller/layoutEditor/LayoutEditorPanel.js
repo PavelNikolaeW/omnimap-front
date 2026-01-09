@@ -6,6 +6,7 @@ import { LayoutPreview } from './LayoutPreview.js';
 import { LayoutDragManager } from './LayoutDragManager.js';
 import { LayoutDataConverter } from './LayoutDataConverter.js';
 import { localStateManager } from '../../stateLocal/localStateManager.js';
+import { extractBlockId } from '../../actions/selectionActions.js';
 
 /**
  * Экранирует HTML символы для безопасного отображения
@@ -69,7 +70,12 @@ export class LayoutEditorPanel extends Popup {
             return null;
         }
 
-        const blockId = blockElement.id;
+        const blockId = extractBlockId(blockElement);
+        if (!blockId) {
+            console.warn('LayoutEditorPanel: Could not extract block ID');
+            return null;
+        }
+
         return new LayoutEditorPanel({ ctx, blockId });
     }
 
