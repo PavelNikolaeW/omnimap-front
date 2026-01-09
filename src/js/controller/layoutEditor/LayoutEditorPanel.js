@@ -203,16 +203,17 @@ export class LayoutEditorPanel extends Popup {
         const cells = {};
 
         // Извлекаем размер сетки из grid классов
-        let totalRows = 3, cols = 12;
+        // grid-template-rows_auto__1fr__1fr__ - auto это content, 1fr это строки блоков
+        let rows = 2, cols = 12;
         for (const cls of grid) {
             if (cls.includes('grid-template-columns_')) {
                 cols = (cls.match(/1fr/g) || []).length;
             } else if (cls.includes('grid-template-rows_')) {
-                totalRows = (cls.match(/1fr/g) || []).length;
+                // Считаем только 1fr - это строки для блоков (auto - content row)
+                rows = (cls.match(/1fr/g) || []).length;
             }
         }
-        // Количество строк для блоков (без content row)
-        const rows = Math.max(1, totalRows - 1);
+        rows = Math.max(1, rows);
 
         // Парсим позиции детей
         for (const [childId, posClasses] of Object.entries(childrenPositions)) {
@@ -254,7 +255,7 @@ export class LayoutEditorPanel extends Popup {
         }
 
         return {
-            gridSize: { rows: Math.max(rows, 1), cols },
+            gridSize: { rows, cols },
             cells
         };
     }
