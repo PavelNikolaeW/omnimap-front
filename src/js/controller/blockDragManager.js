@@ -32,6 +32,7 @@ class BlockDragManager {
         this.dropZoneElement = null;
 
         // Bind методы для addEventListener/removeEventListener
+        this.handleMouseDown = this.handleMouseDown.bind(this);
         this.handleMouseMove = this.handleMouseMove.bind(this);
         this.handleMouseUp = this.handleMouseUp.bind(this);
         this.handleKeyUp = this.handleKeyUp.bind(this);
@@ -42,9 +43,23 @@ class BlockDragManager {
 
     init() {
         // Глобальные слушатели
-        document.addEventListener('mousedown', this.handleMouseDown.bind(this), true);
+        document.addEventListener('mousedown', this.handleMouseDown, true);
         document.addEventListener('keydown', this.handleKeyDown);
         document.addEventListener('keyup', this.handleKeyUp);
+    }
+
+    /**
+     * Очистка слушателей (для тестов и корректного уничтожения)
+     */
+    destroy() {
+        document.removeEventListener('mousedown', this.handleMouseDown, true);
+        document.removeEventListener('keydown', this.handleKeyDown);
+        document.removeEventListener('keyup', this.handleKeyUp);
+        document.removeEventListener('mousemove', this.handleMouseMove);
+        document.removeEventListener('mouseup', this.handleMouseUp);
+
+        this.cancelDrag();
+        this.cancelPotentialDrag();
     }
 
     /**

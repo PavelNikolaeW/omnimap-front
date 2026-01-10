@@ -38,6 +38,7 @@ import {networkStatusUI} from "./sincManager/networkStatusUI";
 import {handleTelegramLinkCallback} from "./controller/telegramLinkHandler";
 import {statusIndicators} from "./core/statusIndicators";
 import {initDevCacheManager} from "./core/devCacheManager";
+// Side-effect import: инициализирует глобальный менеджер drag-and-drop для блоков
 import {blockDragManager} from "./controller/blockDragManager";
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
