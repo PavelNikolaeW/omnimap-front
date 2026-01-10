@@ -13,7 +13,8 @@ import {customPrompt} from "../../utils/custom-dialog";
 import {
     commandOpenBlock,
     openBlock,
-    setCmdOpenBlock
+    setCmdOpenBlock,
+    getBlock
 } from "./cmdUtils";
 import {popupsCommands} from "./popupsCmd";
 import {NoteEditor} from "../noteEditor";
@@ -351,9 +352,30 @@ export const commands = [
             if (ctx.blockLinkElement?.hasAttribute('blockLink')) {
                 id = ctx.blockLinkElement.getAttribute('blocklink')
             }
-            ctx.mode = MODES.TEXT_EDIT
-            nodeEditor.openEditor(id, ctx.blockElement.querySelector('contentBlock').innerHTML, ctx)
-            setCmdOpenBlock(ctx)
+            // Получаем текст из данных блока (не из DOM, т.к. маленькие блоки могут не отображать контент)
+            const blockId = id.split('*').at(-1)
+            getBlock(blockId, (err, block) => {
+                if (err || !block) {
+                    console.warn('editBlockText: не удалось получить блок', blockId, err)
+                    setCmdOpenBlock(ctx)
+                    return
+                }
+                // Извлекаем текст из данных блока
+                let content = ''
+                if (typeof block.data === 'string') {
+                    try {
+                        const data = JSON.parse(block.data)
+                        content = data.text || ''
+                    } catch {
+                        content = ''
+                    }
+                } else if (block.data?.text) {
+                    content = block.data.text
+                }
+                ctx.mode = MODES.TEXT_EDIT
+                nodeEditor.openEditor(id, content, ctx)
+                setCmdOpenBlock(ctx)
+            })
         }
     },
     {
