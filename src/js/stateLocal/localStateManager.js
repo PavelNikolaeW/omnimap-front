@@ -969,14 +969,21 @@ export class LocalStateManager {
     }
 
     updateScreen(newBlocks) {
+        console.group('🖥️ updateScreen');
         for (let i = 0; i < newBlocks.length; i++) {
             const id = newBlocks[i].id
             const element = document.getElementById(id)
-            if (element || document.querySelector(`[blocklink="${id}"]`)) {
+            const linkElement = document.querySelector(`[blocklink="${id}"]`)
+            console.log(`Block ${i}: ${id}, inDOM: ${!!element}, hasLink: ${!!linkElement}`);
+            if (element || linkElement) {
+                console.log('Calling showBlocks()');
+                console.groupEnd();
                 this.showBlocks()
-                break
+                return
             }
         }
+        console.log('No blocks found in DOM, skipping showBlocks()');
+        console.groupEnd();
     }
 
     async resetState() {
