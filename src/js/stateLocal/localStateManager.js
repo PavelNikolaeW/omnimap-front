@@ -1646,6 +1646,10 @@ export class LocalStateManager {
             return;
         }
 
+        // Проверяем, является ли родитель диаграммой (имеет customGrid)
+        // Если да — синхронизируем сразу без debounce
+        const isDiagram = !!parentBlock.data?.customGrid?.grid;
+
         // Проверяем layoutCells - если есть, нужно найти свободное место
         const hasLayoutCells = parentBlock.data?.layout === 'cells' && parentBlock.data?.layoutCells;
         let newCellPosition = null;
@@ -1700,10 +1704,11 @@ export class LocalStateManager {
         dispatch('ShowBlocks');
 
         // Добавляем в очередь синхронизации (отправится через batch import)
+        // Для диаграммы отправляем сразу без debounce
         await offlineQueue.enqueue({
             type: 'createBlock',
             data: { blockId, parentId }
-        });
+        }, { immediate: isDiagram });
 
         console.log('Block created:', blockId, offlineQueue.isNetworkOnline() ? '(syncing)' : '(offline)');
     }
