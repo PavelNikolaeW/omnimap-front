@@ -22,6 +22,7 @@ export class NoteEditor {
         this.previewEl = null;  // <div> для HTML-превью
         this.toolbarEl = null;  // <div> toolbar
         this.conflictBannerEl = null; // Баннер конфликта
+        this._wasPendingOnOpen = false; // Был ли блок pending при открытии редактора
 
         this._setupTurndown();
         this._setupCustomRenderer();
@@ -35,6 +36,9 @@ export class NoteEditor {
     openEditor(blockId, html, ctx) {
         this.blockId = blockId;
         this.ctx = ctx;
+        // Запоминаем, был ли блок pending при открытии редактора
+        // Это нужно для пропуска первого подтверждения с сервера
+        this._wasPendingOnOpen = offlineQueue.isPendingBlock(blockId);
 
         // Предобработка HTML: сохраняем <br> между блочными элементами
         const preprocessedHtml = this._preprocessHtmlForTurndown(html);
@@ -80,16 +84,19 @@ export class NoteEditor {
     _handleExternalUpdate(e) {
         if (!this.blockId || !this.editorEl) return;
 
-        // Не показываем предупреждение для pending блоков (только что созданных локально)
-        // Это первое подтверждение с сервера, а не изменение от другого пользователя
-        if (offlineQueue.isPendingBlock(this.blockId)) return;
-
         const blocks = e.detail;
         if (!Array.isArray(blocks)) return;
 
         // Ищем обновление для текущего редактируемого блока
         const updatedBlock = blocks.find(b => b?.id === this.blockId && !b.deleted);
         if (!updatedBlock) return;
+
+        // Пропускаем первое подтверждение с сервера для pending блоков
+        // Это не изменение от другого пользователя, а подтверждение создания
+        if (this._wasPendingOnOpen) {
+            this._wasPendingOnOpen = false;
+            return;
+        }
 
         // Показываем баннер о конфликте
         this._showConflictBanner(updatedBlock);
@@ -238,6 +245,7 @@ export class NoteEditor {
         this.previewEl = null;
         this.toolbarEl = null;
         this.conflictBannerEl = null;
+        this._wasPendingOnOpen = false;
     }
 
     // ---------- Init helpers ----------
