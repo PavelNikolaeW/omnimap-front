@@ -348,30 +348,44 @@ export const commands = [
         description: 'Изменить текст в блоке.',
         execute(ctx) {
             if (!ctx.blockElement) return
-            let id = ctx.blockElement?.id
-            if (ctx.blockLinkElement?.hasAttribute('blockLink')) {
-                id = ctx.blockLinkElement.getAttribute('blocklink')
+            // Guard от повторного вызова при быстром двойном нажатии
+            if (ctx.mode === MODES.TEXT_EDIT) return
+
+            // Сохраняем ссылки в замыкании до async операции
+            const currentBlockElement = ctx.blockElement
+            const currentBlockLinkElement = ctx.blockLinkElement
+
+            let id = currentBlockElement.id
+            if (currentBlockLinkElement?.hasAttribute('blockLink')) {
+                id = currentBlockLinkElement.getAttribute('blocklink')
             }
+
             // Получаем текст из данных блока (не из DOM, т.к. маленькие блоки могут не отображать контент)
             const blockId = id.split('*').at(-1)
             getBlock(blockId, (err, block) => {
-                if (err || !block) {
-                    console.warn('editBlockText: не удалось получить блок', blockId, err)
-                    setCmdOpenBlock(ctx)
-                    return
-                }
                 // Извлекаем текст из данных блока
                 let content = ''
-                if (typeof block.data === 'string') {
-                    try {
-                        const data = JSON.parse(block.data)
-                        content = data.text || ''
-                    } catch {
-                        content = ''
+                if (!err && block) {
+                    if (typeof block.data === 'string') {
+                        try {
+                            const data = JSON.parse(block.data)
+                            content = data.text || ''
+                        } catch {
+                            content = ''
+                        }
+                    } else if (block.data?.text) {
+                        content = block.data.text
                     }
-                } else if (block.data?.text) {
-                    content = block.data.text
                 }
+
+                // Fallback на DOM если IndexedDB не содержит данных
+                if (!content) {
+                    const contentEl = currentBlockElement.querySelector('contentBlock')
+                    if (contentEl) {
+                        content = contentEl.innerHTML
+                    }
+                }
+
                 ctx.mode = MODES.TEXT_EDIT
                 nodeEditor.openEditor(id, content, ctx)
                 setCmdOpenBlock(ctx)
