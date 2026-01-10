@@ -582,14 +582,6 @@ export class LocalStateManager {
         try {
             const res = await api.removeTree(blockId)
             if (res.status === 200) {
-                // DEBUG: логируем ответ сервера
-                console.group('🗑️ Delete API Response');
-                console.log('Deleted blockId:', blockId);
-                console.log('Server parent:', res.data.parent);
-                console.log('Server parent.children:', res.data.parent?.children);
-                console.log('Server parent.data:', res.data.parent?.data);
-                console.groupEnd();
-
                 // Обновляем родительский блок данными с сервера
                 if (res.data.parent?.id) {
                     await this.saveBlock(res.data.parent)
@@ -781,14 +773,6 @@ export class LocalStateManager {
     async webSocUpdateBlock(newBlocks) {
         if (!Array.isArray(newBlocks) || newBlocks.length === 0) return;
 
-        // DEBUG: логируем входящие обновления
-        console.group('📡 WebSocket Update');
-        console.log('Blocks count:', newBlocks.length);
-        newBlocks.forEach((b, i) => {
-            console.log(`Block ${i}:`, b.id, 'deleted:', b.deleted, 'children:', b.children, 'data:', b.data);
-        });
-        console.groupEnd();
-
         const processedBlocks = [];
 
         for (const block of newBlocks) {
@@ -969,21 +953,14 @@ export class LocalStateManager {
     }
 
     updateScreen(newBlocks) {
-        console.group('🖥️ updateScreen');
         for (let i = 0; i < newBlocks.length; i++) {
             const id = newBlocks[i].id
             const element = document.getElementById(id)
-            const linkElement = document.querySelector(`[blocklink="${id}"]`)
-            console.log(`Block ${i}: ${id}, inDOM: ${!!element}, hasLink: ${!!linkElement}`);
-            if (element || linkElement) {
-                console.log('Calling showBlocks()');
-                console.groupEnd();
+            if (element || document.querySelector(`[blocklink="${id}"]`)) {
                 this.showBlocks()
-                return
+                break
             }
         }
-        console.log('No blocks found in DOM, skipping showBlocks()');
-        console.groupEnd();
     }
 
     async resetState() {
@@ -1652,20 +1629,14 @@ export class LocalStateManager {
     }
 
     async createBlock({parentId, title}) {
-        console.group('➕ CreateBlock');
-
         // Генерируем реальный UUID сразу (не временный)
         const blockId = offlineQueue.generateBlockId();
-        console.log('Generated blockId:', blockId);
-        console.log('parentId:', parentId);
 
         const parentBlock = this.blocks.get(parentId);
         if (!parentBlock) {
             console.error('Parent block not found:', parentId);
-            console.groupEnd();
             return;
         }
-        console.log('Parent block found:', parentBlock.title);
 
         // Проверяем layoutCells - если есть, нужно найти свободное место
         const hasLayoutCells = parentBlock.data?.layout === 'cells' && parentBlock.data?.layoutCells;
@@ -1727,7 +1698,6 @@ export class LocalStateManager {
         });
 
         console.log('Block created:', blockId, offlineQueue.isNetworkOnline() ? '(syncing)' : '(offline)');
-        console.groupEnd();
     }
 
     /**
@@ -1950,24 +1920,9 @@ export class LocalStateManager {
             const block = this.blocks.get(blockId);
             if (!block) throw new Error(`Block with id ${blockId} not found.`);
 
-            // DEBUG: логируем что отправляем и что было до
-            console.group('📝 UpdateDataBlock');
-            console.log('blockId:', blockId);
-            console.log('Sending data:', data);
-            console.log('Local block.data BEFORE:', JSON.stringify(block.data));
-            console.log('Local block.children BEFORE:', block.children);
-            console.groupEnd();
-
             api.updateBlock(blockId, {data: data}).then(res => {
                 if (res.status === 200) {
                     const updatedBlock = res.data;
-
-                    // DEBUG: логируем ответ сервера
-                    console.group('📝 UpdateDataBlock Response');
-                    console.log('Server updatedBlock.data:', updatedBlock.data);
-                    console.log('Server updatedBlock.children:', updatedBlock.children);
-                    console.groupEnd();
-
                     this.saveBlock(updatedBlock).then(() => dispatch('ShowBlocks'));
                 }
             });
