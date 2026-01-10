@@ -1,233 +1,196 @@
-# Задачи для backend: E2E тестовые данные
+# Задачи для Backend
 
-## Дополнить `create_initial_data.py`
+Этот файл содержит требования к backend для функционала, реализованного на frontend в PR #66.
+
+---
+
+## ПРИОРИТЕТ 1: Объединение групп доступа и чатов
+
+### Проблема
+
+Сейчас две отдельные сущности:
+- **Access Groups** (`/api/v1/groups/`) - управление правами на блоки
+- **Chat Groups** (`/api/v1/chat/groups/`) - групповое общение
+
+Это неудобно: пользователь создаёт группу доступа, но для общения нужен отдельный чат.
+
+### Решение
+
+**Одна сущность = Группа доступа + Чат**
+
+### Изменения в API
+
+#### 1. Модель Group (расширить)
 
 ```python
-class Command(BaseCommand):
-    help = 'Создание суперпользователя и начальных данных'
+class Group(models.Model):
+    name = models.CharField(max_length=255)
+    owner = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
 
-    def handle(self, *args, **kwargs):
-        # Создание суперпользователя
-        if not User.objects.filter(username='admin').exists():
-            admin = User.objects.create_superuser('admin', 'admin@example.com',
-                                                  os.environ.get('DJANGO_ADMIN_PASS', 'admin'))
-            admin_block = Block.objects.create(title='admin', creator=admin)
-            # 'delete' permission includes edit rights (hierarchical permissions)
-            BlockPermission.objects.get_or_create(
-                block=admin_block, user=admin, defaults={'permission': 'delete'}
-            )
-            self.stdout.write(self.style.SUCCESS('Суперпользователь admin создан.'))
-
-        if not User.objects.filter(username='main_page').exists():
-            main_page_user = User.objects.create_superuser('main_page', 'main_page@example.com',
-                                                           os.environ.get('DJANGO_ADMIN_PASS', 'admin'))
-            self.stdout.write(self.style.SUCCESS('Суперпользователь main_page создан.'))
-
-            main_block = Block.objects.create(title='omniMap', creator=main_page_user)
-            auth_block = Block.objects.create(title='authBlock', creator=main_page_user)
-            login_block = Block.objects.create(title='login', data={'view': 'auth'}, creator=main_page_user)
-            reg_block = Block.objects.create(title='registration', data={'view': 'registration'}, creator=main_page_user)
-            # 'delete' permission includes edit rights (hierarchical permissions)
-            for block in [main_block, auth_block, login_block, reg_block]:
-                BlockPermission.objects.get_or_create(
-                    block=block, user=main_page_user, defaults={'permission': 'delete'}
-                )
-
-            main_block.add_child(auth_block)
-            auth_block.add_children([login_block, reg_block])
-
-        # ============== E2E ТЕСТОВЫЕ ПОЛЬЗОВАТЕЛИ ==============
-        if os.environ.get('E2E_MODE'):
-            self._create_e2e_test_data()
-
-    def _create_e2e_test_data(self):
-        """
-        Создание тестовых данных для E2E тестов.
-
-        Структура:
-        - e2e_admin (owner) - имеет корневой блок с дочерними блоками
-        - e2e_editor - имеет свой корневой блок + ссылку на shared блок admin'а
-        - e2e_viewer - имеет свой корневой блок + ссылку на shared блок (только просмотр)
-        """
-
-        e2e_admin_password = os.environ.get('E2E_ADMIN_PASSWORD', 'e2e_admin_password')
-        e2e_editor_password = os.environ.get('E2E_EDITOR_PASSWORD', 'e2e_editor_password')
-        e2e_viewer_password = os.environ.get('E2E_VIEWER_PASSWORD', 'e2e_viewer_password')
-
-        # ===== 1. Создаём e2e_admin =====
-        e2e_admin, admin_created = User.objects.get_or_create(
-            username='e2e_admin',
-            defaults={'email': 'e2e_admin@test.local'}
-        )
-        if admin_created:
-            e2e_admin.set_password(e2e_admin_password)
-            e2e_admin.save()
-            self.stdout.write(self.style.SUCCESS('E2E пользователь e2e_admin создан.'))
-
-        # Корневой блок admin'а
-        admin_root, _ = Block.objects.get_or_create(
-            title='E2E Admin Root',
-            creator=e2e_admin,
-            defaults={'content': 'Root block for e2e_admin'}
-        )
-        BlockPermission.objects.get_or_create(
-            block=admin_root, user=e2e_admin, defaults={'permission': 'delete'}
-        )
-
-        # Дочерние блоки для тестов CRUD и arrows
-        block1, _ = Block.objects.get_or_create(
-            title='Block for CRUD',
-            creator=e2e_admin,
-            defaults={'content': 'This block is used for create/edit/delete tests'}
-        )
-        BlockPermission.objects.get_or_create(
-            block=block1, user=e2e_admin, defaults={'permission': 'delete'}
-        )
-
-        block2, _ = Block.objects.get_or_create(
-            title='Block for Arrows',
-            creator=e2e_admin,
-            defaults={'content': 'This block is used for connection/arrow tests'}
-        )
-        BlockPermission.objects.get_or_create(
-            block=block2, user=e2e_admin, defaults={'permission': 'delete'}
-        )
-
-        # Shared блок - будет доступен editor и viewer
-        shared_block, _ = Block.objects.get_or_create(
-            title='Shared Block',
-            creator=e2e_admin,
-            defaults={'content': 'This block is shared with editor and viewer'}
-        )
-        BlockPermission.objects.get_or_create(
-            block=shared_block, user=e2e_admin, defaults={'permission': 'delete'}
-        )
-
-        # Добавляем дочерние блоки к корневому
-        if block1 not in admin_root.children.all():
-            admin_root.add_child(block1)
-        if block2 not in admin_root.children.all():
-            admin_root.add_child(block2)
-        if shared_block not in admin_root.children.all():
-            admin_root.add_child(shared_block)
-
-        # ===== 2. Создаём e2e_editor =====
-        e2e_editor, editor_created = User.objects.get_or_create(
-            username='e2e_editor',
-            defaults={'email': 'e2e_editor@test.local'}
-        )
-        if editor_created:
-            e2e_editor.set_password(e2e_editor_password)
-            e2e_editor.save()
-            self.stdout.write(self.style.SUCCESS('E2E пользователь e2e_editor создан.'))
-
-        # Корневой блок editor'а
-        editor_root, _ = Block.objects.get_or_create(
-            title='E2E Editor Root',
-            creator=e2e_editor,
-            defaults={'content': 'Root block for e2e_editor'}
-        )
-        BlockPermission.objects.get_or_create(
-            block=editor_root, user=e2e_editor, defaults={'permission': 'delete'}
-        )
-
-        # Даём editor права на shared_block (edit)
-        BlockPermission.objects.get_or_create(
-            block=shared_block, user=e2e_editor, defaults={'permission': 'edit'}
-        )
-
-        # Создаём ссылку на shared_block в корневом блоке editor'а
-        # (чтобы editor видел shared_block в своём дереве)
-        shared_link_for_editor, _ = Block.objects.get_or_create(
-            title='Link to Shared Block',
-            creator=e2e_editor,
-            defaults={
-                'content': '',
-                'data': {'link_to': str(shared_block.id)}  # ссылка на shared_block
-            }
-        )
-        BlockPermission.objects.get_or_create(
-            block=shared_link_for_editor, user=e2e_editor, defaults={'permission': 'delete'}
-        )
-        if shared_link_for_editor not in editor_root.children.all():
-            editor_root.add_child(shared_link_for_editor)
-
-        # ===== 3. Создаём e2e_viewer =====
-        e2e_viewer, viewer_created = User.objects.get_or_create(
-            username='e2e_viewer',
-            defaults={'email': 'e2e_viewer@test.local'}
-        )
-        if viewer_created:
-            e2e_viewer.set_password(e2e_viewer_password)
-            e2e_viewer.save()
-            self.stdout.write(self.style.SUCCESS('E2E пользователь e2e_viewer создан.'))
-
-        # Корневой блок viewer'а
-        viewer_root, _ = Block.objects.get_or_create(
-            title='E2E Viewer Root',
-            creator=e2e_viewer,
-            defaults={'content': 'Root block for e2e_viewer'}
-        )
-        BlockPermission.objects.get_or_create(
-            block=viewer_root, user=e2e_viewer, defaults={'permission': 'delete'}
-        )
-
-        # Даём viewer права на shared_block (только просмотр)
-        BlockPermission.objects.get_or_create(
-            block=shared_block, user=e2e_viewer, defaults={'permission': 'view'}
-        )
-
-        # Создаём ссылку на shared_block в корневом блоке viewer'а
-        shared_link_for_viewer, _ = Block.objects.get_or_create(
-            title='Link to Shared Block (View Only)',
-            creator=e2e_viewer,
-            defaults={
-                'content': '',
-                'data': {'link_to': str(shared_block.id)}
-            }
-        )
-        BlockPermission.objects.get_or_create(
-            block=shared_link_for_viewer, user=e2e_viewer, defaults={'permission': 'delete'}
-        )
-        if shared_link_for_viewer not in viewer_root.children.all():
-            viewer_root.add_child(shared_link_for_viewer)
-
-        self.stdout.write(self.style.SUCCESS(
-            f'E2E тестовые данные созданы:\n'
-            f'  - e2e_admin: root + 3 дочерних блока (CRUD, Arrows, Shared)\n'
-            f'  - e2e_editor: root + ссылка на Shared (права edit)\n'
-            f'  - e2e_viewer: root + ссылка на Shared (права view)\n'
-        ))
+    # Новые поля для чата
+    chat_enabled = models.BooleanField(default=True)
+    last_message_at = models.DateTimeField(null=True)
 ```
 
-## Переменные окружения для K8s
+#### 2. Новые эндпоинты
 
-```yaml
-env:
-  - name: E2E_MODE
-    value: "true"
-  - name: E2E_ADMIN_PASSWORD
-    value: "e2e_admin_password"
-  - name: E2E_EDITOR_PASSWORD
-    value: "e2e_editor_password"
-  - name: E2E_VIEWER_PASSWORD
-    value: "e2e_viewer_password"
+| Метод | URL | Описание |
+|-------|-----|----------|
+| GET | `/api/v1/groups/{id}/messages/` | Сообщения группы (пагинация) |
+| POST | `/api/v1/groups/{id}/messages/` | Отправить сообщение |
+| POST | `/api/v1/groups/{id}/messages/read/` | Отметить прочитанными |
+
+#### 3. Обновить GET /api/v1/groups/
+
+```json
+{
+    "id": 1,
+    "name": "Команда разработки",
+    "members_count": 5,
+    "blocks_count": 3,
+    "unread_count": 2,
+    "last_message": {
+        "content": "Привет!",
+        "sender_username": "user1",
+        "created_at": "2024-01-15T10:30:00Z"
+    }
+}
 ```
 
-## Структура данных после выполнения
+#### 4. WebSocket событие
+
+```json
+{
+    "type": "group_message",
+    "group_id": 1,
+    "sender_id": 123,
+    "sender_username": "user1",
+    "message": {
+        "id": 456,
+        "content": "Привет!",
+        "created_at": "2024-01-15T10:30:00Z"
+    }
+}
+```
+
+### Frontend готов
+
+Feature flag `UNIFIED_GROUPS` уже реализован:
+- `localStorage.setItem('ff_unified_groups', 'true')` - включить
+- Все API вызовы переключаются автоматически
+
+### Чеклист
+
+- [ ] Добавить поля `chat_enabled`, `last_message_at` в модель Group
+- [ ] Создать модель GroupMessage
+- [ ] GET /groups/{id}/messages/ с пагинацией
+- [ ] POST /groups/{id}/messages/
+- [ ] POST /groups/{id}/messages/read/
+- [ ] WebSocket событие `group_message`
+- [ ] Миграция данных из chat/groups
+- [ ] Удалить старый `/api/v1/chat/groups/` API
+
+---
+
+## ПРИОРИТЕТ 2: Telegram уведомления
+
+### Эндпоинты
+
+| Метод | URL | Описание |
+|-------|-----|----------|
+| GET | `/api/v1/notifications/telegram/status/` | Статус привязки |
+| POST | `/api/v1/notifications/telegram/link/` | Создать ссылку привязки |
+| POST | `/api/v1/notifications/telegram/confirm/` | Подтвердить привязку |
+| POST | `/api/v1/notifications/telegram/unlink/` | Отвязать аккаунт |
+| POST | `/api/v1/notifications/telegram/test/` | Тестовое сообщение |
+
+### Модели
+
+```python
+class TelegramLink(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    telegram_id = models.BigIntegerField(unique=True)
+    username = models.CharField(max_length=255, null=True)
+    linked_at = models.DateTimeField(auto_now_add=True)
+
+class TelegramLinkCode(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    code = models.CharField(max_length=64, unique=True)
+    telegram_id = models.BigIntegerField(null=True)
+    expires_at = models.DateTimeField()
+```
+
+### Telegram Bot
+
+Обработка `/start CODE`:
+```python
+@dp.message_handler(commands=['start'])
+async def start_command(message: types.Message):
+    args = message.get_args()
+    if args:
+        code = TelegramLinkCode.objects.filter(code=args).first()
+        if code and code.expires_at > timezone.now():
+            code.telegram_id = message.from_user.id
+            code.save()
+            await message.reply("Вернитесь в OmniMap для подтверждения.")
+```
+
+### Типы уведомлений
+
+1. **Напоминания** - Celery task каждую минуту
+2. **Изменения блоков** - после `update_block` в RabbitMQ
+3. **Сообщения чата** - после `dm` / `group_message`
+4. **Подписки на блоки** - при изменении блока
+
+### Чеклист
+
+- [ ] Модель TelegramLink
+- [ ] Модель TelegramLinkCode
+- [ ] GET /notifications/telegram/status/
+- [ ] POST /notifications/telegram/link/
+- [ ] POST /notifications/telegram/confirm/
+- [ ] POST /notifications/telegram/unlink/
+- [ ] POST /notifications/telegram/test/
+- [ ] Telegram бот с /start CODE
+- [ ] Celery task для напоминаний
+- [ ] Отправка уведомлений об изменениях блоков
+- [ ] Отправка уведомлений о сообщениях чата
+
+---
+
+## ПРИОРИТЕТ 3: Счётчик непрочитанных
+
+### Эндпоинт
 
 ```
-e2e_admin (owner):
-└── E2E Admin Root (delete)
-    ├── Block for CRUD (delete)
-    ├── Block for Arrows (delete)
-    └── Shared Block (delete) ← editor=edit, viewer=view
-
-e2e_editor:
-└── E2E Editor Root (delete)
-    └── Link to Shared Block (ссылка на Shared Block)
-
-e2e_viewer:
-└── E2E Viewer Root (delete)
-    └── Link to Shared Block (View Only) (ссылка на Shared Block)
+GET /api/v1/chat/unread/
 ```
+
+### Response
+
+```json
+{
+    "total": 5,
+    "dm": 3,
+    "groups": 2
+}
+```
+
+### Использование
+
+Frontend вызывает при инициализации и показывает badge на кнопке "Чаты".
+
+### Чеклист
+
+- [ ] GET /chat/unread/ эндпоинт
+- [ ] Подсчёт непрочитанных DM
+- [ ] Подсчёт непрочитанных групповых сообщений
+
+---
+
+## Требования безопасности
+
+1. Все endpoints требуют JWT аутентификации
+2. Telegram коды: 6-9 цифр, TTL 1 час, rate limiting
+3. Telegram ID хранить как BigIntegerField
