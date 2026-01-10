@@ -52,6 +52,10 @@ class ToastManager {
             <button class="toast-close" type="button" aria-label="Закрыть">&times;</button>
         `
 
+        // Use AbortController for centralized listener cleanup
+        const ac = new AbortController()
+        toast._abortController = ac
+
         if (onClick) {
             toast.style.cursor = 'pointer'
             toast.addEventListener('click', (e) => {
@@ -59,13 +63,13 @@ class ToastManager {
                     onClick()
                     this.hide(toast)
                 }
-            })
+            }, { signal: ac.signal })
         }
 
         toast.querySelector('.toast-close').addEventListener('click', (e) => {
             e.stopPropagation()
             this.hide(toast)
-        })
+        }, { signal: ac.signal })
 
         this.container.appendChild(toast)
         this.toasts.push(toast)
@@ -95,6 +99,11 @@ class ToastManager {
 
         if (toast._hideTimeout) {
             clearTimeout(toast._hideTimeout)
+        }
+
+        // Cleanup all event listeners via AbortController
+        if (toast._abortController) {
+            toast._abortController.abort()
         }
 
         toast.classList.remove('toast--visible')

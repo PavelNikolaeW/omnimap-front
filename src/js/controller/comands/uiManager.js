@@ -82,19 +82,35 @@ export class UIManager {
         this.handleEscKey = this.handleEscKey.bind(this)
         document.addEventListener('keydown', this.handleEscKey)
 
+        // Bind event handlers for proper cleanup if needed
+        this.handleNetworkChange = this.handleNetworkChange.bind(this)
+        this.handleChatUnreadUpdated = this.handleChatUnreadUpdated.bind(this)
+
         // Слушаем изменения статуса сети
-        window.addEventListener('NetworkStatusChange', (e) => {
-            this.isOffline = !e.detail.online
-            this.updateOfflineButtons()
-        })
+        window.addEventListener('NetworkStatusChange', this.handleNetworkChange)
 
         // Слушаем обновления непрочитанных сообщений чата
-        window.addEventListener('ChatUnreadUpdated', (e) => {
-            const { total } = e.detail || {}
-            if (typeof total === 'number') {
-                this.updateButtonBadge('unifiedChat', total)
-            }
-        })
+        window.addEventListener('ChatUnreadUpdated', this.handleChatUnreadUpdated)
+    }
+
+    /**
+     * Обработчик изменения статуса сети
+     * @param {CustomEvent} e
+     */
+    handleNetworkChange(e) {
+        this.isOffline = !e.detail.online
+        this.updateOfflineButtons()
+    }
+
+    /**
+     * Обработчик обновления количества непрочитанных сообщений
+     * @param {CustomEvent} e
+     */
+    handleChatUnreadUpdated(e) {
+        const { total } = e.detail || {}
+        if (typeof total === 'number') {
+            this.updateButtonBadge('unifiedChat', total)
+        }
     }
 
     /**

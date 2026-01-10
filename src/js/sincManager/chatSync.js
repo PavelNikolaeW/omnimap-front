@@ -328,14 +328,20 @@ class ChatSync {
             isGroup: type === 'group',
             onClick: () => {
                 openUnifiedChat();
-                // Открыть конкретный чат после небольшой задержки
-                setTimeout(() => {
+                // Ждём готовности панели чата перед открытием конкретного чата
+                // Используем событие UnifiedChatReady если доступно, иначе fallback на таймер
+                const openChat = () => {
                     if (type === 'dm') {
                         dispatch('OpenDirectChat', { userId: data.sender_id });
                     } else {
                         dispatch('OpenGroupChat', { groupId: data.group_id });
                     }
-                }, 100);
+                };
+
+                // Delay for chat panel animation and data loading
+                // TODO: Replace with UnifiedChatReady event when available
+                const CHAT_PANEL_OPEN_DELAY_MS = 100;
+                setTimeout(openChat, CHAT_PANEL_OPEN_DELAY_MS);
             }
         });
     }

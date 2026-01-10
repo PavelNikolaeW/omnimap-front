@@ -398,12 +398,17 @@ export class CreateGroupModal {
             const response = await chatApi.createChatGroup(name);
             const group = response.data;
 
-            // Add selected members
-            for (const user of this.selectedUsers) {
-                try {
-                    await chatApi.addChatGroupMember(group.id, user.id);
-                } catch (error) {
-                    console.warn('Failed to add member:', user.username, error);
+            // Add selected members in parallel using Promise.allSettled
+            if (this.selectedUsers.length > 0) {
+                const results = await Promise.allSettled(
+                    this.selectedUsers.map(user =>
+                        chatApi.addChatGroupMember(group.id, user.id)
+                    )
+                );
+
+                const failed = results.filter(r => r.status === 'rejected');
+                if (failed.length > 0) {
+                    console.warn(`Failed to add ${failed.length} of ${this.selectedUsers.length} members`);
                 }
             }
 
