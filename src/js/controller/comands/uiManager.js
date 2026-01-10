@@ -7,13 +7,6 @@ import { MODES } from "../../actions/selectionActions";
  * @type {Object.<string, {id: string, label: string, icon: string, items: string[], requiresDiagramMode?: boolean}>}
  */
 export const submenuConfig = {
-    // Подменю "Раскладка" - управление layout блока
-    layout: {
-        id: 'submenu-layout',
-        label: 'Раскладка',
-        icon: 'fa-th-large',
-        items: ['layoutDefault', 'layoutRows', 'layoutColumns', 'layoutGrid', 'layoutMasonry', 'layoutTable']
-    },
     // Подменю "Диаграмма" - редактирование диаграмм и стрелок
     diagram: {
         id: 'submenu-diagram',
@@ -54,8 +47,6 @@ export const submenuConfig = {
 
 // Команды, которые теперь скрыты в подменю (не показываются в основной панели)
 const hiddenInSubmenu = new Set([
-    // Layout команды
-    'layoutDefault', 'layoutRows', 'layoutColumns', 'layoutGrid', 'layoutMasonry', 'layoutTable',
     // Diagram команды
     'diagramGridColPlus', 'diagramGridColMinus', 'diagramGridRowPlus', 'diagramGridRowMinus',
     'diagramSizeXs', 'diagramSizeS', 'diagramSizeM', 'diagramSizeL',
@@ -230,18 +221,10 @@ export class UIManager {
         // Fallback: если кнопок меньше 5, вставляем в конец
         const insertPosition = existingButtons.length > 5 ? existingButtons[5] : null
 
-        // Кнопка подменю "Раскладка"
-        const layoutBtn = this.createSubmenuButton(submenuConfig.layout)
-        if (insertPosition) {
-            container.insertBefore(layoutBtn, insertPosition)
-        } else {
-            container.appendChild(layoutBtn)
-        }
-
         // Кнопка подменю "Диаграмма"
         const diagramBtn = this.createSubmenuButton(submenuConfig.diagram)
-        if (layoutBtn.nextSibling) {
-            container.insertBefore(diagramBtn, layoutBtn.nextSibling)
+        if (insertPosition) {
+            container.insertBefore(diagramBtn, insertPosition)
         } else {
             container.appendChild(diagramBtn)
         }

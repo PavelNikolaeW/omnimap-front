@@ -215,4 +215,140 @@ export class GridLayoutCalculator {
         }
         return a;
     }
+
+    /**
+     * Вычисляет CSS Grid позиции из layoutCells формата.
+     * Поддерживает индивидуальный rowSpan/colSpan для каждого блока.
+     *
+     * @param {Object} layoutCells - Конфигурация ячеек
+     * @param {Object} layoutCells.gridSize - {rows: number, cols: number}
+     * @param {Object} layoutCells.cells - {childId: {row, col, rowSpan, colSpan}}
+     * @param {Array<string>} childOrder - Порядок дочерних блоков
+     * @returns {Object} - {gridColumns, totalGridRows, contentRows, rectangles}
+     */
+    static computeGridLayoutCells(layoutCells, childOrder) {
+        const { gridSize, cells } = layoutCells;
+        const rectangles = [];
+
+        // Создаём rectangles для каждого дочернего блока
+        for (let i = 0; i < childOrder.length; i++) {
+            const childId = childOrder[i];
+            const cell = cells[childId];
+
+            if (cell) {
+                // Есть явная позиция в cells
+                rectangles.push({
+                    childId,
+                    gridRowStart: cell.row + 1,  // +1 для content row
+                    gridRowEnd: cell.row + 1 + (cell.rowSpan || 1),
+                    gridColumnStart: cell.col,
+                    gridColumnEnd: cell.col + (cell.colSpan || 1),
+                    label: `Cell-${i + 1}`
+                });
+            } else {
+                // Нет позиции - авто-размещение в конце
+                // Находим первую свободную позицию
+                const autoPos = GridLayoutCalculator._findFreePosition(
+                    gridSize, cells, childOrder.slice(0, i)
+                );
+                rectangles.push({
+                    childId,
+                    gridRowStart: autoPos.row + 1,
+                    gridRowEnd: autoPos.row + 2,
+                    gridColumnStart: autoPos.col,
+                    gridColumnEnd: autoPos.col + 1,
+                    label: `Cell-${i + 1}`
+                });
+            }
+        }
+
+        return {
+            gridColumns: gridSize.cols,
+            totalGridRows: gridSize.rows + 1,  // +1 для content
+            contentRows: 1,
+            rectangles
+        };
+    }
+
+    /**
+     * Находит первую свободную позицию в сетке
+     * Учитывает ВСЕ ячейки в cells, не только уже размещённые
+     * @private
+     */
+    static _findFreePosition(gridSize, cells, placedChildren) {
+        const occupied = new Set();
+
+        // Отмечаем занятые ячейки - ВСЕ из cells, не только placedChildren
+        for (const [childId, cell] of Object.entries(cells)) {
+            if (cell) {
+                for (let r = cell.row; r < cell.row + (cell.rowSpan || 1); r++) {
+                    for (let c = cell.col; c < cell.col + (cell.colSpan || 1); c++) {
+                        occupied.add(`${r}-${c}`);
+                    }
+                }
+            }
+        }
+
+        // Ищем первую свободную ячейку
+        for (let r = 1; r <= gridSize.rows; r++) {
+            for (let c = 1; c <= gridSize.cols; c++) {
+                if (!occupied.has(`${r}-${c}`)) {
+                    return { row: r, col: c };
+                }
+            }
+        }
+
+        // Все занято - расширяем сетку
+        return { row: gridSize.rows + 1, col: 1 };
+    }
+
+    /**
+     * Генерирует начальную конфигурацию cells из текущего childOrder
+     * Распределяет блоки равномерно по сетке
+     *
+     * @param {Array<string>} childOrder - Порядок дочерних блоков
+     * @param {Object} options - Опции
+     * @param {number} options.cols - Количество колонок (по умолчанию 12)
+     * @param {number} options.blocksPerRow - Блоков в строке (по умолчанию авто)
+     * @returns {Object} - layoutCells конфигурация
+     */
+    static generateInitialCells(childOrder, options = {}) {
+        const cols = options.cols || 12;
+        const n = childOrder.length;
+
+        // Определяем количество блоков в строке
+        let blocksPerRow = options.blocksPerRow;
+        if (!blocksPerRow) {
+            // Авто-расчёт: квадратная форма
+            blocksPerRow = Math.ceil(Math.sqrt(n));
+            if (blocksPerRow > 4) blocksPerRow = 4;
+        }
+
+        const colSpan = Math.floor(cols / blocksPerRow);
+        const cells = {};
+        let currentRow = 1;
+        let currentCol = 1;
+
+        for (let i = 0; i < n; i++) {
+            const childId = childOrder[i];
+
+            cells[childId] = {
+                row: currentRow,
+                col: currentCol,
+                rowSpan: 1,
+                colSpan: colSpan
+            };
+
+            currentCol += colSpan;
+            if (currentCol > cols) {
+                currentCol = 1;
+                currentRow++;
+            }
+        }
+
+        return {
+            gridSize: { rows: currentRow, cols },
+            cells
+        };
+    }
 }

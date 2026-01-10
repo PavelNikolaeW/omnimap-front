@@ -533,13 +533,17 @@ export class LocalStateManager {
             await treeService.removeTree(blockId)
         }
 
-        // Обновляем родительский блок (удаляем из children и childOrder)
+        // Обновляем родительский блок (удаляем из children, childOrder и layoutCells)
         if (parentBlock) {
             if (parentBlock.children) {
                 parentBlock.children = parentBlock.children.filter(id => id !== blockId);
             }
             if (parentBlock.data?.childOrder) {
                 parentBlock.data.childOrder = parentBlock.data.childOrder.filter(id => id !== blockId);
+            }
+            // Удаляем из layoutCells если есть
+            if (parentBlock.data?.layoutCells?.cells) {
+                delete parentBlock.data.layoutCells.cells[blockId];
             }
             await this.saveBlock(parentBlock);
         }
@@ -853,6 +857,10 @@ export class LocalStateManager {
                             // Убираем из childOrder
                             if (parentBlock.data?.childOrder) {
                                 parentBlock.data.childOrder = parentBlock.data.childOrder.filter(id => id !== block.id);
+                            }
+                            // Убираем из layoutCells если есть
+                            if (parentBlock.data?.layoutCells?.cells) {
+                                delete parentBlock.data.layoutCells.cells[block.id];
                             }
                             await this.saveBlock(parentBlock);
                             // Добавляем родителя в processedBlocks чтобы перерисовать
@@ -1594,6 +1602,40 @@ export class LocalStateManager {
         })
     }
 
+    /**
+     * Находит свободную позицию в layoutCells сетке
+     * @param {Object} layoutCells - {gridSize, cells}
+     * @returns {{row: number, col: number} | null} - позиция или null если нет места
+     */
+    _findFreePositionInLayoutCells(layoutCells) {
+        if (!layoutCells?.gridSize || !layoutCells?.cells) return null;
+
+        const { gridSize, cells } = layoutCells;
+        const occupied = new Set();
+
+        // Отмечаем все занятые ячейки
+        for (const [, cell] of Object.entries(cells)) {
+            if (cell) {
+                for (let r = cell.row; r < cell.row + (cell.rowSpan || 1); r++) {
+                    for (let c = cell.col; c < cell.col + (cell.colSpan || 1); c++) {
+                        occupied.add(`${r}-${c}`);
+                    }
+                }
+            }
+        }
+
+        // Ищем первую свободную ячейку
+        for (let r = 1; r <= gridSize.rows; r++) {
+            for (let c = 1; c <= gridSize.cols; c++) {
+                if (!occupied.has(`${r}-${c}`)) {
+                    return { row: r, col: c };
+                }
+            }
+        }
+
+        return null; // Нет свободного места
+    }
+
     async createBlock({parentId, title}) {
         // Генерируем реальный UUID сразу (не временный)
         const blockId = offlineQueue.generateBlockId();
@@ -1602,6 +1644,19 @@ export class LocalStateManager {
         if (!parentBlock) {
             console.error('Parent block not found:', parentId);
             return;
+        }
+
+        // Проверяем layoutCells - если есть, нужно найти свободное место
+        const hasLayoutCells = parentBlock.data?.layout === 'cells' && parentBlock.data?.layoutCells;
+        let newCellPosition = null;
+
+        if (hasLayoutCells) {
+            newCellPosition = this._findFreePositionInLayoutCells(parentBlock.data.layoutCells);
+            if (!newCellPosition) {
+                console.warn('No free space in layoutCells grid');
+                dispatch('ShowError', { message: 'Нет свободного места в сетке. Расширьте сетку в редакторе раскладки.' });
+                return;
+            }
         }
 
         // Регистрируем блок как pending (ожидающий синхронизации)
@@ -1625,6 +1680,16 @@ export class LocalStateManager {
         // ВАЖНО: добавляем blockId в оба массива синхронно
         parentBlock.children.push(blockId);
         parentBlock.data.childOrder.push(blockId);
+
+        // Если есть layoutCells - добавляем позицию для нового блока
+        if (hasLayoutCells && newCellPosition) {
+            parentBlock.data.layoutCells.cells[blockId] = {
+                row: newCellPosition.row,
+                col: newCellPosition.col,
+                rowSpan: 1,
+                colSpan: 1
+            };
+        }
 
         // Обновляем timestamp родителя
         parentBlock.updated_at = new Date().toISOString();
@@ -1685,6 +1750,19 @@ export class LocalStateManager {
             return;
         }
 
+        // Проверяем layoutCells - если есть, нужно найти свободное место
+        const hasLayoutCells = parentBlock.data?.layout === 'cells' && parentBlock.data?.layoutCells;
+        let newCellPosition = null;
+
+        if (hasLayoutCells) {
+            newCellPosition = this._findFreePositionInLayoutCells(parentBlock.data.layoutCells);
+            if (!newCellPosition) {
+                console.warn('No free space in layoutCells grid');
+                dispatch('ShowError', { message: 'Нет свободного места в сетке. Расширьте сетку в редакторе раскладки.' });
+                return;
+            }
+        }
+
         // Регистрируем блок как pending (ожидающий синхронизации)
         offlineQueue.registerPendingBlock(blockId);
 
@@ -1706,6 +1784,16 @@ export class LocalStateManager {
         if (!parentBlock.data) parentBlock.data = {};
         if (!parentBlock.data.childOrder) parentBlock.data.childOrder = [];
         parentBlock.data.childOrder.push(blockId);
+
+        // Если есть layoutCells - добавляем позицию для нового блока
+        if (hasLayoutCells && newCellPosition) {
+            parentBlock.data.layoutCells.cells[blockId] = {
+                row: newCellPosition.row,
+                col: newCellPosition.col,
+                rowSpan: 1,
+                colSpan: 1
+            };
+        }
 
         await this.saveBlock(newBlock);
         await this.saveBlock(parentBlock);
@@ -1843,7 +1931,6 @@ export class LocalStateManager {
             api.updateBlock(blockId, {data: data}).then(res => {
                 if (res.status === 200) {
                     const updatedBlock = res.data;
-                    console.log(updatedBlock)
                     this.saveBlock(updatedBlock).then(() => dispatch('ShowBlocks'));
                 }
             });

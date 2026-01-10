@@ -5,7 +5,8 @@ import {
     LAYOUT_TYPES,
     parseLayoutType,
     DEFAULT_GRID_CONFIG,
-    DEFAULT_MASONRY_CONFIG
+    DEFAULT_MASONRY_CONFIG,
+    DEFAULT_CELLS_CONFIG
 } from "./layoutTypes";
 import { layoutTemplateService } from "../services/layoutTemplateService";
 
@@ -56,6 +57,9 @@ class GridClassManager {
 
             case LAYOUT_TYPES.TEMPLATE:
                 return this.layoutFromTemplate(block, config, parentBlock)
+
+            case LAYOUT_TYPES.CELLS:
+                return this.layoutCells(block)
 
             case LAYOUT_TYPES.DEFAULT:
             default:
@@ -216,6 +220,57 @@ class GridClassManager {
             result.grid,
             result.contentPosition,
             result.childrenPositions
+        ];
+    }
+
+    /**
+     * Раскладка cells - ячеечная с произвольными размерами и span
+     * @param {Object} block - блок
+     */
+    layoutCells(block) {
+        const childOrder = block.data?.childOrder || [];
+        const lenChildren = childOrder.length;
+
+        if (lenChildren === 0) {
+            return [
+                GridClassManager._setBlockGrid(1, 1),
+                GridClassManager._setContentPosition(1, 1),
+                {}
+            ];
+        }
+
+        // Получаем или генерируем layoutCells
+        let layoutCells = block.data?.layoutCells;
+        if (!layoutCells || !layoutCells.cells || Object.keys(layoutCells.cells).length === 0) {
+            // Генерируем начальную конфигурацию
+            layoutCells = GridLayoutCalculator.generateInitialCells(childOrder);
+        }
+
+        // Вычисляем позиции
+        const result = GridLayoutCalculator.computeGridLayoutCells(layoutCells, childOrder);
+
+        // Формируем childrenPosition
+        const childrenPosition = {};
+        for (const rect of result.rectangles) {
+            childrenPosition[rect.childId] = [
+                `grid-column_${rect.gridColumnStart}__${rect.gridColumnEnd}`,
+                `grid-row_${rect.gridRowStart}__${rect.gridRowEnd}`
+            ];
+        }
+
+        // Добавляем класс пресета для стилизации
+        const gridClasses = GridClassManager._setBlockGrid(result.totalGridRows, result.gridColumns);
+        if (layoutCells.presetType) {
+            gridClasses.push(`layout-preset-${layoutCells.presetType}`);
+        }
+
+        // Сохраняем presetType для использования в painter
+        block.layoutPresetType = layoutCells.presetType || null;
+
+        return [
+            gridClasses,
+            GridClassManager._setContentPosition(result.totalGridRows, result.gridColumns),
+            childrenPosition
         ];
     }
 

@@ -444,6 +444,23 @@ CONNECTION_TYPES = {
 2. Добавь конфигурацию в `CONNECTION_CONFIGS` (jsPlumb настройки)
 3. Добавь команду в `commands.js` (опционально)
 
+## Visual Layout Editor
+
+Визуальный drag-and-drop редактор для настройки раскладки дочерних блоков.
+
+**Hotkey:** `l+e`
+
+**Подробная документация:** [docs/LAYOUT_EDITOR.md](docs/LAYOUT_EDITOR.md)
+
+**Ключевые файлы:**
+- `src/js/controller/layoutEditor/` — компоненты редактора
+- `src/style/layout-editor.css` — стили
+- `src/js/painter/calcBlockColor.js` — цвета блоков (включая выходные)
+
+**Формат данных:** `block.data.layoutCells` с `gridSize`, `cells`, `presetType`
+
+**Пресеты:** 2x2, 3x3, 4x4, sidebar, dashboard, kanban, holy-grail, gallery, calendar
+
 ## Notes
 
 - Code comments are in Russian
