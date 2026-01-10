@@ -594,7 +594,7 @@ export const commands = [
                 dispatch('DeleteMultipleTreeBlocks', {blockIds: selectedIds})
                 ctx.clearSelection()
                 ctx.shiftLock = false
-                // Не вызываем setCmdOpenBlock - ShowBlocks перерисует UI, навигация не нужна
+                setCmdOpenBlock(ctx)
                 return
             }
 
@@ -603,10 +603,13 @@ export const commands = [
             if (!id) return
             dispatch('DeleteTreeBlock', {blockId: id})
             ctx.shiftLock = false
-            // Очищаем контекст - DOM будет перерисован через ShowBlocks
-            ctx.blockElement = undefined
-            ctx.blockLinkElement = undefined
-            // Не вызываем setCmdOpenBlock - ShowBlocks перерисует UI, навигация не нужна
+            ctx.blockElement = ctx.blockLinkElement?.parentNode ?? ctx.blockElement?.parentNode
+            if (ctx.blockElement && ctx.blockElement.id.indexOf('*') !== -1) {
+                ctx.blockLinkElement = ctx.blockElement.parentNode
+                ctx.blockElement = undefined
+
+            }
+            setCmdOpenBlock(ctx)
         }
     },
     {
