@@ -533,13 +533,17 @@ export class LocalStateManager {
             await treeService.removeTree(blockId)
         }
 
-        // Обновляем родительский блок (удаляем из children и childOrder)
+        // Обновляем родительский блок (удаляем из children, childOrder и layoutCells)
         if (parentBlock) {
             if (parentBlock.children) {
                 parentBlock.children = parentBlock.children.filter(id => id !== blockId);
             }
             if (parentBlock.data?.childOrder) {
                 parentBlock.data.childOrder = parentBlock.data.childOrder.filter(id => id !== blockId);
+            }
+            // Удаляем из layoutCells если есть
+            if (parentBlock.data?.layoutCells?.cells) {
+                delete parentBlock.data.layoutCells.cells[blockId];
             }
             await this.saveBlock(parentBlock);
         }
@@ -853,6 +857,10 @@ export class LocalStateManager {
                             // Убираем из childOrder
                             if (parentBlock.data?.childOrder) {
                                 parentBlock.data.childOrder = parentBlock.data.childOrder.filter(id => id !== block.id);
+                            }
+                            // Убираем из layoutCells если есть
+                            if (parentBlock.data?.layoutCells?.cells) {
+                                delete parentBlock.data.layoutCells.cells[block.id];
                             }
                             await this.saveBlock(parentBlock);
                             // Добавляем родителя в processedBlocks чтобы перерисовать
