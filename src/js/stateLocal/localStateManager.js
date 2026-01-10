@@ -582,6 +582,14 @@ export class LocalStateManager {
         try {
             const res = await api.removeTree(blockId)
             if (res.status === 200) {
+                // DEBUG: логируем ответ сервера
+                console.group('🗑️ Delete API Response');
+                console.log('Deleted blockId:', blockId);
+                console.log('Server parent:', res.data.parent);
+                console.log('Server parent.children:', res.data.parent?.children);
+                console.log('Server parent.data:', res.data.parent?.data);
+                console.groupEnd();
+
                 // Обновляем родительский блок данными с сервера
                 if (res.data.parent?.id) {
                     await this.saveBlock(res.data.parent)
@@ -772,6 +780,14 @@ export class LocalStateManager {
 
     async webSocUpdateBlock(newBlocks) {
         if (!Array.isArray(newBlocks) || newBlocks.length === 0) return;
+
+        // DEBUG: логируем входящие обновления
+        console.group('📡 WebSocket Update');
+        console.log('Blocks count:', newBlocks.length);
+        newBlocks.forEach((b, i) => {
+            console.log(`Block ${i}:`, b.id, 'deleted:', b.deleted, 'children:', b.children, 'data:', b.data);
+        });
+        console.groupEnd();
 
         const processedBlocks = [];
 
@@ -1920,10 +1936,24 @@ export class LocalStateManager {
             const block = this.blocks.get(blockId);
             if (!block) throw new Error(`Block with id ${blockId} not found.`);
 
+            // DEBUG: логируем что отправляем и что было до
+            console.group('📝 UpdateDataBlock');
+            console.log('blockId:', blockId);
+            console.log('Sending data:', data);
+            console.log('Local block.data BEFORE:', JSON.stringify(block.data));
+            console.log('Local block.children BEFORE:', block.children);
+            console.groupEnd();
+
             api.updateBlock(blockId, {data: data}).then(res => {
                 if (res.status === 200) {
                     const updatedBlock = res.data;
-                    console.log(updatedBlock)
+
+                    // DEBUG: логируем ответ сервера
+                    console.group('📝 UpdateDataBlock Response');
+                    console.log('Server updatedBlock.data:', updatedBlock.data);
+                    console.log('Server updatedBlock.children:', updatedBlock.children);
+                    console.groupEnd();
+
                     this.saveBlock(updatedBlock).then(() => dispatch('ShowBlocks'));
                 }
             });
