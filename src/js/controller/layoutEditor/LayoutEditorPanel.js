@@ -468,6 +468,9 @@ export class LayoutEditorPanel extends Popup {
     async createPlaceholderBlocks() {
         if (this.placeholders.length === 0) return;
 
+        // Сохраняем ID новых блоков для обновления childOrder
+        const newBlockIds = this.placeholders.map(ph => ph.blockId);
+
         // Формируем payload для импорта
         const blocksToImport = this.placeholders.map(ph => ({
             id: ph.blockId,
@@ -485,11 +488,7 @@ export class LayoutEditorPanel extends Popup {
                 console.log('Import progress:', progress);
             });
 
-            // Обновляем данные блока
-            await new Promise(resolve => setTimeout(resolve, 500));
-            this.loadBlockData();
-
-            // Добавляем позиции для новых блоков
+            // Добавляем позиции для новых блоков в cells
             for (const ph of this.placeholders) {
                 this.cells[ph.blockId] = {
                     row: ph.row,
@@ -498,6 +497,28 @@ export class LayoutEditorPanel extends Popup {
                     colSpan: ph.colSpan
                 };
             }
+
+            // Обновляем childOrder родителя, добавляя новые блоки
+            const currentChildOrder = this.block.data?.childOrder || [];
+            const updatedChildOrder = [...currentChildOrder, ...newBlockIds];
+
+            // Обновляем родительский блок с новым childOrder и layoutCells
+            dispatch('UpdateDataBlock', {
+                blockId: this.blockId,
+                data: {
+                    childOrder: updatedChildOrder,
+                    layout: 'cells',
+                    layoutCells: {
+                        gridSize: this.gridSize,
+                        cells: this.cells,
+                        presetType: this.currentPresetType || null
+                    }
+                }
+            });
+
+            // Ждём обновления и перезагружаем данные
+            await new Promise(resolve => setTimeout(resolve, 300));
+            this.loadBlockData();
 
             // Очищаем placeholders
             this.placeholders = [];
