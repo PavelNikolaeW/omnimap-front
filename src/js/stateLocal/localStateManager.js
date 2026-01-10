@@ -1727,7 +1727,6 @@ export class LocalStateManager {
         });
 
         console.log('Block created:', blockId, offlineQueue.isNetworkOnline() ? '(syncing)' : '(offline)');
-        console.log('Queue length:', offlineQueue.getQueueLength());
         console.groupEnd();
     }
 
