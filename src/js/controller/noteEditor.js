@@ -7,6 +7,7 @@ import { gfm } from 'turndown-plugin-gfm';
 import 'emoji-picker-element';
 import { customPrompt } from "../utils/custom-dialog";
 import { isMobileOrTablet } from "../utils/functions";
+import { offlineQueue } from "../sincManager/offlineQueue";
 
 const BLOCK_LINK_PREFIX = 'block:';
 
@@ -78,6 +79,10 @@ export class NoteEditor {
      */
     _handleExternalUpdate(e) {
         if (!this.blockId || !this.editorEl) return;
+
+        // Не показываем предупреждение для pending блоков (только что созданных локально)
+        // Это первое подтверждение с сервера, а не изменение от другого пользователя
+        if (offlineQueue.isPendingBlock(this.blockId)) return;
 
         const blocks = e.detail;
         if (!Array.isArray(blocks)) return;
