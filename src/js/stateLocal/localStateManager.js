@@ -1652,14 +1652,20 @@ export class LocalStateManager {
     }
 
     async createBlock({parentId, title}) {
+        console.group('➕ CreateBlock');
+
         // Генерируем реальный UUID сразу (не временный)
         const blockId = offlineQueue.generateBlockId();
+        console.log('Generated blockId:', blockId);
+        console.log('parentId:', parentId);
 
         const parentBlock = this.blocks.get(parentId);
         if (!parentBlock) {
             console.error('Parent block not found:', parentId);
+            console.groupEnd();
             return;
         }
+        console.log('Parent block found:', parentBlock.title);
 
         // Проверяем layoutCells - если есть, нужно найти свободное место
         const hasLayoutCells = parentBlock.data?.layout === 'cells' && parentBlock.data?.layoutCells;
@@ -1721,6 +1727,8 @@ export class LocalStateManager {
         });
 
         console.log('Block created:', blockId, offlineQueue.isNetworkOnline() ? '(syncing)' : '(offline)');
+        console.log('Queue length:', offlineQueue.getQueueLength());
+        console.groupEnd();
     }
 
     /**
