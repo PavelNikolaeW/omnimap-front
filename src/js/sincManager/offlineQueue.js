@@ -401,8 +401,10 @@ class OfflineQueueManager {
      * @param {Object} operation - Операция для выполнения
      * @param {string} operation.type - Тип операции (createBlock, updateBlock, deleteBlock, moveBlock)
      * @param {Object} operation.data - Данные операции (blockId, parentId, etc.)
+     * @param {Object} options - Дополнительные опции
+     * @param {boolean} options.immediate - Если true, синхронизация запускается сразу без debounce
      */
-    async enqueue(operation) {
+    async enqueue(operation, options = {}) {
         const queue = await this.getQueue();
 
         operation.timestamp = Date.now();
@@ -414,10 +416,20 @@ class OfflineQueueManager {
         // Уведомляем UI о новой операции в очереди
         dispatch('OperationQueued', { count: queue.length });
 
-        // Если онлайн, запускаем синхронизацию с debounce
-        // Это позволяет накопить несколько операций перед отправкой
+        // Если онлайн, запускаем синхронизацию
         if (this.isOnline && !this.isSyncing && !this.isPulling) {
-            this.scheduleSyncWithDebounce();
+            if (options.immediate) {
+                // Немедленная синхронизация без debounce
+                // Отменяем существующий таймер
+                if (this.syncDebounceTimer) {
+                    clearTimeout(this.syncDebounceTimer);
+                    this.syncDebounceTimer = null;
+                }
+                this.startPullPhase();
+            } else {
+                // Синхронизация с debounce
+                this.scheduleSyncWithDebounce();
+            }
         } else if (!this.isOnline) {
             // Если offline, регистрируем Background Sync
             await this.registerBackgroundSync();

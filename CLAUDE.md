@@ -177,9 +177,22 @@ Operations are queued when offline and synced when connection restored:
 ```
 
 Key methods:
-- `enqueue(operation)`: Add operation to queue
+- `enqueue(operation, options)`: Add operation to queue
 - `processQueue()`: Sync all pending operations
 - `getQueueLength()`: Check pending operations count
+
+#### Sync Behavior by Context
+
+| Context | Sync Delay | Reason |
+|---------|------------|--------|
+| **Normal blocks** | 3 seconds (`SYNC_DEBOUNCE_MS`) | Allows batching multiple rapid changes |
+| **Diagram blocks** | Immediate | Parent has `customGrid.grid`; avoids UI errors |
+
+```javascript
+// In localStateManager.createBlock():
+const isDiagram = !!parentBlock.data?.customGrid?.grid;
+await offlineQueue.enqueue(operation, { immediate: isDiagram });
+```
 
 ## Key Directories
 

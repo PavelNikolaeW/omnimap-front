@@ -229,6 +229,178 @@ describe('OfflineQueueManager', () => {
         });
     });
 
+    describe('Immediate Sync Option', () => {
+        let ImmediateSyncManager;
+
+        beforeEach(() => {
+            // Расширенный класс с поддержкой immediate опции
+            ImmediateSyncManager = class extends OfflineQueueManager {
+                constructor() {
+                    super();
+                    this.syncDebounceTimer = null;
+                    this.SYNC_DEBOUNCE_MS = 3000;
+                    this.isPulling = false;
+                    this.startPullPhaseCalled = false;
+                    this.scheduleSyncWithDebounceCalled = false;
+                }
+
+                async enqueue(operation, options = {}) {
+                    const queue = await this.getQueue();
+                    operation.timestamp = Date.now();
+                    operation.retryCount = 0;
+                    queue.push(operation);
+                    await this.saveQueue(queue);
+
+                    if (this.isOnline && !this.isSyncing && !this.isPulling) {
+                        if (options.immediate) {
+                            if (this.syncDebounceTimer) {
+                                clearTimeout(this.syncDebounceTimer);
+                                this.syncDebounceTimer = null;
+                            }
+                            this.startPullPhase();
+                        } else {
+                            this.scheduleSyncWithDebounce();
+                        }
+                    }
+                }
+
+                startPullPhase() {
+                    this.startPullPhaseCalled = true;
+                }
+
+                scheduleSyncWithDebounce() {
+                    this.scheduleSyncWithDebounceCalled = true;
+                    this.syncDebounceTimer = setTimeout(() => {
+                        this.startPullPhase();
+                    }, this.SYNC_DEBOUNCE_MS);
+                }
+            };
+        });
+
+        afterEach(() => {
+            jest.clearAllTimers();
+        });
+
+        test('enqueue with immediate: true triggers sync immediately', async () => {
+            localforage.getItem.mockResolvedValue([]);
+            localforage.setItem.mockResolvedValue();
+
+            const manager = new ImmediateSyncManager();
+            manager.isOnline = true;
+
+            await manager.enqueue(
+                { type: 'createBlock', data: { blockId: 'test-1' } },
+                { immediate: true }
+            );
+
+            expect(manager.startPullPhaseCalled).toBe(true);
+            expect(manager.scheduleSyncWithDebounceCalled).toBe(false);
+        });
+
+        test('enqueue without immediate uses debounce', async () => {
+            localforage.getItem.mockResolvedValue([]);
+            localforage.setItem.mockResolvedValue();
+
+            const manager = new ImmediateSyncManager();
+            manager.isOnline = true;
+
+            await manager.enqueue(
+                { type: 'createBlock', data: { blockId: 'test-1' } }
+            );
+
+            expect(manager.startPullPhaseCalled).toBe(false);
+            expect(manager.scheduleSyncWithDebounceCalled).toBe(true);
+        });
+
+        test('enqueue with immediate: false uses debounce', async () => {
+            localforage.getItem.mockResolvedValue([]);
+            localforage.setItem.mockResolvedValue();
+
+            const manager = new ImmediateSyncManager();
+            manager.isOnline = true;
+
+            await manager.enqueue(
+                { type: 'updateBlock', data: { blockId: 'test-1' } },
+                { immediate: false }
+            );
+
+            expect(manager.startPullPhaseCalled).toBe(false);
+            expect(manager.scheduleSyncWithDebounceCalled).toBe(true);
+        });
+
+        test('immediate sync clears existing debounce timer', async () => {
+            jest.useFakeTimers();
+            localforage.getItem.mockResolvedValue([]);
+            localforage.setItem.mockResolvedValue();
+
+            const manager = new ImmediateSyncManager();
+            manager.isOnline = true;
+
+            // Первый вызов с debounce
+            await manager.enqueue({ type: 'updateBlock', data: { blockId: 'test-1' } });
+            expect(manager.syncDebounceTimer).not.toBeNull();
+
+            // Второй вызов с immediate — должен очистить таймер
+            await manager.enqueue(
+                { type: 'createBlock', data: { blockId: 'test-2' } },
+                { immediate: true }
+            );
+
+            expect(manager.syncDebounceTimer).toBeNull();
+            expect(manager.startPullPhaseCalled).toBe(true);
+
+            jest.useRealTimers();
+        });
+
+        test('immediate sync does not trigger when offline', async () => {
+            localforage.getItem.mockResolvedValue([]);
+            localforage.setItem.mockResolvedValue();
+
+            const manager = new ImmediateSyncManager();
+            manager.isOnline = false;
+
+            await manager.enqueue(
+                { type: 'createBlock', data: { blockId: 'test-1' } },
+                { immediate: true }
+            );
+
+            expect(manager.startPullPhaseCalled).toBe(false);
+            expect(manager.scheduleSyncWithDebounceCalled).toBe(false);
+        });
+
+        test('immediate sync does not trigger when already syncing', async () => {
+            localforage.getItem.mockResolvedValue([]);
+            localforage.setItem.mockResolvedValue();
+
+            const manager = new ImmediateSyncManager();
+            manager.isOnline = true;
+            manager.isSyncing = true;
+
+            await manager.enqueue(
+                { type: 'createBlock', data: { blockId: 'test-1' } },
+                { immediate: true }
+            );
+
+            expect(manager.startPullPhaseCalled).toBe(false);
+        });
+
+        test('immediate sync does not trigger when pulling', async () => {
+            localforage.getItem.mockResolvedValue([]);
+            localforage.setItem.mockResolvedValue();
+
+            const manager = new ImmediateSyncManager();
+            manager.isOnline = true;
+            manager.isPulling = true;
+
+            await manager.enqueue(
+                { type: 'createBlock', data: { blockId: 'test-1' } },
+                { immediate: true }
+            );
+
+            expect(manager.startPullPhaseCalled).toBe(false);
+        });
+    });
+
     describe('Operation Types', () => {
         test('supports createBlock operation', async () => {
             localforage.getItem.mockResolvedValue([]);
