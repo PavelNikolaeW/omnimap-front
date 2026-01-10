@@ -28,6 +28,28 @@
     cursor: pointer;
     transition: background-color 0.3s, border-color 0.3s, transform 0.2s;
     color: #333;
+    position: relative; /* Для позиционирования badge */
+}
+
+/* Badge для уведомлений на кнопках sidebar */
+.sidebar-button-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    background: #ef4444;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 600;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    box-sizing: border-box;
+    line-height: 1;
 }
 
 .top-btn:hover {

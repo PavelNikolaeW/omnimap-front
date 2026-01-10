@@ -10,6 +10,8 @@
  */
 
 import { dispatch } from '../utils/utils.js';
+import { toastManager } from '../utils/toast.js';
+import { openUnifiedChat } from '../controller/popups/unifiedChatPanel.js';
 
 class ChatSync {
     constructor() {
@@ -264,13 +266,14 @@ class ChatSync {
      * @param {Object} data
      */
     showNotification(type, data) {
-        // Проверяем разрешение на уведомления
-        if (!('Notification' in window) || Notification.permission !== 'granted') {
+        // Показываем in-app toast если вкладка активна
+        if (document.visibilityState === 'visible') {
+            this.showInAppNotification(type, data);
             return;
         }
 
-        // Не показываем уведомление если документ активен
-        if (document.visibilityState === 'visible') {
+        // Показываем browser notification если вкладка неактивна
+        if (!('Notification' in window) || Notification.permission !== 'granted') {
             return;
         }
 
@@ -302,6 +305,39 @@ class ChatSync {
         } catch (error) {
             console.warn('Failed to show notification:', error);
         }
+    }
+
+    /**
+     * Показать in-app toast уведомление
+     * @param {string} type - 'dm' | 'group'
+     * @param {Object} data
+     */
+    showInAppNotification(type, data) {
+        // Не показываем если UnifiedChatPanel открыт
+        const chatPanel = document.querySelector('.unified-chat');
+        if (chatPanel && chatPanel.classList.contains('open')) {
+            return;
+        }
+
+        const senderName = data.sender_username || data.message?.sender_username || 'Пользователь';
+        const message = data.message?.content || 'Новое сообщение';
+
+        toastManager.showChatMessage({
+            senderName,
+            message,
+            isGroup: type === 'group',
+            onClick: () => {
+                openUnifiedChat();
+                // Открыть конкретный чат после небольшой задержки
+                setTimeout(() => {
+                    if (type === 'dm') {
+                        dispatch('OpenDirectChat', { userId: data.sender_id });
+                    } else {
+                        dispatch('OpenGroupChat', { groupId: data.group_id });
+                    }
+                }, 100);
+            }
+        });
     }
 
     /**

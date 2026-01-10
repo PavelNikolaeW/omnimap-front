@@ -10,7 +10,10 @@
 import { dispatch } from '../../utils/utils.js';
 import chatApi from '../../api/chatApi.js';
 import llmApi from '../../api/llmApi.js';
+import api from '../../api/api.js';
 import localforage from 'localforage';
+import { showCreateGroupModal } from './createGroupModal.js';
+import { featureFlags } from '../../config/featureFlags.js';
 
 // Типы чатов
 const CHAT_TYPES = {
@@ -451,11 +454,16 @@ export class UnifiedChatPanel {
 
     async loadData() {
         try {
+            // Выбираем API для групп в зависимости от feature flag
+            const groupsPromise = featureFlags.UNIFIED_GROUPS
+                ? api.getGroups()
+                : chatApi.getChatGroups();
+
             // Load all data in parallel
             const [aiDialogs, conversations, groups, unread, models, balance] = await Promise.allSettled([
                 llmApi.getDialogs(),
                 chatApi.getConversations(),
-                chatApi.getChatGroups(),
+                groupsPromise,
                 chatApi.getUnreadCount(),
                 llmApi.getModels(),
                 llmApi.getTokenBalance()
@@ -477,6 +485,14 @@ export class UnifiedChatPanel {
                 this.groups = Array.isArray(groupsData)
                     ? groupsData
                     : (groupsData?.results || groupsData?.groups || []);
+
+                // Для unified groups добавляем флаг типа
+                if (featureFlags.UNIFIED_GROUPS) {
+                    this.groups = this.groups.map(g => ({
+                        ...g,
+                        _isAccessGroup: true
+                    }));
+                }
             }
             if (unread.status === 'fulfilled') {
                 this.unreadCount = unread.value.data || { dm: 0, groups: 0 };
@@ -1411,30 +1427,25 @@ export class UnifiedChatPanel {
     }
 
     showCreateGroupDialog() {
-        const name = prompt('Введите название группы:');
-        if (name && name.trim()) {
-            this.createGroup(name.trim());
+        if (featureFlags.UNIFIED_GROUPS) {
+            // При unified groups создание групп через AccessPopup
+            alert('Для создания группы откройте блок и нажмите "Управление доступом" → "Создать группу"');
+            return;
         }
-    }
 
-    async createGroup(name) {
-        try {
-            const response = await chatApi.createChatGroup(name);
-            const group = response.data;
+        showCreateGroupModal({
+            onCreate: (group) => {
+                this.groups.unshift(group);
+                this.renderChatList();
 
-            this.groups.unshift(group);
-            this.renderChatList();
-
-            await this.selectChat({
-                type: CHAT_TYPES.GROUP,
-                id: group.id,
-                title: group.name,
-                data: group
-            });
-        } catch (error) {
-            console.error('Failed to create group:', error);
-            alert('Не удалось создать группу');
-        }
+                this.selectChat({
+                    type: CHAT_TYPES.GROUP,
+                    id: group.id,
+                    title: group.name,
+                    data: group
+                });
+            }
+        });
     }
 
     async deleteChat(item) {

@@ -37,6 +37,7 @@ import {networkStatusUI} from "./sincManager/networkStatusUI";
 import {handleTelegramLinkCallback} from "./controller/telegramLinkHandler";
 import {statusIndicators} from "./core/statusIndicators";
 import {initDevCacheManager} from "./core/devCacheManager";
+import chatApi from "./api/chatApi";
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
     // Храним ссылку на updatefound handler для возможности cleanup
@@ -293,12 +294,35 @@ async function initApp() {
 
     if (isAuth) {
         dispatch('ShowBlocks')
+
+        // Загружаем количество непрочитанных сообщений для badge на кнопке чата
+        loadChatUnreadCount()
     }
 
     setInterface()
 
     // Обработка callback URL (например, привязка Telegram)
     handleTelegramLinkCallback()
+}
+
+/**
+ * Загружает количество непрочитанных сообщений и обновляет badge
+ */
+async function loadChatUnreadCount() {
+    try {
+        const response = await chatApi.getUnreadCount()
+        const { dm_unread = 0, groups_unread = 0 } = response.data || {}
+        const total = dm_unread + groups_unread
+
+        dispatch('ChatUnreadUpdated', {
+            dm: dm_unread,
+            groups: groups_unread,
+            total
+        })
+    } catch (error) {
+        // Игнорируем ошибки загрузки - badge просто не покажется
+        console.debug('Failed to load chat unread count:', error.message)
+    }
 }
 
 async function checkAuth() {

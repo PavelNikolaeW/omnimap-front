@@ -87,6 +87,14 @@ export class UIManager {
             this.isOffline = !e.detail.online
             this.updateOfflineButtons()
         })
+
+        // Слушаем обновления непрочитанных сообщений чата
+        window.addEventListener('ChatUnreadUpdated', (e) => {
+            const { total } = e.detail || {}
+            if (typeof total === 'number') {
+                this.updateButtonBadge('unifiedChat', total)
+            }
+        })
     }
 
     /**
@@ -200,7 +208,31 @@ export class UIManager {
             element.textContent = cmd.btn.text
         }
         element.setAttribute('title', `${cmd.btn.label} [${cmd.currentHotkey || ''}]`)
+
+        // Добавляем badge если команда поддерживает
+        if (cmd.btn.supportsBadge) {
+            const badge = document.createElement('span')
+            badge.className = 'sidebar-button-badge'
+            badge.id = `${cmd.id}-badge`
+            badge.style.display = 'none'
+            badge.textContent = '0'
+            element.appendChild(badge)
+        }
+
         return element
+    }
+
+    /**
+     * Обновляет badge на кнопке команды
+     * @param {string} commandId - ID команды
+     * @param {number} count - Количество для отображения
+     */
+    updateButtonBadge(commandId, count) {
+        const badge = document.getElementById(`${commandId}-badge`)
+        if (badge) {
+            badge.textContent = count > 99 ? '99+' : String(count)
+            badge.style.display = count > 0 ? 'flex' : 'none'
+        }
     }
 
     /**

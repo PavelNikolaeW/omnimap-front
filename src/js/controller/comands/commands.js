@@ -273,7 +273,8 @@ export const commands = [
         btn: {
             containerId: 'control-panel',
             label: 'Чаты',
-            classes: ['sidebar-button', 'fas', 'fa-comments', 'fas-lg']
+            classes: ['sidebar-button', 'fas', 'fa-comments', 'fas-lg'],
+            supportsBadge: true
         },
         defaultHotkey: 'shift+m',
         description: 'Открыть чаты (личные, группы, AI)',

@@ -344,6 +344,41 @@ class Api {
         return this.api.get(`groups/${groupId}/members/`)
     }
 
+    // =====================================================
+    // Сообщения групп (для UNIFIED_GROUPS feature flag)
+    // =====================================================
+
+    /**
+     * Получить сообщения группы
+     * @param {number} groupId - ID группы
+     * @param {number} limit - Количество сообщений
+     * @param {number} before - ID сообщения для пагинации
+     */
+    getGroupMessages(groupId, limit = 50, before = null) {
+        let url = `groups/${groupId}/messages/?limit=${limit}`;
+        if (before) {
+            url += `&before=${before}`;
+        }
+        return this.api.get(url);
+    }
+
+    /**
+     * Отправить сообщение в группу
+     * @param {number} groupId - ID группы
+     * @param {string} content - Текст сообщения
+     */
+    sendGroupMessage(groupId, content) {
+        return this.api.post(`groups/${groupId}/messages/`, { content });
+    }
+
+    /**
+     * Отметить сообщения группы как прочитанные
+     * @param {number} groupId - ID группы
+     */
+    markGroupMessagesRead(groupId) {
+        return this.api.post(`groups/${groupId}/messages/read/`);
+    }
+
     updateAccess(blockId, data) {
         return this.api.post(`access/${blockId}/`, data)
     }

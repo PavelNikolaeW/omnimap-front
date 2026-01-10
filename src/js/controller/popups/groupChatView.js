@@ -12,7 +12,10 @@
 import { Popup } from './popup.js';
 import { dispatch } from '../../utils/utils.js';
 import chatApi from '../../api/chatApi.js';
+import api from '../../api/api.js';
 import localforage from 'localforage';
+import { showAddMemberModal } from './addMemberModal.js';
+import { featureFlags } from '../../config/featureFlags.js';
 
 export class GroupChatView extends Popup {
     /**
@@ -409,12 +412,14 @@ export class GroupChatView extends Popup {
         this.isLoading = true;
 
         try {
-            const options = { limit: 50 };
-            if (loadMore && this.oldestMessageId) {
-                options.before = this.oldestMessageId;
-            }
+            const limit = 50;
+            const before = loadMore && this.oldestMessageId ? this.oldestMessageId : null;
 
-            const response = await chatApi.getGroupMessages(this.groupId, options);
+            // Выбираем API в зависимости от feature flag
+            const response = featureFlags.UNIFIED_GROUPS
+                ? await api.getGroupMessages(this.groupId, limit, before)
+                : await chatApi.getGroupMessages(this.groupId, { limit, before });
+
             const newMessages = response.data || [];
 
             if (newMessages.length < 50) {
@@ -441,7 +446,11 @@ export class GroupChatView extends Popup {
 
     async loadMembers() {
         try {
-            const response = await chatApi.getChatGroupMembers(this.groupId);
+            // Выбираем API в зависимости от feature flag
+            const response = featureFlags.UNIFIED_GROUPS
+                ? await api.getGroupMembers(this.groupId)
+                : await chatApi.getChatGroupMembers(this.groupId);
+
             this.members = response.data || [];
             this.renderMembers();
         } catch (error) {
@@ -467,8 +476,11 @@ export class GroupChatView extends Popup {
             this.messageInput.value = '';
             this.autoResizeInput();
 
-            // Send to server
-            const response = await chatApi.sendGroupMessage(this.groupId, content);
+            // Выбираем API в зависимости от feature flag
+            const response = featureFlags.UNIFIED_GROUPS
+                ? await api.sendGroupMessage(this.groupId, content)
+                : await chatApi.sendGroupMessage(this.groupId, content);
+
             const sentMessage = response.data;
 
             // Replace temp message with real one
@@ -494,7 +506,13 @@ export class GroupChatView extends Popup {
 
     async markAsRead() {
         try {
-            await chatApi.markGroupAsRead(this.groupId);
+            // Выбираем API в зависимости от feature flag
+            if (featureFlags.UNIFIED_GROUPS) {
+                await api.markGroupMessagesRead(this.groupId);
+            } else {
+                await chatApi.markGroupAsRead(this.groupId);
+            }
+
             dispatch('ChatMessagesRead', {
                 type: 'group',
                 groupId: this.groupId
@@ -504,11 +522,22 @@ export class GroupChatView extends Popup {
         }
     }
 
-    async removeMember(userId) {
+    async removeMember(userId, username) {
         if (!confirm('Удалить участника из группы?')) return;
 
         try {
-            await chatApi.removeChatGroupMember(this.groupId, userId);
+            // Выбираем API в зависимости от feature flag
+            if (featureFlags.UNIFIED_GROUPS) {
+                // api.removeUserGroup требует username
+                const member = this.members.find(m => m.user_id === userId);
+                const memberUsername = username || member?.username;
+                if (memberUsername) {
+                    await api.removeUserGroup(this.groupId, memberUsername);
+                }
+            } else {
+                await chatApi.removeChatGroupMember(this.groupId, userId);
+            }
+
             this.members = this.members.filter(m => m.user_id !== userId);
             this.renderMembers();
             dispatch('ChatGroupMemberRemoved', {
@@ -619,35 +648,18 @@ export class GroupChatView extends Popup {
     }
 
     showAddMemberDialog() {
-        const username = prompt('Введите имя пользователя для добавления:');
-        if (username && username.trim()) {
-            this.addMemberByUsername(username.trim());
-        }
-    }
-
-    async addMemberByUsername(username) {
-        try {
-            // First search for user
-            const searchRes = await chatApi.searchUsers(username);
-            const users = searchRes.data || [];
-            const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
-
-            if (!user) {
-                alert('Пользователь не найден');
-                return;
+        showAddMemberModal({
+            groupId: this.groupId,
+            existingMembers: this.members,
+            onAdd: (user) => {
+                this.loadMembers();
+                dispatch('ChatGroupMemberAdded', {
+                    groupId: this.groupId,
+                    userId: user.id,
+                    username: user.username
+                });
             }
-
-            await chatApi.addChatGroupMember(this.groupId, user.id);
-            await this.loadMembers();
-            dispatch('ChatGroupMemberAdded', {
-                groupId: this.groupId,
-                userId: user.id,
-                username: user.username
-            });
-        } catch (error) {
-            console.error('Failed to add member:', error);
-            alert('Не удалось добавить участника');
-        }
+        });
     }
 
     async deleteGroup() {
