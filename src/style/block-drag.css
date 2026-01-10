@@ -1,0 +1,53 @@
+/**
+ * Block Drag & Drop Styles
+ * Стили для drag-and-drop обычных блоков (не диаграмм)
+ */
+
+/* Блок в процессе перетаскивания (исходный) */
+.block-dragging-source {
+    opacity: 0.4;
+    outline: 2px dashed #999 !important;
+    outline-offset: 2px;
+}
+
+/* Drop zone: вставить перед блоком */
+.block-drop-before {
+    position: absolute;
+    background: rgba(79, 70, 229, 0.8);
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 1000;
+    animation: pulse-before 1s ease-in-out infinite;
+}
+
+@keyframes pulse-before {
+    0%, 100% {
+        opacity: 0.8;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+/* Drop zone: вставить внутрь блока */
+.block-drop-into {
+    outline: 3px dashed #4f46e5 !important;
+    outline-offset: 4px;
+    background-color: rgba(79, 70, 229, 0.1) !important;
+    transition: outline 0.15s ease, background-color 0.15s ease;
+}
+
+/* Cursor при готовности к drag (Shift зажат) */
+body.shift-drag-ready [block]:not([blockCustomGrid]) {
+    cursor: grab;
+}
+
+body.shift-drag-ready [block]:not([blockCustomGrid]):active {
+    cursor: grabbing;
+}
+
+/* Drag indicator уже стилизован inline, но добавим fallback */
+.block-drag-indicator {
+    font-family: Arial, sans-serif;
+    box-sizing: border-box;
+}

@@ -19,6 +19,7 @@ import '../style/layout.css';
 import '../style/p2p-chat.css';
 import '../style/diagram-editor.css';
 import '../style/layout-editor.css';
+import '../style/block-drag.css';
 
 import {dispatch} from "./utils/utils";
 import {localStateManager} from "./stateLocal/localStateManager";
@@ -37,6 +38,7 @@ import {networkStatusUI} from "./sincManager/networkStatusUI";
 import {handleTelegramLinkCallback} from "./controller/telegramLinkHandler";
 import {statusIndicators} from "./core/statusIndicators";
 import {initDevCacheManager} from "./core/devCacheManager";
+import {blockDragManager} from "./controller/blockDragManager";
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
     // Храним ссылку на updatefound handler для возможности cleanup

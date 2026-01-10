@@ -199,6 +199,9 @@ export class DiagramEditor {
         // Добавить класс для стилизации quick mode
         this.parentElement.classList.add('diagram-quick-mode');
 
+        // Добавить grid overlay для визуальной обратной связи
+        this.createGridOverlay();
+
         // Глобальные слушатели уже есть, добавляем mousemove и mouseup
         document.addEventListener('mousemove', this.handleMouseMove);
         document.addEventListener('mouseup', this.handleMouseUp);
@@ -220,6 +223,9 @@ export class DiagramEditor {
         if (this.parentElement) {
             this.parentElement.querySelectorAll('.anchor-point').forEach(el => el.remove());
         }
+
+        // Удалить grid overlay
+        this.removeGridOverlay();
 
         if (this.quickModeElement) {
             this.quickModeElement.classList.remove('diagram-quick-mode');
