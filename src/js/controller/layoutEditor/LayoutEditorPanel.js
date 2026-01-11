@@ -16,6 +16,7 @@ let currentInstance = null;
  * Категории пресетов для группировки в табах
  */
 const PRESET_CATEGORIES = {
+    dynamic: { name: 'Динамические', icon: '↔', hasCustom: false },
     grids: { name: 'Сетки', icon: '⊞', hasCustom: true },
     layouts: { name: 'Лейауты', icon: '◫', hasCustom: false },
     special: { name: 'Специальные', icon: '✦', hasCustom: false }
@@ -30,6 +31,34 @@ const PRESET_CATEGORIES = {
  * preview - ASCII-схема для превью (3x3 символов)
  */
 const PRESET_CONFIG = {
+    'horizontal': {
+        maxBlocks: null,
+        minBlocks: 1,
+        description: 'Все блоки в горизонтальный ряд',
+        category: 'dynamic',
+        label: 'Горизонтальный',
+        layoutType: 'columns',  // Использует layout: 'columns' вместо layoutCells
+        preview: [
+            '┌─────────────┐',
+            '│ □ □ □ □ ... │',
+            '└─────────────┘'
+        ]
+    },
+    'vertical': {
+        maxBlocks: null,
+        minBlocks: 1,
+        description: 'Все блоки в вертикальный столбец',
+        category: 'dynamic',
+        label: 'Вертикальный',
+        layoutType: 'rows',  // Использует layout: 'rows' вместо layoutCells
+        preview: [
+            '┌───┐',
+            '│ □ │',
+            '│ □ │',
+            '│...│',
+            '└───┘'
+        ]
+    },
     '2x2': {
         maxBlocks: 4,
         minBlocks: 0,
@@ -180,7 +209,8 @@ export class LayoutEditorPanel extends Popup {
         this.cells = {};  // {childId: {row, col, rowSpan, colSpan}}
         this.placeholders = [];  // [{row, col, rowSpan, colSpan, text}] - placeholder блоки для превью
         this.currentPresetType = null;  // Тип текущего пресета: 'calendar', 'kanban', 'dashboard', etc.
-        this.activeTab = 'grids';  // Активный таб в галерее пресетов
+        this.activeTab = 'dynamic';  // Активный таб в галерее пресетов
+        this.dynamicLayoutType = null;  // Тип динамической раскладки: 'rows', 'columns' или null
 
         // Менеджеры
         this.cellManager = null;
@@ -279,6 +309,33 @@ export class LayoutEditorPanel extends Popup {
         // Это согласовано с rebuildOccupancyGrid() и applyPreset()
         const childOrder = this.childBlocks.map(b => b.id);
         const validChildIds = new Set(childOrder);
+
+        // Проверяем динамические layouts (rows/columns)
+        if (layout === 'rows') {
+            this.dynamicLayoutType = 'rows';
+            this.currentPresetType = 'vertical';
+            this.activeTab = 'dynamic';
+            // Генерируем виртуальную сетку для превью
+            this.gridSize = { rows: childOrder.length, cols: 1 };
+            this.cells = {};
+            childOrder.forEach((id, i) => {
+                this.cells[id] = { row: i + 1, col: 1, rowSpan: 1, colSpan: 1 };
+            });
+            return;
+        }
+
+        if (layout === 'columns') {
+            this.dynamicLayoutType = 'columns';
+            this.currentPresetType = 'horizontal';
+            this.activeTab = 'dynamic';
+            // Генерируем виртуальную сетку для превью
+            this.gridSize = { rows: 1, cols: childOrder.length };
+            this.cells = {};
+            childOrder.forEach((id, i) => {
+                this.cells[id] = { row: 1, col: i + 1, rowSpan: 1, colSpan: 1 };
+            });
+            return;
+        }
 
         if (layout === 'cells' && layoutCells?.cells) {
             // Используем существующую конфигурацию cells, фильтруя удалённые блоки
@@ -1042,6 +1099,44 @@ export class LayoutEditorPanel extends Popup {
         const childOrder = this.childBlocks.map(b => b.id);
         let result;
 
+        // Проверяем, является ли пресет динамическим (rows/columns)
+        const presetConfig = PRESET_CONFIG[presetName];
+        if (presetConfig?.layoutType) {
+            // Динамический пресет - не использует cells
+            this.dynamicLayoutType = presetConfig.layoutType;
+            this.currentPresetType = presetName;
+            this.placeholders = [];
+
+            // Генерируем виртуальную сетку для превью
+            if (presetConfig.layoutType === 'rows') {
+                this.gridSize = { rows: Math.max(1, childOrder.length), cols: 1 };
+                this.cells = {};
+                childOrder.forEach((id, i) => {
+                    this.cells[id] = { row: i + 1, col: 1, rowSpan: 1, colSpan: 1 };
+                });
+            } else if (presetConfig.layoutType === 'columns') {
+                this.gridSize = { rows: 1, cols: Math.max(1, childOrder.length) };
+                this.cells = {};
+                childOrder.forEach((id, i) => {
+                    this.cells[id] = { row: 1, col: i + 1, rowSpan: 1, colSpan: 1 };
+                });
+            }
+
+            // Перестраиваем occupancy grid
+            if (this.cellManager) {
+                this.cellManager.rebuildOccupancyGrid();
+            }
+
+            this.refreshPreview();
+            this.updateToolbarInputs();
+            this.renderToolbar();
+            this.updateStatusBar();
+            return;
+        }
+
+        // Сбрасываем динамический тип для не-динамических пресетов
+        this.dynamicLayoutType = null;
+
         switch (presetName) {
             case '2x2':
                 this.gridSize = { rows: 2, cols: 2 };
@@ -1500,6 +1595,26 @@ export class LayoutEditorPanel extends Popup {
      * Валидирует что все childBlocks имеют позиции
      */
     applyLayout() {
+        // Проверяем, используется ли динамический layout (rows/columns)
+        if (this.dynamicLayoutType) {
+            dispatch('UpdateDataBlock', {
+                blockId: this.blockId,
+                data: {
+                    layout: this.dynamicLayoutType,  // 'rows' или 'columns'
+                    layoutCells: null  // Убираем layoutCells для динамических layouts
+                }
+            });
+
+            this.close();
+
+            // Перерендер блока
+            setTimeout(() => {
+                dispatch('ShowBlocks');
+            }, 100);
+            return;
+        }
+
+        // Стандартная логика для cells layouts
         // Валидация: убеждаемся что все childBlocks имеют позиции
         const missingBlocks = this.childBlocks.filter(b => !this.cells[b.id]);
 
@@ -1553,6 +1668,10 @@ export class LayoutEditorPanel extends Popup {
      * Сбрасывает раскладку к авто-режиму (удаляет layoutCells)
      */
     resetLayout() {
+        // Сбрасываем внутреннее состояние
+        this.dynamicLayoutType = null;
+        this.currentPresetType = null;
+
         // Удаляем кастомную раскладку из блока
         dispatch('UpdateDataBlock', {
             blockId: this.blockId,
