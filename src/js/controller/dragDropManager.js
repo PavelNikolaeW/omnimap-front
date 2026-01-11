@@ -9,6 +9,7 @@
  */
 
 import { dispatch } from '../utils/utils';
+import { diagramEditor } from './diagramEditor';
 
 export class DragDropManager {
     constructor() {
@@ -25,7 +26,6 @@ export class DragDropManager {
         this.dragSourceCustomGrid = null;
 
         // Диаграмма-индикаторы при drop в диаграмму
-        this.diagramGridOverlay = null;
         this.diagramDragIndicator = null;
         this.currentDiagramElement = null;
 
@@ -545,13 +545,13 @@ export class DragDropManager {
     }
 
     /**
-     * Показывает сетку диаграммы при перетаскивании
+     * Показывает сетку диаграммы при перетаскивании (использует DiagramEditor)
      * @param {HTMLElement} diagramElement - элемент диаграммы
      * @param {string} diagramId - ID диаграммы
      */
     _showDiagramGridOverlay(diagramElement, diagramId) {
         // Если уже показана для этой диаграммы - пропускаем
-        if (this.currentDiagramElement === diagramElement && this.diagramGridOverlay) {
+        if (this.currentDiagramElement === diagramElement && diagramEditor.gridOverlay) {
             return;
         }
 
@@ -564,35 +564,8 @@ export class DragDropManager {
         const customGrid = diagramData?.data?.customGrid;
         if (!customGrid?.grid) return;
 
-        // Парсим размер grid
-        const colsClass = customGrid.grid.find(cls => cls.startsWith('grid-template-columns_'));
-        const rowsClass = customGrid.grid.find(cls => cls.startsWith('grid-template-rows_'));
-        const cols = colsClass ? (colsClass.split('__').length - 1) : 3;
-        const rows = rowsClass ? (rowsClass.split('__').length - 1) : 3;
-
-        const lineColor = 'rgba(100, 100, 200, 0.35)';
-
-        this.diagramGridOverlay = document.createElement('div');
-        this.diagramGridOverlay.className = 'diagram-drag-grid-overlay';
-        this.diagramGridOverlay.style.cssText = `
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            pointer-events: none;
-            z-index: 50;
-            background-image:
-                linear-gradient(to right, ${lineColor} 1px, transparent 1px),
-                linear-gradient(to bottom, ${lineColor} 1px, transparent 1px);
-            background-size:
-                calc(100% / ${cols}) 100%,
-                100% calc(100% / ${rows});
-            background-position: 0 0;
-        `;
-
-        diagramElement.style.position = 'relative';
-        diagramElement.appendChild(this.diagramGridOverlay);
+        // Используем DiagramEditor для показа сетки
+        diagramEditor.showGridForExternalDrag(diagramElement, customGrid);
         this.currentDiagramElement = diagramElement;
     }
 
@@ -600,12 +573,7 @@ export class DragDropManager {
      * Удаляет сетку диаграммы
      */
     _removeDiagramGridOverlay() {
-        if (this.diagramGridOverlay) {
-            this.diagramGridOverlay.remove();
-            this.diagramGridOverlay = null;
-        }
-        // Также удаляем по классу на случай если ссылка потерялась
-        document.querySelectorAll('.diagram-drag-grid-overlay').forEach(el => el.remove());
+        diagramEditor.hideGridForExternalDrag();
     }
 
     /**

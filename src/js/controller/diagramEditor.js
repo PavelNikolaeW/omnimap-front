@@ -492,6 +492,40 @@ export class DiagramEditor {
     }
 
     /**
+     * Показать сетку для внешнего drag-and-drop (без активации редактора)
+     * @param {HTMLElement} element - элемент диаграммы
+     * @param {Object} customGrid - customGrid диаграммы
+     */
+    showGridForExternalDrag(element, customGrid) {
+        if (!element || !customGrid?.grid) return;
+
+        // Сохраняем текущие значения
+        const prevParent = this.parentElement;
+        const prevGrid = this.customGrid;
+
+        // Временно устанавливаем для createGridOverlay
+        this.parentElement = element;
+        this.customGrid = customGrid;
+
+        // Удаляем старую сетку если есть
+        this.removeGridOverlay();
+
+        // Создаём сетку
+        this.createGridOverlay();
+
+        // Восстанавливаем (но оставляем сетку видимой)
+        this.parentElement = prevParent;
+        this.customGrid = prevGrid;
+    }
+
+    /**
+     * Скрыть сетку после внешнего drag-and-drop
+     */
+    hideGridForExternalDrag() {
+        this.removeGridOverlay();
+    }
+
+    /**
      * Добавить resize handles к дочерним блокам
      */
     addResizeHandles() {
