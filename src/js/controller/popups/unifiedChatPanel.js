@@ -1504,6 +1504,26 @@ export class UnifiedChatPanel {
                     return;
                 }
 
+                // For own messages: check if there's a temp message with same content (race condition with optimistic update)
+                if (isOwnMessage) {
+                    const hasTempDuplicate = this.messages.some(m =>
+                        String(m.id).startsWith('temp-') &&
+                        m.content === data.message?.content
+                    );
+                    if (hasTempDuplicate) {
+                        // Replace temp message with real one
+                        const tempIdx = this.messages.findIndex(m =>
+                            String(m.id).startsWith('temp-') &&
+                            m.content === data.message?.content
+                        );
+                        if (tempIdx >= 0) {
+                            this.messages[tempIdx] = { ...data.message, sender_id: data.sender_id };
+                            this.renderMessages();
+                        }
+                        return;
+                    }
+                }
+
                 // Ensure sender_id is in message (WebSocket sends it separately)
                 const message = { ...data.message, sender_id: data.sender_id };
                 this.messages.push(message);
@@ -1524,6 +1544,27 @@ export class UnifiedChatPanel {
             const messageId = data.message?.id;
             if (messageId && this.messages.some(m => m.id === messageId)) {
                 return;
+            }
+
+            // For own messages: check if there's a temp message with same content (race condition with optimistic update)
+            const isOwnGroupMessage = data?.sender_id == this.currentUserId; // eslint-disable-line eqeqeq
+            if (isOwnGroupMessage) {
+                const hasTempDuplicate = this.messages.some(m =>
+                    String(m.id).startsWith('temp-') &&
+                    m.content === data.message?.content
+                );
+                if (hasTempDuplicate) {
+                    // Replace temp message with real one
+                    const tempIdx = this.messages.findIndex(m =>
+                        String(m.id).startsWith('temp-') &&
+                        m.content === data.message?.content
+                    );
+                    if (tempIdx >= 0) {
+                        this.messages[tempIdx] = { ...data.message, sender_id: data.sender_id };
+                        this.renderMessages();
+                    }
+                    return;
+                }
             }
 
             // Ensure sender_id is in message (WebSocket sends it separately)
