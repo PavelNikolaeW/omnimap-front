@@ -17,6 +17,7 @@ class ChatBadgeManager {
         this._handleUIButtonsRendered = this._handleUIButtonsRendered.bind(this);
         this._handleLogout = this._handleLogout.bind(this);
         this._handleNewMessage = this._handleNewMessage.bind(this);
+        this._handleMessagesRead = this._handleMessagesRead.bind(this);
     }
 
     /**
@@ -42,6 +43,9 @@ class ChatBadgeManager {
         window.addEventListener('NewDirectMessage', this._handleNewMessage);
         window.addEventListener('NewGroupMessage', this._handleNewMessage);
 
+        // Перезагружаем счётчик после прочтения сообщений
+        window.addEventListener('ChatMessagesRead', this._handleMessagesRead);
+
         this.initialized = true;
 
         // Fallback: если кнопка уже отрендерена (race condition),
@@ -64,6 +68,7 @@ class ChatBadgeManager {
         window.removeEventListener('Logout', this._handleLogout);
         window.removeEventListener('NewDirectMessage', this._handleNewMessage);
         window.removeEventListener('NewGroupMessage', this._handleNewMessage);
+        window.removeEventListener('ChatMessagesRead', this._handleMessagesRead);
 
         this.initialized = false;
         this.initialLoadDone = false;
@@ -112,6 +117,14 @@ class ChatBadgeManager {
     _handleNewMessage() {
         this.unreadCount++;
         this.updateBadgeDisplay();
+    }
+
+    /**
+     * Обработчик прочтения сообщений
+     * Перезагружает актуальный счётчик с сервера
+     */
+    _handleMessagesRead() {
+        this.loadInitialCount();
     }
 
     /**
