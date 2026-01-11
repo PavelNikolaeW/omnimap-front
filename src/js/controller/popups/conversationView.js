@@ -404,7 +404,9 @@ export class ConversationView extends Popup {
         // Listen for new messages
         this.newMessageHandler = (e) => {
             const { type, data } = e.detail || {};
-            if (type === 'dm' && data.sender_id === this.userId) {
+            // Используем нестрогое сравнение для совместимости типов (string/number)
+            // eslint-disable-next-line eqeqeq
+            if (type === 'dm' && data?.sender_id == this.userId) {
                 this.handleIncomingMessage(data.message);
             }
         };
@@ -413,7 +415,8 @@ export class ConversationView extends Popup {
         // Listen for typing indicator
         this.typingHandler = (e) => {
             const { userId, isTyping } = e.detail || {};
-            if (userId === this.userId) {
+            // eslint-disable-next-line eqeqeq
+            if (userId == this.userId) {
                 this.showTypingIndicator(isTyping);
             }
         };

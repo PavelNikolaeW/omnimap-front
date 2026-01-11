@@ -750,9 +750,12 @@ export class GroupChatView extends Popup {
         // Listen for new group messages
         this.newMessageHandler = (e) => {
             const { type, data } = e.detail || {};
-            if (type === 'group_message' && data.group_id === this.groupId) {
+            // Используем нестрогое сравнение для совместимости типов (string/number)
+            // eslint-disable-next-line eqeqeq
+            if (type === 'group_message' && data?.group_id == this.groupId) {
                 this.handleIncomingMessage(data.message);
-            } else if (type === 'group_update' && data.group_id === this.groupId) {
+            // eslint-disable-next-line eqeqeq
+            } else if (type === 'group_update' && data?.group_id == this.groupId) {
                 this.handleGroupUpdate(data);
             }
         };
@@ -761,7 +764,8 @@ export class GroupChatView extends Popup {
         // Listen for typing indicator
         this.typingHandler = (e) => {
             const { groupId, userId, username, isTyping } = e.detail || {};
-            if (groupId === this.groupId && userId !== this.currentUserId) {
+            // eslint-disable-next-line eqeqeq
+            if (groupId == this.groupId && userId != this.currentUserId) {
                 this.updateTypingIndicator(userId, username, isTyping);
             }
         };
