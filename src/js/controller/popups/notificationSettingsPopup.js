@@ -63,7 +63,11 @@ export class NotificationSettingsPopup extends Popup {
             quiet_hours_start: '23:00',
             quiet_hours_end: '08:00',
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            limits: { reminders: { used: 0, max: 100 }, subscriptions: { used: 0, max: 50 } }
+            limits: { reminders: { used: 0, max: 100 }, subscriptions: { used: 0, max: 50 } },
+            // Настройки уведомлений о чате
+            chat_telegram_enabled: true,
+            chat_dm_telegram: true,
+            chat_groups_telegram: true
         };
     }
 
@@ -72,6 +76,9 @@ export class NotificationSettingsPopup extends Popup {
 
         // Telegram Section
         this.contentArea.appendChild(this.createTelegramSection());
+
+        // Chat Notifications Section (depends on Telegram)
+        this.contentArea.appendChild(this.createChatNotificationsSection());
 
         // Email Section
         this.contentArea.appendChild(this.createEmailSection());
@@ -124,6 +131,49 @@ export class NotificationSettingsPopup extends Popup {
         }
 
         section.appendChild(content);
+        return section;
+    }
+
+    createChatNotificationsSection() {
+        const section = document.createElement('div');
+        section.className = 'popup-section';
+
+        const isLinked = this.telegramStatus?.linked;
+        const mainEnabled = this.settings.chat_telegram_enabled ?? true;
+        const dmEnabled = this.settings.chat_dm_telegram ?? true;
+        const groupsEnabled = this.settings.chat_groups_telegram ?? true;
+
+        section.innerHTML = `
+            <div class="popup-section__title">💬 Уведомления о сообщениях</div>
+            <div class="popup-list" style="padding: 12px;">
+                ${!isLinked ? `
+                    <div style="color: #6b7280; font-size: 13px; margin-bottom: 12px;">
+                        ⚠️ Привяжите Telegram выше для получения уведомлений о сообщениях
+                    </div>
+                ` : ''}
+                <label class="popup-checkbox-label" style="margin-bottom: 12px;">
+                    <input type="checkbox" class="popup-checkbox" id="chat-telegram-enabled"
+                        ${mainEnabled ? 'checked' : ''}
+                        ${!isLinked ? 'disabled' : ''}>
+                    Получать уведомления в Telegram
+                </label>
+                <div id="chat-notifications-options" style="margin-left: 24px; ${mainEnabled && isLinked ? '' : 'opacity: 0.5; pointer-events: none;'}">
+                    <label class="popup-checkbox-label" style="margin-bottom: 8px;">
+                        <input type="checkbox" class="popup-checkbox" id="chat-dm-telegram"
+                            ${dmEnabled ? 'checked' : ''}
+                            ${!isLinked ? 'disabled' : ''}>
+                        Личные сообщения
+                    </label>
+                    <label class="popup-checkbox-label">
+                        <input type="checkbox" class="popup-checkbox" id="chat-groups-telegram"
+                            ${groupsEnabled ? 'checked' : ''}
+                            ${!isLinked ? 'disabled' : ''}>
+                        Групповые чаты
+                    </label>
+                </div>
+            </div>
+        `;
+
         return section;
     }
 
@@ -287,14 +337,27 @@ export class NotificationSettingsPopup extends Popup {
             testPushBtn.addEventListener('click', () => this.handleTestPush());
         }
 
-        // Quiet hours toggle
-        const quietHoursCheckbox = this.contentArea.querySelector('#quiet-hours-enabled');
-        if (quietHoursCheckbox) {
-            quietHoursCheckbox.addEventListener('change', (e) => {
-                const fields = this.contentArea.querySelector('#quiet-hours-fields');
-                fields.style.opacity = e.target.checked ? '1' : '0.5';
-                fields.style.pointerEvents = e.target.checked ? 'auto' : 'none';
+        // Event delegation for toggle checkboxes (prevents memory leaks on re-render)
+        if (!this._toggleListenerAttached) {
+            this.contentArea.addEventListener('change', (e) => {
+                // Quiet hours toggle
+                if (e.target.id === 'quiet-hours-enabled') {
+                    const fields = this.contentArea.querySelector('#quiet-hours-fields');
+                    if (fields) {
+                        fields.style.opacity = e.target.checked ? '1' : '0.5';
+                        fields.style.pointerEvents = e.target.checked ? 'auto' : 'none';
+                    }
+                }
+                // Chat notifications toggle
+                if (e.target.id === 'chat-telegram-enabled') {
+                    const options = this.contentArea.querySelector('#chat-notifications-options');
+                    if (options) {
+                        options.style.opacity = e.target.checked ? '1' : '0.5';
+                        options.style.pointerEvents = e.target.checked ? 'auto' : 'none';
+                    }
+                }
             });
+            this._toggleListenerAttached = true;
         }
     }
 
@@ -350,12 +413,8 @@ export class NotificationSettingsPopup extends Popup {
                     this.telegramStatus = res.data;
                     this.showMessage('Telegram успешно привязан!', 'success');
 
-                    // Перерисовываем секцию Telegram
-                    const section = this.contentArea.querySelector('#telegram-section-content');
-                    if (section) {
-                        section.parentElement.replaceWith(this.createTelegramSection());
-                        this.bindFormEvents();
-                    }
+                    // Перерисовываем секции Telegram и Chat (зависит от статуса Telegram)
+                    this.updateTelegramDependentSections();
                 }
             } catch (e) {
                 console.error('Polling error:', e);
@@ -380,6 +439,24 @@ export class NotificationSettingsPopup extends Popup {
         }, 2000);
     }
 
+    /**
+     * Обновляет секции, зависящие от статуса Telegram (Telegram + Chat notifications)
+     */
+    updateTelegramDependentSections() {
+        const sections = this.contentArea.querySelectorAll('.popup-section');
+        // Секции идут по порядку: Telegram (0), Chat (1), Email (2), ...
+        const telegramSection = sections[0];
+        const chatSection = sections[1];
+
+        if (telegramSection) {
+            telegramSection.replaceWith(this.createTelegramSection());
+        }
+        if (chatSection) {
+            chatSection.replaceWith(this.createChatNotificationsSection());
+        }
+        this.bindFormEvents();
+    }
+
     async handleUnlinkTelegram() {
         if (!confirm('Вы уверены, что хотите отвязать Telegram?')) return;
 
@@ -387,11 +464,8 @@ export class NotificationSettingsPopup extends Popup {
             await api.unlinkTelegram();
             this.telegramStatus = { linked: false };
 
-            const section = this.contentArea.querySelector('#telegram-section-content');
-            if (section) {
-                section.parentElement.replaceWith(this.createTelegramSection());
-                this.bindFormEvents();
-            }
+            // Перерисовываем секции Telegram и Chat (зависит от статуса Telegram)
+            this.updateTelegramDependentSections();
 
             this.showMessage('Telegram успешно отвязан', 'success');
         } catch (err) {
@@ -462,7 +536,11 @@ export class NotificationSettingsPopup extends Popup {
             quiet_hours_enabled: this.contentArea.querySelector('#quiet-hours-enabled')?.checked || false,
             quiet_hours_start: this.contentArea.querySelector('#quiet-hours-start')?.value || '23:00',
             quiet_hours_end: this.contentArea.querySelector('#quiet-hours-end')?.value || '08:00',
-            timezone: this.contentArea.querySelector('#settings-timezone')?.value || Intl.DateTimeFormat().resolvedOptions().timeZone
+            timezone: this.contentArea.querySelector('#settings-timezone')?.value || Intl.DateTimeFormat().resolvedOptions().timeZone,
+            // Chat notifications
+            chat_telegram_enabled: this.contentArea.querySelector('#chat-telegram-enabled')?.checked ?? true,
+            chat_dm_telegram: this.contentArea.querySelector('#chat-dm-telegram')?.checked ?? true,
+            chat_groups_telegram: this.contentArea.querySelector('#chat-groups-telegram')?.checked ?? true
         };
 
         try {
