@@ -1,4 +1,4 @@
-import { escapeHtml } from '../../utils/utils.js';
+import { escapeHtml, stripHtmlTags } from '../../utils/utils.js';
 
 /**
  * Рендерит превью сетки с блоками
@@ -178,7 +178,7 @@ export class LayoutPreview {
         el.style.gridColumn = `${cell.col} / ${cell.col + (cell.colSpan || 1)}`;
 
         // Контент - используем escapeHtml для защиты от XSS
-        const rawTitle = block.data?.text?.substring(0, 40) || 'Блок';
+        const rawTitle = stripHtmlTags(block.data?.text || '').substring(0, 40) || 'Блок';
         const title = escapeHtml(rawTitle);
         const spanInfo = cell.rowSpan > 1 || cell.colSpan > 1
             ? ` <span class="span-badge">${cell.colSpan}x${cell.rowSpan}</span>`

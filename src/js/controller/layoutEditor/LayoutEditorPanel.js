@@ -1,5 +1,5 @@
 import { Popup } from '../popups/popup.js';
-import { dispatch, escapeHtml } from '../../utils/utils.js';
+import { dispatch, escapeHtml, stripHtmlTags } from '../../utils/utils.js';
 import { GridLayoutCalculator } from '../../painter/gridLayoutCalculator.js';
 import { LayoutCellManager } from './LayoutCellManager.js';
 import { LayoutPreview } from './LayoutPreview.js';
@@ -389,6 +389,11 @@ export class LayoutEditorPanel extends Popup {
         this.contentArea.innerHTML = '';
         this.contentArea.classList.add('layout-editor');
 
+        // Toolbar сверху
+        this.toolbar = document.createElement('div');
+        this.toolbar.className = 'layout-editor__toolbar';
+        this.contentArea.appendChild(this.toolbar);
+
         // Создаём структуру
         this.editorContainer = document.createElement('div');
         this.editorContainer.className = 'layout-editor__container';
@@ -405,10 +410,159 @@ export class LayoutEditorPanel extends Popup {
         this.editorContainer.appendChild(this.settingsPanel);
         this.contentArea.appendChild(this.editorContainer);
 
-        // Рендерим превью
+        // Status bar снизу
+        this.statusBar = document.createElement('div');
+        this.statusBar.className = 'layout-editor__status-bar';
+        this.contentArea.appendChild(this.statusBar);
+
+        // Рендерим компоненты
+        this.renderToolbar();
         this.renderPreview();
         this.renderSettings();
+        this.renderStatusBar();
         this.renderButtons();
+    }
+
+    /**
+     * Рендерит toolbar
+     */
+    renderToolbar() {
+        const presetLabel = this.currentPresetType
+            ? PRESET_CONFIG[this.currentPresetType]?.label || this.currentPresetType
+            : 'Без пресета';
+
+        this.toolbar.innerHTML = `
+            <div class="toolbar__section toolbar__section--grid">
+                <span class="toolbar__label">Сетка:</span>
+                <input type="number" id="toolbar-rows" value="${this.gridSize.rows}" min="1" max="20" class="toolbar__input" title="Строк">
+                <span class="toolbar__separator">×</span>
+                <input type="number" id="toolbar-cols" value="${this.gridSize.cols}" min="1" max="24" class="toolbar__input" title="Колонок">
+            </div>
+            <div class="toolbar__section toolbar__section--preset">
+                <span class="toolbar__preset-badge" title="Текущий пресет">${presetLabel}</span>
+            </div>
+            <div class="toolbar__section toolbar__section--actions">
+                <button class="toolbar__btn" id="toolbar-add-block" title="Добавить блок (Enter)">
+                    <span class="toolbar__btn-icon">+</span>
+                    <span class="toolbar__btn-text">Блок</span>
+                </button>
+                <button class="toolbar__btn toolbar__btn--secondary" id="toolbar-reset" title="Сбросить раскладку">
+                    Сбросить
+                </button>
+            </div>
+        `;
+
+        this.bindToolbarEvents();
+    }
+
+    /**
+     * Привязывает события toolbar
+     */
+    bindToolbarEvents() {
+        const rowsInput = this.toolbar.querySelector('#toolbar-rows');
+        const colsInput = this.toolbar.querySelector('#toolbar-cols');
+        const addBlockBtn = this.toolbar.querySelector('#toolbar-add-block');
+        const resetBtn = this.toolbar.querySelector('#toolbar-reset');
+
+        rowsInput?.addEventListener('change', (e) => {
+            this.gridSize.rows = parseInt(e.target.value, 10) || 3;
+            this.refreshPreview();
+            this.updateStatusBar();
+        });
+
+        colsInput?.addEventListener('change', (e) => {
+            this.gridSize.cols = parseInt(e.target.value, 10) || 12;
+            this.refreshPreview();
+            this.updateStatusBar();
+        });
+
+        addBlockBtn?.addEventListener('click', () => {
+            this.addNewBlock();
+        });
+
+        resetBtn?.addEventListener('click', () => {
+            this.resetLayout();
+        });
+    }
+
+    /**
+     * Добавляет новый блок в свободную ячейку
+     */
+    addNewBlock() {
+        const freeCell = this.cellManager?.findFreeCell();
+        if (!freeCell) {
+            // Расширяем сетку
+            this.gridSize.rows += 1;
+            this.refreshPreview();
+            this.updateToolbarInputs();
+            this.updateStatusBar();
+            // Повторно ищем свободную ячейку
+            setTimeout(() => this.addNewBlock(), 50);
+            return;
+        }
+
+        // Создаём placeholder для нового блока
+        const blockId = generateBlockId();
+        this.placeholders.push({
+            row: freeCell.row,
+            col: freeCell.col,
+            rowSpan: 1,
+            colSpan: 1,
+            blockId,
+            text: '',
+            data: { text: '' }
+        });
+
+        this.refreshPreview();
+        this.updateFillBlocksSection();
+        this.updateStatusBar();
+    }
+
+    /**
+     * Обновляет inputs в toolbar
+     */
+    updateToolbarInputs() {
+        const rowsInput = this.toolbar?.querySelector('#toolbar-rows');
+        const colsInput = this.toolbar?.querySelector('#toolbar-cols');
+        if (rowsInput) rowsInput.value = this.gridSize.rows;
+        if (colsInput) colsInput.value = this.gridSize.cols;
+    }
+
+    /**
+     * Рендерит status bar
+     */
+    renderStatusBar() {
+        this.updateStatusBar();
+    }
+
+    /**
+     * Обновляет status bar
+     */
+    updateStatusBar() {
+        if (!this.statusBar) return;
+
+        const blockCount = this.childBlocks.length;
+        const placeholderCount = this.placeholders.length;
+        const totalBlocks = blockCount + placeholderCount;
+        const presetLabel = this.currentPresetType
+            ? PRESET_CONFIG[this.currentPresetType]?.label || this.currentPresetType
+            : null;
+
+        const presetInfo = presetLabel ? `<span class="status-bar__preset">Пресет: ${presetLabel}</span>` : '';
+        const newBlocksInfo = placeholderCount > 0
+            ? `<span class="status-bar__new">+${placeholderCount} новых</span>`
+            : '';
+
+        this.statusBar.innerHTML = `
+            <div class="status-bar__left">
+                <span class="status-bar__blocks">${totalBlocks} блоков</span>
+                ${newBlocksInfo}
+                ${presetInfo}
+            </div>
+            <div class="status-bar__right">
+                <span class="status-bar__hint">💡 Перетаскивайте блоки • Тяните углы для изменения размера</span>
+            </div>
+        `;
     }
 
     /**
@@ -530,30 +684,8 @@ export class LayoutEditorPanel extends Popup {
             .join('');
 
         this.settingsPanel.innerHTML = `
-            <div class="layout-settings__section layout-settings__hint">
-                <div class="layout-hint">
-                    <span class="layout-hint__icon">💡</span>
-                    <span class="layout-hint__text">Перетаскивайте блоки для изменения положения. Тяните за углы для изменения размера.</span>
-                </div>
-            </div>
-
-            <div class="layout-settings__section">
-                <h4 class="layout-settings__title">Размер сетки</h4>
-                <div class="layout-settings__row">
-                    <label>Строк:</label>
-                    <input type="number" id="grid-rows" value="${this.gridSize.rows}" min="1" max="20" class="layout-settings__input">
-                </div>
-                <div class="layout-settings__row">
-                    <label>Колонок:</label>
-                    <input type="number" id="grid-cols" value="${this.gridSize.cols}" min="1" max="24" class="layout-settings__input">
-                </div>
-            </div>
-
             <div class="layout-settings__section layout-settings__section--presets">
-                <h4 class="layout-settings__title">
-                    Пресеты
-                    <span class="layout-settings__block-count">${childCount} блоков</span>
-                </h4>
+                <h4 class="layout-settings__title">Пресеты</h4>
                 <div class="preset-gallery">
                     ${categoriesHtml}
                 </div>
@@ -584,20 +716,6 @@ export class LayoutEditorPanel extends Popup {
      * Привязывает события настроек
      */
     bindSettingsEvents() {
-        // Grid size inputs
-        const rowsInput = this.settingsPanel.querySelector('#grid-rows');
-        const colsInput = this.settingsPanel.querySelector('#grid-cols');
-
-        rowsInput?.addEventListener('change', (e) => {
-            this.gridSize.rows = parseInt(e.target.value, 10) || 3;
-            this.refreshPreview();
-        });
-
-        colsInput?.addEventListener('change', (e) => {
-            this.gridSize.cols = parseInt(e.target.value, 10) || 12;
-            this.refreshPreview();
-        });
-
         // Preset cards (галерея)
         const presetCards = this.settingsPanel.querySelectorAll('.preset-card[data-preset]');
         presetCards.forEach(card => {
@@ -822,7 +940,9 @@ export class LayoutEditorPanel extends Popup {
         }
 
         this.refreshPreview();
-        this.updateSettingsInputs();
+        this.updateToolbarInputs();
+        this.renderToolbar();  // Обновляем preset badge
+        this.updateStatusBar();
     }
 
     /**
@@ -1156,16 +1276,6 @@ export class LayoutEditorPanel extends Popup {
     }
 
     /**
-     * Обновляет inputs настроек
-     */
-    updateSettingsInputs() {
-        const rowsInput = this.settingsPanel.querySelector('#grid-rows');
-        const colsInput = this.settingsPanel.querySelector('#grid-cols');
-        if (rowsInput) rowsInput.value = this.gridSize.rows;
-        if (colsInput) colsInput.value = this.gridSize.cols;
-    }
-
-    /**
      * Обновляет превью
      */
     refreshPreview() {
@@ -1307,7 +1417,7 @@ export class LayoutEditorPanel extends Popup {
 
         const cell = this.cells[childId];
         const block = this.childBlocks.find(b => b.id === childId);
-        const rawTitle = block?.data?.text?.substring(0, 30) || 'Без названия';
+        const rawTitle = stripHtmlTags(block?.data?.text || '').substring(0, 30) || 'Без названия';
         const title = escapeHtml(rawTitle);
 
         infoEl.innerHTML = `
