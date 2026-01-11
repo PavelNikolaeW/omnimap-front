@@ -313,8 +313,15 @@ export class CommandManager {
 
     /**
      * Обработчик начала перетаскивания блока
+     * Требует зажатую клавишу Shift для активации
      */
     _handleDragStart(e) {
+        // Drag работает только с зажатым Shift
+        if (!e.shiftKey) {
+            e.preventDefault();
+            return;
+        }
+
         // Не начинаем drag если сейчас режим cut, diagram или другие специальные режимы
         const mode = this.ctxManager.mode;
         if (mode === MODES.CUT_BLOCK || mode === MODES.TEXT_EDIT ||

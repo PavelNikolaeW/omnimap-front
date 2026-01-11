@@ -918,25 +918,23 @@ export class LocalStateManager {
 
                     const localData = localBlock?.data || {};
 
-                    // Мёржим data: сервер имеет приоритет, но сохраняем локальный childOrder если серверный пустой
+                    // Мёржим data: сервер имеет приоритет
+                    // childOrder: используем серверный если он определён (даже пустой []), иначе локальный
                     const mergedData = {
                         ...localData,
                         ...serverData,
-                        // childOrder: берём серверный если он есть и не пустой, иначе локальный
-                        childOrder: (serverData.childOrder?.length > 0)
+                        childOrder: Array.isArray(serverData.childOrder)
                             ? serverData.childOrder
                             : (localData.childOrder || [])
                     };
 
-                    // Синхронизируем childOrder с children
-                    if (serverChildren.length > 0) {
-                        // Фильтруем childOrder — только те ID, которые есть в children
-                        mergedData.childOrder = mergedData.childOrder.filter(id => serverChildren.includes(id));
-                        // Добавляем недостающие children в конец childOrder
-                        for (const childId of serverChildren) {
-                            if (!mergedData.childOrder.includes(childId)) {
-                                mergedData.childOrder.push(childId);
-                            }
+                    // Синхронизируем childOrder с serverChildren (даже если children пустой)
+                    // Фильтруем childOrder — только те ID, которые есть в serverChildren
+                    mergedData.childOrder = mergedData.childOrder.filter(id => serverChildren.includes(id));
+                    // Добавляем недостающие children в конец childOrder
+                    for (const childId of serverChildren) {
+                        if (!mergedData.childOrder.includes(childId)) {
+                            mergedData.childOrder.push(childId);
                         }
                     }
 
