@@ -232,6 +232,7 @@ export class DragDropManager {
      * Завершение drag (успешное или отмененное)
      */
     endDrag() {
+        console.log('🔚 endDrag called');
         this.cleanup();
     }
 
@@ -239,13 +240,21 @@ export class DragDropManager {
      * Очистка состояния и visual feedback
      */
     cleanup() {
+        console.log('🧹 cleanup called', {
+            isDragging: this.isDragging,
+            draggedBlockId: this.draggedBlockId,
+            draggedElement: this.draggedElement?.id
+        });
+
         // Удаляем класс с сохраненного элемента
         if (this.draggedElement) {
             this.draggedElement.classList.remove('block-dragging');
         }
 
         // Также удаляем .block-dragging со всех блоков на случай если элемент был пересоздан
-        document.querySelectorAll('[block].block-dragging').forEach(el => {
+        const draggingBlocks = document.querySelectorAll('[block].block-dragging');
+        console.log('🧹 Found blocks with block-dragging:', draggingBlocks.length);
+        draggingBlocks.forEach(el => {
             el.classList.remove('block-dragging');
         });
 
@@ -259,6 +268,7 @@ export class DragDropManager {
         this.draggedElement = null;
         this.dragSourceParentId = null;
         this.lastDropTarget = null;
+        console.log('🧹 cleanup complete');
     }
 
     /**

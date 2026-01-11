@@ -316,10 +316,12 @@ export class CommandManager {
      * Требует зажатую клавишу Shift для активации
      */
     _handleDragStart(e) {
-        console.log('🚀 _handleDragStart', { shiftKey: e.shiftKey, target: e.target });
+        // Используем shiftLock из contextManager (более надёжно чем e.shiftKey)
+        const shiftPressed = this.ctxManager.shiftLock || e.shiftKey;
+        console.log('🚀 _handleDragStart', { shiftLock: this.ctxManager.shiftLock, shiftKey: e.shiftKey, target: e.target });
 
         // Drag работает только с зажатым Shift
-        if (!e.shiftKey) {
+        if (!shiftPressed) {
             console.log('❌ No shift key');
             e.preventDefault();
             return;
@@ -392,6 +394,7 @@ export class CommandManager {
      * Обработчик завершения drag
      */
     _handleDragEnd(e) {
+        console.log('🏁 _handleDragEnd', { isDragging: dragDropManager.isDragging });
         dragDropManager.endDrag();
     }
 }
