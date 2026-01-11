@@ -19,6 +19,7 @@ const LOG_PREFIX = '[ChatDeepLink]';
 // Хранилище обработчиков для возможности cleanup
 let directChatHandler = null;
 let groupChatHandler = null;
+let hashChangeHandler = null;
 
 // Паттерн для валидации ID (цифры или UUID)
 const ID_PATTERN = /^[\w-]+$/;
@@ -54,7 +55,7 @@ function validateId(id) {
  * @param {string} hash - window.location.hash
  * @returns {Object|null} - { type: 'dm'|'group', id: string } или null
  */
-function parseChatHash(hash) {
+export function parseChatHash(hash) {
     if (!hash || !hash.startsWith('#chat/')) {
         return null;
     }
@@ -203,11 +204,15 @@ export function cleanupChatEventListeners() {
         window.removeEventListener('OpenGroupChat', groupChatHandler);
         groupChatHandler = null;
     }
+    if (hashChangeHandler) {
+        window.removeEventListener('hashchange', hashChangeHandler);
+        hashChangeHandler = null;
+    }
 }
 
 /**
  * Инициализирует обработчики событий для открытия чатов
- * Слушает события от push notifications
+ * Слушает события от push notifications и hashchange для SPA навигации
  */
 export function initChatEventListeners() {
     // Очищаем существующие listeners (hot reload safety)
@@ -230,6 +235,30 @@ export function initChatEventListeners() {
         }
     };
     window.addEventListener('OpenGroupChat', groupChatHandler);
+
+    // Обработка изменения hash для SPA навигации
+    // (когда пользователь кликает ссылку в уже открытом приложении)
+    hashChangeHandler = () => {
+        const hash = window.location.hash;
+        const chatParams = parseChatHash(hash);
+
+        if (!chatParams) {
+            return;
+        }
+
+        console.log(LOG_PREFIX, 'Hash changed, opening chat', chatParams);
+
+        // Очищаем hash
+        clearHash();
+
+        // Открываем чат без задержки (приложение уже инициализировано)
+        if (chatParams.type === 'dm') {
+            openDirectChatById(chatParams.id);
+        } else if (chatParams.type === 'group') {
+            openGroupChatById(chatParams.id);
+        }
+    };
+    window.addEventListener('hashchange', hashChangeHandler);
 
     console.log(LOG_PREFIX, 'Event listeners initialized');
 }
