@@ -204,7 +204,7 @@
 
 /* ===== Settings Panel ===== */
 .layout-editor__settings {
-    width: 220px;
+    width: 280px;
     background: var(--popup-bg, #ffffff);
     border-radius: var(--popup-radius-md, 8px);
     border: 1px solid var(--popup-border, #e5e7eb);
@@ -314,6 +314,195 @@
 .layout-preset-btn:disabled:hover {
     background: #f3f4f6;
     border-color: var(--popup-border, #d1d5db);
+}
+
+/* ===== Preset Gallery ===== */
+.layout-settings__section--presets {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.layout-settings__title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.layout-settings__block-count {
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--popup-primary, #3b82f6);
+    background: rgba(59, 130, 246, 0.1);
+    padding: 2px 6px;
+    border-radius: 10px;
+}
+
+.preset-gallery {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Категория пресетов */
+.preset-category {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.preset-category__header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--popup-muted, #6b7280);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.preset-category__icon {
+    font-size: 12px;
+}
+
+.preset-category__cards {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+}
+
+/* Карточка пресета */
+.preset-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 6px;
+    background: #f9fafb;
+    border: 1px solid var(--popup-border, #d1d5db);
+    border-radius: var(--popup-radius-md, 6px);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.preset-card:hover {
+    background: #f3f4f6;
+    border-color: var(--popup-muted, #9ca3af);
+    transform: translateY(-1px);
+}
+
+.preset-card:active {
+    transform: translateY(0);
+}
+
+.preset-card--active {
+    background: rgba(59, 130, 246, 0.08);
+    border-color: var(--popup-primary, #3b82f6);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.preset-card--active:hover {
+    background: rgba(59, 130, 246, 0.12);
+    border-color: var(--popup-primary-hover, #2563eb);
+}
+
+.preset-card--disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    background: #f3f4f6;
+}
+
+.preset-card--disabled:hover {
+    transform: none;
+    background: #f3f4f6;
+    border-color: var(--popup-border, #d1d5db);
+}
+
+/* Статус карточки (галочка/крестик) */
+.preset-card__status {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: bold;
+}
+
+.preset-card__status--active {
+    background: var(--popup-success, #10b981);
+    color: white;
+}
+
+.preset-card__status--disabled {
+    background: var(--popup-muted, #9ca3af);
+    color: white;
+}
+
+/* Превью (ASCII-схема) */
+.preset-card__preview {
+    font-family: monospace;
+    font-size: 8px;
+    line-height: 1.1;
+    color: var(--popup-muted, #6b7280);
+    white-space: pre;
+    text-align: center;
+}
+
+.preset-card--active .preset-card__preview {
+    color: var(--popup-primary, #3b82f6);
+}
+
+.preset-card__preview-line {
+    letter-spacing: -0.5px;
+}
+
+/* Инфо карточки */
+.preset-card__info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    width: 100%;
+}
+
+.preset-card__label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--popup-fg, #374151);
+    text-align: center;
+    line-height: 1.2;
+}
+
+.preset-card--active .preset-card__label {
+    color: var(--popup-primary, #3b82f6);
+}
+
+.preset-card__meta {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.preset-card__capacity {
+    font-size: 9px;
+    color: var(--popup-muted, #9ca3af);
+    background: rgba(0, 0, 0, 0.05);
+    padding: 1px 4px;
+    border-radius: 4px;
+}
+
+.preset-card__capacity--unlimited {
+    color: var(--popup-success, #10b981);
 }
 
 /* ===== Hints ===== */

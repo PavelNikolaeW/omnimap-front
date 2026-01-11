@@ -13,22 +13,143 @@ import { importBlocks, pollImportStatus, generateBlockId } from '../../api/impor
 let currentInstance = null;
 
 /**
- * Конфигурация пресетов с информацией о вместимости и описанием
+ * Категории пресетов для группировки в галерее
+ */
+const PRESET_CATEGORIES = {
+    grids: { name: 'Сетки', icon: '⊞' },
+    layouts: { name: 'Лейауты', icon: '◫' },
+    special: { name: 'Специальные', icon: '✦' }
+};
+
+/**
+ * Конфигурация пресетов с информацией о вместимости, категории и превью
  * maxBlocks - максимальное количество блоков (null = расширяемый)
  * minBlocks - рекомендуемое минимальное количество
  * description - описание пресета
+ * category - категория для группировки
+ * preview - ASCII-схема для превью (3x3 символов)
  */
 const PRESET_CONFIG = {
-    '2x2': { maxBlocks: 4, minBlocks: 0, description: 'Сетка 2×2 для 4 блоков' },
-    '3x3': { maxBlocks: 9, minBlocks: 0, description: 'Сетка 3×3 для 9 блоков' },
-    '4x4': { maxBlocks: 16, minBlocks: 0, description: 'Сетка 4×4 для 16 блоков' },
-    'sidebar': { maxBlocks: null, minBlocks: 1, description: 'Сайдбар слева + контент' },
-    'sidebar-right': { maxBlocks: null, minBlocks: 1, description: 'Сайдбар справа + контент' },
-    'dashboard': { maxBlocks: null, minBlocks: 1, description: 'Главный блок + виджеты + метрики' },
-    'kanban': { maxBlocks: 3, minBlocks: 0, description: 'Доска с 3 колонками (To Do, In Progress, Done)' },
-    'holy-grail': { maxBlocks: null, minBlocks: 1, description: 'Header + Footer + 3 колонки' },
-    'gallery': { maxBlocks: null, minBlocks: 1, description: 'Галерея: большие и маленькие карточки' },
-    'calendar': { maxBlocks: 35, minBlocks: 0, description: 'Календарь на месяц (5 недель)' },
+    '2x2': {
+        maxBlocks: 4,
+        minBlocks: 0,
+        description: 'Простая сетка 2×2',
+        category: 'grids',
+        label: '2×2',
+        preview: [
+            '┌─┬─┐',
+            '├─┼─┤',
+            '└─┴─┘'
+        ]
+    },
+    '3x3': {
+        maxBlocks: 9,
+        minBlocks: 0,
+        description: 'Простая сетка 3×3',
+        category: 'grids',
+        label: '3×3',
+        preview: [
+            '┌─┬─┬─┐',
+            '├─┼─┼─┤',
+            '└─┴─┴─┘'
+        ]
+    },
+    '4x4': {
+        maxBlocks: 16,
+        minBlocks: 0,
+        description: 'Простая сетка 4×4',
+        category: 'grids',
+        label: '4×4',
+        preview: [
+            '┌┬┬┬┐',
+            '├┼┼┼┤',
+            '└┴┴┴┘'
+        ]
+    },
+    'sidebar': {
+        maxBlocks: null,
+        minBlocks: 1,
+        description: 'Боковая панель слева',
+        category: 'layouts',
+        label: 'Сайдбар',
+        preview: [
+            '┌──┬────┐',
+            '│  │    │',
+            '└──┴────┘'
+        ]
+    },
+    'sidebar-right': {
+        maxBlocks: null,
+        minBlocks: 1,
+        description: 'Боковая панель справа',
+        category: 'layouts',
+        label: 'Сайдбар R',
+        preview: [
+            '┌────┬──┐',
+            '│    │  │',
+            '└────┴──┘'
+        ]
+    },
+    'dashboard': {
+        maxBlocks: null,
+        minBlocks: 1,
+        description: 'Главный блок + виджеты + метрики',
+        category: 'layouts',
+        label: 'Dashboard',
+        preview: [
+            '┌───┬───┐',
+            '│   ├───┤',
+            '├─┬─┴─┬─┤'
+        ]
+    },
+    'holy-grail': {
+        maxBlocks: null,
+        minBlocks: 1,
+        description: 'Header + Footer + 3 колонки',
+        category: 'layouts',
+        label: 'Holy Grail',
+        preview: [
+            '┌──────┐',
+            '├─┬──┬─┤',
+            '└─┴──┴─┘'
+        ]
+    },
+    'kanban': {
+        maxBlocks: 3,
+        minBlocks: 0,
+        description: 'Доска: To Do, In Progress, Done',
+        category: 'special',
+        label: 'Kanban',
+        preview: [
+            '┌──┬──┬──┐',
+            '│📋│⚡│✓ │',
+            '└──┴──┴──┘'
+        ]
+    },
+    'gallery': {
+        maxBlocks: null,
+        minBlocks: 1,
+        description: 'Большие и маленькие карточки',
+        category: 'special',
+        label: 'Галерея',
+        preview: [
+            '┌────┬──┐',
+            '│    ├──┤',
+            '└────┴──┘'
+        ]
+    },
+    'calendar': {
+        maxBlocks: 35,
+        minBlocks: 0,
+        description: 'Календарь на месяц (5 недель)',
+        category: 'special',
+        label: 'Календарь',
+        preview: [
+            '┌─┬─┬─┬─┬─┬─┬─┐',
+            '├─┼─┼─┼─┼─┼─┼─┤',
+            '└─┴─┴─┴─┴─┴─┴─┘'
+        ]
+    }
 };
 
 /**
@@ -40,8 +161,8 @@ export class LayoutEditorPanel extends Popup {
         super({
             title: 'Редактор раскладки',
             size: 'lg',
-            width: 800,
-            height: 600,
+            width: 900,
+            height: 650,
             modal: true,
             draggable: true,
             closeOnEsc: true,
@@ -325,24 +446,68 @@ export class LayoutEditorPanel extends Popup {
     }
 
     /**
-     * Генерирует HTML для кнопки пресета
+     * Генерирует HTML для карточки пресета в галерее
      * @param {string} presetName - Имя пресета
-     * @param {string} label - Текст кнопки
      */
-    renderPresetButton(presetName, label) {
+    renderPresetCard(presetName) {
         const config = PRESET_CONFIG[presetName] || {};
         const { available, reason } = this.isPresetAvailable(presetName);
-        const description = config.description || '';
-        const maxInfo = config.maxBlocks ? ` (макс. ${config.maxBlocks})` : ' (расширяемый)';
+        const isActive = this.currentPresetType === presetName;
 
-        const tooltip = available
-            ? `${description}${maxInfo}`
-            : reason;
+        const previewHtml = (config.preview || []).map(line =>
+            `<div class="preset-card__preview-line">${escapeHtml(line)}</div>`
+        ).join('');
 
+        const disabledClass = available ? '' : 'preset-card--disabled';
+        const activeClass = isActive ? 'preset-card--active' : '';
         const disabledAttr = available ? '' : 'disabled';
-        const disabledClass = available ? '' : 'layout-preset-btn--disabled';
 
-        return `<button class="layout-preset-btn ${disabledClass}" data-preset="${presetName}" title="${tooltip}" ${disabledAttr}>${label}</button>`;
+        const statusHtml = !available
+            ? `<div class="preset-card__status preset-card__status--disabled" title="${reason}">✗</div>`
+            : isActive
+                ? `<div class="preset-card__status preset-card__status--active">✓</div>`
+                : '';
+
+        const capacityHtml = config.maxBlocks
+            ? `<span class="preset-card__capacity">${config.maxBlocks}</span>`
+            : `<span class="preset-card__capacity preset-card__capacity--unlimited">∞</span>`;
+
+        return `
+            <button class="preset-card ${disabledClass} ${activeClass}" data-preset="${presetName}" ${disabledAttr}>
+                ${statusHtml}
+                <div class="preset-card__preview">${previewHtml}</div>
+                <div class="preset-card__info">
+                    <div class="preset-card__label">${config.label || presetName}</div>
+                    <div class="preset-card__meta">
+                        ${capacityHtml}
+                    </div>
+                </div>
+            </button>
+        `;
+    }
+
+    /**
+     * Генерирует HTML для категории пресетов
+     * @param {string} categoryKey - Ключ категории
+     * @param {Array} presets - Список пресетов в категории
+     */
+    renderPresetCategory(categoryKey, presets) {
+        const category = PRESET_CATEGORIES[categoryKey];
+        if (!category || presets.length === 0) return '';
+
+        const cardsHtml = presets.map(preset => this.renderPresetCard(preset)).join('');
+
+        return `
+            <div class="preset-category" data-category="${categoryKey}">
+                <div class="preset-category__header">
+                    <span class="preset-category__icon">${category.icon}</span>
+                    <span class="preset-category__name">${category.name}</span>
+                </div>
+                <div class="preset-category__cards">
+                    ${cardsHtml}
+                </div>
+            </div>
+        `;
     }
 
     /**
@@ -350,6 +515,19 @@ export class LayoutEditorPanel extends Popup {
      */
     renderSettings() {
         const childCount = this.childBlocks.length;
+
+        // Группируем пресеты по категориям
+        const presetsByCategory = {};
+        for (const [presetName, config] of Object.entries(PRESET_CONFIG)) {
+            const cat = config.category || 'other';
+            if (!presetsByCategory[cat]) presetsByCategory[cat] = [];
+            presetsByCategory[cat].push(presetName);
+        }
+
+        // Генерируем HTML для всех категорий
+        const categoriesHtml = Object.keys(PRESET_CATEGORIES)
+            .map(catKey => this.renderPresetCategory(catKey, presetsByCategory[catKey] || []))
+            .join('');
 
         this.settingsPanel.innerHTML = `
             <div class="layout-settings__section layout-settings__hint">
@@ -371,22 +549,13 @@ export class LayoutEditorPanel extends Popup {
                 </div>
             </div>
 
-            <div class="layout-settings__section">
-                <h4 class="layout-settings__title">Пресеты</h4>
-                <div class="layout-settings__info layout-settings__info--small">
-                    Блоков: <strong>${childCount}</strong>. Недоступные пресеты не могут вместить все блоки.
-                </div>
-                <div class="layout-settings__presets">
-                    ${this.renderPresetButton('2x2', '2×2')}
-                    ${this.renderPresetButton('3x3', '3×3')}
-                    ${this.renderPresetButton('4x4', '4×4')}
-                    ${this.renderPresetButton('sidebar', 'Сайдбар')}
-                    ${this.renderPresetButton('sidebar-right', 'Сайдбар R')}
-                    ${this.renderPresetButton('dashboard', 'Dashboard')}
-                    ${this.renderPresetButton('kanban', 'Kanban')}
-                    ${this.renderPresetButton('holy-grail', 'Holy Grail')}
-                    ${this.renderPresetButton('gallery', 'Галерея')}
-                    ${this.renderPresetButton('calendar', 'Календарь')}
+            <div class="layout-settings__section layout-settings__section--presets">
+                <h4 class="layout-settings__title">
+                    Пресеты
+                    <span class="layout-settings__block-count">${childCount} блоков</span>
+                </h4>
+                <div class="preset-gallery">
+                    ${categoriesHtml}
                 </div>
             </div>
 
@@ -429,11 +598,13 @@ export class LayoutEditorPanel extends Popup {
             this.refreshPreview();
         });
 
-        // Preset buttons
-        const presetBtns = this.settingsPanel.querySelectorAll('.layout-preset-btn[data-preset]');
-        presetBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.applyPreset(btn.dataset.preset);
+        // Preset cards (галерея)
+        const presetCards = this.settingsPanel.querySelectorAll('.preset-card[data-preset]');
+        presetCards.forEach(card => {
+            card.addEventListener('click', () => {
+                if (card.disabled) return;
+                this.applyPreset(card.dataset.preset);
+                this.updatePresetCardsState();
             });
         });
 
@@ -441,6 +612,44 @@ export class LayoutEditorPanel extends Popup {
         const fillBlocksBtn = this.settingsPanel.querySelector('#fill-blocks-btn');
         fillBlocksBtn?.addEventListener('click', () => {
             this.createPlaceholderBlocks();
+        });
+    }
+
+    /**
+     * Обновляет состояние карточек пресетов (активная/неактивная)
+     */
+    updatePresetCardsState() {
+        const presetCards = this.settingsPanel.querySelectorAll('.preset-card[data-preset]');
+        presetCards.forEach(card => {
+            const presetName = card.dataset.preset;
+            const isActive = this.currentPresetType === presetName;
+            const { available } = this.isPresetAvailable(presetName);
+
+            card.classList.toggle('preset-card--active', isActive);
+            card.classList.toggle('preset-card--disabled', !available);
+            card.disabled = !available;
+
+            // Обновляем статус
+            let statusEl = card.querySelector('.preset-card__status');
+            if (isActive && available) {
+                if (!statusEl) {
+                    statusEl = document.createElement('div');
+                    statusEl.className = 'preset-card__status preset-card__status--active';
+                    card.insertBefore(statusEl, card.firstChild);
+                }
+                statusEl.textContent = '✓';
+                statusEl.className = 'preset-card__status preset-card__status--active';
+            } else if (!available) {
+                if (!statusEl) {
+                    statusEl = document.createElement('div');
+                    statusEl.className = 'preset-card__status preset-card__status--disabled';
+                    card.insertBefore(statusEl, card.firstChild);
+                }
+                statusEl.textContent = '✗';
+                statusEl.className = 'preset-card__status preset-card__status--disabled';
+            } else if (statusEl) {
+                statusEl.remove();
+            }
         });
     }
 
