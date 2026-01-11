@@ -224,27 +224,43 @@ describe('ChatBadgeManager', () => {
             jest.advanceTimersByTime(100);
         });
 
-        test('should increment on NewDirectMessage', () => {
-            chatBadgeManager.unreadCount = 5;
+        test('should reload count from server on NewDirectMessage (debounced)', async () => {
+            chatApi.getUnreadCount.mockResolvedValue({
+                data: { dm: 3, groups: 2 }
+            });
 
             window.dispatchEvent(new CustomEvent('NewDirectMessage', {
                 detail: { senderId: 1, message: {} }
             }));
 
-            expect(chatBadgeManager.unreadCount).toBe(6);
+            // Should not load immediately (debounced)
+            expect(chatApi.getUnreadCount).toHaveBeenCalledTimes(1); // only initial call
+
+            // Wait for debounce (300ms)
+            jest.advanceTimersByTime(300);
+            await Promise.resolve();
+
+            expect(chatApi.getUnreadCount).toHaveBeenCalledTimes(2);
+            expect(chatBadgeManager.unreadCount).toBe(5); // 3 + 2
         });
 
-        test('should increment on NewGroupMessage', () => {
-            chatBadgeManager.unreadCount = 5;
+        test('should reload count from server on NewGroupMessage (debounced)', async () => {
+            chatApi.getUnreadCount.mockResolvedValue({
+                data: { dm: 1, groups: 4 }
+            });
 
             window.dispatchEvent(new CustomEvent('NewGroupMessage', {
                 detail: { groupId: 1, message: {} }
             }));
 
-            expect(chatBadgeManager.unreadCount).toBe(6);
+            // Wait for debounce (300ms)
+            jest.advanceTimersByTime(300);
+            await Promise.resolve();
+
+            expect(chatBadgeManager.unreadCount).toBe(5); // 1 + 4
         });
 
-        test('should reload count on ChatMessagesRead', async () => {
+        test('should reload count on ChatMessagesRead (debounced)', async () => {
             chatApi.getUnreadCount.mockResolvedValue({
                 data: { dm: 1, groups: 0 }
             });
@@ -253,10 +269,12 @@ describe('ChatBadgeManager', () => {
                 detail: { type: 'dm', id: 1 }
             }));
 
-            // Wait for async loadInitialCount
+            // Wait for debounce (300ms)
+            jest.advanceTimersByTime(300);
             await Promise.resolve();
 
             expect(chatApi.getUnreadCount).toHaveBeenCalled();
+            expect(chatBadgeManager.unreadCount).toBe(1); // 1 + 0
         });
 
         test('should reset on Logout', () => {

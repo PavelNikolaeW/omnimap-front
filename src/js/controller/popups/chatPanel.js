@@ -392,6 +392,35 @@ export class ChatPanel extends Popup {
             this.updateBadges();
         };
         window.addEventListener('ChatUnreadCountUpdate', this.unreadUpdateHandler);
+
+        // Listen for messages marked as read
+        this.messagesReadHandler = (e) => {
+            const { type, userId, groupId } = e.detail || {};
+            if (type === 'dm' && userId) {
+                this.handleMessagesRead('dm', userId);
+            } else if (type === 'group' && groupId) {
+                this.handleMessagesRead('group', groupId);
+            }
+        };
+        window.addEventListener('ChatMessagesRead', this.messagesReadHandler);
+    }
+
+    handleMessagesRead(type, id) {
+        if (type === 'dm') {
+            // eslint-disable-next-line eqeqeq
+            const conv = this.conversations.find(c => c.user_id == id);
+            if (conv) {
+                conv.unread_count = 0;
+                this.renderList();
+            }
+        } else if (type === 'group') {
+            // eslint-disable-next-line eqeqeq
+            const group = this.groups.find(g => g.id == id);
+            if (group) {
+                group.unread_count = 0;
+                this.renderList();
+            }
+        }
     }
 
     handleNewDirectMessage(data) {
@@ -428,6 +457,9 @@ export class ChatPanel extends Popup {
         }
         if (this.unreadUpdateHandler) {
             window.removeEventListener('ChatUnreadCountUpdate', this.unreadUpdateHandler);
+        }
+        if (this.messagesReadHandler) {
+            window.removeEventListener('ChatMessagesRead', this.messagesReadHandler);
         }
         super.close();
     }

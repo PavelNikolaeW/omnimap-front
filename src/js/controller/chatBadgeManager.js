@@ -10,6 +10,8 @@ class ChatBadgeManager {
         this.unreadCount = 0;
         this.initialized = false;
         this.initialLoadDone = false;
+        this._loadDebounceTimer = null;
+        this._isLoading = false;
 
         // Привязываем методы для корректного удаления listeners
         this._handleUnreadCountUpdate = this._handleUnreadCountUpdate.bind(this);
@@ -70,6 +72,11 @@ class ChatBadgeManager {
         window.removeEventListener('NewGroupMessage', this._handleNewMessage);
         window.removeEventListener('ChatMessagesRead', this._handleMessagesRead);
 
+        if (this._loadDebounceTimer) {
+            clearTimeout(this._loadDebounceTimer);
+            this._loadDebounceTimer = null;
+        }
+
         this.initialized = false;
         this.initialLoadDone = false;
     }
@@ -112,11 +119,10 @@ class ChatBadgeManager {
 
     /**
      * Обработчик новых сообщений (DM или Group)
-     * Инкрементирует счётчик непрочитанных
+     * Перезагружает счётчик с сервера с debounce чтобы избежать race condition
      */
     _handleNewMessage() {
-        this.unreadCount++;
-        this.updateBadgeDisplay();
+        this._debouncedLoadCount();
     }
 
     /**
@@ -124,7 +130,21 @@ class ChatBadgeManager {
      * Перезагружает актуальный счётчик с сервера
      */
     _handleMessagesRead() {
-        this.loadInitialCount();
+        this._debouncedLoadCount();
+    }
+
+    /**
+     * Загружает счётчик с сервера с debounce
+     * Предотвращает множественные запросы при быстрых событиях
+     */
+    _debouncedLoadCount() {
+        if (this._loadDebounceTimer) {
+            clearTimeout(this._loadDebounceTimer);
+        }
+        this._loadDebounceTimer = setTimeout(() => {
+            this._loadDebounceTimer = null;
+            this.loadInitialCount();
+        }, 300);
     }
 
     /**
