@@ -16,6 +16,7 @@ class ChatBadgeManager {
         this._handleUnreadUpdated = this._handleUnreadUpdated.bind(this);
         this._handleUIButtonsRendered = this._handleUIButtonsRendered.bind(this);
         this._handleLogout = this._handleLogout.bind(this);
+        this._handleNewMessage = this._handleNewMessage.bind(this);
     }
 
     /**
@@ -37,6 +38,10 @@ class ChatBadgeManager {
         // Сбрасываем badge при logout
         window.addEventListener('Logout', this._handleLogout);
 
+        // Инкрементируем счётчик при получении новых сообщений через WebSocket
+        window.addEventListener('NewDirectMessage', this._handleNewMessage);
+        window.addEventListener('NewGroupMessage', this._handleNewMessage);
+
         this.initialized = true;
 
         // Fallback: если кнопка уже отрендерена (race condition),
@@ -57,6 +62,8 @@ class ChatBadgeManager {
         window.removeEventListener('ChatUnreadUpdated', this._handleUnreadUpdated);
         window.removeEventListener('UIButtonsRendered', this._handleUIButtonsRendered);
         window.removeEventListener('Logout', this._handleLogout);
+        window.removeEventListener('NewDirectMessage', this._handleNewMessage);
+        window.removeEventListener('NewGroupMessage', this._handleNewMessage);
 
         this.initialized = false;
         this.initialLoadDone = false;
@@ -96,6 +103,15 @@ class ChatBadgeManager {
     _handleLogout() {
         this.reset();
         this.initialLoadDone = false;
+    }
+
+    /**
+     * Обработчик новых сообщений (DM или Group)
+     * Инкрементирует счётчик непрочитанных
+     */
+    _handleNewMessage() {
+        this.unreadCount++;
+        this.updateBadgeDisplay();
     }
 
     /**
