@@ -33,7 +33,7 @@ const PRESET_CATEGORIES = {
 const PRESET_CONFIG = {
     'horizontal': {
         maxBlocks: null,
-        minBlocks: 1,
+        minBlocks: 0,
         description: 'Все блоки в горизонтальный ряд',
         category: 'dynamic',
         label: 'Горизонтальный',
@@ -46,7 +46,7 @@ const PRESET_CONFIG = {
     },
     'vertical': {
         maxBlocks: null,
-        minBlocks: 1,
+        minBlocks: 0,
         description: 'Все блоки в вертикальный столбец',
         category: 'dynamic',
         label: 'Вертикальный',
@@ -315,8 +315,8 @@ export class LayoutEditorPanel extends Popup {
             this.dynamicLayoutType = 'rows';
             this.currentPresetType = 'vertical';
             this.activeTab = 'dynamic';
-            // Генерируем виртуальную сетку для превью
-            this.gridSize = { rows: childOrder.length, cols: 1 };
+            // Генерируем виртуальную сетку для превью (Math.max для защиты от 0 детей)
+            this.gridSize = { rows: Math.max(1, childOrder.length), cols: 1 };
             this.cells = {};
             childOrder.forEach((id, i) => {
                 this.cells[id] = { row: i + 1, col: 1, rowSpan: 1, colSpan: 1 };
@@ -328,8 +328,8 @@ export class LayoutEditorPanel extends Popup {
             this.dynamicLayoutType = 'columns';
             this.currentPresetType = 'horizontal';
             this.activeTab = 'dynamic';
-            // Генерируем виртуальную сетку для превью
-            this.gridSize = { rows: 1, cols: childOrder.length };
+            // Генерируем виртуальную сетку для превью (Math.max для защиты от 0 детей)
+            this.gridSize = { rows: 1, cols: Math.max(1, childOrder.length) };
             this.cells = {};
             childOrder.forEach((id, i) => {
                 this.cells[id] = { row: 1, col: i + 1, rowSpan: 1, colSpan: 1 };
