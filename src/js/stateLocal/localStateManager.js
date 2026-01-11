@@ -1202,11 +1202,17 @@ export class LocalStateManager {
 
         // Синхронизируем через batch import (отправит 3 блока: old parent, new parent, moved block)
         // Используем immediate:true для немедленной синхронизации
-        await offlineQueue.enqueue({
-            id: `move_${block_id}_${Date.now()}`,
-            type: 'moveBlock',
-            data: { blockId: block_id, oldParentId: old_parent_id, newParentId: new_parent_id, childOrder: newOrder }
-        }, { immediate: true });
+        try {
+            await offlineQueue.enqueue({
+                id: `move_${block_id}_${Date.now()}`,
+                type: 'moveBlock',
+                data: { blockId: block_id, oldParentId: old_parent_id, newParentId: new_parent_id, childOrder: newOrder }
+            }, { immediate: true });
+        } catch (err) {
+            // Rollback при ошибке очереди (например, IndexedDB quota exceeded)
+            console.error('Failed to queue move operation:', err);
+            await this.rollbackMoveBlock(blockBackup, oldParentBackup, newParentBackup);
+        }
     }
 
     /**

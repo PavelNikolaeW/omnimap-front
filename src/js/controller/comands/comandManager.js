@@ -7,6 +7,7 @@ import {dispatch} from "../../utils/utils";
 import {diagramEditor} from "../diagramEditor";
 import {connectionAnchorManager} from "../connectionAnchorManager";
 import {dragDropManager} from "../dragDropManager";
+import {MODES} from "../../actions/selectionActions";
 
 hotkeys.filter = function (event) {
     const target = event.target || event.srcElement;
@@ -305,6 +306,7 @@ export class CommandManager {
 
         this.rootContainer.addEventListener('dragstart', this._handleDragStart.bind(this));
         this.rootContainer.addEventListener('dragover', this._handleDragOver.bind(this));
+        this.rootContainer.addEventListener('dragleave', this._handleDragLeave.bind(this));
         this.rootContainer.addEventListener('drop', this._handleDrop.bind(this));
         this.rootContainer.addEventListener('dragend', this._handleDragEnd.bind(this));
     }
@@ -313,9 +315,11 @@ export class CommandManager {
      * Обработчик начала перетаскивания блока
      */
     _handleDragStart(e) {
-        // Не начинаем drag если сейчас режим cut или другие специальные режимы
+        // Не начинаем drag если сейчас режим cut, diagram или другие специальные режимы
         const mode = this.ctxManager.mode;
-        if (mode === 'cutBlock' || mode === 'textEdit' || mode === 'connectToBlock' || mode === 'connectSelectSource') {
+        if (mode === MODES.CUT_BLOCK || mode === MODES.TEXT_EDIT ||
+            mode === MODES.CONNECT_TO_BLOCK || mode === MODES.CONNECT_SELECT_SOURCE ||
+            mode === MODES.DIAGRAM) {
             e.preventDefault();
             return;
         }
@@ -339,6 +343,18 @@ export class CommandManager {
         // Находим целевой блок
         const {element} = this.ctxManager.getRelevantElements(e.target);
         dragDropManager.handleDragOver(e, element);
+    }
+
+    /**
+     * Обработчик dragleave - убираем индикатор при выходе за пределы
+     */
+    _handleDragLeave(e) {
+        if (!dragDropManager.isDragging) return;
+
+        // Убираем индикатор если вышли за пределы rootContainer
+        if (!this.rootContainer.contains(e.relatedTarget)) {
+            dragDropManager._removeDropIndicator();
+        }
     }
 
     /**
