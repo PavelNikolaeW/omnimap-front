@@ -38,6 +38,7 @@ import {handleTelegramLinkCallback} from "./controller/telegramLinkHandler";
 import {statusIndicators} from "./core/statusIndicators";
 import {initDevCacheManager} from "./core/devCacheManager";
 import {chatBadgeManager} from "./controller/chatBadgeManager";
+import {handleChatDeepLink, initChatEventListeners} from "./controller/chatDeepLinkHandler";
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
     // Храним ссылку на updatefound handler для возможности cleanup
@@ -304,6 +305,12 @@ async function initApp() {
 
     // Обработка callback URL (например, привязка Telegram)
     handleTelegramLinkCallback()
+
+    // Инициализация обработчиков событий чата (для push notifications)
+    initChatEventListeners()
+
+    // Обработка deep links для чатов (например, #chat/dm/123)
+    handleChatDeepLink()
 }
 
 async function checkAuth() {
