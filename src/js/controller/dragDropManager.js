@@ -138,11 +138,22 @@ export class DragDropManager {
         this.dragSourceParentId = parentElement ? this._extractBlockId(parentElement) : null;
 
         // Настраиваем dataTransfer
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', this.draggedBlockId);
+        try {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', this.draggedBlockId);
+            console.log('✅ dataTransfer configured', {
+                effectAllowed: e.dataTransfer.effectAllowed,
+                types: e.dataTransfer.types
+            });
+        } catch (err) {
+            console.error('❌ dataTransfer error:', err);
+        }
 
-        // Визуальный feedback - используем специальный класс для drag
-        element.classList.add('block-dragging');
+        // Визуальный feedback - добавляем класс после небольшой задержки
+        // чтобы не мешать браузеру создать drag image
+        requestAnimationFrame(() => {
+            element.classList.add('block-dragging');
+        });
 
         // Добавляем listener для отмены по Escape
         document.addEventListener('keydown', this._handleEscapeKey);
