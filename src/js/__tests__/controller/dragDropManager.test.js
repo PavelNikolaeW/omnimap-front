@@ -12,6 +12,12 @@ jest.mock('../../utils/utils', () => ({
 
 import { dispatch } from '../../utils/utils';
 
+// Mock requestAnimationFrame to execute immediately
+global.requestAnimationFrame = (callback) => {
+    callback();
+    return 0;
+};
+
 // Helper to create mock block element
 const createMockBlockElement = (id, options = {}) => {
     const element = document.createElement('div');
@@ -567,8 +573,8 @@ describe('DragDropManager', () => {
 
             const indicator = document.getElementById('drag-drop-indicator');
             expect(indicator).not.toBeNull();
-            expect(indicator.style.top).toBe('98px'); // rect.top - 2
-            expect(indicator.style.height).toBe('4px');
+            expect(indicator.style.top).toBe('97px'); // rect.top - 3
+            expect(indicator.style.height).toBe('6px');
         });
 
         test('creates sibling-after indicator at bottom of block', () => {
@@ -581,7 +587,7 @@ describe('DragDropManager', () => {
 
             const indicator = document.getElementById('drag-drop-indicator');
             expect(indicator).not.toBeNull();
-            expect(indicator.style.top).toBe('198px'); // rect.bottom - 2
+            expect(indicator.style.top).toBe('197px'); // rect.bottom - 3
         });
 
         test('creates child indicator covering entire block', () => {

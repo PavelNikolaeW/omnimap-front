@@ -120,16 +120,12 @@ export class DragDropManager {
      * @param {HTMLElement} element - DOM элемент блока
      */
     startDrag(e, element) {
-        console.log('🎯 startDrag called', { element: element?.id, canDrag: this.canDrag(element) });
-
         if (!this.canDrag(element)) {
-            console.log('❌ canDrag returned false');
             e.preventDefault();
             return false;
         }
 
         this.isDragging = true;
-        console.log('✅ isDragging set to true');
         this.draggedBlockId = this._extractBlockId(element);
         this.draggedElement = element;
 
@@ -138,16 +134,8 @@ export class DragDropManager {
         this.dragSourceParentId = parentElement ? this._extractBlockId(parentElement) : null;
 
         // Настраиваем dataTransfer
-        try {
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', this.draggedBlockId);
-            console.log('✅ dataTransfer configured', {
-                effectAllowed: e.dataTransfer.effectAllowed,
-                types: e.dataTransfer.types
-            });
-        } catch (err) {
-            console.error('❌ dataTransfer error:', err);
-        }
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', this.draggedBlockId);
 
         // Визуальный feedback - добавляем класс после небольшой задержки
         // чтобы не мешать браузеру создать drag image
@@ -167,12 +155,7 @@ export class DragDropManager {
      * @param {HTMLElement} targetElement - целевой блок
      */
     handleDragOver(e, targetElement) {
-        console.log('🔄 handleDragOver', { isDragging: this.isDragging, targetElement: targetElement?.id });
-
-        if (!this.isDragging || !targetElement) {
-            console.log('❌ handleDragOver early return');
-            return;
-        }
+        if (!this.isDragging || !targetElement) return;
 
         const dropTarget = this._calculateDropTarget(e, targetElement);
         if (!dropTarget) {
@@ -232,7 +215,6 @@ export class DragDropManager {
      * Завершение drag (успешное или отмененное)
      */
     endDrag() {
-        console.log('🔚 endDrag called');
         this.cleanup();
     }
 
@@ -240,21 +222,13 @@ export class DragDropManager {
      * Очистка состояния и visual feedback
      */
     cleanup() {
-        console.log('🧹 cleanup called', {
-            isDragging: this.isDragging,
-            draggedBlockId: this.draggedBlockId,
-            draggedElement: this.draggedElement?.id
-        });
-
         // Удаляем класс с сохраненного элемента
         if (this.draggedElement) {
             this.draggedElement.classList.remove('block-dragging');
         }
 
         // Также удаляем .block-dragging со всех блоков на случай если элемент был пересоздан
-        const draggingBlocks = document.querySelectorAll('[block].block-dragging');
-        console.log('🧹 Found blocks with block-dragging:', draggingBlocks.length);
-        draggingBlocks.forEach(el => {
+        document.querySelectorAll('[block].block-dragging').forEach(el => {
             el.classList.remove('block-dragging');
         });
 
@@ -268,7 +242,6 @@ export class DragDropManager {
         this.draggedElement = null;
         this.dragSourceParentId = null;
         this.lastDropTarget = null;
-        console.log('🧹 cleanup complete');
     }
 
     /**
@@ -343,27 +316,29 @@ export class DragDropManager {
             // Горизонтальная линия сверху блока
             indicator.style.cssText = `
                 position: fixed;
-                left: ${rect.left}px;
-                top: ${rect.top - 2}px;
-                width: ${rect.width}px;
-                height: 4px;
-                background: #3b82f6;
-                border-radius: 2px;
+                left: ${rect.left - 4}px;
+                top: ${rect.top - 3}px;
+                width: ${rect.width + 8}px;
+                height: 6px;
+                background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+                border-radius: 3px;
                 pointer-events: none;
                 z-index: 10000;
+                box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
             `;
         } else if (dropTarget.type === 'sibling-after') {
             // Горизонтальная линия снизу блока
             indicator.style.cssText = `
                 position: fixed;
-                left: ${rect.left}px;
-                top: ${rect.bottom - 2}px;
-                width: ${rect.width}px;
-                height: 4px;
-                background: #3b82f6;
-                border-radius: 2px;
+                left: ${rect.left - 4}px;
+                top: ${rect.bottom - 3}px;
+                width: ${rect.width + 8}px;
+                height: 6px;
+                background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+                border-radius: 3px;
                 pointer-events: none;
                 z-index: 10000;
+                box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
             `;
         } else if (dropTarget.type === 'child') {
             // Подсветка всего блока (как контейнера)
@@ -373,11 +348,12 @@ export class DragDropManager {
                 top: ${rect.top}px;
                 width: ${rect.width}px;
                 height: ${rect.height}px;
-                background: rgba(59, 130, 246, 0.1);
-                border: 2px dashed #3b82f6;
-                border-radius: 4px;
+                background: rgba(59, 130, 246, 0.2);
+                border: 3px dashed #3b82f6;
+                border-radius: 6px;
                 pointer-events: none;
                 z-index: 9999;
+                box-shadow: inset 0 0 12px rgba(59, 130, 246, 0.3);
             `;
         }
 

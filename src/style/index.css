@@ -227,7 +227,7 @@ h6 {
 
 /* Блок в процессе перетаскивания */
 [block].block-dragging {
-    opacity: 0.5;
+    opacity: 0.3;
     cursor: grabbing;
     outline: 2px dashed #3b82f6;
     outline-offset: 2px;

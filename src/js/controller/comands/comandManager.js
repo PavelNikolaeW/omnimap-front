@@ -318,53 +318,38 @@ export class CommandManager {
     _handleDragStart(e) {
         // Используем shiftLock из contextManager (более надёжно чем e.shiftKey)
         const shiftPressed = this.ctxManager.shiftLock || e.shiftKey;
-        console.log('🚀 _handleDragStart', { shiftLock: this.ctxManager.shiftLock, shiftKey: e.shiftKey, target: e.target });
 
-        // Drag работает только с зажатым Shift
         if (!shiftPressed) {
-            console.log('❌ No shift key');
             e.preventDefault();
             return;
         }
 
         // Не начинаем drag если сейчас режим cut, diagram или другие специальные режимы
         const mode = this.ctxManager.mode;
-        console.log('📋 Mode:', mode);
         if (mode === MODES.CUT_BLOCK || mode === MODES.TEXT_EDIT ||
             mode === MODES.CONNECT_TO_BLOCK || mode === MODES.CONNECT_SELECT_SOURCE ||
             mode === MODES.DIAGRAM) {
-            console.log('❌ Wrong mode');
             e.preventDefault();
             return;
         }
 
         // Находим блок под курсором
         const {element} = this.ctxManager.getRelevantElements(e.target);
-        console.log('🧱 Element:', element);
         if (!element) {
-            console.log('❌ No element');
             e.preventDefault();
             return;
         }
 
-        const result = dragDropManager.startDrag(e, element);
-        console.log('✅ startDrag result:', result);
+        dragDropManager.startDrag(e, element);
     }
 
     /**
      * Обработчик dragover для показа индикатора drop
      */
     _handleDragOver(e) {
-        console.log('📍 _handleDragOver', { isDragging: dragDropManager.isDragging, target: e.target?.id });
+        if (!dragDropManager.isDragging) return;
 
-        if (!dragDropManager.isDragging) {
-            console.log('❌ Not dragging, skip');
-            return;
-        }
-
-        // Находим целевой блок
         const {element} = this.ctxManager.getRelevantElements(e.target);
-        console.log('🎯 Target element:', element?.id);
         dragDropManager.handleDragOver(e, element);
     }
 
@@ -394,7 +379,6 @@ export class CommandManager {
      * Обработчик завершения drag
      */
     _handleDragEnd(e) {
-        console.log('🏁 _handleDragEnd', { isDragging: dragDropManager.isDragging });
         dragDropManager.endDrag();
     }
 }
