@@ -632,6 +632,9 @@ export class DragDropManager {
         const cellWidth = rect.width / cols;
         const cellHeight = (rect.height - contentHeight) / rows;
 
+        // Получаем минимальный размер блока из диаграммы
+        const { width: blockWidth, height: blockHeight } = this._getMinBlockSizeInDiagram(diagramId);
+
         // Позиция блока (1-based индексация, строка 2 - первая после контента)
         const left = (position.col - 1) * cellWidth;
         const top = contentHeight + (position.row - 2) * cellHeight;
@@ -640,8 +643,8 @@ export class DragDropManager {
         this.diagramDragIndicator.className = 'diagram-drop-indicator';
         this.diagramDragIndicator.style.cssText = `
             position: absolute;
-            width: ${cellWidth}px;
-            height: ${cellHeight}px;
+            width: ${cellWidth * blockWidth}px;
+            height: ${cellHeight * blockHeight}px;
             left: ${left}px;
             top: ${top}px;
             border: 2px dashed #4f46e5;
@@ -653,6 +656,57 @@ export class DragDropManager {
         `;
 
         diagramElement.appendChild(this.diagramDragIndicator);
+    }
+
+    /**
+     * Получает минимальный размер блока среди существующих в диаграмме
+     * @param {string} diagramId - ID диаграммы
+     * @returns {Object} - {width, height}
+     */
+    _getMinBlockSizeInDiagram(diagramId) {
+        if (!this.localStateManager) return { width: 1, height: 1 };
+
+        const diagramData = this.localStateManager.blocks.get(diagramId);
+        const customGrid = diagramData?.data?.customGrid;
+
+        if (!customGrid?.childrenPositions) return { width: 1, height: 1 };
+
+        let minWidth = 1;
+        let minHeight = 1;
+        let hasBlocks = false;
+
+        for (const [, position] of Object.entries(customGrid.childrenPositions)) {
+            if (!position || !Array.isArray(position)) continue;
+
+            const colStr = position.find(p => p?.startsWith('grid-column_'));
+            const rowStr = position.find(p => p?.startsWith('grid-row_'));
+
+            if (!colStr || !rowStr) continue;
+
+            const colMatch = colStr.match(/_(\d+)(?:__(\d+))?/);
+            const rowMatch = rowStr.match(/_(\d+)(?:__(\d+))?/);
+
+            if (!colMatch || !rowMatch) continue;
+
+            const colStart = parseInt(colMatch[1], 10);
+            const colEnd = colMatch[2] ? parseInt(colMatch[2], 10) : colStart + 1;
+            const rowStart = parseInt(rowMatch[1], 10);
+            const rowEnd = rowMatch[2] ? parseInt(rowMatch[2], 10) : rowStart + 1;
+
+            const width = colEnd - colStart;
+            const height = rowEnd - rowStart;
+
+            if (!hasBlocks) {
+                minWidth = width;
+                minHeight = height;
+                hasBlocks = true;
+            } else {
+                if (width < minWidth) minWidth = width;
+                if (height < minHeight) minHeight = height;
+            }
+        }
+
+        return { width: minWidth, height: minHeight };
     }
 
     /**
