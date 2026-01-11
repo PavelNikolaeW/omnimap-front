@@ -488,8 +488,15 @@ export class LayoutEditorPanel extends Popup {
 
     /**
      * Добавляет новый блок в свободную ячейку
+     * @param {number} retryCount - Счётчик попыток (защита от бесконечной рекурсии)
      */
-    addNewBlock() {
+    addNewBlock(retryCount = 0) {
+        // Защита от бесконечной рекурсии
+        if (retryCount > 10) {
+            console.warn('Layout Editor: Unable to find free cell after grid expansion');
+            return;
+        }
+
         const freeCell = this.cellManager?.findFreeCell();
         if (!freeCell) {
             // Расширяем сетку
@@ -497,8 +504,8 @@ export class LayoutEditorPanel extends Popup {
             this.refreshPreview();
             this.updateToolbarInputs();
             this.updateStatusBar();
-            // Повторно ищем свободную ячейку
-            setTimeout(() => this.addNewBlock(), 50);
+            // Повторно ищем свободную ячейку с увеличенным счётчиком
+            setTimeout(() => this.addNewBlock(retryCount + 1), 50);
             return;
         }
 
@@ -1643,8 +1650,13 @@ export class LayoutEditorPanel extends Popup {
             this.dragManager = null;
         }
 
+        // Clean up preview to remove any active mouse listeners
+        if (this.preview) {
+            this.preview.destroy();
+            this.preview = null;
+        }
+
         this.cellManager = null;
-        this.preview = null;
 
         // Очищаем singleton
         currentInstance = null;

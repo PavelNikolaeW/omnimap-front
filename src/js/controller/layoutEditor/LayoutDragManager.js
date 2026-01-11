@@ -1,3 +1,7 @@
+// Максимальные размеры сетки
+const MAX_GRID_ROWS = 12;
+const MAX_GRID_COLS = 24;
+
 /**
  * Управляет drag-and-drop операциями в редакторе раскладки
  */
@@ -562,8 +566,8 @@ export class LayoutDragManager {
         // Проверяем что блок на правом краю
         if (cell.col + cell.colSpan - 1 < this.panel.gridSize.cols) return false;
 
-        // Расширяем сетку (максимум 24 колонки)
-        if (this.panel.gridSize.cols >= 24) return false;
+        // Расширяем сетку (максимум MAX_GRID_COLS колонок)
+        if (this.panel.gridSize.cols >= MAX_GRID_COLS) return false;
         this.panel.gridSize.cols += 1;
 
         // Пробуем переместить
@@ -605,8 +609,8 @@ export class LayoutDragManager {
 
         const { isPlaceholder } = cellData;
 
-        // Максимум 24 колонки
-        if (this.panel.gridSize.cols >= 24) return false;
+        // Максимум MAX_GRID_COLS колонок
+        if (this.panel.gridSize.cols >= MAX_GRID_COLS) return false;
         this.panel.gridSize.cols += 1;
 
         // Пробуем увеличить размер
@@ -622,8 +626,8 @@ export class LayoutDragManager {
      * @param {number} dCols - Изменение колонок
      */
     adjustGridSize(dRows, dCols) {
-        const newRows = Math.max(1, Math.min(12, this.panel.gridSize.rows + dRows));
-        const newCols = Math.max(1, Math.min(24, this.panel.gridSize.cols + dCols));
+        const newRows = Math.max(1, Math.min(MAX_GRID_ROWS, this.panel.gridSize.rows + dRows));
+        const newCols = Math.max(1, Math.min(MAX_GRID_COLS, this.panel.gridSize.cols + dCols));
 
         if (newRows === this.panel.gridSize.rows && newCols === this.panel.gridSize.cols) {
             return;

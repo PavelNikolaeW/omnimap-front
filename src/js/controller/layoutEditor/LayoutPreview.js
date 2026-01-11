@@ -18,6 +18,7 @@ export class LayoutPreview {
         this.onBlockDragStart = null;
         this.onBlockDragEnd = null;
         this.onBlockResize = null;  // callback(blockId, newColSpan, newRowSpan)
+        this._activeResizeCleanup = null;  // Cleanup function for active resize
     }
 
     /**
@@ -270,6 +271,12 @@ export class LayoutPreview {
 
         document.addEventListener('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
+
+        // Store cleanup function for panel close
+        this._activeResizeCleanup = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
     }
 
     /**
@@ -419,6 +426,12 @@ export class LayoutPreview {
 
         document.addEventListener('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
+
+        // Store cleanup function for panel close
+        this._activeResizeCleanup = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
     }
 
     /**
@@ -492,6 +505,33 @@ export class LayoutPreview {
             cell.classList.remove('layout-preview-cell--highlight');
             cell.classList.remove('layout-preview-cell--dragover');
         });
+    }
+
+    /**
+     * Уничтожает превью и очищает все event listeners
+     */
+    destroy() {
+        // Clean up any active resize operation
+        if (this._activeResizeCleanup) {
+            this._activeResizeCleanup();
+            this._activeResizeCleanup = null;
+        }
+
+        // Clear callbacks
+        this.onBlockSelect = null;
+        this.onBlockDragStart = null;
+        this.onBlockDragEnd = null;
+        this.onBlockResize = null;
+
+        // Clear elements
+        this.blockElements.clear();
+        this.selectedBlockId = null;
+
+        // Clear container
+        if (this.container) {
+            this.container.innerHTML = '';
+        }
+        this.gridElement = null;
     }
 }
 
