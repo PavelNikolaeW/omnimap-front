@@ -7,7 +7,7 @@
 
 import { dispatch } from '../utils/utils';
 
-class DragDropManager {
+export class DragDropManager {
     constructor() {
         this.isDragging = false;
         this.draggedBlockId = null;
