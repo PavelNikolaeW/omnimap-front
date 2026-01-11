@@ -76,7 +76,7 @@ class BlockCreator {
             if (block.data.customGrid && Object.keys(block.data.customGrid).length) element.setAttribute('blockCustomGrid', '')
 
             this._setAttributes(element, block)
-            this._applyStyles(element, ['block', ...this.styleLayout(block), ...(block.grid), ...(parentBlock.childrenPositions[block.id]), ...customClasses])
+            this._applyStyles(element, ['block', ...this.styleLayout(block), ...(block.grid || []), ...(parentBlock.childrenPositions?.[block.id] || []), ...customClasses])
 
             // Применить кастомные стили блока (цвет, форма, тень и т.д.)
             this._applyCustomStyles(element, block.data?.customStyles)
@@ -84,7 +84,13 @@ class BlockCreator {
             // Применить data-атрибуты для layoutCells (календарь, kanban и т.д.)
             this._applyLayoutCellsData(element, block, parentBlock)
 
-            block.color = this.colorist.calculateColor(element, block, [...parentBlock.color])
+            // Делаем блок draggable если родитель НЕ diagram и НЕ layoutCells
+            if (!parentBlock.data?.customGrid?.grid &&
+                !(parentBlock.data?.layout === 'cells' && parentBlock.data?.layoutCells)) {
+                element.setAttribute('draggable', 'true');
+            }
+
+            block.color = this.colorist.calculateColor(element, block, [...(parentBlock.color || [])])
             this._applyStyles(block.contentEl, block.contentPosition)
         } catch (e) {
             console.log(block)
@@ -125,7 +131,7 @@ class BlockCreator {
         block.childrenPositions = {[sourceId]: ['grid-column_1', 'grid-row_1']}
         block.grid = grid
         block.contentEl = null
-        block.color = [...parentBlock.color]
+        block.color = [...(parentBlock.color || [])]
         return element
     }
 
@@ -149,8 +155,8 @@ class BlockCreator {
         element.classList.add('iframe', 'block')
         element.id = block.id
         element.setAttribute('block', '')
-        block.color = this.colorist.calculateColor(element, block, [...parentBlock.color])
-        this._applyStyles(element, ['block', block.size.layout, ...(block.grid), ...(parentBlock.childrenPositions[block.id])])
+        block.color = this.colorist.calculateColor(element, block, [...(parentBlock.color || [])])
+        this._applyStyles(element, ['block', block.size.layout, ...(block.grid || []), ...(parentBlock.childrenPositions?.[block.id] || [])])
         return element
     }
 

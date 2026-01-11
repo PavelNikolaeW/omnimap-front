@@ -86,12 +86,22 @@ export class ContextManager {
     keydownHandler(e) {
         if (e.key === 'Shift' || e.key == '-') {
             this.shiftLock = true;
+            // Показываем курсор grab для drag-and-drop
+            this.rootContainer.setAttribute('data-shift-drag', '');
         }
     }
 
     keyupHandler(e) {
         if (e.key === 'Shift' || e.key == '-') {
             this.shiftLock = false;
+            // Убираем курсор grab
+            this.rootContainer.removeAttribute('data-shift-drag');
+            // Cleanup drag state если drag был прерван
+            import('../dragDropManager.js').then(({ dragDropManager }) => {
+                if (dragDropManager.isDragging) {
+                    dragDropManager.cleanup();
+                }
+            });
         }
     }
 

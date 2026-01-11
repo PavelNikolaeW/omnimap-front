@@ -6,6 +6,8 @@ import {isExcludedElement, throttle} from "../../utils/functions";
 import {dispatch} from "../../utils/utils";
 import {diagramEditor} from "../diagramEditor";
 import {connectionAnchorManager} from "../connectionAnchorManager";
+import {dragDropManager} from "../dragDropManager";
+import {MODES} from "../../actions/selectionActions";
 
 hotkeys.filter = function (event) {
     const target = event.target || event.srcElement;
@@ -45,7 +47,10 @@ export class CommandManager {
 
         this.rootContainer.addEventListener('click', this.clickOnRootContainerHandlerBound);
         this.topSidebar.addEventListener('click', this.clickOnTopNavigationBound);
-        this.controlPanel.addEventListener('click', this.clickOnControlPanelBound)
+        this.controlPanel.addEventListener('click', this.clickOnControlPanelBound);
+
+        // Drag-and-drop для перемещения блоков
+        this._initDragAndDrop();
         window.addEventListener('ReRegistrationCmd', (e) => {
             this.resetAndReRegisterCommands(e.detail)
         })
@@ -290,6 +295,91 @@ export class CommandManager {
         overlay.appendChild(img);
         overlay.appendChild(closeBtn);
         document.body.appendChild(overlay);
+    }
+
+    /**
+     * Инициализация drag-and-drop для перемещения блоков
+     */
+    _initDragAndDrop() {
+        // Инициализируем dragDropManager
+        dragDropManager.init();
+
+        this.rootContainer.addEventListener('dragstart', this._handleDragStart.bind(this));
+        this.rootContainer.addEventListener('dragover', this._handleDragOver.bind(this));
+        this.rootContainer.addEventListener('dragleave', this._handleDragLeave.bind(this));
+        this.rootContainer.addEventListener('drop', this._handleDrop.bind(this));
+        this.rootContainer.addEventListener('dragend', this._handleDragEnd.bind(this));
+    }
+
+    /**
+     * Обработчик начала перетаскивания блока
+     * Требует зажатую клавишу Shift для активации
+     */
+    _handleDragStart(e) {
+        // Используем shiftLock из contextManager (более надёжно чем e.shiftKey)
+        const shiftPressed = this.ctxManager.shiftLock || e.shiftKey;
+
+        if (!shiftPressed) {
+            e.preventDefault();
+            return;
+        }
+
+        // Не начинаем drag если сейчас режим cut, diagram или другие специальные режимы
+        const mode = this.ctxManager.mode;
+        if (mode === MODES.CUT_BLOCK || mode === MODES.TEXT_EDIT ||
+            mode === MODES.CONNECT_TO_BLOCK || mode === MODES.CONNECT_SELECT_SOURCE ||
+            mode === MODES.DIAGRAM) {
+            e.preventDefault();
+            return;
+        }
+
+        // Находим блок под курсором
+        const {element} = this.ctxManager.getRelevantElements(e.target);
+        if (!element) {
+            e.preventDefault();
+            return;
+        }
+
+        dragDropManager.startDrag(e, element);
+    }
+
+    /**
+     * Обработчик dragover для показа индикатора drop
+     */
+    _handleDragOver(e) {
+        if (!dragDropManager.isDragging) return;
+
+        const {element} = this.ctxManager.getRelevantElements(e.target);
+        dragDropManager.handleDragOver(e, element);
+    }
+
+    /**
+     * Обработчик dragleave - убираем индикатор при выходе за пределы
+     */
+    _handleDragLeave(e) {
+        if (!dragDropManager.isDragging) return;
+
+        // Убираем индикатор если вышли за пределы rootContainer
+        if (!this.rootContainer.contains(e.relatedTarget)) {
+            dragDropManager._removeDropIndicator();
+        }
+    }
+
+    /**
+     * Обработчик drop
+     */
+    _handleDrop(e) {
+        if (!dragDropManager.isDragging) return;
+
+        const {element} = this.ctxManager.getRelevantElements(e.target);
+        dragDropManager.handleDrop(e, element);
+    }
+
+    /**
+     * Обработчик завершения drag
+     */
+    _handleDragEnd(e) {
+        dragDropManager.endDrag();
     }
 }
 

@@ -918,25 +918,23 @@ export class LocalStateManager {
 
                     const localData = localBlock?.data || {};
 
-                    // Мёржим data: сервер имеет приоритет, но сохраняем локальный childOrder если серверный пустой
+                    // Мёржим data: сервер имеет приоритет
+                    // childOrder: используем серверный если он определён (даже пустой []), иначе локальный
                     const mergedData = {
                         ...localData,
                         ...serverData,
-                        // childOrder: берём серверный если он есть и не пустой, иначе локальный
-                        childOrder: (serverData.childOrder?.length > 0)
+                        childOrder: Array.isArray(serverData.childOrder)
                             ? serverData.childOrder
                             : (localData.childOrder || [])
                     };
 
-                    // Синхронизируем childOrder с children
-                    if (serverChildren.length > 0) {
-                        // Фильтруем childOrder — только те ID, которые есть в children
-                        mergedData.childOrder = mergedData.childOrder.filter(id => serverChildren.includes(id));
-                        // Добавляем недостающие children в конец childOrder
-                        for (const childId of serverChildren) {
-                            if (!mergedData.childOrder.includes(childId)) {
-                                mergedData.childOrder.push(childId);
-                            }
+                    // Синхронизируем childOrder с serverChildren (даже если children пустой)
+                    // Фильтруем childOrder — только те ID, которые есть в serverChildren
+                    mergedData.childOrder = mergedData.childOrder.filter(id => serverChildren.includes(id));
+                    // Добавляем недостающие children в конец childOrder
+                    for (const childId of serverChildren) {
+                        if (!mergedData.childOrder.includes(childId)) {
+                            mergedData.childOrder.push(childId);
                         }
                     }
 
@@ -1200,45 +1198,18 @@ export class LocalStateManager {
         await this.saveBlock(newParent);
         dispatch('ShowBlocks');
 
-        // Проверяем сеть
-        if (!offlineQueue.isNetworkOnline()) {
+        // Синхронизируем через batch import (отправит 3 блока: old parent, new parent, moved block)
+        // Используем immediate:true для немедленной синхронизации
+        try {
             await offlineQueue.enqueue({
                 id: `move_${block_id}_${Date.now()}`,
                 type: 'moveBlock',
                 data: { blockId: block_id, oldParentId: old_parent_id, newParentId: new_parent_id, childOrder: newOrder }
-            });
-            console.log('Block move queued for sync:', block_id);
-            return;
-        }
-
-        // Синхронизируем с сервером
-        try {
-            const res = await api.moveBlock(block_id, {new_parent_id, old_parent_id, childOrder: newOrder});
-            if (res.status === 200) {
-                // Обновляем блоки данными с сервера
-                for (const serverBlock of Object.values(res.data)) {
-                    // Защита: пропускаем блоки без id
-                    if (!serverBlock?.id) {
-                        console.warn('⚠️ moveBlock: skipping block without id:', serverBlock);
-                        continue;
-                    }
-                    await this.saveBlock(serverBlock);
-                }
-                dispatch('ShowBlocks');
-            }
+            }, { immediate: true });
         } catch (err) {
-            if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
-                await offlineQueue.enqueue({
-                    id: `move_${block_id}_${Date.now()}`,
-                    type: 'moveBlock',
-                    data: { blockId: block_id, oldParentId: old_parent_id, newParentId: new_parent_id, childOrder: newOrder }
-                });
-                console.log('Block move queued for sync:', block_id);
-            } else {
-                // Rollback при других ошибках
-                console.error('Move failed, rolling back:', err);
-                await this.rollbackMoveBlock(blockBackup, oldParentBackup, newParentBackup);
-            }
+            // Rollback при ошибке очереди (например, IndexedDB quota exceeded)
+            console.error('Failed to queue move operation:', err);
+            await this.rollbackMoveBlock(blockBackup, oldParentBackup, newParentBackup);
         }
     }
 

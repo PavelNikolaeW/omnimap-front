@@ -18,8 +18,25 @@ jest.mock('../../api/api', () => ({
     }
 }));
 
+// Mock offlineQueue for moveBlock tests
+jest.mock('../../sincManager/offlineQueue', () => {
+    let mockIdCounter = 0;
+    return {
+        offlineQueue: {
+            enqueue: jest.fn().mockResolvedValue(undefined),
+            isNetworkOnline: jest.fn().mockReturnValue(true),
+            markPullCompleted: jest.fn(),
+            generateBlockId: jest.fn().mockImplementation(() => `test-block-${++mockIdCounter}`),
+            registerPendingBlock: jest.fn().mockReturnValue({ resolve: jest.fn(), reject: jest.fn() }),
+            resolvePendingBlock: jest.fn(),
+            isPendingBlock: jest.fn().mockReturnValue(false)
+        }
+    };
+});
+
 import { LocalStateManager } from '../../stateLocal/localStateManager';
 import api from '../../api/api';
+import { offlineQueue } from '../../sincManager/offlineQueue';
 
 // BlockRepository is not exported, but we can test it through LocalStateManager
 describe('LocalStateManager', () => {
@@ -28,6 +45,12 @@ describe('LocalStateManager', () => {
     beforeEach(() => {
         // Reset all mocks
         jest.clearAllMocks();
+
+        // Re-setup offlineQueue mocks (clearAllMocks clears implementations)
+        let idCounter = 0;
+        offlineQueue.generateBlockId.mockImplementation(() => `test-block-${++idCounter}`);
+        offlineQueue.enqueue.mockResolvedValue(undefined);
+        offlineQueue.registerPendingBlock.mockReturnValue({ resolve: jest.fn(), reject: jest.fn() });
 
         // Setup default mock implementations
         localforage.getItem.mockResolvedValue(null);
@@ -225,10 +248,11 @@ describe('LocalStateManager', () => {
                 before: null
             });
 
-            expect(api.moveBlock).not.toHaveBeenCalled();
+            // Should not queue anything when moving to self
+            expect(offlineQueue.enqueue).not.toHaveBeenCalled();
         });
 
-        test('calls api.moveBlock with correct parameters', async () => {
+        test('queues moveBlock via offlineQueue with correct parameters', async () => {
             // Setup blocks for Optimistic UI
             const block = {
                 id: 'block-1',
@@ -250,8 +274,6 @@ describe('LocalStateManager', () => {
             manager.blocks.set('old-parent', oldParentBlock);
             manager.blocks.set('new-parent', newParentBlock);
 
-            api.moveBlock.mockResolvedValue({ status: 200, data: {} });
-
             await manager.moveBlock({
                 block_id: 'block-1',
                 old_parent_id: 'old-parent',
@@ -259,12 +281,17 @@ describe('LocalStateManager', () => {
                 before: 'existing-1'
             });
 
-            expect(api.moveBlock).toHaveBeenCalledWith(
-                'block-1',
+            // moveBlock now uses offlineQueue.enqueue with batch import
+            expect(offlineQueue.enqueue).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    new_parent_id: 'new-parent',
-                    old_parent_id: 'old-parent'
-                })
+                    type: 'moveBlock',
+                    data: expect.objectContaining({
+                        blockId: 'block-1',
+                        oldParentId: 'old-parent',
+                        newParentId: 'new-parent'
+                    })
+                }),
+                { immediate: true }
             );
         });
     });

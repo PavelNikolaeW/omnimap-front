@@ -206,6 +206,36 @@ h6 {
     box-shadow: 0 0 0 6px rgba(99, 102, 241, 0.2);
 }
 
+/* Drag-and-drop стили - курсор grab только при зажатом Shift */
+[data-shift-drag] [block][draggable="true"] {
+    cursor: grab;
+}
+
+/* При зажатом Shift дочерние элементы не должны мешать drag */
+[data-shift-drag] [block][draggable="true"] * {
+    pointer-events: none;
+}
+
+/* Но вложенные блоки должны быть доступны */
+[data-shift-drag] [block][draggable="true"] [block] {
+    pointer-events: auto;
+}
+
+[data-shift-drag] [block][draggable="true"]:active {
+    cursor: grabbing;
+}
+
+/* Блок в процессе перетаскивания */
+[block].block-dragging {
+    opacity: 0.3;
+    cursor: grabbing;
+    outline: 2px dashed #3b82f6;
+    outline-offset: 2px;
+}
+
+/* Drop indicator создаётся динамически в dragDropManager.js
+   Стили заданы inline для точного позиционирования */
+
 
 iframe {
     width: 100%;
