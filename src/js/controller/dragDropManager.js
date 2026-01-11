@@ -156,7 +156,12 @@ export class DragDropManager {
      * @param {HTMLElement} targetElement - целевой блок
      */
     handleDragOver(e, targetElement) {
-        if (!this.isDragging || !targetElement) return;
+        console.log('🔄 handleDragOver', { isDragging: this.isDragging, targetElement: targetElement?.id });
+
+        if (!this.isDragging || !targetElement) {
+            console.log('❌ handleDragOver early return');
+            return;
+        }
 
         const dropTarget = this._calculateDropTarget(e, targetElement);
         if (!dropTarget) {

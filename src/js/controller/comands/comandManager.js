@@ -353,10 +353,16 @@ export class CommandManager {
      * Обработчик dragover для показа индикатора drop
      */
     _handleDragOver(e) {
-        if (!dragDropManager.isDragging) return;
+        console.log('📍 _handleDragOver', { isDragging: dragDropManager.isDragging, target: e.target?.id });
+
+        if (!dragDropManager.isDragging) {
+            console.log('❌ Not dragging, skip');
+            return;
+        }
 
         // Находим целевой блок
         const {element} = this.ctxManager.getRelevantElements(e.target);
+        console.log('🎯 Target element:', element?.id);
         dragDropManager.handleDragOver(e, element);
     }
 
