@@ -206,12 +206,12 @@ h6 {
     box-shadow: 0 0 0 6px rgba(99, 102, 241, 0.2);
 }
 
-/* Drag-and-drop стили */
-[block][draggable="true"] {
+/* Drag-and-drop стили - курсор grab только при зажатом Shift */
+[data-shift-drag] [block][draggable="true"] {
     cursor: grab;
 }
 
-[block][draggable="true"]:active {
+[data-shift-drag] [block][draggable="true"]:active {
     cursor: grabbing;
 }
 

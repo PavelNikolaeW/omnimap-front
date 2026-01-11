@@ -18,6 +18,18 @@ export class DragDropManager {
 
         // Порог для определения зоны drop (верх/центр/низ блока)
         this.DROP_ZONE_THRESHOLD = 0.25; // 25% сверху и снизу для sibling, остальное - child
+
+        // Bound handler для cleanup на Escape
+        this._handleEscapeKey = this._handleEscapeKey.bind(this);
+    }
+
+    /**
+     * Обработчик Escape для отмены drag
+     */
+    _handleEscapeKey(e) {
+        if (e.key === 'Escape' && this.isDragging) {
+            this.cleanup();
+        }
     }
 
     /**
@@ -129,8 +141,8 @@ export class DragDropManager {
         element.classList.add('block-selected');
         element.classList.add('dragging');
 
-        // Создаем ghost image (опционально можно настроить)
-        // По умолчанию браузер использует полупрозрачную копию элемента
+        // Добавляем listener для отмены по Escape
+        document.addEventListener('keydown', this._handleEscapeKey);
 
         return true;
     }
@@ -214,6 +226,9 @@ export class DragDropManager {
         }
 
         this._removeDropIndicator();
+
+        // Удаляем listener для Escape
+        document.removeEventListener('keydown', this._handleEscapeKey);
 
         this.isDragging = false;
         this.draggedBlockId = null;
