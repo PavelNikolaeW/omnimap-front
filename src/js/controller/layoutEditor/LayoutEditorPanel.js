@@ -13,12 +13,12 @@ import { importBlocks, pollImportStatus, generateBlockId } from '../../api/impor
 let currentInstance = null;
 
 /**
- * Категории пресетов для группировки в галерее
+ * Категории пресетов для группировки в табах
  */
 const PRESET_CATEGORIES = {
-    grids: { name: 'Сетки', icon: '⊞' },
-    layouts: { name: 'Лейауты', icon: '◫' },
-    special: { name: 'Специальные', icon: '✦' }
+    grids: { name: 'Сетки', icon: '⊞', hasCustom: true },
+    layouts: { name: 'Лейауты', icon: '◫', hasCustom: false },
+    special: { name: 'Специальные', icon: '✦', hasCustom: false }
 };
 
 /**
@@ -180,6 +180,7 @@ export class LayoutEditorPanel extends Popup {
         this.cells = {};  // {childId: {row, col, rowSpan, colSpan}}
         this.placeholders = [];  // [{row, col, rowSpan, colSpan, text}] - placeholder блоки для превью
         this.currentPresetType = null;  // Тип текущего пресета: 'calendar', 'kanban', 'dashboard', etc.
+        this.activeTab = 'grids';  // Активный таб в галерее пресетов
 
         // Менеджеры
         this.cellManager = null;
@@ -649,24 +650,68 @@ export class LayoutEditorPanel extends Popup {
     }
 
     /**
-     * Генерирует HTML для категории пресетов
+     * Генерирует HTML для табов пресетов
+     */
+    renderPresetTabs() {
+        return Object.entries(PRESET_CATEGORIES).map(([key, category]) => {
+            const activeClass = this.activeTab === key ? 'preset-tab--active' : '';
+            return `
+                <button class="preset-tab ${activeClass}" data-tab="${key}">
+                    <span class="preset-tab__icon">${category.icon}</span>
+                    <span class="preset-tab__name">${category.name}</span>
+                </button>
+            `;
+        }).join('');
+    }
+
+    /**
+     * Генерирует HTML для содержимого таба
      * @param {string} categoryKey - Ключ категории
      * @param {Array} presets - Список пресетов в категории
      */
-    renderPresetCategory(categoryKey, presets) {
+    renderTabContent(categoryKey, presets) {
         const category = PRESET_CATEGORIES[categoryKey];
-        if (!category || presets.length === 0) return '';
+        if (!category) return '';
 
         const cardsHtml = presets.map(preset => this.renderPresetCard(preset)).join('');
 
+        // Добавляем карточку "Custom" для категории grids
+        const customCardHtml = category.hasCustom ? this.renderCustomGridCard() : '';
+
         return `
-            <div class="preset-category" data-category="${categoryKey}">
-                <div class="preset-category__header">
-                    <span class="preset-category__icon">${category.icon}</span>
-                    <span class="preset-category__name">${category.name}</span>
-                </div>
-                <div class="preset-category__cards">
+            <div class="preset-tab-content" data-tab-content="${categoryKey}">
+                <div class="preset-cards-grid">
                     ${cardsHtml}
+                    ${customCardHtml}
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * Генерирует HTML для карточки custom сетки
+     */
+    renderCustomGridCard() {
+        const isCustomActive = this.currentPresetType === 'custom';
+        const activeClass = isCustomActive ? 'preset-card--active' : '';
+
+        return `
+            <div class="preset-card preset-card--custom ${activeClass}" data-preset="custom">
+                <div class="preset-card__preview">
+                    <div class="preset-card__preview-line">┌─?─?─┐</div>
+                    <div class="preset-card__preview-line">├─?─?─┤</div>
+                    <div class="preset-card__preview-line">└─?─?─┘</div>
+                </div>
+                <div class="preset-card__info">
+                    <div class="preset-card__label">Custom</div>
+                </div>
+            </div>
+            <div class="custom-grid-input ${isCustomActive ? 'custom-grid-input--visible' : ''}" id="custom-grid-input">
+                <div class="custom-grid-input__row">
+                    <input type="number" id="custom-rows" min="1" max="12" value="${this.gridSize.rows}" class="custom-grid-input__field" placeholder="R">
+                    <span class="custom-grid-input__sep">×</span>
+                    <input type="number" id="custom-cols" min="1" max="24" value="${this.gridSize.cols}" class="custom-grid-input__field" placeholder="C">
+                    <button class="custom-grid-input__btn" id="apply-custom-grid" title="Применить">✓</button>
                 </div>
             </div>
         `;
@@ -676,8 +721,6 @@ export class LayoutEditorPanel extends Popup {
      * Рендерит панель настроек
      */
     renderSettings() {
-        const childCount = this.childBlocks.length;
-
         // Группируем пресеты по категориям
         const presetsByCategory = {};
         for (const [presetName, config] of Object.entries(PRESET_CONFIG)) {
@@ -686,16 +729,22 @@ export class LayoutEditorPanel extends Popup {
             presetsByCategory[cat].push(presetName);
         }
 
-        // Генерируем HTML для всех категорий
-        const categoriesHtml = Object.keys(PRESET_CATEGORIES)
-            .map(catKey => this.renderPresetCategory(catKey, presetsByCategory[catKey] || []))
-            .join('');
+        // Генерируем HTML для табов
+        const tabsHtml = this.renderPresetTabs();
+
+        // Генерируем HTML для содержимого активного таба
+        const activeTabContent = this.renderTabContent(
+            this.activeTab,
+            presetsByCategory[this.activeTab] || []
+        );
 
         this.settingsPanel.innerHTML = `
             <div class="layout-settings__section layout-settings__section--presets">
-                <h4 class="layout-settings__title">Пресеты</h4>
+                <div class="preset-tabs">
+                    ${tabsHtml}
+                </div>
                 <div class="preset-gallery">
-                    ${categoriesHtml}
+                    ${activeTabContent}
                 </div>
             </div>
 
@@ -724,13 +773,46 @@ export class LayoutEditorPanel extends Popup {
      * Привязывает события настроек
      */
     bindSettingsEvents() {
-        // Preset cards (галерея)
-        const presetCards = this.settingsPanel.querySelectorAll('.preset-card[data-preset]');
+        // Tab clicks
+        const tabs = this.settingsPanel.querySelectorAll('.preset-tab[data-tab]');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                this.activeTab = tab.dataset.tab;
+                this.renderSettings();
+            });
+        });
+
+        // Preset cards (не включая custom)
+        const presetCards = this.settingsPanel.querySelectorAll('.preset-card[data-preset]:not(.preset-card--custom)');
         presetCards.forEach(card => {
             card.addEventListener('click', () => {
                 if (card.disabled) return;
                 this.applyPreset(card.dataset.preset);
                 this.updatePresetCardsState();
+            });
+        });
+
+        // Custom grid card
+        const customCard = this.settingsPanel.querySelector('.preset-card--custom');
+        customCard?.addEventListener('click', () => {
+            this.toggleCustomGridInput();
+        });
+
+        // Custom grid apply button
+        const applyBtn = this.settingsPanel.querySelector('#apply-custom-grid');
+        applyBtn?.addEventListener('click', () => {
+            this.applyCustomGrid();
+        });
+
+        // Custom grid inputs - apply on Enter
+        const customRowsInput = this.settingsPanel.querySelector('#custom-rows');
+        const customColsInput = this.settingsPanel.querySelector('#custom-cols');
+        [customRowsInput, customColsInput].forEach(input => {
+            input?.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.applyCustomGrid();
+                }
             });
         });
 
@@ -742,10 +824,69 @@ export class LayoutEditorPanel extends Popup {
     }
 
     /**
+     * Переключает видимость поля ввода custom сетки
+     */
+    toggleCustomGridInput() {
+        const customInput = this.settingsPanel.querySelector('#custom-grid-input');
+        const customCard = this.settingsPanel.querySelector('.preset-card--custom');
+
+        if (customInput) {
+            const isVisible = customInput.classList.contains('custom-grid-input--visible');
+            customInput.classList.toggle('custom-grid-input--visible', !isVisible);
+            customCard?.classList.toggle('preset-card--active', !isVisible);
+
+            if (!isVisible) {
+                // Фокус на первое поле
+                const rowsInput = customInput.querySelector('#custom-rows');
+                rowsInput?.focus();
+                rowsInput?.select();
+            }
+        }
+    }
+
+    /**
+     * Применяет custom сетку
+     */
+    applyCustomGrid() {
+        const rowsInput = this.settingsPanel.querySelector('#custom-rows');
+        const colsInput = this.settingsPanel.querySelector('#custom-cols');
+
+        if (!rowsInput || !colsInput) return;
+
+        const rows = Math.max(1, Math.min(12, parseInt(rowsInput.value) || 3));
+        const cols = Math.max(1, Math.min(24, parseInt(colsInput.value) || 3));
+
+        // Сбрасываем текущий пресет
+        this.currentPresetType = 'custom';
+        this.placeholders = [];
+
+        // Устанавливаем размер сетки
+        this.gridSize = { rows, cols };
+
+        // Создаём пустые ячейки для каждого блока
+        const totalCells = rows * cols;
+        let cellIndex = 0;
+        for (const childId of Object.keys(this.cells)) {
+            if (cellIndex >= totalCells) break;
+            const row = Math.floor(cellIndex / cols) + 1;
+            const col = (cellIndex % cols) + 1;
+            this.cells[childId] = { row, col, rowSpan: 1, colSpan: 1 };
+            cellIndex++;
+        }
+
+        // Обновляем UI
+        this.cellManager.rebuildOccupancyGrid();
+        this.refreshPreview();
+        this.updateToolbarInputs();
+        this.updateStatusBar();
+        this.updatePresetCardsState();
+    }
+
+    /**
      * Обновляет состояние карточек пресетов (активная/неактивная)
      */
     updatePresetCardsState() {
-        const presetCards = this.settingsPanel.querySelectorAll('.preset-card[data-preset]');
+        const presetCards = this.settingsPanel.querySelectorAll('.preset-card[data-preset]:not(.preset-card--custom)');
         presetCards.forEach(card => {
             const presetName = card.dataset.preset;
             const isActive = this.currentPresetType === presetName;
@@ -777,6 +918,15 @@ export class LayoutEditorPanel extends Popup {
                 statusEl.remove();
             }
         });
+
+        // Обновляем состояние custom карточки
+        const customCard = this.settingsPanel.querySelector('.preset-card--custom');
+        const customInput = this.settingsPanel.querySelector('#custom-grid-input');
+        if (customCard && customInput) {
+            const isCustomActive = this.currentPresetType === 'custom';
+            customCard.classList.toggle('preset-card--active', isCustomActive);
+            customInput.classList.toggle('custom-grid-input--visible', isCustomActive);
+        }
     }
 
     /**

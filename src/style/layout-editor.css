@@ -508,15 +508,73 @@
     border-radius: 10px;
 }
 
+/* ===== Табы пресетов ===== */
+.preset-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--popup-border, #e5e7eb);
+    padding-bottom: 8px;
+}
+
+.preset-tab {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--popup-radius-md, 6px) var(--popup-radius-md, 6px) 0 0;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--popup-muted, #6b7280);
+    transition: all 0.15s ease;
+}
+
+.preset-tab:hover {
+    background: rgba(0, 0, 0, 0.03);
+    color: var(--popup-fg, #374151);
+}
+
+.preset-tab--active {
+    background: rgba(59, 130, 246, 0.08);
+    border-color: var(--popup-border, #e5e7eb);
+    border-bottom-color: transparent;
+    color: var(--popup-primary, #3b82f6);
+    margin-bottom: -1px;
+}
+
+.preset-tab__icon {
+    font-size: 12px;
+}
+
+.preset-tab__name {
+    white-space: nowrap;
+}
+
+/* ===== Галерея пресетов ===== */
 .preset-gallery {
     flex: 1;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
 }
 
-/* Категория пресетов */
+.preset-tab-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.preset-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+}
+
+/* Категория пресетов (deprecated, kept for compatibility) */
 .preset-category {
     display: flex;
     flex-direction: column;
@@ -672,6 +730,79 @@
 
 .preset-card__capacity--unlimited {
     color: var(--popup-success, #10b981);
+}
+
+/* ===== Custom Grid Input ===== */
+.custom-grid-input {
+    grid-column: 1 / -1;
+    display: none;
+    padding: 8px;
+    background: #f9fafb;
+    border: 1px solid var(--popup-border, #e5e7eb);
+    border-radius: var(--popup-radius-md, 6px);
+    margin-top: -2px;
+}
+
+.custom-grid-input--visible {
+    display: block;
+}
+
+.custom-grid-input__row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: center;
+}
+
+.custom-grid-input__field {
+    width: 50px;
+    padding: 6px 8px;
+    border: 1px solid var(--popup-border, #d1d5db);
+    border-radius: var(--popup-radius-sm, 4px);
+    font-size: 13px;
+    text-align: center;
+    background: white;
+}
+
+.custom-grid-input__field:focus {
+    outline: none;
+    border-color: var(--popup-primary, #3b82f6);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.custom-grid-input__sep {
+    font-size: 14px;
+    color: var(--popup-muted, #6b7280);
+    font-weight: 500;
+}
+
+.custom-grid-input__btn {
+    padding: 6px 12px;
+    background: var(--popup-primary, #3b82f6);
+    color: white;
+    border: none;
+    border-radius: var(--popup-radius-sm, 4px);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.custom-grid-input__btn:hover {
+    background: var(--popup-primary-hover, #2563eb);
+}
+
+/* Custom card styling */
+.preset-card--custom {
+    border-style: dashed;
+}
+
+.preset-card--custom .preset-card__preview {
+    opacity: 0.6;
+}
+
+.preset-card--custom.preset-card--active .preset-card__preview {
+    opacity: 1;
 }
 
 /* ===== Hints ===== */
