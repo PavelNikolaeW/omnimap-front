@@ -16,6 +16,10 @@ import chatApi from '../api/chatApi.js';
 
 const LOG_PREFIX = '[ChatDeepLink]';
 
+// Хранилище обработчиков для возможности cleanup
+let directChatHandler = null;
+let groupChatHandler = null;
+
 // Паттерн для валидации ID (цифры или UUID)
 const ID_PATTERN = /^[\w-]+$/;
 const MAX_ID_LENGTH = 64;
@@ -102,8 +106,9 @@ export async function openDirectChatById(userId, username = null) {
             try {
                 const response = await chatApi.getConversations();
                 const conversations = response.data || [];
-                // eslint-disable-next-line eqeqeq
-                const existing = conversations.find(c => c.user_id == userId);
+                // Приводим к числу для корректного сравнения (userId из URL - строка, из API - число)
+                const numericUserId = Number(userId);
+                const existing = conversations.find(c => c.user_id === numericUserId);
                 if (existing) {
                     displayName = existing.username;
                 }
@@ -186,25 +191,45 @@ export function handleChatDeepLink() {
 }
 
 /**
+ * Очищает обработчики событий чата
+ * Вызывается перед повторной инициализацией (hot reload safety)
+ */
+export function cleanupChatEventListeners() {
+    if (directChatHandler) {
+        window.removeEventListener('OpenDirectChat', directChatHandler);
+        directChatHandler = null;
+    }
+    if (groupChatHandler) {
+        window.removeEventListener('OpenGroupChat', groupChatHandler);
+        groupChatHandler = null;
+    }
+}
+
+/**
  * Инициализирует обработчики событий для открытия чатов
  * Слушает события от push notifications
  */
 export function initChatEventListeners() {
+    // Очищаем существующие listeners (hot reload safety)
+    cleanupChatEventListeners();
+
     // Открытие личного чата по событию
-    window.addEventListener('OpenDirectChat', (e) => {
+    directChatHandler = (e) => {
         const { userId, username } = e.detail || {};
         if (userId) {
             openDirectChatById(userId, username);
         }
-    });
+    };
+    window.addEventListener('OpenDirectChat', directChatHandler);
 
     // Открытие группового чата по событию
-    window.addEventListener('OpenGroupChat', (e) => {
+    groupChatHandler = (e) => {
         const { groupId } = e.detail || {};
         if (groupId) {
             openGroupChatById(groupId);
         }
-    });
+    };
+    window.addEventListener('OpenGroupChat', groupChatHandler);
 
     console.log(LOG_PREFIX, 'Event listeners initialized');
 }
