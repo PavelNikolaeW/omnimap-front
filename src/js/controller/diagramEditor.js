@@ -602,6 +602,11 @@ export class DiagramEditor {
      * Обработчик mousedown
      */
     handleMouseDown(e) {
+        // При зажатом Shift - пропускаем для HTML5 drag-and-drop (перемещение между деревом и диаграммой)
+        if (e.shiftKey) {
+            return;
+        }
+
         // Проверить, нажали ли на anchor point для создания соединения
         if (e.target.classList.contains('anchor-point')) {
             this.startConnection(e, e.target.dataset.blockId, e.target.dataset.position);

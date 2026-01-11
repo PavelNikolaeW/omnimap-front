@@ -1257,9 +1257,9 @@ export class LocalStateManager {
      * @returns {Array} - ['grid-column_X__Y', 'grid-row_X__Y']
      */
     _calculateBlockPositionInDiagram(customGrid, blockId, dropPosition) {
-        // Размер блока по умолчанию: 2x2
-        const DEFAULT_BLOCK_WIDTH = 2;
-        const DEFAULT_BLOCK_HEIGHT = 2;
+        // Размер блока по умолчанию: 1x1 (минимальный размер как в диаграмме)
+        const DEFAULT_BLOCK_WIDTH = 1;
+        const DEFAULT_BLOCK_HEIGHT = 1;
 
         // Парсим размер grid
         const colsClass = customGrid.grid?.find(cls => cls.startsWith('grid-template-columns_'));

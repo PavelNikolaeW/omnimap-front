@@ -24,6 +24,11 @@ export class DragDropManager {
         // customGrid старого родителя (если drag из диаграммы)
         this.dragSourceCustomGrid = null;
 
+        // Диаграмма-индикаторы при drop в диаграмму
+        this.diagramGridOverlay = null;
+        this.diagramDragIndicator = null;
+        this.currentDiagramElement = null;
+
         // Порог для определения зоны drop (верх/центр/низ блока)
         this.DROP_ZONE_THRESHOLD = 0.25; // 25% сверху и снизу для sibling, остальное - child
 
@@ -178,6 +183,7 @@ export class DragDropManager {
         const dropTarget = this._calculateDropTarget(e, targetElement);
         if (!dropTarget) {
             this._removeDropIndicator();
+            this._removeDiagramIndicators();
             this.lastDropTarget = null;
             return;
         }
@@ -185,6 +191,7 @@ export class DragDropManager {
         // Проверяем можно ли drop
         if (dropTarget.type === 'child' && !this.canDropInto(targetElement)) {
             this._removeDropIndicator();
+            this._removeDiagramIndicators();
             this.lastDropTarget = null;
             return;
         }
@@ -192,8 +199,24 @@ export class DragDropManager {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
 
-        // Показываем индикатор
-        this._showDropIndicator(targetElement, dropTarget);
+        // Если drop в диаграмму - показываем сетку и индикатор позиции
+        if (dropTarget.dropToDiagram && dropTarget.diagramPosition) {
+            const diagramElement = dropTarget.type === 'child'
+                ? targetElement
+                : targetElement.parentElement?.closest('[block]');
+
+            if (diagramElement) {
+                this._showDiagramGridOverlay(diagramElement, dropTarget.parentId);
+                this._showDiagramDragIndicator(diagramElement, dropTarget.diagramPosition, dropTarget.parentId);
+            }
+            // Скрываем обычный индикатор для диаграмм
+            this._removeDropIndicator();
+        } else {
+            // Обычный индикатор для дерева
+            this._removeDiagramIndicators();
+            this._showDropIndicator(targetElement, dropTarget);
+        }
+
         this.lastDropTarget = dropTarget;
     }
 
@@ -255,6 +278,7 @@ export class DragDropManager {
         });
 
         this._removeDropIndicator();
+        this._removeDiagramIndicators();
 
         // Удаляем listener для Escape
         document.removeEventListener('keydown', this._handleEscapeKey);
@@ -518,6 +542,138 @@ export class DragDropManager {
         }
 
         return false;
+    }
+
+    /**
+     * Показывает сетку диаграммы при перетаскивании
+     * @param {HTMLElement} diagramElement - элемент диаграммы
+     * @param {string} diagramId - ID диаграммы
+     */
+    _showDiagramGridOverlay(diagramElement, diagramId) {
+        // Если уже показана для этой диаграммы - пропускаем
+        if (this.currentDiagramElement === diagramElement && this.diagramGridOverlay) {
+            return;
+        }
+
+        // Удаляем старую сетку если была
+        this._removeDiagramGridOverlay();
+
+        if (!this.localStateManager) return;
+
+        const diagramData = this.localStateManager.blocks.get(diagramId);
+        const customGrid = diagramData?.data?.customGrid;
+        if (!customGrid?.grid) return;
+
+        // Парсим размер grid
+        const colsClass = customGrid.grid.find(cls => cls.startsWith('grid-template-columns_'));
+        const rowsClass = customGrid.grid.find(cls => cls.startsWith('grid-template-rows_'));
+        const cols = colsClass ? (colsClass.split('__').length - 1) : 3;
+        const rows = rowsClass ? (rowsClass.split('__').length - 1) : 3;
+
+        const lineColor = 'rgba(100, 100, 200, 0.35)';
+
+        this.diagramGridOverlay = document.createElement('div');
+        this.diagramGridOverlay.className = 'diagram-drag-grid-overlay';
+        this.diagramGridOverlay.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 50;
+            background-image:
+                linear-gradient(to right, ${lineColor} 1px, transparent 1px),
+                linear-gradient(to bottom, ${lineColor} 1px, transparent 1px);
+            background-size:
+                calc(100% / ${cols}) 100%,
+                100% calc(100% / ${rows});
+            background-position: 0 0;
+        `;
+
+        diagramElement.style.position = 'relative';
+        diagramElement.appendChild(this.diagramGridOverlay);
+        this.currentDiagramElement = diagramElement;
+    }
+
+    /**
+     * Удаляет сетку диаграммы
+     */
+    _removeDiagramGridOverlay() {
+        if (this.diagramGridOverlay) {
+            this.diagramGridOverlay.remove();
+            this.diagramGridOverlay = null;
+        }
+        // Также удаляем по классу на случай если ссылка потерялась
+        document.querySelectorAll('.diagram-drag-grid-overlay').forEach(el => el.remove());
+    }
+
+    /**
+     * Показывает индикатор позиции блока в диаграмме
+     * @param {HTMLElement} diagramElement - элемент диаграммы
+     * @param {Object} position - позиция {col, row, cols, rows}
+     * @param {string} diagramId - ID диаграммы
+     */
+    _showDiagramDragIndicator(diagramElement, position, diagramId) {
+        // Удаляем старый индикатор
+        this._removeDiagramDragIndicator();
+
+        if (!position || !position.col || !position.row) return;
+
+        const rect = diagramElement.getBoundingClientRect();
+
+        // Получаем контент высоту (первая строка auto)
+        const contentRow = diagramElement.querySelector('.defaultContent');
+        const contentHeight = contentRow ? contentRow.offsetHeight : 0;
+
+        const cols = position.cols || 3;
+        const rows = position.rows || 3;
+
+        const cellWidth = rect.width / cols;
+        const cellHeight = (rect.height - contentHeight) / rows;
+
+        // Позиция блока (1-based индексация, строка 2 - первая после контента)
+        const left = (position.col - 1) * cellWidth;
+        const top = contentHeight + (position.row - 2) * cellHeight;
+
+        this.diagramDragIndicator = document.createElement('div');
+        this.diagramDragIndicator.className = 'diagram-drop-indicator';
+        this.diagramDragIndicator.style.cssText = `
+            position: absolute;
+            width: ${cellWidth}px;
+            height: ${cellHeight}px;
+            left: ${left}px;
+            top: ${top}px;
+            border: 2px dashed #4f46e5;
+            background: rgba(99, 102, 241, 0.2);
+            border-radius: 4px;
+            pointer-events: none;
+            z-index: 60;
+            transition: left 0.1s ease-out, top 0.1s ease-out;
+        `;
+
+        diagramElement.appendChild(this.diagramDragIndicator);
+    }
+
+    /**
+     * Удаляет индикатор позиции блока
+     */
+    _removeDiagramDragIndicator() {
+        if (this.diagramDragIndicator) {
+            this.diagramDragIndicator.remove();
+            this.diagramDragIndicator = null;
+        }
+        // Также удаляем по классу
+        document.querySelectorAll('.diagram-drop-indicator').forEach(el => el.remove());
+    }
+
+    /**
+     * Удаляет все диаграмма-индикаторы
+     */
+    _removeDiagramIndicators() {
+        this._removeDiagramGridOverlay();
+        this._removeDiagramDragIndicator();
+        this.currentDiagramElement = null;
     }
 }
 
