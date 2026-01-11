@@ -1,5 +1,5 @@
 import { Popup } from '../popups/popup.js';
-import { dispatch, escapeHtml } from '../../utils/utils.js';
+import { dispatch, escapeHtml, stripHtmlTags } from '../../utils/utils.js';
 import { GridLayoutCalculator } from '../../painter/gridLayoutCalculator.js';
 import { LayoutCellManager } from './LayoutCellManager.js';
 import { LayoutPreview } from './LayoutPreview.js';
@@ -13,22 +13,143 @@ import { importBlocks, pollImportStatus, generateBlockId } from '../../api/impor
 let currentInstance = null;
 
 /**
- * Конфигурация пресетов с информацией о вместимости и описанием
+ * Категории пресетов для группировки в табах
+ */
+const PRESET_CATEGORIES = {
+    grids: { name: 'Сетки', icon: '⊞', hasCustom: true },
+    layouts: { name: 'Лейауты', icon: '◫', hasCustom: false },
+    special: { name: 'Специальные', icon: '✦', hasCustom: false }
+};
+
+/**
+ * Конфигурация пресетов с информацией о вместимости, категории и превью
  * maxBlocks - максимальное количество блоков (null = расширяемый)
  * minBlocks - рекомендуемое минимальное количество
  * description - описание пресета
+ * category - категория для группировки
+ * preview - ASCII-схема для превью (3x3 символов)
  */
 const PRESET_CONFIG = {
-    '2x2': { maxBlocks: 4, minBlocks: 0, description: 'Сетка 2×2 для 4 блоков' },
-    '3x3': { maxBlocks: 9, minBlocks: 0, description: 'Сетка 3×3 для 9 блоков' },
-    '4x4': { maxBlocks: 16, minBlocks: 0, description: 'Сетка 4×4 для 16 блоков' },
-    'sidebar': { maxBlocks: null, minBlocks: 1, description: 'Сайдбар слева + контент' },
-    'sidebar-right': { maxBlocks: null, minBlocks: 1, description: 'Сайдбар справа + контент' },
-    'dashboard': { maxBlocks: null, minBlocks: 1, description: 'Главный блок + виджеты + метрики' },
-    'kanban': { maxBlocks: 3, minBlocks: 0, description: 'Доска с 3 колонками (To Do, In Progress, Done)' },
-    'holy-grail': { maxBlocks: null, minBlocks: 1, description: 'Header + Footer + 3 колонки' },
-    'gallery': { maxBlocks: null, minBlocks: 1, description: 'Галерея: большие и маленькие карточки' },
-    'calendar': { maxBlocks: 35, minBlocks: 0, description: 'Календарь на месяц (5 недель)' },
+    '2x2': {
+        maxBlocks: 4,
+        minBlocks: 0,
+        description: 'Простая сетка 2×2',
+        category: 'grids',
+        label: '2×2',
+        preview: [
+            '┌─┬─┐',
+            '├─┼─┤',
+            '└─┴─┘'
+        ]
+    },
+    '3x3': {
+        maxBlocks: 9,
+        minBlocks: 0,
+        description: 'Простая сетка 3×3',
+        category: 'grids',
+        label: '3×3',
+        preview: [
+            '┌─┬─┬─┐',
+            '├─┼─┼─┤',
+            '└─┴─┴─┘'
+        ]
+    },
+    '4x4': {
+        maxBlocks: 16,
+        minBlocks: 0,
+        description: 'Простая сетка 4×4',
+        category: 'grids',
+        label: '4×4',
+        preview: [
+            '┌┬┬┬┐',
+            '├┼┼┼┤',
+            '└┴┴┴┘'
+        ]
+    },
+    'sidebar': {
+        maxBlocks: null,
+        minBlocks: 1,
+        description: 'Боковая панель слева',
+        category: 'layouts',
+        label: 'Сайдбар',
+        preview: [
+            '┌──┬────┐',
+            '│  │    │',
+            '└──┴────┘'
+        ]
+    },
+    'sidebar-right': {
+        maxBlocks: null,
+        minBlocks: 1,
+        description: 'Боковая панель справа',
+        category: 'layouts',
+        label: 'Сайдбар R',
+        preview: [
+            '┌────┬──┐',
+            '│    │  │',
+            '└────┴──┘'
+        ]
+    },
+    'dashboard': {
+        maxBlocks: null,
+        minBlocks: 1,
+        description: 'Главный блок + виджеты + метрики',
+        category: 'layouts',
+        label: 'Dashboard',
+        preview: [
+            '┌───┬───┐',
+            '│   ├───┤',
+            '├─┬─┴─┬─┤'
+        ]
+    },
+    'holy-grail': {
+        maxBlocks: null,
+        minBlocks: 1,
+        description: 'Header + Footer + 3 колонки',
+        category: 'layouts',
+        label: 'Holy Grail',
+        preview: [
+            '┌──────┐',
+            '├─┬──┬─┤',
+            '└─┴──┴─┘'
+        ]
+    },
+    'kanban': {
+        maxBlocks: 3,
+        minBlocks: 0,
+        description: 'Доска: To Do, In Progress, Done',
+        category: 'special',
+        label: 'Kanban',
+        preview: [
+            '┌──┬──┬──┐',
+            '│📋│⚡│✓ │',
+            '└──┴──┴──┘'
+        ]
+    },
+    'gallery': {
+        maxBlocks: null,
+        minBlocks: 1,
+        description: 'Большие и маленькие карточки',
+        category: 'special',
+        label: 'Галерея',
+        preview: [
+            '┌────┬──┐',
+            '│    ├──┤',
+            '└────┴──┘'
+        ]
+    },
+    'calendar': {
+        maxBlocks: 35,
+        minBlocks: 0,
+        description: 'Календарь на месяц (5 недель)',
+        category: 'special',
+        label: 'Календарь',
+        preview: [
+            '┌─┬─┬─┬─┬─┬─┬─┐',
+            '├─┼─┼─┼─┼─┼─┼─┤',
+            '└─┴─┴─┴─┴─┴─┴─┘'
+        ]
+    }
 };
 
 /**
@@ -40,8 +161,8 @@ export class LayoutEditorPanel extends Popup {
         super({
             title: 'Редактор раскладки',
             size: 'lg',
-            width: 800,
-            height: 600,
+            width: 900,
+            height: 650,
             modal: true,
             draggable: true,
             closeOnEsc: true,
@@ -59,6 +180,7 @@ export class LayoutEditorPanel extends Popup {
         this.cells = {};  // {childId: {row, col, rowSpan, colSpan}}
         this.placeholders = [];  // [{row, col, rowSpan, colSpan, text}] - placeholder блоки для превью
         this.currentPresetType = null;  // Тип текущего пресета: 'calendar', 'kanban', 'dashboard', etc.
+        this.activeTab = 'grids';  // Активный таб в галерее пресетов
 
         // Менеджеры
         this.cellManager = null;
@@ -268,6 +390,11 @@ export class LayoutEditorPanel extends Popup {
         this.contentArea.innerHTML = '';
         this.contentArea.classList.add('layout-editor');
 
+        // Toolbar сверху
+        this.toolbar = document.createElement('div');
+        this.toolbar.className = 'layout-editor__toolbar';
+        this.contentArea.appendChild(this.toolbar);
+
         // Создаём структуру
         this.editorContainer = document.createElement('div');
         this.editorContainer.className = 'layout-editor__container';
@@ -284,10 +411,176 @@ export class LayoutEditorPanel extends Popup {
         this.editorContainer.appendChild(this.settingsPanel);
         this.contentArea.appendChild(this.editorContainer);
 
-        // Рендерим превью
+        // Status bar снизу
+        this.statusBar = document.createElement('div');
+        this.statusBar.className = 'layout-editor__status-bar';
+        this.contentArea.appendChild(this.statusBar);
+
+        // Рендерим компоненты
+        this.renderToolbar();
         this.renderPreview();
         this.renderSettings();
+        this.renderStatusBar();
         this.renderButtons();
+    }
+
+    /**
+     * Рендерит toolbar
+     */
+    renderToolbar() {
+        const presetLabel = this.currentPresetType
+            ? PRESET_CONFIG[this.currentPresetType]?.label || this.currentPresetType
+            : 'Без пресета';
+
+        this.toolbar.innerHTML = `
+            <div class="toolbar__section toolbar__section--grid">
+                <span class="toolbar__label">Сетка:</span>
+                <input type="number" id="toolbar-rows" value="${this.gridSize.rows}" min="1" max="20" class="toolbar__input" title="Строк">
+                <span class="toolbar__separator">×</span>
+                <input type="number" id="toolbar-cols" value="${this.gridSize.cols}" min="1" max="24" class="toolbar__input" title="Колонок">
+            </div>
+            <div class="toolbar__section toolbar__section--preset">
+                <span class="toolbar__preset-badge" title="Текущий пресет">${presetLabel}</span>
+            </div>
+            <div class="toolbar__section toolbar__section--actions">
+                <button class="toolbar__btn" id="toolbar-add-block" title="Добавить блок (Enter)">
+                    <span class="toolbar__btn-icon">+</span>
+                    <span class="toolbar__btn-text">Блок</span>
+                </button>
+                <button class="toolbar__btn toolbar__btn--secondary" id="toolbar-reset" title="Сбросить раскладку">
+                    Сбросить
+                </button>
+            </div>
+        `;
+
+        this.bindToolbarEvents();
+    }
+
+    /**
+     * Привязывает события toolbar
+     */
+    bindToolbarEvents() {
+        const rowsInput = this.toolbar.querySelector('#toolbar-rows');
+        const colsInput = this.toolbar.querySelector('#toolbar-cols');
+        const addBlockBtn = this.toolbar.querySelector('#toolbar-add-block');
+        const resetBtn = this.toolbar.querySelector('#toolbar-reset');
+
+        rowsInput?.addEventListener('change', (e) => {
+            this.gridSize.rows = parseInt(e.target.value, 10) || 3;
+            this.refreshPreview();
+            this.updateStatusBar();
+        });
+
+        colsInput?.addEventListener('change', (e) => {
+            this.gridSize.cols = parseInt(e.target.value, 10) || 12;
+            this.refreshPreview();
+            this.updateStatusBar();
+        });
+
+        addBlockBtn?.addEventListener('click', () => {
+            this.addNewBlock();
+        });
+
+        resetBtn?.addEventListener('click', () => {
+            this.resetLayout();
+        });
+    }
+
+    /**
+     * Добавляет новый блок в свободную ячейку
+     * @param {number} retryCount - Счётчик попыток (защита от бесконечной рекурсии)
+     */
+    addNewBlock(retryCount = 0) {
+        // Защита от бесконечной рекурсии
+        if (retryCount > 10) {
+            console.warn('Layout Editor: Unable to find free cell after grid expansion');
+            return;
+        }
+
+        const freeCell = this.cellManager?.findFreeCell();
+        if (!freeCell) {
+            // Расширяем сетку
+            this.gridSize.rows += 1;
+            this.refreshPreview();
+            this.updateToolbarInputs();
+            this.updateStatusBar();
+            // Повторно ищем свободную ячейку с увеличенным счётчиком
+            setTimeout(() => this.addNewBlock(retryCount + 1), 50);
+            return;
+        }
+
+        // Создаём placeholder для нового блока
+        const blockId = generateBlockId();
+        this.placeholders.push({
+            row: freeCell.row,
+            col: freeCell.col,
+            rowSpan: 1,
+            colSpan: 1,
+            blockId,
+            text: '',
+            data: { text: '' }
+        });
+
+        this.refreshPreview();
+        this.updateFillBlocksSection();
+        this.updateStatusBar();
+    }
+
+    /**
+     * Обновляет inputs в toolbar
+     */
+    updateToolbarInputs() {
+        const rowsInput = this.toolbar?.querySelector('#toolbar-rows');
+        const colsInput = this.toolbar?.querySelector('#toolbar-cols');
+        if (rowsInput) rowsInput.value = this.gridSize.rows;
+        if (colsInput) colsInput.value = this.gridSize.cols;
+    }
+
+    /**
+     * Рендерит status bar
+     */
+    renderStatusBar() {
+        this.updateStatusBar();
+    }
+
+    /**
+     * Обновляет status bar
+     */
+    updateStatusBar() {
+        if (!this.statusBar) return;
+
+        const blockCount = this.childBlocks.length;
+        const placeholderCount = this.placeholders.length;
+        const totalBlocks = blockCount + placeholderCount;
+        const presetLabel = this.currentPresetType
+            ? PRESET_CONFIG[this.currentPresetType]?.label || this.currentPresetType
+            : null;
+
+        const presetInfo = presetLabel ? `<span class="status-bar__preset">Пресет: ${presetLabel}</span>` : '';
+        const newBlocksInfo = placeholderCount > 0
+            ? `<span class="status-bar__new">+${placeholderCount} новых</span>`
+            : '';
+
+        this.statusBar.innerHTML = `
+            <div class="status-bar__left">
+                <span class="status-bar__blocks">${totalBlocks} блоков</span>
+                ${newBlocksInfo}
+                ${presetInfo}
+            </div>
+            <div class="status-bar__right">
+                <span class="status-bar__shortcuts">
+                    <kbd>Tab</kbd> выбор
+                    <span class="status-bar__sep">•</span>
+                    <kbd>↑↓←→</kbd> двигать
+                    <span class="status-bar__sep">•</span>
+                    <kbd>Shift+↑↓</kbd> размер
+                    <span class="status-bar__sep">•</span>
+                    <kbd>1-4</kbd> пресеты
+                    <span class="status-bar__sep">•</span>
+                    <kbd>R</kbd> сброс
+                </span>
+            </div>
+        `;
     }
 
     /**
@@ -325,68 +618,142 @@ export class LayoutEditorPanel extends Popup {
     }
 
     /**
-     * Генерирует HTML для кнопки пресета
+     * Генерирует HTML для карточки пресета в галерее
      * @param {string} presetName - Имя пресета
-     * @param {string} label - Текст кнопки
      */
-    renderPresetButton(presetName, label) {
+    renderPresetCard(presetName) {
         const config = PRESET_CONFIG[presetName] || {};
         const { available, reason } = this.isPresetAvailable(presetName);
-        const description = config.description || '';
-        const maxInfo = config.maxBlocks ? ` (макс. ${config.maxBlocks})` : ' (расширяемый)';
+        const isActive = this.currentPresetType === presetName;
 
-        const tooltip = available
-            ? `${description}${maxInfo}`
-            : reason;
+        const previewHtml = (config.preview || []).map(line =>
+            `<div class="preset-card__preview-line">${escapeHtml(line)}</div>`
+        ).join('');
 
+        const disabledClass = available ? '' : 'preset-card--disabled';
+        const activeClass = isActive ? 'preset-card--active' : '';
         const disabledAttr = available ? '' : 'disabled';
-        const disabledClass = available ? '' : 'layout-preset-btn--disabled';
 
-        return `<button class="layout-preset-btn ${disabledClass}" data-preset="${presetName}" title="${tooltip}" ${disabledAttr}>${label}</button>`;
+        const statusHtml = !available
+            ? `<div class="preset-card__status preset-card__status--disabled" title="${reason}">✗</div>`
+            : isActive
+                ? `<div class="preset-card__status preset-card__status--active">✓</div>`
+                : '';
+
+        const capacityHtml = config.maxBlocks
+            ? `<span class="preset-card__capacity">${config.maxBlocks}</span>`
+            : `<span class="preset-card__capacity preset-card__capacity--unlimited">∞</span>`;
+
+        return `
+            <button class="preset-card ${disabledClass} ${activeClass}" data-preset="${presetName}" ${disabledAttr}>
+                ${statusHtml}
+                <div class="preset-card__preview">${previewHtml}</div>
+                <div class="preset-card__info">
+                    <div class="preset-card__label">${config.label || presetName}</div>
+                    <div class="preset-card__meta">
+                        ${capacityHtml}
+                    </div>
+                </div>
+            </button>
+        `;
+    }
+
+    /**
+     * Генерирует HTML для табов пресетов
+     */
+    renderPresetTabs() {
+        return Object.entries(PRESET_CATEGORIES).map(([key, category]) => {
+            const activeClass = this.activeTab === key ? 'preset-tab--active' : '';
+            return `
+                <button class="preset-tab ${activeClass}" data-tab="${key}">
+                    <span class="preset-tab__icon">${category.icon}</span>
+                    <span class="preset-tab__name">${category.name}</span>
+                </button>
+            `;
+        }).join('');
+    }
+
+    /**
+     * Генерирует HTML для содержимого таба
+     * @param {string} categoryKey - Ключ категории
+     * @param {Array} presets - Список пресетов в категории
+     */
+    renderTabContent(categoryKey, presets) {
+        const category = PRESET_CATEGORIES[categoryKey];
+        if (!category) return '';
+
+        const cardsHtml = presets.map(preset => this.renderPresetCard(preset)).join('');
+
+        // Добавляем карточку "Custom" для категории grids
+        const customCardHtml = category.hasCustom ? this.renderCustomGridCard() : '';
+
+        return `
+            <div class="preset-tab-content" data-tab-content="${categoryKey}">
+                <div class="preset-cards-grid">
+                    ${cardsHtml}
+                    ${customCardHtml}
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * Генерирует HTML для карточки custom сетки
+     */
+    renderCustomGridCard() {
+        const isCustomActive = this.currentPresetType === 'custom';
+        const activeClass = isCustomActive ? 'preset-card--active' : '';
+
+        return `
+            <div class="preset-card preset-card--custom ${activeClass}" data-preset="custom">
+                <div class="preset-card__preview">
+                    <div class="preset-card__preview-line">┌─?─?─┐</div>
+                    <div class="preset-card__preview-line">├─?─?─┤</div>
+                    <div class="preset-card__preview-line">└─?─?─┘</div>
+                </div>
+                <div class="preset-card__info">
+                    <div class="preset-card__label">Custom</div>
+                </div>
+            </div>
+            <div class="custom-grid-input ${isCustomActive ? 'custom-grid-input--visible' : ''}" id="custom-grid-input">
+                <div class="custom-grid-input__row">
+                    <input type="number" id="custom-rows" min="1" max="12" value="${this.gridSize.rows}" class="custom-grid-input__field" placeholder="R">
+                    <span class="custom-grid-input__sep">×</span>
+                    <input type="number" id="custom-cols" min="1" max="24" value="${this.gridSize.cols}" class="custom-grid-input__field" placeholder="C">
+                    <button class="custom-grid-input__btn" id="apply-custom-grid" title="Применить">✓</button>
+                </div>
+            </div>
+        `;
     }
 
     /**
      * Рендерит панель настроек
      */
     renderSettings() {
-        const childCount = this.childBlocks.length;
+        // Группируем пресеты по категориям
+        const presetsByCategory = {};
+        for (const [presetName, config] of Object.entries(PRESET_CONFIG)) {
+            const cat = config.category || 'other';
+            if (!presetsByCategory[cat]) presetsByCategory[cat] = [];
+            presetsByCategory[cat].push(presetName);
+        }
+
+        // Генерируем HTML для табов
+        const tabsHtml = this.renderPresetTabs();
+
+        // Генерируем HTML для содержимого активного таба
+        const activeTabContent = this.renderTabContent(
+            this.activeTab,
+            presetsByCategory[this.activeTab] || []
+        );
 
         this.settingsPanel.innerHTML = `
-            <div class="layout-settings__section layout-settings__hint">
-                <div class="layout-hint">
-                    <span class="layout-hint__icon">💡</span>
-                    <span class="layout-hint__text">Перетаскивайте блоки для изменения положения. Тяните за углы для изменения размера.</span>
+            <div class="layout-settings__section layout-settings__section--presets">
+                <div class="preset-tabs">
+                    ${tabsHtml}
                 </div>
-            </div>
-
-            <div class="layout-settings__section">
-                <h4 class="layout-settings__title">Размер сетки</h4>
-                <div class="layout-settings__row">
-                    <label>Строк:</label>
-                    <input type="number" id="grid-rows" value="${this.gridSize.rows}" min="1" max="20" class="layout-settings__input">
-                </div>
-                <div class="layout-settings__row">
-                    <label>Колонок:</label>
-                    <input type="number" id="grid-cols" value="${this.gridSize.cols}" min="1" max="24" class="layout-settings__input">
-                </div>
-            </div>
-
-            <div class="layout-settings__section">
-                <h4 class="layout-settings__title">Пресеты</h4>
-                <div class="layout-settings__info layout-settings__info--small">
-                    Блоков: <strong>${childCount}</strong>. Недоступные пресеты не могут вместить все блоки.
-                </div>
-                <div class="layout-settings__presets">
-                    ${this.renderPresetButton('2x2', '2×2')}
-                    ${this.renderPresetButton('3x3', '3×3')}
-                    ${this.renderPresetButton('4x4', '4×4')}
-                    ${this.renderPresetButton('sidebar', 'Сайдбар')}
-                    ${this.renderPresetButton('sidebar-right', 'Сайдбар R')}
-                    ${this.renderPresetButton('dashboard', 'Dashboard')}
-                    ${this.renderPresetButton('kanban', 'Kanban')}
-                    ${this.renderPresetButton('holy-grail', 'Holy Grail')}
-                    ${this.renderPresetButton('gallery', 'Галерея')}
-                    ${this.renderPresetButton('calendar', 'Календарь')}
+                <div class="preset-gallery">
+                    ${activeTabContent}
                 </div>
             </div>
 
@@ -415,25 +782,46 @@ export class LayoutEditorPanel extends Popup {
      * Привязывает события настроек
      */
     bindSettingsEvents() {
-        // Grid size inputs
-        const rowsInput = this.settingsPanel.querySelector('#grid-rows');
-        const colsInput = this.settingsPanel.querySelector('#grid-cols');
-
-        rowsInput?.addEventListener('change', (e) => {
-            this.gridSize.rows = parseInt(e.target.value, 10) || 3;
-            this.refreshPreview();
+        // Tab clicks
+        const tabs = this.settingsPanel.querySelectorAll('.preset-tab[data-tab]');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                this.activeTab = tab.dataset.tab;
+                this.renderSettings();
+            });
         });
 
-        colsInput?.addEventListener('change', (e) => {
-            this.gridSize.cols = parseInt(e.target.value, 10) || 12;
-            this.refreshPreview();
+        // Preset cards (не включая custom)
+        const presetCards = this.settingsPanel.querySelectorAll('.preset-card[data-preset]:not(.preset-card--custom)');
+        presetCards.forEach(card => {
+            card.addEventListener('click', () => {
+                if (card.disabled) return;
+                this.applyPreset(card.dataset.preset);
+                this.updatePresetCardsState();
+            });
         });
 
-        // Preset buttons
-        const presetBtns = this.settingsPanel.querySelectorAll('.layout-preset-btn[data-preset]');
-        presetBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.applyPreset(btn.dataset.preset);
+        // Custom grid card
+        const customCard = this.settingsPanel.querySelector('.preset-card--custom');
+        customCard?.addEventListener('click', () => {
+            this.toggleCustomGridInput();
+        });
+
+        // Custom grid apply button
+        const applyBtn = this.settingsPanel.querySelector('#apply-custom-grid');
+        applyBtn?.addEventListener('click', () => {
+            this.applyCustomGrid();
+        });
+
+        // Custom grid inputs - apply on Enter
+        const customRowsInput = this.settingsPanel.querySelector('#custom-rows');
+        const customColsInput = this.settingsPanel.querySelector('#custom-cols');
+        [customRowsInput, customColsInput].forEach(input => {
+            input?.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.applyCustomGrid();
+                }
             });
         });
 
@@ -442,6 +830,112 @@ export class LayoutEditorPanel extends Popup {
         fillBlocksBtn?.addEventListener('click', () => {
             this.createPlaceholderBlocks();
         });
+    }
+
+    /**
+     * Переключает видимость поля ввода custom сетки
+     */
+    toggleCustomGridInput() {
+        const customInput = this.settingsPanel.querySelector('#custom-grid-input');
+        const customCard = this.settingsPanel.querySelector('.preset-card--custom');
+
+        if (customInput) {
+            const isVisible = customInput.classList.contains('custom-grid-input--visible');
+            customInput.classList.toggle('custom-grid-input--visible', !isVisible);
+            customCard?.classList.toggle('preset-card--active', !isVisible);
+
+            if (!isVisible) {
+                // Фокус на первое поле
+                const rowsInput = customInput.querySelector('#custom-rows');
+                rowsInput?.focus();
+                rowsInput?.select();
+            }
+        }
+    }
+
+    /**
+     * Применяет custom сетку
+     */
+    applyCustomGrid() {
+        const rowsInput = this.settingsPanel.querySelector('#custom-rows');
+        const colsInput = this.settingsPanel.querySelector('#custom-cols');
+
+        if (!rowsInput || !colsInput) return;
+
+        const rows = Math.max(1, Math.min(12, parseInt(rowsInput.value) || 3));
+        const cols = Math.max(1, Math.min(24, parseInt(colsInput.value) || 3));
+
+        // Сбрасываем текущий пресет
+        this.currentPresetType = 'custom';
+        this.placeholders = [];
+
+        // Устанавливаем размер сетки
+        this.gridSize = { rows, cols };
+
+        // Создаём пустые ячейки для каждого блока
+        const totalCells = rows * cols;
+        let cellIndex = 0;
+        for (const childId of Object.keys(this.cells)) {
+            if (cellIndex >= totalCells) break;
+            const row = Math.floor(cellIndex / cols) + 1;
+            const col = (cellIndex % cols) + 1;
+            this.cells[childId] = { row, col, rowSpan: 1, colSpan: 1 };
+            cellIndex++;
+        }
+
+        // Обновляем UI
+        this.cellManager.rebuildOccupancyGrid();
+        this.refreshPreview();
+        this.updateToolbarInputs();
+        this.updateStatusBar();
+        this.updatePresetCardsState();
+    }
+
+    /**
+     * Обновляет состояние карточек пресетов (активная/неактивная)
+     */
+    updatePresetCardsState() {
+        const presetCards = this.settingsPanel.querySelectorAll('.preset-card[data-preset]:not(.preset-card--custom)');
+        presetCards.forEach(card => {
+            const presetName = card.dataset.preset;
+            const isActive = this.currentPresetType === presetName;
+            const { available } = this.isPresetAvailable(presetName);
+
+            card.classList.toggle('preset-card--active', isActive);
+            card.classList.toggle('preset-card--disabled', !available);
+            card.disabled = !available;
+
+            // Обновляем статус
+            let statusEl = card.querySelector('.preset-card__status');
+            if (isActive && available) {
+                if (!statusEl) {
+                    statusEl = document.createElement('div');
+                    statusEl.className = 'preset-card__status preset-card__status--active';
+                    card.insertBefore(statusEl, card.firstChild);
+                }
+                statusEl.textContent = '✓';
+                statusEl.className = 'preset-card__status preset-card__status--active';
+            } else if (!available) {
+                if (!statusEl) {
+                    statusEl = document.createElement('div');
+                    statusEl.className = 'preset-card__status preset-card__status--disabled';
+                    card.insertBefore(statusEl, card.firstChild);
+                }
+                statusEl.textContent = '✗';
+                statusEl.className = 'preset-card__status preset-card__status--disabled';
+            } else if (statusEl) {
+                statusEl.remove();
+            }
+        });
+
+        // Обновляем состояние custom карточки
+        const customCard = this.settingsPanel.querySelector('.preset-card--custom');
+        const customInput = this.settingsPanel.querySelector('#custom-grid-input');
+        if (customCard && customInput) {
+            const isCustomActive = this.currentPresetType === 'custom';
+            customCard.classList.toggle('preset-card--active', isCustomActive);
+            customInput.classList.toggle('custom-grid-input--visible', isCustomActive);
+        }
     }
 
     /**
@@ -613,7 +1107,9 @@ export class LayoutEditorPanel extends Popup {
         }
 
         this.refreshPreview();
-        this.updateSettingsInputs();
+        this.updateToolbarInputs();
+        this.renderToolbar();  // Обновляем preset badge
+        this.updateStatusBar();
     }
 
     /**
@@ -947,16 +1443,6 @@ export class LayoutEditorPanel extends Popup {
     }
 
     /**
-     * Обновляет inputs настроек
-     */
-    updateSettingsInputs() {
-        const rowsInput = this.settingsPanel.querySelector('#grid-rows');
-        const colsInput = this.settingsPanel.querySelector('#grid-cols');
-        if (rowsInput) rowsInput.value = this.gridSize.rows;
-        if (colsInput) colsInput.value = this.gridSize.cols;
-    }
-
-    /**
      * Обновляет превью
      */
     refreshPreview() {
@@ -1098,7 +1584,7 @@ export class LayoutEditorPanel extends Popup {
 
         const cell = this.cells[childId];
         const block = this.childBlocks.find(b => b.id === childId);
-        const rawTitle = block?.data?.text?.substring(0, 30) || 'Без названия';
+        const rawTitle = stripHtmlTags(block?.data?.text || '').substring(0, 30) || 'Без названия';
         const title = escapeHtml(rawTitle);
 
         infoEl.innerHTML = `
@@ -1164,8 +1650,13 @@ export class LayoutEditorPanel extends Popup {
             this.dragManager = null;
         }
 
+        // Clean up preview to remove any active mouse listeners
+        if (this.preview) {
+            this.preview.destroy();
+            this.preview = null;
+        }
+
         this.cellManager = null;
-        this.preview = null;
 
         // Очищаем singleton
         currentInstance = null;

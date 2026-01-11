@@ -111,3 +111,15 @@ export function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
+
+/**
+ * Извлекает чистый текст из HTML строки
+ * @param {string} html - HTML строка
+ * @returns {string} - Чистый текст без HTML тегов
+ */
+export function stripHtmlTags(html) {
+    if (!html) return '';
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    return div.textContent || div.innerText || '';
+}

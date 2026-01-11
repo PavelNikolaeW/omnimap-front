@@ -1,4 +1,4 @@
-import { escapeHtml } from '../../utils/utils.js';
+import { escapeHtml, stripHtmlTags } from '../../utils/utils.js';
 
 /**
  * Рендерит превью сетки с блоками
@@ -18,6 +18,7 @@ export class LayoutPreview {
         this.onBlockDragStart = null;
         this.onBlockDragEnd = null;
         this.onBlockResize = null;  // callback(blockId, newColSpan, newRowSpan)
+        this._activeResizeCleanup = null;  // Cleanup function for active resize
     }
 
     /**
@@ -144,6 +145,8 @@ export class LayoutPreview {
             const el = document.createElement('div');
             el.className = 'layout-preview-block layout-preview-block--placeholder';
             el.dataset.placeholderIndex = i;
+            el.dataset.blockId = placeholder.blockId;
+            el.draggable = true;
 
             // Позиционирование в grid
             el.style.gridRow = `${placeholder.row} / ${placeholder.row + (placeholder.rowSpan || 1)}`;
@@ -158,10 +161,122 @@ export class LayoutPreview {
             el.innerHTML = `
                 <div class="layout-preview-block__title">${text}${spanInfo}</div>
                 <div class="layout-preview-block__new-icon">+</div>
+                <div class="layout-preview-block__resize-handles">
+                    <div class="resize-handle resize-handle--e" data-direction="right"></div>
+                    <div class="resize-handle resize-handle--s" data-direction="down"></div>
+                    <div class="resize-handle resize-handle--se" data-direction="both"></div>
+                </div>
             `;
 
+            // Выделение по клику
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.selectBlock(placeholder.blockId);
+                // Также сохраняем в blockElements для консистентности
+                this.blockElements.set(placeholder.blockId, el);
+            });
+
+            // Drag events
+            el.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', placeholder.blockId);
+                el.classList.add('layout-preview-block--dragging');
+
+                if (this.onBlockDragStart) {
+                    this.onBlockDragStart(placeholder.blockId);
+                }
+            });
+
+            el.addEventListener('dragend', () => {
+                el.classList.remove('layout-preview-block--dragging');
+            });
+
+            // Resize handles для placeholder
+            this.bindPlaceholderResizeHandles(el, placeholder.blockId, i);
+
             this.gridElement.appendChild(el);
+            // Добавляем в blockElements для выделения
+            this.blockElements.set(placeholder.blockId, el);
         }
+    }
+
+    /**
+     * Привязывает события resize для placeholder
+     */
+    bindPlaceholderResizeHandles(blockEl, blockId, placeholderIndex) {
+        const handles = blockEl.querySelectorAll('.resize-handle');
+
+        handles.forEach(handle => {
+            handle.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                this.startPlaceholderResize(blockId, placeholderIndex, handle.dataset.direction, e);
+            });
+        });
+    }
+
+    /**
+     * Начинает resize placeholder блока
+     */
+    startPlaceholderResize(blockId, placeholderIndex, direction, startEvent) {
+        const placeholder = this.placeholders[placeholderIndex];
+        if (!placeholder) return;
+
+        const startX = startEvent.clientX;
+        const startY = startEvent.clientY;
+        const startColSpan = placeholder.colSpan || 1;
+        const startRowSpan = placeholder.rowSpan || 1;
+
+        const gridRect = this.gridElement.getBoundingClientRect();
+        const cellWidth = gridRect.width / this.gridSize.cols;
+        const cellHeight = gridRect.height / this.gridSize.rows;
+
+        const blockEl = this.blockElements.get(blockId);
+
+        const onMouseMove = (e) => {
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+
+            let newColSpan = startColSpan;
+            let newRowSpan = startRowSpan;
+
+            if (direction === 'right' || direction === 'both') {
+                newColSpan = Math.max(1, startColSpan + Math.round(deltaX / cellWidth));
+                newColSpan = Math.min(newColSpan, this.gridSize.cols - placeholder.col + 1);
+            }
+
+            if (direction === 'down' || direction === 'both') {
+                newRowSpan = Math.max(1, startRowSpan + Math.round(deltaY / cellHeight));
+                newRowSpan = Math.min(newRowSpan, this.gridSize.rows - placeholder.row + 1);
+            }
+
+            if (blockEl) {
+                blockEl.style.gridColumn = `${placeholder.col} / ${placeholder.col + newColSpan}`;
+                blockEl.style.gridRow = `${placeholder.row} / ${placeholder.row + newRowSpan}`;
+                blockEl._tempColSpan = newColSpan;
+                blockEl._tempRowSpan = newRowSpan;
+            }
+        };
+
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+
+            if (blockEl && (blockEl._tempColSpan || blockEl._tempRowSpan)) {
+                placeholder.colSpan = blockEl._tempColSpan || placeholder.colSpan;
+                placeholder.rowSpan = blockEl._tempRowSpan || placeholder.rowSpan;
+                delete blockEl._tempColSpan;
+                delete blockEl._tempRowSpan;
+            }
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+
+        // Store cleanup function for panel close
+        this._activeResizeCleanup = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
     }
 
     /**
@@ -178,7 +293,7 @@ export class LayoutPreview {
         el.style.gridColumn = `${cell.col} / ${cell.col + (cell.colSpan || 1)}`;
 
         // Контент - используем escapeHtml для защиты от XSS
-        const rawTitle = block.data?.text?.substring(0, 40) || 'Блок';
+        const rawTitle = stripHtmlTags(block.data?.text || '').substring(0, 40) || 'Блок';
         const title = escapeHtml(rawTitle);
         const spanInfo = cell.rowSpan > 1 || cell.colSpan > 1
             ? ` <span class="span-badge">${cell.colSpan}x${cell.rowSpan}</span>`
@@ -311,6 +426,12 @@ export class LayoutPreview {
 
         document.addEventListener('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
+
+        // Store cleanup function for panel close
+        this._activeResizeCleanup = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
     }
 
     /**
@@ -384,6 +505,33 @@ export class LayoutPreview {
             cell.classList.remove('layout-preview-cell--highlight');
             cell.classList.remove('layout-preview-cell--dragover');
         });
+    }
+
+    /**
+     * Уничтожает превью и очищает все event listeners
+     */
+    destroy() {
+        // Clean up any active resize operation
+        if (this._activeResizeCleanup) {
+            this._activeResizeCleanup();
+            this._activeResizeCleanup = null;
+        }
+
+        // Clear callbacks
+        this.onBlockSelect = null;
+        this.onBlockDragStart = null;
+        this.onBlockDragEnd = null;
+        this.onBlockResize = null;
+
+        // Clear elements
+        this.blockElements.clear();
+        this.selectedBlockId = null;
+
+        // Clear container
+        if (this.container) {
+            this.container.innerHTML = '';
+        }
+        this.gridElement = null;
     }
 }
 
