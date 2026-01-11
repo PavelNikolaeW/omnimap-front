@@ -1,6 +1,7 @@
 import {commands} from "./commands";
 import localforage from "localforage";
 import { MODES } from "../../actions/selectionActions";
+import { dispatch } from "../../utils/utils";
 
 /**
  * Конфигурация подменю
@@ -174,6 +175,9 @@ export class UIManager {
 
                 // Обновляем состояние кнопок для офлайн режима
                 this.updateOfflineButtons()
+
+                // Уведомляем о завершении рендеринга кнопок
+                dispatch('UIButtonsRendered')
             }
         })
     }

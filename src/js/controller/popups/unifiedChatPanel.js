@@ -782,8 +782,10 @@ export class UnifiedChatPanel {
         try {
             if (item.type === CHAT_TYPES.DM) {
                 await chatApi.markAsRead(item.id);
+                dispatch('ChatMessagesRead', { type: 'dm', id: item.id });
             } else if (item.type === CHAT_TYPES.GROUP) {
                 await chatApi.markGroupAsRead(item.id);
+                dispatch('ChatMessagesRead', { type: 'group', id: item.id });
             }
         } catch (err) {
             console.warn('Failed to mark as read:', err);
@@ -1481,14 +1483,18 @@ export class UnifiedChatPanel {
             this.messages.push(data.message);
             this.renderMessages();
             this.scrollToBottom();
-            chatApi.markAsRead(this.activeChat.id).catch(() => {});
+            chatApi.markAsRead(this.activeChat.id)
+                .then(() => dispatch('ChatMessagesRead', { type: 'dm', id: this.activeChat.id }))
+                .catch(() => {});
         }
 
         if (type === 'group_message' && this.activeChat?.type === CHAT_TYPES.GROUP && data?.group_id === this.activeChat.id) {
             this.messages.push(data.message);
             this.renderMessages();
             this.scrollToBottom();
-            chatApi.markGroupAsRead(this.activeChat.id).catch(() => {});
+            chatApi.markGroupAsRead(this.activeChat.id)
+                .then(() => dispatch('ChatMessagesRead', { type: 'group', id: this.activeChat.id }))
+                .catch(() => {});
         }
     }
 
