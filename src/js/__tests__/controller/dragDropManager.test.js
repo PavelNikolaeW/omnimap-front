@@ -353,8 +353,7 @@ describe('DragDropManager', () => {
             expect(manager.dragSourceParentId).toBe('parent-1');
             expect(mockEvent.dataTransfer.effectAllowed).toBe('move');
             expect(mockEvent.dataTransfer.setData).toHaveBeenCalledWith('text/plain', 'child-1');
-            expect(child.classList.add).toHaveBeenCalledWith('block-selected');
-            expect(child.classList.add).toHaveBeenCalledWith('dragging');
+            expect(child.classList.add).toHaveBeenCalledWith('block-dragging');
 
             document.body.removeChild(parent);
         });
@@ -436,8 +435,7 @@ describe('DragDropManager', () => {
 
             manager.cleanup();
 
-            expect(element.classList.remove).toHaveBeenCalledWith('block-selected');
-            expect(element.classList.remove).toHaveBeenCalledWith('dragging');
+            expect(element.classList.remove).toHaveBeenCalledWith('block-dragging');
         });
 
         test('removes drop indicator from DOM', () => {

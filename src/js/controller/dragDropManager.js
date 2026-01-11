@@ -137,9 +137,8 @@ export class DragDropManager {
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', this.draggedBlockId);
 
-        // Визуальный feedback - используем существующий класс
-        element.classList.add('block-selected');
-        element.classList.add('dragging');
+        // Визуальный feedback - используем специальный класс для drag
+        element.classList.add('block-dragging');
 
         // Добавляем listener для отмены по Escape
         document.addEventListener('keydown', this._handleEscapeKey);
@@ -220,10 +219,15 @@ export class DragDropManager {
      * Очистка состояния и visual feedback
      */
     cleanup() {
+        // Удаляем класс с сохраненного элемента
         if (this.draggedElement) {
-            this.draggedElement.classList.remove('block-selected');
-            this.draggedElement.classList.remove('dragging');
+            this.draggedElement.classList.remove('block-dragging');
         }
+
+        // Также удаляем .block-dragging со всех блоков на случай если элемент был пересоздан
+        document.querySelectorAll('[block].block-dragging').forEach(el => {
+            el.classList.remove('block-dragging');
+        });
 
         this._removeDropIndicator();
 

@@ -215,9 +215,12 @@ h6 {
     cursor: grabbing;
 }
 
-[block].dragging {
+/* Блок в процессе перетаскивания */
+[block].block-dragging {
     opacity: 0.5;
     cursor: grabbing;
+    outline: 2px dashed #3b82f6;
+    outline-offset: 2px;
 }
 
 /* Drop indicator создаётся динамически в dragDropManager.js
