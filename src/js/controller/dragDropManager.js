@@ -1,8 +1,11 @@
 /**
- * DragDropManager - управление drag-and-drop для перемещения блоков в дереве
+ * DragDropManager - управление drag-and-drop для перемещения блоков в дереве и диаграммах
  *
  * Использует HTML5 Drag and Drop API.
- * Исключает блоки внутри customGrid (диаграммы) и layoutCells (календарь, kanban и т.д.)
+ * Поддерживает перемещение между:
+ * - Обычными блоками (дерево)
+ * - Блоками в диаграммах (customGrid)
+ * Исключает блоки внутри layoutCells (календарь, kanban и т.д.)
  */
 
 import { dispatch } from '../utils/utils';
@@ -15,6 +18,11 @@ export class DragDropManager {
         this.dragSourceParentId = null;
         this.dropIndicator = null;
         this.lastDropTarget = null;
+
+        // Источник - диаграмма?
+        this.dragFromDiagram = false;
+        // customGrid старого родителя (если drag из диаграммы)
+        this.dragSourceCustomGrid = null;
 
         // Порог для определения зоны drop (верх/центр/низ блока)
         this.DROP_ZONE_THRESHOLD = 0.25; // 25% сверху и снизу для sibling, остальное - child
@@ -43,40 +51,46 @@ export class DragDropManager {
 
     /**
      * Проверяет, можно ли перетаскивать блок
-     * Исключает блоки внутри diagram (customGrid) и layoutCells
+     * Разрешает drag из диаграмм (customGrid), исключает layoutCells (календарь, kanban и т.д.)
      * @param {HTMLElement} element - DOM элемент блока
      * @returns {boolean}
      */
     canDrag(element) {
         if (!element || !element.hasAttribute('block')) return false;
 
-        // Проверяем по DOM атрибуту (быстрый путь)
         const parentBlock = element.parentElement?.closest('[block]');
-        if (parentBlock?.hasAttribute('blockcustomgrid')) {
-            return false;
-        }
 
         // Проверяем через данные блока
         if (this.localStateManager && parentBlock) {
             const parentId = this._extractBlockId(parentBlock);
             const parentData = this.localStateManager.blocks.get(parentId);
 
-            // Diagram
-            if (parentData?.data?.customGrid?.grid) {
-                return false;
-            }
-
-            // LayoutCells (календарь, kanban и т.д.)
+            // LayoutCells (календарь, kanban и т.д.) - запрещаем drag
             if (parentData?.data?.layout === 'cells' && parentData?.data?.layoutCells) {
                 return false;
             }
+
+            // Diagram - разрешаем drag
+            // (будет обработан как перемещение из диаграммы)
         }
 
         return true;
     }
 
     /**
+     * Проверяет, является ли родительский блок диаграммой
+     * @param {string} parentId - ID родительского блока
+     * @returns {boolean}
+     */
+    _isDiagramParent(parentId) {
+        if (!this.localStateManager || !parentId) return false;
+        const parentData = this.localStateManager.blocks.get(parentId);
+        return !!parentData?.data?.customGrid?.grid;
+    }
+
+    /**
      * Проверяет, можно ли сделать drop в указанный блок
+     * Разрешает drop в диаграммы (customGrid), исключает layoutCells
      * @param {HTMLElement} targetElement - DOM элемент целевого блока
      * @returns {boolean}
      */
@@ -88,22 +102,17 @@ export class DragDropManager {
             return false;
         }
 
-        // Проверяем diagram/layoutCells у целевого блока
-        if (targetElement.hasAttribute('blockcustomgrid')) {
-            return false;
-        }
-
         if (this.localStateManager) {
             const targetId = this._extractBlockId(targetElement);
             const targetData = this.localStateManager.blocks.get(targetId);
 
-            if (targetData?.data?.customGrid?.grid) {
-                return false;
-            }
-
+            // LayoutCells (календарь, kanban и т.д.) - запрещаем drop
             if (targetData?.data?.layout === 'cells' && targetData?.data?.layoutCells) {
                 return false;
             }
+
+            // Diagram - разрешаем drop (будет рассчитана позиция)
+            // customGrid разрешён
 
             // Проверяем circular reference - нельзя drop в потомка
             if (this._isDescendant(this.draggedBlockId, targetId)) {
@@ -132,6 +141,15 @@ export class DragDropManager {
         // Находим родителя
         const parentElement = element.parentElement?.closest('[block]');
         this.dragSourceParentId = parentElement ? this._extractBlockId(parentElement) : null;
+
+        // Проверяем, drag ли это из диаграммы
+        this.dragFromDiagram = this._isDiagramParent(this.dragSourceParentId);
+        if (this.dragFromDiagram && this.localStateManager) {
+            const parentData = this.localStateManager.blocks.get(this.dragSourceParentId);
+            this.dragSourceCustomGrid = parentData?.data?.customGrid || null;
+        } else {
+            this.dragSourceCustomGrid = null;
+        }
 
         // Настраиваем dataTransfer
         e.dataTransfer.effectAllowed = 'move';
@@ -192,20 +210,24 @@ export class DragDropManager {
 
         e.preventDefault();
 
-        const { parentId, beforeBlockId } = this.lastDropTarget;
+        const { parentId, beforeBlockId, dropToDiagram, diagramPosition } = this.lastDropTarget;
 
-        // Не перемещаем если ничего не изменилось
-        if (parentId === this.dragSourceParentId && !beforeBlockId) {
+        // Не перемещаем если ничего не изменилось (и это не drop в диаграмму)
+        if (parentId === this.dragSourceParentId && !beforeBlockId && !dropToDiagram) {
             this.cleanup();
             return;
         }
 
-        // Dispatch событие MoveBlock
+        // Dispatch событие MoveBlock с дополнительными данными о диаграммах
         dispatch('MoveBlock', {
             block_id: this.draggedBlockId,
             old_parent_id: this.dragSourceParentId,
             new_parent_id: parentId,
-            before: beforeBlockId
+            before: beforeBlockId,
+            // Информация о диаграммах
+            fromDiagram: this.dragFromDiagram,
+            toDiagram: dropToDiagram || false,
+            diagramPosition: diagramPosition || null
         });
 
         this.cleanup();
@@ -242,13 +264,15 @@ export class DragDropManager {
         this.draggedElement = null;
         this.dragSourceParentId = null;
         this.lastDropTarget = null;
+        this.dragFromDiagram = false;
+        this.dragSourceCustomGrid = null;
     }
 
     /**
      * Вычисляет куда будет сделан drop
      * @param {DragEvent} e - событие
      * @param {HTMLElement} targetElement - целевой блок
-     * @returns {Object|null} { parentId, beforeBlockId, type: 'sibling-before'|'sibling-after'|'child' }
+     * @returns {Object|null} { parentId, beforeBlockId, type, dropToDiagram?, diagramPosition? }
      */
     _calculateDropTarget(e, targetElement) {
         if (!targetElement || !targetElement.hasAttribute('block')) return null;
@@ -261,16 +285,25 @@ export class DragDropManager {
         const rect = targetElement.getBoundingClientRect();
         const relativeY = (e.clientY - rect.top) / rect.height;
 
+        // Проверяем, является ли target диаграммой
+        const targetIsDiagram = this._isDiagramParent(targetId);
+
         // Определяем тип drop зоны
         if (relativeY < this.DROP_ZONE_THRESHOLD) {
             // Верхняя часть - вставить ДО этого блока (как sibling)
             const parentElement = targetElement.parentElement?.closest('[block]');
             if (!parentElement) return null;
 
+            const parentId = this._extractBlockId(parentElement);
+            // Если родитель - диаграмма, нужно вычислить позицию
+            const parentIsDiagram = this._isDiagramParent(parentId);
+
             return {
-                parentId: this._extractBlockId(parentElement),
+                parentId: parentId,
                 beforeBlockId: targetId,
-                type: 'sibling-before'
+                type: 'sibling-before',
+                dropToDiagram: parentIsDiagram,
+                diagramPosition: parentIsDiagram ? this._calculateDiagramPosition(e, parentElement, parentId) : null
             };
         } else if (relativeY > (1 - this.DROP_ZONE_THRESHOLD)) {
             // Нижняя часть - вставить ПОСЛЕ этого блока (как sibling)
@@ -280,22 +313,76 @@ export class DragDropManager {
             // Находим следующий sibling
             const parentId = this._extractBlockId(parentElement);
             const nextSiblingId = this._getNextSiblingId(targetId, parentId);
+            const parentIsDiagram = this._isDiagramParent(parentId);
 
             return {
                 parentId: parentId,
                 beforeBlockId: nextSiblingId, // null если последний - добавится в конец
-                type: 'sibling-after'
+                type: 'sibling-after',
+                dropToDiagram: parentIsDiagram,
+                diagramPosition: parentIsDiagram ? this._calculateDiagramPosition(e, parentElement, parentId) : null
             };
         } else {
             // Центр - вставить ВНУТРЬ как child
             if (!this.canDropInto(targetElement)) return null;
 
+            // Если target - диаграмма, вычисляем позицию в grid
+            if (targetIsDiagram) {
+                return {
+                    parentId: targetId,
+                    beforeBlockId: null,
+                    type: 'child',
+                    dropToDiagram: true,
+                    diagramPosition: this._calculateDiagramPosition(e, targetElement, targetId)
+                };
+            }
+
             return {
                 parentId: targetId,
                 beforeBlockId: null, // В конец списка детей
-                type: 'child'
+                type: 'child',
+                dropToDiagram: false,
+                diagramPosition: null
             };
         }
+    }
+
+    /**
+     * Вычисляет позицию в grid диаграммы по координатам мыши
+     * @param {DragEvent} e - событие
+     * @param {HTMLElement} diagramElement - DOM элемент диаграммы
+     * @param {string} diagramId - ID диаграммы
+     * @returns {Object|null} { col, row } - позиция в grid (1-based)
+     */
+    _calculateDiagramPosition(e, diagramElement, diagramId) {
+        if (!this.localStateManager) return null;
+
+        const diagramData = this.localStateManager.blocks.get(diagramId);
+        const customGrid = diagramData?.data?.customGrid;
+        if (!customGrid?.grid) return null;
+
+        // Парсим размер grid
+        const colsClass = customGrid.grid.find(cls => cls.startsWith('grid-template-columns_'));
+        const rowsClass = customGrid.grid.find(cls => cls.startsWith('grid-template-rows_'));
+        const cols = colsClass ? (colsClass.split('__').length - 1) : 1;
+        const rows = rowsClass ? (rowsClass.split('__').length - 1) : 1;
+
+        const rect = diagramElement.getBoundingClientRect();
+
+        // Учитываем первую строку (контент) - она auto
+        const contentRow = diagramElement.querySelector('.defaultContent');
+        const contentHeight = contentRow ? contentRow.offsetHeight : 0;
+
+        const relX = e.clientX - rect.left;
+        const relY = e.clientY - rect.top - contentHeight;
+
+        const cellWidth = rect.width / cols;
+        const cellHeight = (rect.height - contentHeight) / rows;
+
+        const col = Math.max(1, Math.min(cols, Math.floor(relX / cellWidth) + 1));
+        const row = Math.max(2, Math.min(rows + 1, Math.floor(relY / cellHeight) + 2));
+
+        return { col, row, cols, rows };
     }
 
     /**
