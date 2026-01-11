@@ -38,6 +38,15 @@ class ChatBadgeManager {
         window.addEventListener('Logout', this._handleLogout);
 
         this.initialized = true;
+
+        // Fallback: если кнопка уже отрендерена (race condition),
+        // пробуем создать badge с небольшой задержкой
+        setTimeout(() => {
+            const button = document.getElementById(this.buttonId);
+            if (button && !this.initialLoadDone) {
+                this._handleUIButtonsRendered();
+            }
+        }, 100);
     }
 
     /**
