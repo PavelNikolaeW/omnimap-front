@@ -84,6 +84,12 @@ class BlockCreator {
             // Применить data-атрибуты для layoutCells (календарь, kanban и т.д.)
             this._applyLayoutCellsData(element, block, parentBlock)
 
+            // Делаем блок draggable если родитель НЕ diagram и НЕ layoutCells
+            if (!parentBlock.data?.customGrid?.grid &&
+                !(parentBlock.data?.layout === 'cells' && parentBlock.data?.layoutCells)) {
+                element.setAttribute('draggable', 'true');
+            }
+
             block.color = this.colorist.calculateColor(element, block, [...parentBlock.color])
             this._applyStyles(block.contentEl, block.contentPosition)
         } catch (e) {

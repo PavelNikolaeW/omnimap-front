@@ -206,6 +206,23 @@ h6 {
     box-shadow: 0 0 0 6px rgba(99, 102, 241, 0.2);
 }
 
+/* Drag-and-drop стили */
+[block][draggable="true"] {
+    cursor: grab;
+}
+
+[block][draggable="true"]:active {
+    cursor: grabbing;
+}
+
+[block].dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+}
+
+/* Drop indicator создаётся динамически в dragDropManager.js
+   Стили заданы inline для точного позиционирования */
+
 
 iframe {
     width: 100%;

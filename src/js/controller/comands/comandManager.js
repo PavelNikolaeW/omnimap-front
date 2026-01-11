@@ -6,6 +6,7 @@ import {isExcludedElement, throttle} from "../../utils/functions";
 import {dispatch} from "../../utils/utils";
 import {diagramEditor} from "../diagramEditor";
 import {connectionAnchorManager} from "../connectionAnchorManager";
+import {dragDropManager} from "../dragDropManager";
 
 hotkeys.filter = function (event) {
     const target = event.target || event.srcElement;
@@ -45,7 +46,10 @@ export class CommandManager {
 
         this.rootContainer.addEventListener('click', this.clickOnRootContainerHandlerBound);
         this.topSidebar.addEventListener('click', this.clickOnTopNavigationBound);
-        this.controlPanel.addEventListener('click', this.clickOnControlPanelBound)
+        this.controlPanel.addEventListener('click', this.clickOnControlPanelBound);
+
+        // Drag-and-drop для перемещения блоков
+        this._initDragAndDrop();
         window.addEventListener('ReRegistrationCmd', (e) => {
             this.resetAndReRegisterCommands(e.detail)
         })
@@ -290,6 +294,68 @@ export class CommandManager {
         overlay.appendChild(img);
         overlay.appendChild(closeBtn);
         document.body.appendChild(overlay);
+    }
+
+    /**
+     * Инициализация drag-and-drop для перемещения блоков
+     */
+    _initDragAndDrop() {
+        // Инициализируем dragDropManager
+        dragDropManager.init();
+
+        this.rootContainer.addEventListener('dragstart', this._handleDragStart.bind(this));
+        this.rootContainer.addEventListener('dragover', this._handleDragOver.bind(this));
+        this.rootContainer.addEventListener('drop', this._handleDrop.bind(this));
+        this.rootContainer.addEventListener('dragend', this._handleDragEnd.bind(this));
+    }
+
+    /**
+     * Обработчик начала перетаскивания блока
+     */
+    _handleDragStart(e) {
+        // Не начинаем drag если сейчас режим cut или другие специальные режимы
+        const mode = this.ctxManager.mode;
+        if (mode === 'cutBlock' || mode === 'textEdit' || mode === 'connectToBlock' || mode === 'connectSelectSource') {
+            e.preventDefault();
+            return;
+        }
+
+        // Находим блок под курсором
+        const {element} = this.ctxManager.getRelevantElements(e.target);
+        if (!element) {
+            e.preventDefault();
+            return;
+        }
+
+        dragDropManager.startDrag(e, element);
+    }
+
+    /**
+     * Обработчик dragover для показа индикатора drop
+     */
+    _handleDragOver(e) {
+        if (!dragDropManager.isDragging) return;
+
+        // Находим целевой блок
+        const {element} = this.ctxManager.getRelevantElements(e.target);
+        dragDropManager.handleDragOver(e, element);
+    }
+
+    /**
+     * Обработчик drop
+     */
+    _handleDrop(e) {
+        if (!dragDropManager.isDragging) return;
+
+        const {element} = this.ctxManager.getRelevantElements(e.target);
+        dragDropManager.handleDrop(e, element);
+    }
+
+    /**
+     * Обработчик завершения drag
+     */
+    _handleDragEnd(e) {
+        dragDropManager.endDrag();
     }
 }
 

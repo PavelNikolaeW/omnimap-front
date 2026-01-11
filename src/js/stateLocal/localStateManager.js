@@ -1200,46 +1200,13 @@ export class LocalStateManager {
         await this.saveBlock(newParent);
         dispatch('ShowBlocks');
 
-        // Проверяем сеть
-        if (!offlineQueue.isNetworkOnline()) {
-            await offlineQueue.enqueue({
-                id: `move_${block_id}_${Date.now()}`,
-                type: 'moveBlock',
-                data: { blockId: block_id, oldParentId: old_parent_id, newParentId: new_parent_id, childOrder: newOrder }
-            });
-            console.log('Block move queued for sync:', block_id);
-            return;
-        }
-
-        // Синхронизируем с сервером
-        try {
-            const res = await api.moveBlock(block_id, {new_parent_id, old_parent_id, childOrder: newOrder});
-            if (res.status === 200) {
-                // Обновляем блоки данными с сервера
-                for (const serverBlock of Object.values(res.data)) {
-                    // Защита: пропускаем блоки без id
-                    if (!serverBlock?.id) {
-                        console.warn('⚠️ moveBlock: skipping block without id:', serverBlock);
-                        continue;
-                    }
-                    await this.saveBlock(serverBlock);
-                }
-                dispatch('ShowBlocks');
-            }
-        } catch (err) {
-            if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
-                await offlineQueue.enqueue({
-                    id: `move_${block_id}_${Date.now()}`,
-                    type: 'moveBlock',
-                    data: { blockId: block_id, oldParentId: old_parent_id, newParentId: new_parent_id, childOrder: newOrder }
-                });
-                console.log('Block move queued for sync:', block_id);
-            } else {
-                // Rollback при других ошибках
-                console.error('Move failed, rolling back:', err);
-                await this.rollbackMoveBlock(blockBackup, oldParentBackup, newParentBackup);
-            }
-        }
+        // Синхронизируем через batch import (отправит 3 блока: old parent, new parent, moved block)
+        // Используем immediate:true для немедленной синхронизации
+        await offlineQueue.enqueue({
+            id: `move_${block_id}_${Date.now()}`,
+            type: 'moveBlock',
+            data: { blockId: block_id, oldParentId: old_parent_id, newParentId: new_parent_id, childOrder: newOrder }
+        }, { immediate: true });
     }
 
     /**
