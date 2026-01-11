@@ -203,14 +203,65 @@ export class LayoutDragManager {
      * Обработка клавиатуры
      */
     handleKeyDown(e) {
-        // Enter для добавления нового блока (работает всегда)
-        if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-            // Проверяем что фокус не в input
-            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+        // Пропускаем если фокус в input/textarea
+        const isInputFocused = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
+
+        // === Глобальные хоткеи (работают всегда) ===
+
+        // Enter для добавления нового блока
+        if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !isInputFocused) {
+            e.preventDefault();
+            this.panel.addNewBlock();
+            return;
+        }
+
+        // Быстрые пресеты: 1-4
+        if (!isInputFocused && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            const presetMap = { '1': '2x2', '2': '3x3', '3': '4x4', '4': 'sidebar' };
+            if (presetMap[e.key]) {
                 e.preventDefault();
-                this.panel.addNewBlock();
+                this.panel.applyPreset(presetMap[e.key]);
+                this.panel.updatePresetCardsState();
                 return;
             }
+        }
+
+        // +/- для изменения строк, [/] для колонок
+        if (!isInputFocused && !e.ctrlKey && !e.metaKey) {
+            if (e.key === '=' || e.key === '+') {
+                e.preventDefault();
+                this.adjustGridSize(1, 0);
+                return;
+            }
+            if (e.key === '-' || e.key === '_') {
+                e.preventDefault();
+                this.adjustGridSize(-1, 0);
+                return;
+            }
+            if (e.key === ']' || e.key === '}') {
+                e.preventDefault();
+                this.adjustGridSize(0, 1);
+                return;
+            }
+            if (e.key === '[' || e.key === '{') {
+                e.preventDefault();
+                this.adjustGridSize(0, -1);
+                return;
+            }
+        }
+
+        // R для сброса раскладки
+        if (e.key === 'r' && !isInputFocused && !e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            this.panel.resetLayout();
+            return;
+        }
+
+        // Tab для переключения между блоками
+        if (e.key === 'Tab' && !isInputFocused) {
+            e.preventDefault();
+            this.cycleBlockSelection(e.shiftKey ? -1 : 1);
+            return;
         }
 
         const selectedId = this.panel.preview?.getSelectedBlockId();
@@ -563,6 +614,57 @@ export class LayoutDragManager {
             return this.resizePlaceholder(blockId, 'right', 1);
         }
         return this.panel.cellManager.expandSpan(blockId, 'right', 1);
+    }
+
+    /**
+     * Изменяет размер сетки
+     * @param {number} dRows - Изменение строк
+     * @param {number} dCols - Изменение колонок
+     */
+    adjustGridSize(dRows, dCols) {
+        const newRows = Math.max(1, Math.min(12, this.panel.gridSize.rows + dRows));
+        const newCols = Math.max(1, Math.min(24, this.panel.gridSize.cols + dCols));
+
+        if (newRows === this.panel.gridSize.rows && newCols === this.panel.gridSize.cols) {
+            return;
+        }
+
+        this.panel.gridSize.rows = newRows;
+        this.panel.gridSize.cols = newCols;
+
+        this.panel.cellManager.rebuildOccupancyGrid();
+        this.panel.refreshPreview();
+        this.panel.updateToolbarInputs();
+        this.panel.updateStatusBar();
+    }
+
+    /**
+     * Переключает выделение между блоками
+     * @param {number} direction - Направление: 1 вперёд, -1 назад
+     */
+    cycleBlockSelection(direction) {
+        // Собираем все ID блоков (обычные + placeholders)
+        const blockIds = [
+            ...Object.keys(this.panel.cells),
+            ...this.panel.placeholders.map(p => p.blockId)
+        ];
+
+        if (blockIds.length === 0) return;
+
+        const currentId = this.panel.preview?.getSelectedBlockId();
+        let currentIndex = currentId ? blockIds.indexOf(currentId) : -1;
+
+        // Вычисляем следующий индекс
+        let nextIndex;
+        if (currentIndex === -1) {
+            nextIndex = direction > 0 ? 0 : blockIds.length - 1;
+        } else {
+            nextIndex = (currentIndex + direction + blockIds.length) % blockIds.length;
+        }
+
+        const nextId = blockIds[nextIndex];
+        this.panel.preview.selectBlock(nextId);
+        this.panel.updateSelectedBlockInfo(nextId);
     }
 
     /**

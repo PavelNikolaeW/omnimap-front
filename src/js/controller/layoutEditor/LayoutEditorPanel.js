@@ -562,13 +562,15 @@ export class LayoutEditorPanel extends Popup {
             </div>
             <div class="status-bar__right">
                 <span class="status-bar__shortcuts">
-                    <kbd>Enter</kbd> добавить
+                    <kbd>Tab</kbd> выбор
                     <span class="status-bar__sep">•</span>
-                    <kbd>↑↓←→</kbd> переместить
+                    <kbd>↑↓←→</kbd> двигать
                     <span class="status-bar__sep">•</span>
-                    <kbd>Shift+↑↓←→</kbd> размер
+                    <kbd>Shift+↑↓</kbd> размер
                     <span class="status-bar__sep">•</span>
-                    <kbd>Del</kbd> удалить
+                    <kbd>1-4</kbd> пресеты
+                    <span class="status-bar__sep">•</span>
+                    <kbd>R</kbd> сброс
                 </span>
             </div>
         `;
