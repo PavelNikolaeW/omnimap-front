@@ -96,6 +96,7 @@ export class NotificationSettingsPopup extends Popup {
     createTelegramSection() {
         const section = document.createElement('div');
         section.className = 'popup-section';
+        section.dataset.sectionId = 'telegram';
         section.innerHTML = `<div class="popup-section__title">📱 Telegram</div>`;
 
         const content = document.createElement('div');
@@ -137,6 +138,7 @@ export class NotificationSettingsPopup extends Popup {
     createChatNotificationsSection() {
         const section = document.createElement('div');
         section.className = 'popup-section';
+        section.dataset.sectionId = 'chat-notifications';
 
         const isLinked = this.telegramStatus?.linked;
         const mainEnabled = this.settings.chat_telegram_enabled ?? true;
@@ -203,6 +205,7 @@ export class NotificationSettingsPopup extends Popup {
     createPushSection() {
         const section = document.createElement('div');
         section.className = 'popup-section';
+        section.dataset.sectionId = 'push';
 
         const pushSupported = 'Notification' in window;
         const pushPermission = pushSupported ? Notification.permission : 'denied';
@@ -443,10 +446,8 @@ export class NotificationSettingsPopup extends Popup {
      * Обновляет секции, зависящие от статуса Telegram (Telegram + Chat notifications)
      */
     updateTelegramDependentSections() {
-        const sections = this.contentArea.querySelectorAll('.popup-section');
-        // Секции идут по порядку: Telegram (0), Chat (1), Email (2), ...
-        const telegramSection = sections[0];
-        const chatSection = sections[1];
+        const telegramSection = this.contentArea.querySelector('[data-section-id="telegram"]');
+        const chatSection = this.contentArea.querySelector('[data-section-id="chat-notifications"]');
 
         if (telegramSection) {
             telegramSection.replaceWith(this.createTelegramSection());
@@ -489,7 +490,7 @@ export class NotificationSettingsPopup extends Popup {
             const permission = await Notification.requestPermission();
             if (permission === 'granted') {
                 // Перерисовать секцию
-                const pushSection = this.contentArea.querySelectorAll('.popup-section')[2];
+                const pushSection = this.contentArea.querySelector('[data-section-id="push"]');
                 if (pushSection) {
                     pushSection.replaceWith(this.createPushSection());
                     this.bindFormEvents();
