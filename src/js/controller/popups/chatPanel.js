@@ -395,11 +395,12 @@ export class ChatPanel extends Popup {
 
         // Listen for messages marked as read
         this.messagesReadHandler = (e) => {
-            const { type, userId, groupId } = e.detail || {};
-            if (type === 'dm' && userId) {
-                this.handleMessagesRead('dm', userId);
-            } else if (type === 'group' && groupId) {
-                this.handleMessagesRead('group', groupId);
+            const { type, userId, groupId, id } = e.detail || {};
+            // Support both userId/groupId and generic id for backwards compatibility
+            if (type === 'dm' && (userId || id)) {
+                this.handleMessagesRead('dm', userId || id);
+            } else if (type === 'group' && (groupId || id)) {
+                this.handleMessagesRead('group', groupId || id);
             }
         };
         window.addEventListener('ChatMessagesRead', this.messagesReadHandler);
