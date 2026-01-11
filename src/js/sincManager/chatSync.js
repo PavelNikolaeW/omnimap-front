@@ -147,9 +147,6 @@ class ChatSync {
      * @param {Object} data - { sender_id, recipient_id, message: { id, content, created_at } }
      */
     handleDirectMessage(data) {
-        // DEBUG: Log incoming DM data from WebSocket
-        console.log('[ChatSync] handleDirectMessage', data);
-
         dispatch('ChatEvent', {
             type: 'dm',
             data: {
