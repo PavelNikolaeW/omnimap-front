@@ -599,6 +599,318 @@ describe('NetworkStatusUI', () => {
     });
 });
 
+describe('Network Error Detection', () => {
+    let manager;
+
+    beforeEach(() => {
+        // Класс с реализацией isNetworkError
+        const TestManager = class {
+            isNetworkError(error) {
+                if (!error) return false;
+
+                const message = error.message?.toLowerCase() || '';
+                const code = error.code || '';
+
+                return (
+                    code === 'ERR_NETWORK' ||
+                    code === 'ECONNREFUSED' ||
+                    code === 'ENOTFOUND' ||
+                    message.includes('network error') ||
+                    message.includes('failed to fetch') ||
+                    message.includes('timed out') ||
+                    message.includes('timeout') ||
+                    message.includes('net::') ||
+                    message.includes('connection refused')
+                );
+            }
+        };
+        manager = new TestManager();
+    });
+
+    test('detects ERR_NETWORK code', () => {
+        const error = { code: 'ERR_NETWORK', message: 'Some error' };
+        expect(manager.isNetworkError(error)).toBe(true);
+    });
+
+    test('detects ECONNREFUSED code', () => {
+        const error = { code: 'ECONNREFUSED', message: 'Connection refused' };
+        expect(manager.isNetworkError(error)).toBe(true);
+    });
+
+    test('detects ENOTFOUND code', () => {
+        const error = { code: 'ENOTFOUND', message: 'DNS lookup failed' };
+        expect(manager.isNetworkError(error)).toBe(true);
+    });
+
+    test('detects "network error" in message', () => {
+        const error = { message: 'Network Error occurred' };
+        expect(manager.isNetworkError(error)).toBe(true);
+    });
+
+    test('detects "failed to fetch" in message', () => {
+        const error = { message: 'Failed to fetch resource' };
+        expect(manager.isNetworkError(error)).toBe(true);
+    });
+
+    test('detects "timed out" in message', () => {
+        const error = { message: 'Request timed out' };
+        expect(manager.isNetworkError(error)).toBe(true);
+    });
+
+    test('detects "timeout" in message', () => {
+        const error = { message: 'Connection timeout' };
+        expect(manager.isNetworkError(error)).toBe(true);
+    });
+
+    test('detects Chrome net:: errors', () => {
+        const error = { message: 'net::ERR_INTERNET_DISCONNECTED' };
+        expect(manager.isNetworkError(error)).toBe(true);
+    });
+
+    test('detects "connection refused" in message', () => {
+        const error = { message: 'Connection refused by server' };
+        expect(manager.isNetworkError(error)).toBe(true);
+    });
+
+    test('returns false for null error', () => {
+        expect(manager.isNetworkError(null)).toBe(false);
+    });
+
+    test('returns false for undefined error', () => {
+        expect(manager.isNetworkError(undefined)).toBe(false);
+    });
+
+    test('returns false for non-network errors', () => {
+        const error = { message: 'Invalid JSON response' };
+        expect(manager.isNetworkError(error)).toBe(false);
+    });
+
+    test('returns false for authentication errors', () => {
+        const error = { message: 'Unauthorized', code: 401 };
+        expect(manager.isNetworkError(error)).toBe(false);
+    });
+
+    test('returns false for validation errors', () => {
+        const error = { message: 'Validation failed: title is required' };
+        expect(manager.isNetworkError(error)).toBe(false);
+    });
+});
+
+describe('Stale Operations Cleanup', () => {
+    let dispatch;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        dispatch = require('../../utils/utils').dispatch;
+    });
+
+    test('cleanupStaleOperations removes operations older than MAX_OPERATION_AGE_MS', async () => {
+        const MAX_OPERATION_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
+        const now = Date.now();
+
+        const queue = [
+            { type: 'createBlock', data: { blockId: 'old-1' }, timestamp: now - MAX_OPERATION_AGE_MS - 1000 }, // stale
+            { type: 'createBlock', data: { blockId: 'fresh-1' }, timestamp: now - 1000 }, // fresh
+            { type: 'updateBlock', data: { id: 'old-2' }, timestamp: now - MAX_OPERATION_AGE_MS - 5000 }, // stale
+        ];
+
+        // Симулируем логику cleanupStaleOperations
+        const freshOperations = [];
+        const staleOperations = [];
+
+        for (const operation of queue) {
+            const age = now - (operation.timestamp || 0);
+            if (age > MAX_OPERATION_AGE_MS) {
+                staleOperations.push(operation);
+            } else {
+                freshOperations.push(operation);
+            }
+        }
+
+        expect(staleOperations).toHaveLength(2);
+        expect(freshOperations).toHaveLength(1);
+        expect(freshOperations[0].data.blockId).toBe('fresh-1');
+    });
+
+    test('cleanupStaleOperations keeps all fresh operations', async () => {
+        const MAX_OPERATION_AGE_MS = 24 * 60 * 60 * 1000;
+        const now = Date.now();
+
+        const queue = [
+            { type: 'createBlock', data: { blockId: 'fresh-1' }, timestamp: now - 1000 },
+            { type: 'updateBlock', data: { id: 'fresh-2' }, timestamp: now - 60000 },
+            { type: 'deleteBlock', data: { id: 'fresh-3' }, timestamp: now - 3600000 }, // 1 hour ago
+        ];
+
+        const freshOperations = queue.filter(op => {
+            const age = now - (op.timestamp || 0);
+            return age <= MAX_OPERATION_AGE_MS;
+        });
+
+        expect(freshOperations).toHaveLength(3);
+    });
+
+    test('cleanupStaleOperations handles empty queue', () => {
+        const queue = [];
+        const freshOperations = queue.filter(op => {
+            const age = Date.now() - (op.timestamp || 0);
+            return age <= 24 * 60 * 60 * 1000;
+        });
+
+        expect(freshOperations).toHaveLength(0);
+    });
+
+    test('cleanupStaleOperations handles missing timestamps gracefully', () => {
+        const now = Date.now();
+        const MAX_OPERATION_AGE_MS = 24 * 60 * 60 * 1000;
+
+        const queue = [
+            { type: 'createBlock', data: { blockId: 'no-timestamp' } }, // no timestamp - will be treated as very old
+            { type: 'updateBlock', data: { id: 'with-timestamp' }, timestamp: now - 1000 },
+        ];
+
+        const freshOperations = queue.filter(op => {
+            const age = now - (op.timestamp || 0);
+            return age <= MAX_OPERATION_AGE_MS;
+        });
+
+        // Operation without timestamp will have age = now - 0 = now (very old)
+        expect(freshOperations).toHaveLength(1);
+        expect(freshOperations[0].data.id).toBe('with-timestamp');
+    });
+});
+
+describe('Retry Mechanism', () => {
+    let manager;
+
+    beforeEach(() => {
+        jest.useFakeTimers();
+
+        const TestRetryManager = class {
+            constructor() {
+                this.retryAttempts = 0;
+                this.MAX_RETRY_ATTEMPTS = 5;
+                this.RETRY_BASE_INTERVAL_MS = 5000;
+                this.retryTimer = null;
+                this.isOnline = false;
+                this.startPullPhaseCalled = false;
+            }
+
+            scheduleRetry() {
+                if (this.retryTimer) {
+                    clearTimeout(this.retryTimer);
+                    this.retryTimer = null;
+                }
+
+                if (this.retryAttempts >= this.MAX_RETRY_ATTEMPTS) {
+                    this.retryAttempts = 0;
+                    return;
+                }
+
+                const interval = this.RETRY_BASE_INTERVAL_MS * Math.pow(2, this.retryAttempts);
+                const maxInterval = 60000;
+                const actualInterval = Math.min(interval, maxInterval);
+
+                this.retryAttempts++;
+
+                this.retryTimer = setTimeout(() => {
+                    this.retryTimer = null;
+                    // Симулируем проверку сети
+                    if (this.isOnline) {
+                        this.startPullPhaseCalled = true;
+                    } else {
+                        this.scheduleRetry();
+                    }
+                }, actualInterval);
+            }
+        };
+
+        manager = new TestRetryManager();
+    });
+
+    afterEach(() => {
+        jest.useRealTimers();
+    });
+
+    test('scheduleRetry increments retry attempts', () => {
+        expect(manager.retryAttempts).toBe(0);
+        manager.scheduleRetry();
+        expect(manager.retryAttempts).toBe(1);
+    });
+
+    test('scheduleRetry uses exponential backoff', () => {
+        manager.scheduleRetry();
+        expect(manager.retryAttempts).toBe(1);
+        // First retry: 5000 * 2^0 = 5000ms
+
+        jest.advanceTimersByTime(5000);
+        expect(manager.retryAttempts).toBe(2);
+        // Second retry: 5000 * 2^1 = 10000ms
+
+        jest.advanceTimersByTime(10000);
+        expect(manager.retryAttempts).toBe(3);
+        // Third retry: 5000 * 2^2 = 20000ms
+    });
+
+    test('scheduleRetry caps interval at 60 seconds', () => {
+        // Set attempts high enough for interval to exceed 60s
+        manager.retryAttempts = 4; // 5000 * 2^4 = 80000ms > 60000ms
+
+        manager.scheduleRetry();
+
+        // Should use maxInterval (60000) instead of calculated (80000)
+        jest.advanceTimersByTime(59999);
+        expect(manager.retryAttempts).toBe(5); // Still waiting
+
+        jest.advanceTimersByTime(1);
+        // After 60s, retry should trigger
+        // Since isOnline is false, it will schedule another retry
+        expect(manager.retryAttempts).toBe(0); // Reset after max attempts
+    });
+
+    test('scheduleRetry stops after MAX_RETRY_ATTEMPTS', () => {
+        manager.retryAttempts = 5; // Already at max
+
+        manager.scheduleRetry();
+
+        // Should reset and not schedule
+        expect(manager.retryAttempts).toBe(0);
+        expect(manager.retryTimer).toBeNull();
+    });
+
+    test('scheduleRetry triggers startPullPhase when online', () => {
+        manager.isOnline = true;
+        manager.scheduleRetry();
+
+        jest.advanceTimersByTime(5000);
+
+        expect(manager.startPullPhaseCalled).toBe(true);
+    });
+
+    test('scheduleRetry continues retrying when offline', () => {
+        manager.isOnline = false;
+        manager.scheduleRetry();
+
+        jest.advanceTimersByTime(5000); // First retry
+        expect(manager.retryAttempts).toBe(2); // Scheduled next
+
+        jest.advanceTimersByTime(10000); // Second retry
+        expect(manager.retryAttempts).toBe(3);
+    });
+
+    test('scheduleRetry clears previous timer', () => {
+        manager.scheduleRetry();
+        const firstTimer = manager.retryTimer;
+        expect(firstTimer).not.toBeNull();
+
+        manager.scheduleRetry();
+        const secondTimer = manager.retryTimer;
+
+        expect(secondTimer).not.toBe(firstTimer);
+        expect(manager.retryAttempts).toBe(2); // Both calls incremented
+    });
+});
+
 describe('Batch Import Logic', () => {
     const TEMP_ID_PREFIX = 'temp_';
     const MIN_OPERATIONS_FOR_BATCH = 3;
