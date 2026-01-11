@@ -144,19 +144,21 @@ class ChatSync {
 
     /**
      * Обработка личного сообщения
-     * @param {Object} data - { sender_id, message: { id, content, created_at } }
+     * @param {Object} data - { sender_id, recipient_id, message: { id, content, created_at } }
      */
     handleDirectMessage(data) {
         dispatch('ChatEvent', {
             type: 'dm',
             data: {
                 sender_id: data.sender_id,
+                recipient_id: data.recipient_id,
                 message: data.message
             }
         });
 
         dispatch('NewDirectMessage', {
             senderId: data.sender_id,
+            recipientId: data.recipient_id,
             message: data.message
         });
 

@@ -782,9 +782,13 @@ export class UnifiedChatPanel {
         try {
             if (item.type === CHAT_TYPES.DM) {
                 await chatApi.markAsRead(item.id);
+                // Update unread count in local data and re-render list
+                this._clearUnreadForChat(item.type, item.id);
                 dispatch('ChatMessagesRead', { type: 'dm', id: item.id, userId: item.id });
             } else if (item.type === CHAT_TYPES.GROUP) {
                 await chatApi.markGroupAsRead(item.id);
+                // Update unread count in local data and re-render list
+                this._clearUnreadForChat(item.type, item.id);
                 dispatch('ChatMessagesRead', { type: 'group', id: item.id, groupId: item.id });
             }
         } catch (err) {
@@ -1476,27 +1480,91 @@ export class UnifiedChatPanel {
     // WEBSOCKET EVENTS
     // =====================================================
 
+    /**
+     * Replace temp message with real one if exists (handles optimistic update race condition)
+     * @param {string} content - Message content to match
+     * @param {Object} realMessage - Real message from WebSocket
+     * @returns {boolean} true if replacement was made
+     */
+    _replaceTempMessageIfExists(content, realMessage) {
+        const tempIdx = this.messages.findIndex(m =>
+            String(m.id).startsWith('temp-') &&
+            m.content === content
+        );
+        if (tempIdx >= 0) {
+            this.messages[tempIdx] = realMessage;
+            this.renderMessages();
+            return true;
+        }
+        return false;
+    }
+
     handleChatEvent(detail) {
         const { type, data } = detail || {};
 
-        // eslint-disable-next-line eqeqeq
-        if (type === 'dm' && this.activeChat?.type === CHAT_TYPES.DM && data?.sender_id == this.activeChat.id) {
-            this.messages.push(data.message);
-            this.renderMessages();
-            this.scrollToBottom();
-            chatApi.markAsRead(this.activeChat.id)
-                .then(() => dispatch('ChatMessagesRead', { type: 'dm', id: this.activeChat.id, userId: this.activeChat.id }))
-                .catch(() => {});
+        // Early return if message data is missing
+        if (!data?.message) return;
+
+        if (type === 'dm' && this.activeChat?.type === CHAT_TYPES.DM) {
+            // Check if message is for current chat:
+            // 1. Received from the person we're chatting with (sender_id == activeChat.id)
+            // 2. Sent by us from another client (sender_id == currentUserId AND recipient matches)
+            const isFromPeer = data.sender_id == this.activeChat.id; // eslint-disable-line eqeqeq
+            const recipientId = data.message.recipient_id || data.recipient_id;
+            const isOwnMessage = data.sender_id == this.currentUserId && recipientId == this.activeChat.id; // eslint-disable-line eqeqeq
+
+            if (isFromPeer || isOwnMessage) {
+                // Avoid duplicate messages (check by ID)
+                if (data.message.id && this.messages.some(m => m.id === data.message.id)) {
+                    return;
+                }
+
+                // Build message with sender_id (WebSocket sends it separately)
+                const message = { ...data.message, sender_id: data.sender_id };
+
+                // For own messages: try to replace temp message (race condition with optimistic update)
+                if (isOwnMessage && this._replaceTempMessageIfExists(data.message.content, message)) {
+                    return;
+                }
+
+                this.messages.push(message);
+                this.renderMessages();
+                this.scrollToBottom();
+
+                // Only mark as read if received from peer (not our own message)
+                if (isFromPeer) {
+                    chatApi.markAsRead(this.activeChat.id)
+                        .then(() => dispatch('ChatMessagesRead', { type: 'dm', id: this.activeChat.id, userId: this.activeChat.id }))
+                        .catch(() => {});
+                }
+            }
         }
 
-        // eslint-disable-next-line eqeqeq
-        if (type === 'group_message' && this.activeChat?.type === CHAT_TYPES.GROUP && data?.group_id == this.activeChat.id) {
-            this.messages.push(data.message);
+        if (type === 'group_message' && this.activeChat?.type === CHAT_TYPES.GROUP && data.group_id == this.activeChat.id) { // eslint-disable-line eqeqeq
+            // Avoid duplicate messages (check by ID)
+            if (data.message.id && this.messages.some(m => m.id === data.message.id)) {
+                return;
+            }
+
+            // Build message with sender_id (WebSocket sends it separately)
+            const message = { ...data.message, sender_id: data.sender_id };
+
+            // For own messages: try to replace temp message (race condition with optimistic update)
+            const isOwnMessage = data.sender_id == this.currentUserId; // eslint-disable-line eqeqeq
+            if (isOwnMessage && this._replaceTempMessageIfExists(data.message.content, message)) {
+                return;
+            }
+
+            this.messages.push(message);
             this.renderMessages();
             this.scrollToBottom();
-            chatApi.markGroupAsRead(this.activeChat.id)
-                .then(() => dispatch('ChatMessagesRead', { type: 'group', id: this.activeChat.id, groupId: this.activeChat.id }))
-                .catch(() => {});
+
+            // Only mark as read if not our own message
+            if (!isOwnMessage) {
+                chatApi.markGroupAsRead(this.activeChat.id)
+                    .then(() => dispatch('ChatMessagesRead', { type: 'group', id: this.activeChat.id, groupId: this.activeChat.id }))
+                    .catch(() => {});
+            }
         }
     }
 
@@ -1529,6 +1597,38 @@ export class UnifiedChatPanel {
     // =====================================================
     // UI HELPERS
     // =====================================================
+
+    /**
+     * Clear unread count for a specific chat and re-render the list
+     * @param {string} type - Chat type (CHAT_TYPES.DM or CHAT_TYPES.GROUP)
+     * @param {number|string} id - Chat ID
+     */
+    _clearUnreadForChat(type, id) {
+        if (type === CHAT_TYPES.DM) {
+            const conv = this.dmConversations.find(c => (c.user_id || c.id) == id); // eslint-disable-line eqeqeq
+            if (conv && conv.unread_count > 0) {
+                conv.unread_count = 0;
+                // Only decrement global count if this chat had unread messages
+                if (this.unreadCount.dm > 0) {
+                    this.unreadCount.dm = Math.max(0, this.unreadCount.dm - 1);
+                }
+            }
+        } else if (type === CHAT_TYPES.GROUP) {
+            const group = this.groups.find(g => g.id == id); // eslint-disable-line eqeqeq
+            if (group && group.unread_count > 0) {
+                group.unread_count = 0;
+                // Only decrement global count if this chat had unread messages
+                if (this.unreadCount.groups > 0) {
+                    this.unreadCount.groups = Math.max(0, this.unreadCount.groups - 1);
+                }
+            }
+        }
+
+        // Re-render the chat list to update the badge
+        this.renderChatList();
+        // Update tab badges
+        this.updateUnreadBadges(this.unreadCount);
+    }
 
     toggleMobileSidebar(open = !this.isMobileSidebarOpen) {
         this.isMobileSidebarOpen = open;
