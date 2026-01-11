@@ -99,6 +99,8 @@ export class DiagramEditor {
 
     /**
      * Глобальный обработчик mousedown для Shift+drag quick mode
+     * НЕ перехватывает событие если блок draggable - даём HTML5 drag работать
+     * для перемещения блоков между деревом и диаграммами
      */
     async handleGlobalMouseDown(e) {
         // Только если редактор не активен и зажат Shift
@@ -110,6 +112,12 @@ export class DiagramEditor {
         // Найти блок под курсором
         const blockEl = this.findBlockWithCustomGrid(e.target);
         if (!blockEl) return;
+
+        // Если блок имеет draggable="true" - пропускаем для HTML5 drag-and-drop
+        // (перемещение между деревом и диаграммами)
+        if (blockEl.getAttribute('draggable') === 'true') {
+            return;
+        }
 
         // Найти родительский блок с customGrid
         const parentEl = blockEl.parentElement?.closest('[blockcustomgrid]');
@@ -492,6 +500,40 @@ export class DiagramEditor {
     }
 
     /**
+     * Показать сетку для внешнего drag-and-drop (без активации редактора)
+     * @param {HTMLElement} element - элемент диаграммы
+     * @param {Object} customGrid - customGrid диаграммы
+     */
+    showGridForExternalDrag(element, customGrid) {
+        if (!element || !customGrid?.grid) return;
+
+        // Сохраняем текущие значения
+        const prevParent = this.parentElement;
+        const prevGrid = this.customGrid;
+
+        // Временно устанавливаем для createGridOverlay
+        this.parentElement = element;
+        this.customGrid = customGrid;
+
+        // Удаляем старую сетку если есть
+        this.removeGridOverlay();
+
+        // Создаём сетку
+        this.createGridOverlay();
+
+        // Восстанавливаем (но оставляем сетку видимой)
+        this.parentElement = prevParent;
+        this.customGrid = prevGrid;
+    }
+
+    /**
+     * Скрыть сетку после внешнего drag-and-drop
+     */
+    hideGridForExternalDrag() {
+        this.removeGridOverlay();
+    }
+
+    /**
      * Добавить resize handles к дочерним блокам
      */
     addResizeHandles() {
@@ -602,6 +644,11 @@ export class DiagramEditor {
      * Обработчик mousedown
      */
     handleMouseDown(e) {
+        // При зажатом Shift - пропускаем для HTML5 drag-and-drop (перемещение между деревом и диаграммой)
+        if (e.shiftKey) {
+            return;
+        }
+
         // Проверить, нажали ли на anchor point для создания соединения
         if (e.target.classList.contains('anchor-point')) {
             this.startConnection(e, e.target.dataset.blockId, e.target.dataset.position);

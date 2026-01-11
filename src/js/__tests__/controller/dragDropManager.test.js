@@ -117,16 +117,17 @@ describe('DragDropManager', () => {
             document.body.removeChild(parent);
         });
 
-        test('returns false for block inside diagram (blockcustomgrid attribute)', () => {
+        test('returns true for block inside diagram (blockcustomgrid attribute) - drag from diagram allowed', () => {
             const { parent, child } = createMockParentChild('parent-1', 'child-1', { hasCustomGrid: true });
             document.body.appendChild(parent);
 
-            expect(manager.canDrag(child)).toBe(false);
+            // Drag from diagrams is now allowed (for moving blocks between tree and diagram)
+            expect(manager.canDrag(child)).toBe(true);
 
             document.body.removeChild(parent);
         });
 
-        test('returns false for block inside diagram (data.customGrid.grid)', () => {
+        test('returns true for block inside diagram (data.customGrid.grid) - drag from diagram allowed', () => {
             const { parent, child } = createMockParentChild('parent-1', 'child-1');
             document.body.appendChild(parent);
 
@@ -135,7 +136,8 @@ describe('DragDropManager', () => {
                 data: { customGrid: { grid: ['grid-template-columns__1fr'] } }
             });
 
-            expect(manager.canDrag(child)).toBe(false);
+            // Drag from diagrams is now allowed (for moving blocks between tree and diagram)
+            expect(manager.canDrag(child)).toBe(true);
 
             document.body.removeChild(parent);
         });
@@ -201,9 +203,14 @@ describe('DragDropManager', () => {
             expect(manager.canDropInto(element)).toBe(true);
         });
 
-        test('returns false for diagram block target', () => {
+        test('returns true for diagram block target - drop to diagram allowed', () => {
             const element = createMockBlockElement('diagram-block', { hasCustomGrid: true });
-            expect(manager.canDropInto(element)).toBe(false);
+            mockLocalStateManager.blocks.set('diagram-block', {
+                id: 'diagram-block',
+                data: { customGrid: { grid: ['grid-template-columns_1fr__'] } }
+            });
+            // Drop to diagrams is now allowed (for moving blocks from tree to diagram)
+            expect(manager.canDropInto(element)).toBe(true);
         });
 
         test('returns false for layoutCells block target', () => {
@@ -385,11 +392,11 @@ describe('DragDropManager', () => {
             expect(dispatch).not.toHaveBeenCalled();
         });
 
-        test('does not dispatch when dropping in same location', () => {
+        test('does not dispatch when dropping in same location (not diagram)', () => {
             manager.isDragging = true;
             manager.draggedBlockId = 'block-1';
             manager.dragSourceParentId = 'parent-1';
-            manager.lastDropTarget = { parentId: 'parent-1', beforeBlockId: null };
+            manager.lastDropTarget = { parentId: 'parent-1', beforeBlockId: null, dropToDiagram: false };
 
             const mockEvent = { preventDefault: jest.fn() };
 
@@ -402,7 +409,13 @@ describe('DragDropManager', () => {
             manager.isDragging = true;
             manager.draggedBlockId = 'block-1';
             manager.dragSourceParentId = 'old-parent';
-            manager.lastDropTarget = { parentId: 'new-parent', beforeBlockId: 'sibling' };
+            manager.dragFromDiagram = false;
+            manager.lastDropTarget = {
+                parentId: 'new-parent',
+                beforeBlockId: 'sibling',
+                dropToDiagram: false,
+                diagramPosition: null
+            };
             manager.draggedElement = createMockBlockElement('block-1');
 
             const mockEvent = { preventDefault: jest.fn() };
@@ -413,7 +426,38 @@ describe('DragDropManager', () => {
                 block_id: 'block-1',
                 old_parent_id: 'old-parent',
                 new_parent_id: 'new-parent',
-                before: 'sibling'
+                before: 'sibling',
+                fromDiagram: false,
+                toDiagram: false,
+                diagramPosition: null
+            });
+        });
+
+        test('dispatches MoveBlock event with diagram info when dropping to diagram', () => {
+            manager.isDragging = true;
+            manager.draggedBlockId = 'block-1';
+            manager.dragSourceParentId = 'old-parent';
+            manager.dragFromDiagram = false;
+            manager.lastDropTarget = {
+                parentId: 'diagram-parent',
+                beforeBlockId: null,
+                dropToDiagram: true,
+                diagramPosition: { col: 2, row: 3 }
+            };
+            manager.draggedElement = createMockBlockElement('block-1');
+
+            const mockEvent = { preventDefault: jest.fn() };
+
+            manager.handleDrop(mockEvent, null);
+
+            expect(dispatch).toHaveBeenCalledWith('MoveBlock', {
+                block_id: 'block-1',
+                old_parent_id: 'old-parent',
+                new_parent_id: 'diagram-parent',
+                before: null,
+                fromDiagram: false,
+                toDiagram: true,
+                diagramPosition: { col: 2, row: 3 }
             });
         });
     });
@@ -503,15 +547,15 @@ describe('DragDropManager', () => {
 
         test('returns sibling-before for top zone (< 25%)', () => {
             // Top zone: 100-125 (25% of 100px height)
-            const event = { clientY: 110 }; // 10% from top
+            const event = { clientY: 110, clientX: 150 }; // 10% from top
 
             const result = manager._calculateDropTarget(event, targetElement);
 
-            expect(result).toEqual({
-                parentId: 'parent-1',
-                beforeBlockId: 'target-1',
-                type: 'sibling-before'
-            });
+            expect(result.parentId).toBe('parent-1');
+            expect(result.beforeBlockId).toBe('target-1');
+            expect(result.type).toBe('sibling-before');
+            expect(result.dropToDiagram).toBe(false);
+            expect(result.diagramPosition).toBeNull();
         });
 
         test('returns sibling-after for bottom zone (> 75%)', () => {
@@ -532,7 +576,7 @@ describe('DragDropManager', () => {
 
         test('returns child for center zone (25-75%)', () => {
             // Center zone: 125-175
-            const event = { clientY: 150 }; // 50% from top
+            const event = { clientY: 150, clientX: 150 }; // 50% from top
 
             mockLocalStateManager.blocks.set('target-1', {
                 id: 'target-1',
@@ -541,24 +585,33 @@ describe('DragDropManager', () => {
 
             const result = manager._calculateDropTarget(event, targetElement);
 
-            expect(result).toEqual({
-                parentId: 'target-1',
-                beforeBlockId: null,
-                type: 'child'
-            });
+            expect(result.parentId).toBe('target-1');
+            expect(result.beforeBlockId).toBeNull();
+            expect(result.type).toBe('child');
+            expect(result.dropToDiagram).toBe(false);
+            expect(result.diagramPosition).toBeNull();
         });
 
-        test('returns null for child zone when target is diagram', () => {
-            const event = { clientY: 150 }; // center
+        test('returns child with diagram info when dropping into diagram block', () => {
+            const event = { clientY: 150, clientX: 150 }; // center
 
             mockLocalStateManager.blocks.set('target-1', {
                 id: 'target-1',
-                data: { customGrid: { grid: ['1fr'] } }
+                data: { customGrid: { grid: ['grid-template-columns_1fr__1fr__', 'grid-template-rows_auto__1fr__1fr__'] } }
             });
+
+            // Mock defaultContent element
+            targetElement.querySelector = jest.fn(() => null);
 
             const result = manager._calculateDropTarget(event, targetElement);
 
-            expect(result).toBeNull();
+            expect(result.parentId).toBe('target-1');
+            expect(result.beforeBlockId).toBeNull();
+            expect(result.type).toBe('child');
+            expect(result.dropToDiagram).toBe(true);
+            expect(result.diagramPosition).toBeDefined();
+            expect(result.diagramPosition.col).toBeGreaterThan(0);
+            expect(result.diagramPosition.row).toBeGreaterThan(0);
         });
     });
 

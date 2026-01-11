@@ -1134,7 +1134,7 @@ export class LocalStateManager {
         }
     }
 
-    async moveBlock({block_id, old_parent_id, new_parent_id, before}) {
+    async moveBlock({block_id, old_parent_id, new_parent_id, before, fromDiagram, toDiagram, diagramPosition}) {
         if (block_id === new_parent_id) return
         const newParent = this.blocks.get(new_parent_id)
 
@@ -1168,8 +1168,22 @@ export class LocalStateManager {
 
         // Сохраняем backup для rollback
         const blockBackup = {...block, parent_id: block.parent_id};
-        const oldParentBackup = oldParent ? {...oldParent, children: [...(oldParent.children || [])], data: {...oldParent.data}} : null;
-        const newParentBackup = {...newParent, children: [...(newParent.children || [])], data: {...newParent.data}};
+        const oldParentBackup = oldParent ? {
+            ...oldParent,
+            children: [...(oldParent.children || [])],
+            data: {
+                ...oldParent.data,
+                customGrid: oldParent.data?.customGrid ? JSON.parse(JSON.stringify(oldParent.data.customGrid)) : undefined
+            }
+        } : null;
+        const newParentBackup = {
+            ...newParent,
+            children: [...(newParent.children || [])],
+            data: {
+                ...newParent.data,
+                customGrid: newParent.data?.customGrid ? JSON.parse(JSON.stringify(newParent.data.customGrid)) : undefined
+            }
+        };
 
         // Обновляем parent_id блока
         block.parent_id = new_parent_id;
@@ -1181,6 +1195,12 @@ export class LocalStateManager {
             if (oldParent.data?.childOrder) {
                 oldParent.data.childOrder = oldParent.data.childOrder.filter(id => id !== block_id);
             }
+
+            // Если старый родитель - диаграмма, удаляем позицию из customGrid
+            if (fromDiagram && oldParent.data?.customGrid?.childrenPositions) {
+                delete oldParent.data.customGrid.childrenPositions[block_id];
+            }
+
             await this.saveBlock(oldParent);
         }
 
@@ -1193,6 +1213,22 @@ export class LocalStateManager {
         // Синхронизируем children с childOrder для правильного порядка
         newParent.children = newOrder.filter(id => newParent.children.includes(id));
         newParent.updated_at = new Date().toISOString();
+
+        // Если новый родитель - диаграмма, добавляем позицию в customGrid
+        if (toDiagram && newParent.data?.customGrid) {
+            if (!newParent.data.customGrid.childrenPositions) {
+                newParent.data.customGrid.childrenPositions = {};
+            }
+
+            // Вычисляем позицию для нового блока
+            const position = this._calculateBlockPositionInDiagram(
+                newParent.data.customGrid,
+                block_id,
+                diagramPosition
+            );
+
+            newParent.data.customGrid.childrenPositions[block_id] = position;
+        }
 
         await this.saveBlock(block);
         await this.saveBlock(newParent);
@@ -1211,6 +1247,167 @@ export class LocalStateManager {
             console.error('Failed to queue move operation:', err);
             await this.rollbackMoveBlock(blockBackup, oldParentBackup, newParentBackup);
         }
+    }
+
+    /**
+     * Вычисляет позицию блока в customGrid диаграммы
+     * @param {Object} customGrid - customGrid родительского блока
+     * @param {string} blockId - ID блока
+     * @param {Object|null} dropPosition - позиция drop {col, row} или null для автовычисления
+     * @returns {Array} - ['grid-column_X__Y', 'grid-row_X__Y']
+     */
+    _calculateBlockPositionInDiagram(customGrid, blockId, dropPosition) {
+        // Парсим размер grid
+        const colsClass = customGrid.grid?.find(cls => cls.startsWith('grid-template-columns_'));
+        const rowsClass = customGrid.grid?.find(cls => cls.startsWith('grid-template-rows_'));
+        const gridCols = colsClass ? (colsClass.split('__').length - 1) : 3;
+        const gridRows = rowsClass ? (rowsClass.split('__').length - 1) : 3;
+
+        // Находим минимальный размер блока среди существующих в диаграмме
+        const { width: blockWidth, height: blockHeight } = this._findMinBlockSizeInDiagram(customGrid);
+
+        // Если есть позиция drop, используем её
+        if (dropPosition?.col && dropPosition?.row) {
+            let colStart = dropPosition.col;
+            let rowStart = dropPosition.row;
+            let colEnd = Math.min(colStart + blockWidth, gridCols + 1);
+            let rowEnd = Math.min(rowStart + blockHeight, gridRows + 2);
+
+            // Ограничиваем по границам grid
+            if (colStart > gridCols) colStart = gridCols;
+            if (rowStart > gridRows + 1) rowStart = gridRows + 1;
+
+            return [
+                `grid-column_${colStart}__${colEnd}`,
+                `grid-row_${rowStart}__${rowEnd}`
+            ];
+        }
+
+        // Автоматический поиск свободной позиции
+        return this._findFreePositionInCustomGrid(customGrid, gridCols, gridRows, blockWidth, blockHeight);
+    }
+
+    /**
+     * Находит минимальный размер блока среди существующих в диаграмме
+     * @param {Object} customGrid - customGrid диаграммы
+     * @returns {Object} - {width, height} минимальный размер
+     */
+    _findMinBlockSizeInDiagram(customGrid) {
+        // Значения по умолчанию если блоков нет
+        let minWidth = 1;
+        let minHeight = 1;
+        let hasBlocks = false;
+
+        if (customGrid.childrenPositions) {
+            for (const [, position] of Object.entries(customGrid.childrenPositions)) {
+                if (!position || !Array.isArray(position)) continue;
+
+                const colStr = position.find(p => p?.startsWith('grid-column_'));
+                const rowStr = position.find(p => p?.startsWith('grid-row_'));
+
+                if (!colStr || !rowStr) continue;
+
+                const colMatch = colStr.match(/_(\d+)(?:__(\d+))?/);
+                const rowMatch = rowStr.match(/_(\d+)(?:__(\d+))?/);
+
+                if (!colMatch || !rowMatch) continue;
+
+                const colStart = parseInt(colMatch[1], 10);
+                const colEnd = colMatch[2] ? parseInt(colMatch[2], 10) : colStart + 1;
+                const rowStart = parseInt(rowMatch[1], 10);
+                const rowEnd = rowMatch[2] ? parseInt(rowMatch[2], 10) : rowStart + 1;
+
+                const width = colEnd - colStart;
+                const height = rowEnd - rowStart;
+
+                if (!hasBlocks) {
+                    // Первый блок - инициализируем минимумы
+                    minWidth = width;
+                    minHeight = height;
+                    hasBlocks = true;
+                } else {
+                    // Обновляем минимумы
+                    if (width < minWidth) minWidth = width;
+                    if (height < minHeight) minHeight = height;
+                }
+            }
+        }
+
+        return { width: minWidth, height: minHeight };
+    }
+
+    /**
+     * Находит свободную позицию в customGrid для блока
+     * @param {Object} customGrid - customGrid
+     * @param {number} gridCols - количество колонок в grid
+     * @param {number} gridRows - количество строк в grid
+     * @param {number} blockWidth - ширина блока
+     * @param {number} blockHeight - высота блока
+     * @returns {Array} - ['grid-column_X__Y', 'grid-row_X__Y']
+     */
+    _findFreePositionInCustomGrid(customGrid, gridCols, gridRows, blockWidth, blockHeight) {
+        // Создаём карту занятых ячеек
+        const occupied = new Set();
+
+        if (customGrid.childrenPositions) {
+            for (const [, position] of Object.entries(customGrid.childrenPositions)) {
+                if (!position || !Array.isArray(position)) continue;
+
+                const colStr = position.find(p => p?.startsWith('grid-column_'));
+                const rowStr = position.find(p => p?.startsWith('grid-row_'));
+
+                if (!colStr || !rowStr) continue;
+
+                const colMatch = colStr.match(/_(\d+)(?:__(\d+))?/);
+                const rowMatch = rowStr.match(/_(\d+)(?:__(\d+))?/);
+
+                if (!colMatch || !rowMatch) continue;
+
+                const colStart = parseInt(colMatch[1], 10);
+                const colEnd = colMatch[2] ? parseInt(colMatch[2], 10) : colStart + 1;
+                const rowStart = parseInt(rowMatch[1], 10);
+                const rowEnd = rowMatch[2] ? parseInt(rowMatch[2], 10) : rowStart + 1;
+
+                // Отмечаем все ячейки как занятые
+                for (let r = rowStart; r < rowEnd; r++) {
+                    for (let c = colStart; c < colEnd; c++) {
+                        occupied.add(`${r}-${c}`);
+                    }
+                }
+            }
+        }
+
+        // Ищем свободную позицию (начиная со строки 2, т.к. строка 1 - контент)
+        for (let row = 2; row <= gridRows + 1; row++) {
+            for (let col = 1; col <= gridCols; col++) {
+                // Проверяем, поместится ли блок
+                let canPlace = true;
+                for (let r = row; r < row + blockHeight && r <= gridRows + 1; r++) {
+                    for (let c = col; c < col + blockWidth && c <= gridCols; c++) {
+                        if (occupied.has(`${r}-${c}`)) {
+                            canPlace = false;
+                            break;
+                        }
+                    }
+                    if (!canPlace) break;
+                }
+
+                if (canPlace) {
+                    const colEnd = Math.min(col + blockWidth, gridCols + 1);
+                    const rowEnd = Math.min(row + blockHeight, gridRows + 2);
+                    return [
+                        `grid-column_${col}__${colEnd}`,
+                        `grid-row_${row}__${rowEnd}`
+                    ];
+                }
+            }
+        }
+
+        // Если свободного места нет, размещаем в последней доступной позиции (1x1)
+        return [
+            `grid-column_${gridCols}__${gridCols + 1}`,
+            `grid-row_${gridRows + 1}__${gridRows + 2}`
+        ];
     }
 
     /**
