@@ -96,7 +96,9 @@ function clearHash() {
  * @param {string} [username] - Имя пользователя (опционально)
  */
 export async function openDirectChatById(userId, username = null) {
-    console.log(LOG_PREFIX, 'Opening direct chat', { userId, username });
+    // Приводим userId к числу для консистентности (из URL приходит строка)
+    const numericUserId = Number(userId);
+    console.log(LOG_PREFIX, 'Opening direct chat', { userId: numericUserId, username });
 
     try {
         // Если username не передан, пробуем найти в conversations
@@ -106,8 +108,6 @@ export async function openDirectChatById(userId, username = null) {
             try {
                 const response = await chatApi.getConversations();
                 const conversations = response.data || [];
-                // Приводим к числу для корректного сравнения (userId из URL - строка, из API - число)
-                const numericUserId = Number(userId);
                 const existing = conversations.find(c => c.user_id === numericUserId);
                 if (existing) {
                     displayName = existing.username;
@@ -119,8 +119,8 @@ export async function openDirectChatById(userId, username = null) {
 
         // Открываем чат
         new ConversationView({
-            user_id: userId,
-            username: displayName || `User ${userId}`
+            user_id: numericUserId,
+            username: displayName || `User ${numericUserId}`
         });
 
     } catch (error) {
