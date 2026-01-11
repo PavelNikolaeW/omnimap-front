@@ -9,6 +9,13 @@ class ChatBadgeManager {
         this.badgeId = 'chat-unread-badge';
         this.unreadCount = 0;
         this.initialized = false;
+        this.initialLoadDone = false;
+
+        // Привязываем методы для корректного удаления listeners
+        this._handleUnreadCountUpdate = this._handleUnreadCountUpdate.bind(this);
+        this._handleUnreadUpdated = this._handleUnreadUpdated.bind(this);
+        this._handleUIButtonsRendered = this._handleUIButtonsRendered.bind(this);
+        this._handleLogout = this._handleLogout.bind(this);
     }
 
     /**
@@ -19,25 +26,67 @@ class ChatBadgeManager {
         if (this.initialized) return;
 
         // Подписываемся на событие обновления непрочитанных
-        window.addEventListener('ChatUnreadCountUpdate', (e) => {
-            this.handleUnreadUpdate(e.detail);
-        });
+        window.addEventListener('ChatUnreadCountUpdate', this._handleUnreadCountUpdate);
 
         // Также слушаем ChatUnreadUpdated от chatPanel
-        window.addEventListener('ChatUnreadUpdated', (e) => {
-            this.handleUnreadUpdate(e.detail);
-        });
+        window.addEventListener('ChatUnreadUpdated', this._handleUnreadUpdated);
 
         // Слушаем событие рендеринга UI для добавления badge
-        window.addEventListener('UIButtonsRendered', () => {
-            this.createBadge();
-            this.updateBadgeDisplay();
-        });
+        window.addEventListener('UIButtonsRendered', this._handleUIButtonsRendered);
+
+        // Сбрасываем badge при logout
+        window.addEventListener('Logout', this._handleLogout);
 
         this.initialized = true;
+    }
 
-        // Загружаем начальное количество (после небольшой задержки для UI)
-        setTimeout(() => this.loadInitialCount(), 500);
+    /**
+     * Очистка менеджера - удаляет все listeners
+     */
+    destroy() {
+        window.removeEventListener('ChatUnreadCountUpdate', this._handleUnreadCountUpdate);
+        window.removeEventListener('ChatUnreadUpdated', this._handleUnreadUpdated);
+        window.removeEventListener('UIButtonsRendered', this._handleUIButtonsRendered);
+        window.removeEventListener('Logout', this._handleLogout);
+
+        this.initialized = false;
+        this.initialLoadDone = false;
+    }
+
+    /**
+     * Обработчик события ChatUnreadCountUpdate
+     */
+    _handleUnreadCountUpdate(e) {
+        this.handleUnreadUpdate(e.detail);
+    }
+
+    /**
+     * Обработчик события ChatUnreadUpdated
+     */
+    _handleUnreadUpdated(e) {
+        this.handleUnreadUpdate(e.detail);
+    }
+
+    /**
+     * Обработчик события UIButtonsRendered
+     * Загружает начальное количество при первом рендере
+     */
+    _handleUIButtonsRendered() {
+        this.createBadge();
+        if (!this.initialLoadDone) {
+            this.loadInitialCount();
+            this.initialLoadDone = true;
+        } else {
+            this.updateBadgeDisplay();
+        }
+    }
+
+    /**
+     * Обработчик события Logout
+     */
+    _handleLogout() {
+        this.reset();
+        this.initialLoadDone = false;
     }
 
     /**
@@ -64,10 +113,10 @@ class ChatBadgeManager {
      */
     handleUnreadUpdate(detail) {
         if (detail.total !== undefined) {
-            this.unreadCount = detail.total;
+            this.unreadCount = parseInt(detail.total, 10) || 0;
         } else {
-            const dm = detail.dm || 0;
-            const groups = detail.groups || 0;
+            const dm = parseInt(detail.dm, 10) || 0;
+            const groups = parseInt(detail.groups, 10) || 0;
             this.unreadCount = dm + groups;
         }
         this.updateBadgeDisplay();
@@ -89,6 +138,7 @@ class ChatBadgeManager {
             badge = document.createElement('span');
             badge.id = this.badgeId;
             badge.className = 'chat-button-badge';
+            badge.setAttribute('data-testid', 'chat-unread-badge');
             button.appendChild(badge);
         }
     }
@@ -104,8 +154,9 @@ class ChatBadgeManager {
             return;
         }
 
-        if (this.unreadCount > 0) {
-            badge.textContent = this.unreadCount > 99 ? '99+' : this.unreadCount;
+        const count = parseInt(this.unreadCount, 10) || 0;
+        if (count > 0) {
+            badge.textContent = count > 99 ? '99+' : count;
             badge.style.display = '';
         } else {
             badge.style.display = 'none';
