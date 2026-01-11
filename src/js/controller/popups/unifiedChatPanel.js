@@ -1483,6 +1483,9 @@ export class UnifiedChatPanel {
     handleChatEvent(detail) {
         const { type, data } = detail || {};
 
+        // DEBUG: Log incoming chat events
+        console.log('[ChatEvent]', { type, data, activeChat: this.activeChat, currentUserId: this.currentUserId });
+
         if (type === 'dm' && this.activeChat?.type === CHAT_TYPES.DM) {
             // Check if message is for current chat:
             // 1. Received from the person we're chatting with (sender_id == activeChat.id)
@@ -1490,6 +1493,9 @@ export class UnifiedChatPanel {
             const isFromPeer = data?.sender_id == this.activeChat.id; // eslint-disable-line eqeqeq
             const recipientId = data?.message?.recipient_id || data?.recipient_id;
             const isOwnMessage = data?.sender_id == this.currentUserId && recipientId == this.activeChat.id; // eslint-disable-line eqeqeq
+
+            // DEBUG: Log DM check
+            console.log('[ChatEvent DM check]', { isFromPeer, isOwnMessage, recipientId, senderId: data?.sender_id, activeChatId: this.activeChat.id });
 
             if (isFromPeer || isOwnMessage) {
                 // Avoid duplicate messages (check by ID)
