@@ -205,6 +205,7 @@ export class NotificationSettingsPopup extends Popup {
     createPushSection() {
         const section = document.createElement('div');
         section.className = 'popup-section';
+        section.dataset.sectionId = 'push';
 
         const pushSupported = 'Notification' in window;
         const pushPermission = pushSupported ? Notification.permission : 'denied';
@@ -489,7 +490,7 @@ export class NotificationSettingsPopup extends Popup {
             const permission = await Notification.requestPermission();
             if (permission === 'granted') {
                 // Перерисовать секцию
-                const pushSection = this.contentArea.querySelectorAll('.popup-section')[2];
+                const pushSection = this.contentArea.querySelector('[data-section-id="push"]');
                 if (pushSection) {
                     pushSection.replaceWith(this.createPushSection());
                     this.bindFormEvents();

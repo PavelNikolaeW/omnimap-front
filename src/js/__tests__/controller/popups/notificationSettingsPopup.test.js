@@ -194,6 +194,17 @@ describe('NotificationSettingsPopup', () => {
         });
     });
 
+    describe('createPushSection', () => {
+        test('should create section with data-section-id attribute', async () => {
+            popup = new NotificationSettingsPopup();
+            await flushPromises();
+
+            const section = popup.createPushSection();
+
+            expect(section.dataset.sectionId).toBe('push');
+        });
+    });
+
     describe('updateTelegramDependentSections', () => {
         test('should find sections by data-section-id', async () => {
             popup = new NotificationSettingsPopup();
