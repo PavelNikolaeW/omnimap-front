@@ -560,7 +560,15 @@ export class LayoutEditorPanel extends Popup {
                 ${presetInfo}
             </div>
             <div class="status-bar__right">
-                <span class="status-bar__hint">💡 Перетаскивайте блоки • Тяните углы для изменения размера</span>
+                <span class="status-bar__shortcuts">
+                    <kbd>Enter</kbd> добавить
+                    <span class="status-bar__sep">•</span>
+                    <kbd>↑↓←→</kbd> переместить
+                    <span class="status-bar__sep">•</span>
+                    <kbd>Shift+↑↓←→</kbd> размер
+                    <span class="status-bar__sep">•</span>
+                    <kbd>Del</kbd> удалить
+                </span>
             </div>
         `;
     }
