@@ -426,7 +426,8 @@ export class ChatPanel extends Popup {
 
     handleNewDirectMessage(data) {
         // Find or create conversation
-        const existingIndex = this.conversations.findIndex(c => c.user_id === data.sender_id);
+        // eslint-disable-next-line eqeqeq
+        const existingIndex = this.conversations.findIndex(c => c.user_id == data.sender_id);
         if (existingIndex >= 0) {
             const conv = this.conversations[existingIndex];
             conv.last_message = data.message;
@@ -439,7 +440,8 @@ export class ChatPanel extends Popup {
     }
 
     handleNewGroupMessage(data) {
-        const existingIndex = this.groups.findIndex(g => g.id === data.group_id);
+        // eslint-disable-next-line eqeqeq
+        const existingIndex = this.groups.findIndex(g => g.id == data.group_id);
         if (existingIndex >= 0) {
             const group = this.groups[existingIndex];
             group.last_message = data.message;
