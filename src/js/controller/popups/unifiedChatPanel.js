@@ -782,10 +782,10 @@ export class UnifiedChatPanel {
         try {
             if (item.type === CHAT_TYPES.DM) {
                 await chatApi.markAsRead(item.id);
-                dispatch('ChatMessagesRead', { type: 'dm', id: item.id });
+                dispatch('ChatMessagesRead', { type: 'dm', id: item.id, userId: item.id });
             } else if (item.type === CHAT_TYPES.GROUP) {
                 await chatApi.markGroupAsRead(item.id);
-                dispatch('ChatMessagesRead', { type: 'group', id: item.id });
+                dispatch('ChatMessagesRead', { type: 'group', id: item.id, groupId: item.id });
             }
         } catch (err) {
             console.warn('Failed to mark as read:', err);
@@ -1479,21 +1479,23 @@ export class UnifiedChatPanel {
     handleChatEvent(detail) {
         const { type, data } = detail || {};
 
-        if (type === 'dm' && this.activeChat?.type === CHAT_TYPES.DM && data?.sender_id === this.activeChat.id) {
+        // eslint-disable-next-line eqeqeq
+        if (type === 'dm' && this.activeChat?.type === CHAT_TYPES.DM && data?.sender_id == this.activeChat.id) {
             this.messages.push(data.message);
             this.renderMessages();
             this.scrollToBottom();
             chatApi.markAsRead(this.activeChat.id)
-                .then(() => dispatch('ChatMessagesRead', { type: 'dm', id: this.activeChat.id }))
+                .then(() => dispatch('ChatMessagesRead', { type: 'dm', id: this.activeChat.id, userId: this.activeChat.id }))
                 .catch(() => {});
         }
 
-        if (type === 'group_message' && this.activeChat?.type === CHAT_TYPES.GROUP && data?.group_id === this.activeChat.id) {
+        // eslint-disable-next-line eqeqeq
+        if (type === 'group_message' && this.activeChat?.type === CHAT_TYPES.GROUP && data?.group_id == this.activeChat.id) {
             this.messages.push(data.message);
             this.renderMessages();
             this.scrollToBottom();
             chatApi.markGroupAsRead(this.activeChat.id)
-                .then(() => dispatch('ChatMessagesRead', { type: 'group', id: this.activeChat.id }))
+                .then(() => dispatch('ChatMessagesRead', { type: 'group', id: this.activeChat.id, groupId: this.activeChat.id }))
                 .catch(() => {});
         }
     }
@@ -1501,11 +1503,13 @@ export class UnifiedChatPanel {
     handleTypingEvent(detail) {
         const { userId, groupId, isTyping, username } = detail || {};
 
-        if (this.activeChat?.type === CHAT_TYPES.DM && userId === this.activeChat.id) {
+        // eslint-disable-next-line eqeqeq
+        if (this.activeChat?.type === CHAT_TYPES.DM && userId == this.activeChat.id) {
             this.showTypingIndicator(isTyping ? username || 'Собеседник' : null);
         }
 
-        if (this.activeChat?.type === CHAT_TYPES.GROUP && groupId === this.activeChat.id) {
+        // eslint-disable-next-line eqeqeq
+        if (this.activeChat?.type === CHAT_TYPES.GROUP && groupId == this.activeChat.id) {
             this.showTypingIndicator(isTyping ? username : null);
         }
     }
