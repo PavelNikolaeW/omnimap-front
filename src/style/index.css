@@ -211,6 +211,16 @@ h6 {
     cursor: grab;
 }
 
+/* При зажатом Shift дочерние элементы не должны мешать drag */
+[data-shift-drag] [block][draggable="true"] * {
+    pointer-events: none;
+}
+
+/* Но вложенные блоки должны быть доступны */
+[data-shift-drag] [block][draggable="true"] [block] {
+    pointer-events: auto;
+}
+
 [data-shift-drag] [block][draggable="true"]:active {
     cursor: grabbing;
 }
