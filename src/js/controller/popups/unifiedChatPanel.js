@@ -1480,46 +1480,53 @@ export class UnifiedChatPanel {
     // WEBSOCKET EVENTS
     // =====================================================
 
+    /**
+     * Replace temp message with real one if exists (handles optimistic update race condition)
+     * @param {string} content - Message content to match
+     * @param {Object} realMessage - Real message from WebSocket
+     * @returns {boolean} true if replacement was made
+     */
+    _replaceTempMessageIfExists(content, realMessage) {
+        const tempIdx = this.messages.findIndex(m =>
+            String(m.id).startsWith('temp-') &&
+            m.content === content
+        );
+        if (tempIdx >= 0) {
+            this.messages[tempIdx] = realMessage;
+            this.renderMessages();
+            return true;
+        }
+        return false;
+    }
+
     handleChatEvent(detail) {
         const { type, data } = detail || {};
+
+        // Early return if message data is missing
+        if (!data?.message) return;
 
         if (type === 'dm' && this.activeChat?.type === CHAT_TYPES.DM) {
             // Check if message is for current chat:
             // 1. Received from the person we're chatting with (sender_id == activeChat.id)
             // 2. Sent by us from another client (sender_id == currentUserId AND recipient matches)
-            const isFromPeer = data?.sender_id == this.activeChat.id; // eslint-disable-line eqeqeq
-            const recipientId = data?.message?.recipient_id || data?.recipient_id;
-            const isOwnMessage = data?.sender_id == this.currentUserId && recipientId == this.activeChat.id; // eslint-disable-line eqeqeq
+            const isFromPeer = data.sender_id == this.activeChat.id; // eslint-disable-line eqeqeq
+            const recipientId = data.message.recipient_id || data.recipient_id;
+            const isOwnMessage = data.sender_id == this.currentUserId && recipientId == this.activeChat.id; // eslint-disable-line eqeqeq
 
             if (isFromPeer || isOwnMessage) {
                 // Avoid duplicate messages (check by ID)
-                const messageId = data.message?.id;
-                if (messageId && this.messages.some(m => m.id === messageId)) {
+                if (data.message.id && this.messages.some(m => m.id === data.message.id)) {
                     return;
                 }
 
-                // For own messages: check if there's a temp message with same content (race condition with optimistic update)
-                if (isOwnMessage) {
-                    const hasTempDuplicate = this.messages.some(m =>
-                        String(m.id).startsWith('temp-') &&
-                        m.content === data.message?.content
-                    );
-                    if (hasTempDuplicate) {
-                        // Replace temp message with real one
-                        const tempIdx = this.messages.findIndex(m =>
-                            String(m.id).startsWith('temp-') &&
-                            m.content === data.message?.content
-                        );
-                        if (tempIdx >= 0) {
-                            this.messages[tempIdx] = { ...data.message, sender_id: data.sender_id };
-                            this.renderMessages();
-                        }
-                        return;
-                    }
+                // Build message with sender_id (WebSocket sends it separately)
+                const message = { ...data.message, sender_id: data.sender_id };
+
+                // For own messages: try to replace temp message (race condition with optimistic update)
+                if (isOwnMessage && this._replaceTempMessageIfExists(data.message.content, message)) {
+                    return;
                 }
 
-                // Ensure sender_id is in message (WebSocket sends it separately)
-                const message = { ...data.message, sender_id: data.sender_id };
                 this.messages.push(message);
                 this.renderMessages();
                 this.scrollToBottom();
@@ -1533,42 +1540,27 @@ export class UnifiedChatPanel {
             }
         }
 
-        if (type === 'group_message' && this.activeChat?.type === CHAT_TYPES.GROUP && data?.group_id == this.activeChat.id) { // eslint-disable-line eqeqeq
+        if (type === 'group_message' && this.activeChat?.type === CHAT_TYPES.GROUP && data.group_id == this.activeChat.id) { // eslint-disable-line eqeqeq
             // Avoid duplicate messages (check by ID)
-            const messageId = data.message?.id;
-            if (messageId && this.messages.some(m => m.id === messageId)) {
+            if (data.message.id && this.messages.some(m => m.id === data.message.id)) {
                 return;
             }
 
-            // For own messages: check if there's a temp message with same content (race condition with optimistic update)
-            const isOwnGroupMessage = data?.sender_id == this.currentUserId; // eslint-disable-line eqeqeq
-            if (isOwnGroupMessage) {
-                const hasTempDuplicate = this.messages.some(m =>
-                    String(m.id).startsWith('temp-') &&
-                    m.content === data.message?.content
-                );
-                if (hasTempDuplicate) {
-                    // Replace temp message with real one
-                    const tempIdx = this.messages.findIndex(m =>
-                        String(m.id).startsWith('temp-') &&
-                        m.content === data.message?.content
-                    );
-                    if (tempIdx >= 0) {
-                        this.messages[tempIdx] = { ...data.message, sender_id: data.sender_id };
-                        this.renderMessages();
-                    }
-                    return;
-                }
+            // Build message with sender_id (WebSocket sends it separately)
+            const message = { ...data.message, sender_id: data.sender_id };
+
+            // For own messages: try to replace temp message (race condition with optimistic update)
+            const isOwnMessage = data.sender_id == this.currentUserId; // eslint-disable-line eqeqeq
+            if (isOwnMessage && this._replaceTempMessageIfExists(data.message.content, message)) {
+                return;
             }
 
-            // Ensure sender_id is in message (WebSocket sends it separately)
-            const message = { ...data.message, sender_id: data.sender_id };
             this.messages.push(message);
             this.renderMessages();
             this.scrollToBottom();
 
             // Only mark as read if not our own message
-            if (data?.sender_id != this.currentUserId) { // eslint-disable-line eqeqeq
+            if (!isOwnMessage) {
                 chatApi.markGroupAsRead(this.activeChat.id)
                     .then(() => dispatch('ChatMessagesRead', { type: 'group', id: this.activeChat.id, groupId: this.activeChat.id }))
                     .catch(() => {});
@@ -1614,21 +1606,21 @@ export class UnifiedChatPanel {
     _clearUnreadForChat(type, id) {
         if (type === CHAT_TYPES.DM) {
             const conv = this.dmConversations.find(c => (c.user_id || c.id) == id); // eslint-disable-line eqeqeq
-            if (conv) {
+            if (conv && conv.unread_count > 0) {
                 conv.unread_count = 0;
-            }
-            // Also update unreadCount state
-            if (this.unreadCount.dm > 0) {
-                this.unreadCount.dm = Math.max(0, this.unreadCount.dm - 1);
+                // Only decrement global count if this chat had unread messages
+                if (this.unreadCount.dm > 0) {
+                    this.unreadCount.dm = Math.max(0, this.unreadCount.dm - 1);
+                }
             }
         } else if (type === CHAT_TYPES.GROUP) {
             const group = this.groups.find(g => g.id == id); // eslint-disable-line eqeqeq
-            if (group) {
+            if (group && group.unread_count > 0) {
                 group.unread_count = 0;
-            }
-            // Also update unreadCount state
-            if (this.unreadCount.groups > 0) {
-                this.unreadCount.groups = Math.max(0, this.unreadCount.groups - 1);
+                // Only decrement global count if this chat had unread messages
+                if (this.unreadCount.groups > 0) {
+                    this.unreadCount.groups = Math.max(0, this.unreadCount.groups - 1);
+                }
             }
         }
 
