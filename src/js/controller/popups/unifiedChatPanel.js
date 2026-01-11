@@ -1504,7 +1504,9 @@ export class UnifiedChatPanel {
                     return;
                 }
 
-                this.messages.push(data.message);
+                // Ensure sender_id is in message (WebSocket sends it separately)
+                const message = { ...data.message, sender_id: data.sender_id };
+                this.messages.push(message);
                 this.renderMessages();
                 this.scrollToBottom();
 
@@ -1524,7 +1526,9 @@ export class UnifiedChatPanel {
                 return;
             }
 
-            this.messages.push(data.message);
+            // Ensure sender_id is in message (WebSocket sends it separately)
+            const message = { ...data.message, sender_id: data.sender_id };
+            this.messages.push(message);
             this.renderMessages();
             this.scrollToBottom();
 
