@@ -316,29 +316,37 @@ export class CommandManager {
      * Требует зажатую клавишу Shift для активации
      */
     _handleDragStart(e) {
+        console.log('🚀 _handleDragStart', { shiftKey: e.shiftKey, target: e.target });
+
         // Drag работает только с зажатым Shift
         if (!e.shiftKey) {
+            console.log('❌ No shift key');
             e.preventDefault();
             return;
         }
 
         // Не начинаем drag если сейчас режим cut, diagram или другие специальные режимы
         const mode = this.ctxManager.mode;
+        console.log('📋 Mode:', mode);
         if (mode === MODES.CUT_BLOCK || mode === MODES.TEXT_EDIT ||
             mode === MODES.CONNECT_TO_BLOCK || mode === MODES.CONNECT_SELECT_SOURCE ||
             mode === MODES.DIAGRAM) {
+            console.log('❌ Wrong mode');
             e.preventDefault();
             return;
         }
 
         // Находим блок под курсором
         const {element} = this.ctxManager.getRelevantElements(e.target);
+        console.log('🧱 Element:', element);
         if (!element) {
+            console.log('❌ No element');
             e.preventDefault();
             return;
         }
 
-        dragDropManager.startDrag(e, element);
+        const result = dragDropManager.startDrag(e, element);
+        console.log('✅ startDrag result:', result);
     }
 
     /**

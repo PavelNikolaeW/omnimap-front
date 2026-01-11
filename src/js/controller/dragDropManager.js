@@ -120,12 +120,16 @@ export class DragDropManager {
      * @param {HTMLElement} element - DOM элемент блока
      */
     startDrag(e, element) {
+        console.log('🎯 startDrag called', { element: element?.id, canDrag: this.canDrag(element) });
+
         if (!this.canDrag(element)) {
+            console.log('❌ canDrag returned false');
             e.preventDefault();
             return false;
         }
 
         this.isDragging = true;
+        console.log('✅ isDragging set to true');
         this.draggedBlockId = this._extractBlockId(element);
         this.draggedElement = element;
 
