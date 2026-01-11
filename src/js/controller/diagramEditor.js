@@ -99,6 +99,8 @@ export class DiagramEditor {
 
     /**
      * Глобальный обработчик mousedown для Shift+drag quick mode
+     * НЕ перехватывает событие если блок draggable - даём HTML5 drag работать
+     * для перемещения блоков между деревом и диаграммами
      */
     async handleGlobalMouseDown(e) {
         // Только если редактор не активен и зажат Shift
@@ -110,6 +112,12 @@ export class DiagramEditor {
         // Найти блок под курсором
         const blockEl = this.findBlockWithCustomGrid(e.target);
         if (!blockEl) return;
+
+        // Если блок имеет draggable="true" - пропускаем для HTML5 drag-and-drop
+        // (перемещение между деревом и диаграммами)
+        if (blockEl.getAttribute('draggable') === 'true') {
+            return;
+        }
 
         // Найти родительский блок с customGrid
         const parentEl = blockEl.parentElement?.closest('[blockcustomgrid]');

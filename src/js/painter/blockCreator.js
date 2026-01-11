@@ -84,9 +84,10 @@ class BlockCreator {
             // Применить data-атрибуты для layoutCells (календарь, kanban и т.д.)
             this._applyLayoutCellsData(element, block, parentBlock)
 
-            // Делаем блок draggable если родитель НЕ diagram и НЕ layoutCells
-            if (!parentBlock.data?.customGrid?.grid &&
-                !(parentBlock.data?.layout === 'cells' && parentBlock.data?.layoutCells)) {
+            // Делаем блок draggable для HTML5 drag-and-drop
+            // Исключаем только layoutCells (календарь, kanban) - там свой механизм
+            // Диаграммы теперь поддерживают Shift+drag для перемещения в дерево
+            if (!(parentBlock.data?.layout === 'cells' && parentBlock.data?.layoutCells)) {
                 element.setAttribute('draggable', 'true');
             }
 
