@@ -37,6 +37,7 @@ import {networkStatusUI} from "./sincManager/networkStatusUI";
 import {handleTelegramLinkCallback} from "./controller/telegramLinkHandler";
 import {statusIndicators} from "./core/statusIndicators";
 import {initDevCacheManager} from "./core/devCacheManager";
+import {chatBadgeManager} from "./controller/chatBadgeManager";
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
     // Храним ссылку на updatefound handler для возможности cleanup
@@ -282,6 +283,10 @@ async function initApp() {
     })
     // Инициализируем singleton LocalStateManager
     localStateManager.getInstance();
+
+    // Инициализируем менеджер badge для чата
+    chatBadgeManager.init();
+
     const sincManager = new SincManager()
     const breadcrumbs = new Breadcrumbs()
     const treeNavigation = new TreeNavigation()
