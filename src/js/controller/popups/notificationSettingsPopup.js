@@ -337,26 +337,27 @@ export class NotificationSettingsPopup extends Popup {
             testPushBtn.addEventListener('click', () => this.handleTestPush());
         }
 
-        // Quiet hours toggle
-        const quietHoursCheckbox = this.contentArea.querySelector('#quiet-hours-enabled');
-        if (quietHoursCheckbox) {
-            quietHoursCheckbox.addEventListener('change', (e) => {
-                const fields = this.contentArea.querySelector('#quiet-hours-fields');
-                fields.style.opacity = e.target.checked ? '1' : '0.5';
-                fields.style.pointerEvents = e.target.checked ? 'auto' : 'none';
-            });
-        }
-
-        // Chat notifications toggle
-        const chatTelegramCheckbox = this.contentArea.querySelector('#chat-telegram-enabled');
-        if (chatTelegramCheckbox) {
-            chatTelegramCheckbox.addEventListener('change', (e) => {
-                const options = this.contentArea.querySelector('#chat-notifications-options');
-                if (options) {
-                    options.style.opacity = e.target.checked ? '1' : '0.5';
-                    options.style.pointerEvents = e.target.checked ? 'auto' : 'none';
+        // Event delegation for toggle checkboxes (prevents memory leaks on re-render)
+        if (!this._toggleListenerAttached) {
+            this.contentArea.addEventListener('change', (e) => {
+                // Quiet hours toggle
+                if (e.target.id === 'quiet-hours-enabled') {
+                    const fields = this.contentArea.querySelector('#quiet-hours-fields');
+                    if (fields) {
+                        fields.style.opacity = e.target.checked ? '1' : '0.5';
+                        fields.style.pointerEvents = e.target.checked ? 'auto' : 'none';
+                    }
+                }
+                // Chat notifications toggle
+                if (e.target.id === 'chat-telegram-enabled') {
+                    const options = this.contentArea.querySelector('#chat-notifications-options');
+                    if (options) {
+                        options.style.opacity = e.target.checked ? '1' : '0.5';
+                        options.style.pointerEvents = e.target.checked ? 'auto' : 'none';
+                    }
                 }
             });
+            this._toggleListenerAttached = true;
         }
     }
 
@@ -412,12 +413,8 @@ export class NotificationSettingsPopup extends Popup {
                     this.telegramStatus = res.data;
                     this.showMessage('Telegram успешно привязан!', 'success');
 
-                    // Перерисовываем секцию Telegram
-                    const section = this.contentArea.querySelector('#telegram-section-content');
-                    if (section) {
-                        section.parentElement.replaceWith(this.createTelegramSection());
-                        this.bindFormEvents();
-                    }
+                    // Перерисовываем секции Telegram и Chat (зависит от статуса Telegram)
+                    this.updateTelegramDependentSections();
                 }
             } catch (e) {
                 console.error('Polling error:', e);
@@ -442,6 +439,24 @@ export class NotificationSettingsPopup extends Popup {
         }, 2000);
     }
 
+    /**
+     * Обновляет секции, зависящие от статуса Telegram (Telegram + Chat notifications)
+     */
+    updateTelegramDependentSections() {
+        const sections = this.contentArea.querySelectorAll('.popup-section');
+        // Секции идут по порядку: Telegram (0), Chat (1), Email (2), ...
+        const telegramSection = sections[0];
+        const chatSection = sections[1];
+
+        if (telegramSection) {
+            telegramSection.replaceWith(this.createTelegramSection());
+        }
+        if (chatSection) {
+            chatSection.replaceWith(this.createChatNotificationsSection());
+        }
+        this.bindFormEvents();
+    }
+
     async handleUnlinkTelegram() {
         if (!confirm('Вы уверены, что хотите отвязать Telegram?')) return;
 
@@ -449,11 +464,8 @@ export class NotificationSettingsPopup extends Popup {
             await api.unlinkTelegram();
             this.telegramStatus = { linked: false };
 
-            const section = this.contentArea.querySelector('#telegram-section-content');
-            if (section) {
-                section.parentElement.replaceWith(this.createTelegramSection());
-                this.bindFormEvents();
-            }
+            // Перерисовываем секции Telegram и Chat (зависит от статуса Telegram)
+            this.updateTelegramDependentSections();
 
             this.showMessage('Telegram успешно отвязан', 'success');
         } catch (err) {
