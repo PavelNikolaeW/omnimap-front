@@ -7,6 +7,18 @@ import {log} from "@jsplumb/browser-ui";
 import localforage from "localforage";
 import config from "../config";
 
+/**
+ * Опции для cookies - фиксируем sameSite и secure для совместимости с Chrome
+ * Chrome более строго обрабатывает cookies без явных атрибутов
+ */
+const getCookieOptions = () => ({
+    expires: 30,
+    path: '/',
+    sameSite: 'Lax',
+    // secure: true только для HTTPS
+    ...(window.location.protocol === 'https:' && { secure: true })
+});
+
 class Api {
     constructor() {
         // Используем централизованный config (runtime config + build-time fallback)
@@ -170,10 +182,11 @@ class Api {
                 .then(res => {
                     if (res.status === 200) {
                         const {access, refresh: newRefresh} = res.data;
-                        Cookies.set('access', access, {expires: 30});
+                        const cookieOptions = getCookieOptions();
+                        Cookies.set('access', access, cookieOptions);
                         // Сохраняем новый refresh token (важно при ROTATE_REFRESH_TOKENS=True)
                         if (newRefresh) {
-                            Cookies.set('refresh', newRefresh, {expires: 30});
+                            Cookies.set('refresh', newRefresh, cookieOptions);
                         }
                         return true;
                     }
@@ -190,8 +203,9 @@ class Api {
         return this.api.post('/register/', userData).then((res) => {
             if (res.status === 201) {
                 const {access, refresh, user_id} = res.data;
-                Cookies.set('access', access, {expires: 30});
-                Cookies.set('refresh', refresh, {expires: 30});
+                const cookieOptions = getCookieOptions();
+                Cookies.set('access', access, cookieOptions);
+                Cookies.set('refresh', refresh, cookieOptions);
                 dispatch('InitUser', {user: user_id})
                 return true
             }
@@ -205,8 +219,9 @@ class Api {
             .then(res => {
                 if (res.status === 200) {
                     const {access, refresh, user_id} = res.data;
-                    Cookies.set('access', access, {expires: 30});
-                    Cookies.set('refresh', refresh, {expires: 30});
+                    const cookieOptions = getCookieOptions();
+                    Cookies.set('access', access, cookieOptions);
+                    Cookies.set('refresh', refresh, cookieOptions);
                     localforage.setItem('currentUser', user_id).then(() => {
                         dispatch('Login', {user: user_id})
                     })
@@ -219,8 +234,9 @@ class Api {
     }
 
     logout() {
-        Cookies.remove('access');
-        Cookies.remove('refresh');
+        // Используем те же опции path что и при установке, иначе cookies не удалятся
+        Cookies.remove('access', { path: '/' });
+        Cookies.remove('refresh', { path: '/' });
         dispatch('Logout')
         delete this.api.defaults.headers.common['Authorization'];
     }
