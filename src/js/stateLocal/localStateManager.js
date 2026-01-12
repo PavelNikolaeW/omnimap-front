@@ -745,6 +745,8 @@ export class LocalStateManager {
     }
 
     async WebSocUpdateBlockAccess(message) {
+        console.log('🔔 WebSocUpdateBlockAccess received:', JSON.stringify(message, null, 2));
+
         if (!message?.start_block_ids || !Array.isArray(message.start_block_ids)) {
             console.warn('LocalStateManager: invalid WebSocUpdateBlockAccess message');
             return;
