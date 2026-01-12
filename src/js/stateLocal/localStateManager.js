@@ -1734,40 +1734,125 @@ export class LocalStateManager {
         }
     }
 
+    /**
+     * Возвращает текущий path из памяти
+     * @deprecated Используй this.path напрямую или getPathSync()
+     * @param {Function} callback - callback(err, path)
+     */
     getPath(callback) {
-        localforage.getItem('currentTree', (err, tree) => {
-            localforage.getItem('currentUser', (err, user) => {
-                if (window.location.href.indexOf('/?') !== -1) {
-                    localforage.getItem(`linkSlugTreeId${user}:${window.location.search.slice(1,)}`, (err, linkTree) => {
-                        localforage.getItem(`Path_${linkTree}${user}`, callback)
-                    })
-                } else {
-                    localforage.getItem(`Path_${tree}${user}`, callback)
-                }
-            })
-        })
+        // Для обратной совместимости вызываем callback асинхронно
+        setTimeout(() => {
+            callback(null, this.path || []);
+        }, 0);
+    }
+
+    /**
+     * Синхронно возвращает текущий path
+     * @returns {Array} path или пустой массив
+     */
+    getPathSync() {
+        return this.path || [];
+    }
+
+    /**
+     * Проверяет инициализировано ли состояние и восстанавливает его при необходимости
+     * Вызывается когда обнаружено что IndexedDB был очищен
+     * @returns {Promise<boolean>} true если состояние валидно, false если требуется полная перезагрузка
+     */
+    async ensureStateInitialized() {
+        // Проверяем наличие критичных данных
+        const hasPath = this.path && this.path.length > 0;
+        const hasBlocks = this.blocks && this.blocks.size > 0;
+        const hasCurrentTree = !!this.currentTree;
+
+        if (hasPath && hasBlocks && hasCurrentTree) {
+            return true;
+        }
+
+        console.warn('🔄 State not initialized, attempting recovery...', {
+            hasPath,
+            hasBlocks,
+            hasCurrentTree
+        });
+
+        // Пробуем загрузить данные из IndexedDB
+        if (!this.currentUser) {
+            this.currentUser = await localforage.getItem('currentUser');
+        }
+
+        if (!this.currentUser) {
+            console.warn('❌ No current user, cannot recover state');
+            return false;
+        }
+
+        // Проверяем есть ли данные в IndexedDB
+        const storedTree = await localforage.getItem('currentTree');
+        const storedPath = storedTree
+            ? await localforage.getItem(`Path_${storedTree}${this.currentUser}`)
+            : null;
+
+        if (!storedTree || !storedPath) {
+            // IndexedDB был очищен - требуется полная перезагрузка с сервера
+            console.warn('❌ IndexedDB cleared, triggering full reload from server');
+            dispatch('LoadTrees');
+            return false;
+        }
+
+        // Восстанавливаем состояние из IndexedDB
+        this.currentTree = storedTree;
+        this.path = storedPath;
+
+        if (!hasBlocks) {
+            await this.getAllBlocksForUser(this.currentUser);
+        }
+
+        console.log('✅ State recovered from IndexedDB');
+        return true;
     }
 
     openBlock({id, parentHsl, isIframe, links}) {
-        this.getPath((err, path) => {
-            const currentScreen = path.at(-1)
-            const block = this.blocks.get(id);
-            const title = block.title;
-            let activeId = undefined
-            if (currentScreen.blockId === block.id) {
-                if (path.length === 1) return;
-                activeId = path.pop().blockId;
-            } else {
-                path.push({screenName: truncate(title, 10), color: parentHsl, blockId: id, links});
-            }
-            if (!isIframe) {
-                this.painter.render(this.blocks, path.at(-1));
-            } else {
-                // Handle iframe logic if necessary
-            }
-            localforage.setItem(`Path_${this.currentTree}${this.currentUser}`, path)
-            dispatch("ShowedBlocks", {path, activeId})
-        })
+        // Используем this.path напрямую вместо чтения из IndexedDB
+        if (!this.path || this.path.length === 0) {
+            console.warn('openBlock: path not initialized, attempting recovery...');
+            // Асинхронно пытаемся восстановить состояние
+            this.ensureStateInitialized().then(initialized => {
+                if (initialized && this.path && this.path.length > 0) {
+                    // Повторяем попытку после восстановления
+                    this.openBlock({id, parentHsl, isIframe, links});
+                }
+            });
+            return;
+        }
+
+        const currentScreen = this.path.at(-1);
+        if (!currentScreen) {
+            console.warn('openBlock: currentScreen is undefined, skipping navigation');
+            return;
+        }
+
+        const block = this.blocks.get(id);
+        if (!block) {
+            console.warn('openBlock: block not found:', id);
+            return;
+        }
+
+        const title = block.title;
+        let activeId = undefined;
+
+        if (currentScreen.blockId === block.id) {
+            if (this.path.length === 1) return;
+            activeId = this.path.pop().blockId;
+        } else {
+            this.path.push({screenName: truncate(title, 10), color: parentHsl, blockId: id, links});
+        }
+
+        if (!isIframe) {
+            this.painter.render(this.blocks, this.path.at(-1));
+        }
+
+        // Сохраняем path в IndexedDB для персистентности
+        localforage.setItem(`Path_${this.currentTree}${this.currentUser}`, this.path);
+        dispatch("ShowedBlocks", {path: this.path, activeId});
     }
 
     /**
