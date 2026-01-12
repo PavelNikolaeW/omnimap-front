@@ -510,6 +510,47 @@ describe('LocalStateManager', () => {
             expect(manager.updateScreen).toHaveBeenCalledWith([expect.objectContaining({ id: 'new-block' })]);
         });
 
+        test('grant removes forbidden flag from previously denied block', async () => {
+            // Setup: block was previously forbidden
+            const forbiddenBlock = {
+                id: 'restored-block',
+                title: 'block 403 forbidden',
+                data: {},
+                children: [],
+                forbidden: true
+            };
+            manager.blocks.set('restored-block', forbiddenBlock);
+
+            // Mock updateScreen
+            manager.updateScreen = jest.fn();
+
+            const message = {
+                permission: 'grant',
+                start_block_ids: [{
+                    id: 'restored-block',
+                    title: 'Restored Block',
+                    updated_at: 1704067200,
+                    data: '{"color": [0, 255, 0, 1]}',
+                    children: '["child-1"]'
+                }],
+                block_uuids: ['restored-block']
+            };
+
+            await manager.WebSocUpdateBlockAccess(message);
+
+            // Block should be updated with new data
+            const restoredBlock = manager.blocks.get('restored-block');
+            expect(restoredBlock.title).toBe('Restored Block');
+            expect(restoredBlock.forbidden).toBe(false);
+            expect(restoredBlock.children).toEqual(['child-1']);
+
+            // deleteBlock should be called to remove old forbidden entry
+            expect(manager.blockRepository.deleteBlock).toHaveBeenCalledWith('restored-block');
+
+            // updateScreen should be called
+            expect(manager.updateScreen).toHaveBeenCalled();
+        });
+
         test('handles empty block_uuids gracefully on deny', async () => {
             const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
 

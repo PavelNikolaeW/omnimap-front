@@ -40,12 +40,10 @@ class BlockRepository {
             children: block.children,
             parent_id: block.parent_id,
             title: block.title,
-            updated_at: block.updated_at
+            updated_at: block.updated_at,
+            // Всегда сохраняем forbidden флаг (true для 403, false/undefined для обычных)
+            forbidden: block.forbidden || false
         };
-        // Сохраняем forbidden флаг если есть (для 403 блоков)
-        if (block.forbidden) {
-            blockData.forbidden = true;
-        }
         await localforage.setItem(key, blockData);
     }
 
@@ -899,9 +897,12 @@ export class LocalStateManager {
                 updated_at: new Date(block.updated_at * 1000).toISOString(),
                 title: block.title,
                 data,
-                children
+                children,
+                forbidden: false // Явно убираем флаг forbidden при grant
             };
 
+            // Удаляем старый forbidden блок из IndexedDB и сохраняем новый
+            await this.blockRepository.deleteBlock(block.id);
             await this.saveBlock(newBlock);
             newBlocks.push(newBlock);
         }
