@@ -34,14 +34,19 @@ class BlockRepository {
 
     async saveBlock(block) {
         const key = this.getKey(block.id);
-        await localforage.setItem(key, {
+        const blockData = {
             id: block.id,
             data: block.data,
             children: block.children,
             parent_id: block.parent_id,
             title: block.title,
             updated_at: block.updated_at
-        });
+        };
+        // Сохраняем forbidden флаг если есть (для 403 блоков)
+        if (block.forbidden) {
+            blockData.forbidden = true;
+        }
+        await localforage.setItem(key, blockData);
     }
 
     async loadBlock(blockId) {
@@ -822,6 +827,20 @@ export class LocalStateManager {
                 await this.saveBlock(forbiddenBlock);
             }
 
+            // Обновляем treeIds в localforage если forbidden-блок был корневым деревом
+            // (forbidden блоки остаются в treeIds чтобы показать 403)
+            // Но удаляем из treeIds дочерние блоки которых больше нет
+            let treeIds = await localforage.getItem(`treeIds${this.currentUser}`);
+            if (Array.isArray(treeIds)) {
+                const updatedTreeIds = treeIds.filter(id =>
+                    forbiddenBlockIds.has(id) || !idsToRemove.has(id)
+                );
+                if (updatedTreeIds.length !== treeIds.length) {
+                    await localforage.setItem(`treeIds${this.currentUser}`, updatedTreeIds);
+                }
+                treeIds = updatedTreeIds;
+            }
+
             // Навигация при необходимости
             if (needsNavigation) {
                 console.log(`📍 Current block access revoked, navigating away`);
@@ -841,10 +860,10 @@ export class LocalStateManager {
                         blockId: this.currentTree
                     }];
                 } else {
-                    // Переходим к первому доступному дереву
+                    // Переходим к первому доступному дереву из localforage
                     this.path = [];
-                    if (this.treeIds.length > 0) {
-                        const firstTreeId = this.treeIds[0];
+                    if (Array.isArray(treeIds) && treeIds.length > 0) {
+                        const firstTreeId = treeIds[0];
                         const firstTree = this.blocks.get(firstTreeId);
                         if (firstTree) {
                             const color = firstTree.data?.color && firstTree.data.color !== 'default_color' ? firstTree.data.color : [];
@@ -854,6 +873,7 @@ export class LocalStateManager {
                                 blockId: firstTreeId
                             });
                             this.currentTree = firstTreeId;
+                            await localforage.setItem('currentTree', firstTreeId);
                         }
                     }
                 }

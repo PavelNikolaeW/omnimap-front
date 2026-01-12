@@ -364,7 +364,11 @@ describe('LocalStateManager', () => {
             manager.blocks.set('block-1', block1);
             manager.blocks.set('child-1', child1);
             manager.blocks.set('block-2', block2);
-            manager.treeIds = ['block-1', 'block-2'];
+            // Mock treeIds in localforage
+            localforage.getItem.mockImplementation((key) => {
+                if (key === 'treeIdstestUser') return Promise.resolve(['block-1', 'block-2']);
+                return Promise.resolve(null);
+            });
             manager.path = [{ blockId: 'block-2', screenName: 'Block 2' }];
 
             await manager.WebSocUpdateBlockAccess({
@@ -408,7 +412,11 @@ describe('LocalStateManager', () => {
             manager.blocks.set('root', root);
             manager.blocks.set('child-1', child1);
             manager.currentTree = 'root';
-            manager.treeIds = ['root'];
+            // Mock treeIds in localforage
+            localforage.getItem.mockImplementation((key) => {
+                if (key === 'treeIdstestUser') return Promise.resolve(['root']);
+                return Promise.resolve(null);
+            });
             manager.path = [
                 { blockId: 'root', screenName: 'Root' },
                 { blockId: 'child-1', screenName: 'Child 1' }
@@ -444,7 +452,11 @@ describe('LocalStateManager', () => {
             manager.blocks.set('block-1', block1);
             manager.blocks.set('child-1', child1);
             manager.currentTree = 'block-1';
-            manager.treeIds = ['block-1'];
+            // Mock treeIds in localforage
+            localforage.getItem.mockImplementation((key) => {
+                if (key === 'treeIdstestUser') return Promise.resolve(['block-1']);
+                return Promise.resolve(null);
+            });
             manager.path = [{ blockId: 'block-1', screenName: 'Block 1' }];
 
             await manager.WebSocUpdateBlockAccess({
@@ -502,7 +514,11 @@ describe('LocalStateManager', () => {
             const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
 
             manager.path = [{ blockId: 'some-block', screenName: 'Some' }];
-            manager.treeIds = ['some-block'];
+            // Mock treeIds in localforage
+            localforage.getItem.mockImplementation((key) => {
+                if (key === 'treeIdstestUser') return Promise.resolve(['some-block']);
+                return Promise.resolve(null);
+            });
 
             await manager.WebSocUpdateBlockAccess({
                 permission: 'deny',
