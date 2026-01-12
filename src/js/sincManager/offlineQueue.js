@@ -3,6 +3,7 @@ import { dispatch } from "../utils/utils";
 import { v4 as uuidV4 } from 'uuid';
 import { importBlocks, pollImportStatus } from '../api/importService.js';
 import api from '../api/api.js';
+import config from '../config.js';
 
 /**
  * Менеджер синхронизации блоков для offline режима
@@ -32,9 +33,29 @@ class OfflineQueueManager {
         this.lastPullTimestamp = 0; // Время последнего pull
         this.PULL_COOLDOWN_MS = 30000; // Минимальный интервал между pull (30 сек)
 
+        // Retry механизм для обработки ненадёжного navigator.onLine
+        this.retryAttempts = 0;
+        this.MAX_RETRY_ATTEMPTS = 5;
+        this.RETRY_BASE_INTERVAL_MS = 5000; // Начальный интервал retry (5 сек)
+        this.retryTimer = null;
+
+        // Максимальный возраст операций в очереди (7 дней)
+        // Офлайн-работа — киллер-фича, поэтому даём достаточно времени для синхронизации
+        this.MAX_OPERATION_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+        // Константы для таймаутов
+        this.MAX_RETRY_INTERVAL_MS = 60000; // Максимум 1 минута между retry
+        this.NETWORK_CHECK_TIMEOUT_MS = 5000; // Таймаут проверки сети
+
         // Блоки, ожидающие синхронизации с сервером (созданы локально, но ещё не на сервере)
         // Map<blockId, Promise<void>> - промис резолвится когда блок синхронизирован
         this.pendingBlocks = new Map();
+
+        // Сохраняем ссылки на handlers для возможности удаления listeners
+        this._handleOnline = this.handleOnline.bind(this);
+        this._handleOffline = this.handleOffline.bind(this);
+        this._handleBeforeUnload = this.handleBeforeUnload.bind(this);
+        this._handleSWMessage = this.handleSWMessage.bind(this);
 
         this.init();
     }
@@ -121,12 +142,12 @@ class OfflineQueueManager {
     }
 
     async init() {
-        // Слушаем события сети
-        window.addEventListener('online', this.handleOnline.bind(this));
-        window.addEventListener('offline', this.handleOffline.bind(this));
+        // Слушаем события сети (используем сохранённые ссылки для возможности удаления)
+        window.addEventListener('online', this._handleOnline);
+        window.addEventListener('offline', this._handleOffline);
 
         // Предупреждение при закрытии страницы с несохранёнными изменениями
-        window.addEventListener('beforeunload', this.handleBeforeUnload.bind(this));
+        window.addEventListener('beforeunload', this._handleBeforeUnload);
 
         // Проверяем поддержку Background Sync
         this.backgroundSyncSupported = await this.checkBackgroundSyncSupport();
@@ -136,19 +157,61 @@ class OfflineQueueManager {
 
         // Слушаем сообщения от Service Worker
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.addEventListener('message', this.handleSWMessage.bind(this));
+            navigator.serviceWorker.addEventListener('message', this._handleSWMessage);
         }
+
+        // Инициализируем кэш длины очереди и очищаем устаревшие операции
+        const queue = await this.getQueue();
+        await this.cleanupStaleOperations(queue);
+        this.cachedQueueLength = (await this.getQueue()).length;
 
         // Проверяем очередь при старте, если онлайн
         if (this.isOnline) {
             // При старте приложения запускаем pull-before-push
             this.startPullPhase();
         }
+    }
 
-        // Инициализируем кэш длины очереди
-        this.getQueue().then(queue => {
-            this.cachedQueueLength = queue.length;
-        });
+    /**
+     * Очищает устаревшие операции из очереди
+     * Операции старше MAX_OPERATION_AGE_MS удаляются с предупреждением
+     * @param {Array} queue - Текущая очередь операций
+     */
+    async cleanupStaleOperations(queue) {
+        if (!queue || queue.length === 0) return;
+
+        const now = Date.now();
+        const freshOperations = [];
+        const staleOperations = [];
+
+        for (const operation of queue) {
+            const age = now - (operation.timestamp || 0);
+            if (age > this.MAX_OPERATION_AGE_MS) {
+                staleOperations.push(operation);
+            } else {
+                freshOperations.push(operation);
+            }
+        }
+
+        if (staleOperations.length > 0) {
+            console.warn(`⚠️ Removing ${staleOperations.length} stale operations (older than 7 days):`,
+                staleOperations.map(op => `${op.type}:${op.data?.blockId || op.data?.id}`));
+
+            // Отменяем pending блоки для устаревших операций
+            for (const op of staleOperations) {
+                const blockId = op.data?.blockId || op.data?.id;
+                if (blockId) {
+                    this.pendingBlocks.delete(blockId);
+                }
+            }
+
+            await this.saveQueue(freshOperations);
+
+            dispatch('StaleOperationsRemoved', {
+                count: staleOperations.length,
+                operations: staleOperations.map(op => op.type)
+            });
+        }
     }
 
     /**
@@ -216,6 +279,14 @@ class OfflineQueueManager {
         console.log('Network: online');
         this.isOnline = true;
         this.pullCompleted = false;
+
+        // Сбрасываем retry механизм — браузер сообщает что сеть доступна
+        this.retryAttempts = 0;
+        if (this.retryTimer) {
+            clearTimeout(this.retryTimer);
+            this.retryTimer = null;
+        }
+
         dispatch('NetworkStatusChange', { online: true });
         // Не вызываем processQueue сразу - ждём завершения pull фазы
         // Pull будет инициирован через WebSocket (SincManager.online)
@@ -301,11 +372,122 @@ class OfflineQueueManager {
             console.error('❌ Pull phase failed:', error);
             this.isPulling = false;
 
-            // При ошибке pull (включая таймаут) всё равно пытаемся push
-            // (локальные данные могут быть актуальнее)
-            console.log('⚠️ Proceeding to push phase despite pull failure...');
-            this.pullCompleted = true;
-            await this.processQueue();
+            // Проверяем, является ли это сетевой ошибкой
+            const isNetworkError = this.isNetworkError(error);
+
+            if (isNetworkError) {
+                // Сетевая ошибка - помечаем как офлайн и планируем retry
+                console.log('⚠️ Network error detected, marking as offline and scheduling retry...');
+                this.isOnline = false;
+                dispatch('NetworkStatusChange', { online: false });
+                this.scheduleRetry();
+            } else {
+                // Не сетевая ошибка - пытаемся push
+                console.log('⚠️ Proceeding to push phase despite pull failure...');
+                this.pullCompleted = true;
+                await this.processQueue();
+            }
+        }
+    }
+
+    /**
+     * Проверяет, является ли ошибка сетевой
+     * @param {Error} error - Ошибка
+     * @returns {boolean}
+     */
+    isNetworkError(error) {
+        if (!error) return false;
+
+        const message = error.message?.toLowerCase() || '';
+        const code = error.code || '';
+
+        return (
+            code === 'ERR_NETWORK' ||
+            code === 'ECONNREFUSED' ||
+            code === 'ENOTFOUND' ||
+            message.includes('network error') ||
+            message.includes('failed to fetch') ||
+            message.includes('timed out') ||
+            message.includes('timeout') ||
+            message.includes('net::') ||
+            message.includes('connection refused')
+        );
+    }
+
+    /**
+     * Планирует повторную попытку синхронизации с экспоненциальным backoff
+     */
+    scheduleRetry() {
+        // Отменяем предыдущий retry таймер
+        if (this.retryTimer) {
+            clearTimeout(this.retryTimer);
+            this.retryTimer = null;
+        }
+
+        // Проверяем лимит попыток
+        if (this.retryAttempts >= this.MAX_RETRY_ATTEMPTS) {
+            console.warn(`⚠️ Max retry attempts (${this.MAX_RETRY_ATTEMPTS}) reached, waiting for online event`);
+            this.retryAttempts = 0;
+            return;
+        }
+
+        // Вычисляем интервал с exponential backoff
+        const interval = this.RETRY_BASE_INTERVAL_MS * Math.pow(2, this.retryAttempts);
+        const actualInterval = Math.min(interval, this.MAX_RETRY_INTERVAL_MS);
+
+        this.retryAttempts++;
+
+        console.log(`🔄 Scheduling retry #${this.retryAttempts} in ${actualInterval / 1000}s`);
+
+        this.retryTimer = setTimeout(async () => {
+            // Не сбрасываем retryTimer до завершения всех async операций
+            // чтобы handleOnline() мог корректно его очистить
+
+            // Проверяем очередь перед retry
+            const queue = await this.getQueue();
+            if (queue.length === 0) {
+                console.log('✅ Queue empty, no retry needed');
+                this.retryTimer = null;
+                this.retryAttempts = 0;
+                return;
+            }
+
+            // Пытаемся сделать реальную проверку сети (fetch на известный URL)
+            const isReallyOnline = await this.checkRealNetworkStatus();
+
+            if (isReallyOnline) {
+                console.log('✅ Network is back, starting sync...');
+                this.retryTimer = null;
+                this.retryAttempts = 0; // Сбрасываем счётчик при успешном обнаружении сети
+                this.isOnline = true;
+                dispatch('NetworkStatusChange', { online: true });
+                await this.startPullPhase();
+            } else {
+                console.log('❌ Network still unavailable');
+                this.retryTimer = null;
+                this.scheduleRetry();
+            }
+        }, actualInterval);
+    }
+
+    /**
+     * Проверяет реальное состояние сети через fetch
+     * @returns {Promise<boolean>}
+     */
+    async checkRealNetworkStatus() {
+        try {
+            // Пытаемся сделать простой запрос к бэкенду
+            const pingUrl = `${config.APP_BACKEND_URL}/api/v1/blocks/roots/`;
+            await fetch(pingUrl, {
+                method: 'HEAD',
+                cache: 'no-store',
+                credentials: 'include', // Для отправки JWT cookie
+                signal: AbortSignal.timeout(this.NETWORK_CHECK_TIMEOUT_MS)
+            });
+            // Любой ответ (даже 401) означает что сеть работает
+            return true;
+        } catch {
+            return false;
         }
     }
 
@@ -565,6 +747,9 @@ class OfflineQueueManager {
             await this.saveQueue([]);
             this.isSyncing = false;
 
+            // Сбрасываем retry счётчик при успешной синхронизации
+            this.retryAttempts = 0;
+
             // Сигнализируем об окончании синхронизации
             dispatch('ApiSyncFinished');
 
@@ -581,15 +766,35 @@ class OfflineQueueManager {
             // Сигнализируем об окончании синхронизации (даже при ошибке)
             dispatch('ApiSyncFinished');
 
-            dispatch('SyncCompleted', {
-                successCount: 0,
-                failedCount: queue.length,
-                remainingCount: queue.length,
-                error: error.message
-            });
+            // Проверяем, является ли это сетевой ошибкой
+            const isNetworkError = this.isNetworkError(error);
 
-            // Регистрируем Background Sync для повторной попытки
-            await this.registerBackgroundSync();
+            if (isNetworkError) {
+                // Сетевая ошибка - помечаем как офлайн и планируем retry
+                console.log('⚠️ Network error in push phase, marking as offline and scheduling retry...');
+                this.isOnline = false;
+                dispatch('NetworkStatusChange', { online: false });
+
+                dispatch('SyncCompleted', {
+                    successCount: 0,
+                    failedCount: queue.length,
+                    remainingCount: queue.length,
+                    error: 'Нет подключения к сети'
+                });
+
+                this.scheduleRetry();
+            } else {
+                // Не сетевая ошибка - уведомляем и регистрируем Background Sync
+                dispatch('SyncCompleted', {
+                    successCount: 0,
+                    failedCount: queue.length,
+                    remainingCount: queue.length,
+                    error: error.message
+                });
+
+                // Регистрируем Background Sync для повторной попытки
+                await this.registerBackgroundSync();
+            }
         }
     }
 
@@ -750,6 +955,35 @@ class OfflineQueueManager {
         } else {
             await this.processQueue();
         }
+    }
+
+    /**
+     * Очистка ресурсов при уничтожении экземпляра
+     * Удаляет event listeners и очищает таймеры
+     */
+    destroy() {
+        // Удаляем event listeners
+        window.removeEventListener('online', this._handleOnline);
+        window.removeEventListener('offline', this._handleOffline);
+        window.removeEventListener('beforeunload', this._handleBeforeUnload);
+
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.removeEventListener('message', this._handleSWMessage);
+        }
+
+        // Очищаем таймеры
+        if (this.retryTimer) {
+            clearTimeout(this.retryTimer);
+            this.retryTimer = null;
+        }
+
+        if (this.syncDebounceTimer) {
+            clearTimeout(this.syncDebounceTimer);
+            this.syncDebounceTimer = null;
+        }
+
+        // Очищаем pending блоки
+        this.pendingBlocks.clear();
     }
 }
 
