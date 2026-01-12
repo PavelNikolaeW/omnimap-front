@@ -747,6 +747,123 @@ export class LocalStateManager {
             return;
         }
 
+        const permission = message.permission;
+        const blockUuids = message.block_uuids || [];
+
+        // При отзыве прав (deny) - удаляем блоки и заменяем корневые на forbidden-заглушки
+        if (permission === 'deny') {
+            console.log(`🔒 Access revoked for ${blockUuids.length} blocks`);
+
+            // start_block_ids содержит forbidden-заглушки для корневых блоков
+            const forbiddenBlockIds = new Set(
+                message.start_block_ids.map(b => b?.id).filter(Boolean)
+            );
+
+            // Проверяем, находится ли пользователь на одном из удаляемых блоков
+            const currentScreen = this.path?.at(-1);
+            const currentBlockId = currentScreen?.blockId;
+            let needsNavigation = false;
+            let navigationTarget = null;
+
+            // Собираем ID для удаления (все из block_uuids кроме forbidden-заглушек)
+            const idsToRemove = new Set();
+            for (const blockId of blockUuids) {
+                // Forbidden-блоки не удаляем - они будут заменены на заглушки
+                if (!forbiddenBlockIds.has(blockId)) {
+                    idsToRemove.add(blockId);
+                    // Добавляем всех детей
+                    const block = this.blocks.get(blockId);
+                    if (block) {
+                        const childIds = this.getAllChildIds(block);
+                        childIds.forEach(id => {
+                            if (!forbiddenBlockIds.has(id)) {
+                                idsToRemove.add(id);
+                            }
+                        });
+                    }
+                }
+            }
+
+            // Проверяем нужна ли навигация (если на удаляемом блоке, но не на forbidden)
+            if (currentBlockId && idsToRemove.has(currentBlockId)) {
+                needsNavigation = true;
+                // Ищем ближайшего родителя который не удаляется
+                for (let i = this.path.length - 2; i >= 0; i--) {
+                    const pathBlockId = this.path[i]?.blockId;
+                    if (pathBlockId && !idsToRemove.has(pathBlockId)) {
+                        navigationTarget = pathBlockId;
+                        break;
+                    }
+                }
+            }
+
+            // Удаляем блоки (кроме forbidden)
+            for (const blockId of idsToRemove) {
+                await this.blockRepository.deleteBlock(blockId);
+                this.blocks.delete(blockId);
+            }
+
+            // Сохраняем forbidden-заглушки (корневые блоки с пометкой 403)
+            for (const block of message.start_block_ids) {
+                if (!block?.id) continue;
+
+                const data = this._safeJsonParse(block.data, {});
+                const children = this._safeJsonParse(block.children, []);
+
+                const forbiddenBlock = {
+                    id: block.id,
+                    updated_at: new Date(block.updated_at * 1000).toISOString(),
+                    title: block.title, // "block 403 forbidden"
+                    data,
+                    children,
+                    forbidden: true // Метка для UI
+                };
+
+                await this.saveBlock(forbiddenBlock);
+            }
+
+            // Навигация при необходимости
+            if (needsNavigation) {
+                console.log(`📍 Current block access revoked, navigating away`);
+                // Обрезаем path до navigationTarget
+                if (navigationTarget) {
+                    const targetIdx = this.path.findIndex(p => p.blockId === navigationTarget);
+                    if (targetIdx !== -1) {
+                        this.path = this.path.slice(0, targetIdx + 1);
+                    }
+                } else if (this.currentTree && this.blocks.has(this.currentTree)) {
+                    // Переходим к корню текущего дерева
+                    const rootBlock = this.blocks.get(this.currentTree);
+                    const color = rootBlock.data?.color && rootBlock.data.color !== 'default_color' ? rootBlock.data.color : [];
+                    this.path = [{
+                        screenName: truncate(rootBlock.title, 10),
+                        color: color,
+                        blockId: this.currentTree
+                    }];
+                } else {
+                    // Переходим к первому доступному дереву
+                    this.path = [];
+                    if (this.treeIds.length > 0) {
+                        const firstTreeId = this.treeIds[0];
+                        const firstTree = this.blocks.get(firstTreeId);
+                        if (firstTree) {
+                            const color = firstTree.data?.color && firstTree.data.color !== 'default_color' ? firstTree.data.color : [];
+                            this.path.push({
+                                screenName: truncate(firstTree.title, 10),
+                                color: color,
+                                blockId: firstTreeId
+                            });
+                            this.currentTree = firstTreeId;
+                        }
+                    }
+                }
+            }
+
+            this.showBlocks();
+            return;
+        }
+
+        // При выдаче прав (grant) - добавляем/обновляем блоки
         const start_block_ids = message.start_block_ids;
         const newBlocks = [];
 

@@ -342,6 +342,189 @@ describe('LocalStateManager', () => {
         });
     });
 
+    describe('WebSocUpdateBlockAccess', () => {
+        test('logs warning for invalid message', async () => {
+            const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
+
+            await manager.WebSocUpdateBlockAccess({});
+            await manager.WebSocUpdateBlockAccess({ start_block_ids: 'not-array' });
+
+            expect(consoleSpy).toHaveBeenCalledWith('LocalStateManager: invalid WebSocUpdateBlockAccess message');
+            consoleSpy.mockRestore();
+        });
+
+        test('replaces root with forbidden block and removes children when permission is deny', async () => {
+            const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+            // Setup blocks
+            const block1 = { id: 'block-1', children: ['child-1'] };
+            const child1 = { id: 'child-1', children: [] };
+            const block2 = { id: 'block-2', children: [] };
+
+            manager.blocks.set('block-1', block1);
+            manager.blocks.set('child-1', child1);
+            manager.blocks.set('block-2', block2);
+            manager.treeIds = ['block-1', 'block-2'];
+            manager.path = [{ blockId: 'block-2', screenName: 'Block 2' }];
+
+            await manager.WebSocUpdateBlockAccess({
+                permission: 'deny',
+                start_block_ids: [{
+                    id: 'block-1',
+                    title: 'block 403 forbidden',
+                    updated_at: 946684801,
+                    data: '{"color": [0, 100, 100, 0]}',
+                    children: '[]'
+                }],
+                block_uuids: ['block-1', 'child-1']
+            });
+
+            // Root block should be replaced with forbidden version
+            expect(manager.blocks.has('block-1')).toBe(true);
+            const forbiddenBlock = manager.blocks.get('block-1');
+            expect(forbiddenBlock.title).toBe('block 403 forbidden');
+            expect(forbiddenBlock.forbidden).toBe(true);
+            expect(forbiddenBlock.children).toEqual([]);
+
+            // Child should be removed
+            expect(manager.blocks.has('child-1')).toBe(false);
+
+            // Other blocks should be intact
+            expect(manager.blocks.has('block-2')).toBe(true);
+
+            // showBlocks should be called
+            expect(manager.showBlocks).toHaveBeenCalled();
+
+            consoleSpy.mockRestore();
+        });
+
+        test('navigates away when current block (child) access is revoked', async () => {
+            const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+            // Setup: user is on child-1, access revoked for child-1 but not root
+            const root = { id: 'root', title: 'Root', children: ['child-1'], data: {} };
+            const child1 = { id: 'child-1', title: 'Child 1', children: [], data: {} };
+
+            manager.blocks.set('root', root);
+            manager.blocks.set('child-1', child1);
+            manager.currentTree = 'root';
+            manager.treeIds = ['root'];
+            manager.path = [
+                { blockId: 'root', screenName: 'Root' },
+                { blockId: 'child-1', screenName: 'Child 1' }
+            ];
+
+            await manager.WebSocUpdateBlockAccess({
+                permission: 'deny',
+                start_block_ids: [{
+                    id: 'root',
+                    title: 'block 403 forbidden',
+                    updated_at: 946684801,
+                    data: '{}',
+                    children: '[]'
+                }],
+                block_uuids: ['root', 'child-1']
+            });
+
+            // child-1 is removed, user should navigate to root (which is now forbidden)
+            expect(manager.blocks.has('child-1')).toBe(false);
+            expect(manager.path.length).toBe(1);
+            expect(manager.path[0].blockId).toBe('root');
+
+            consoleSpy.mockRestore();
+        });
+
+        test('stays on forbidden block when it is the current screen', async () => {
+            const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+            // Setup: user is on block-1, which becomes forbidden
+            const block1 = { id: 'block-1', title: 'Block 1', children: ['child-1'], data: {} };
+            const child1 = { id: 'child-1', title: 'Child 1', children: [], data: {} };
+
+            manager.blocks.set('block-1', block1);
+            manager.blocks.set('child-1', child1);
+            manager.currentTree = 'block-1';
+            manager.treeIds = ['block-1'];
+            manager.path = [{ blockId: 'block-1', screenName: 'Block 1' }];
+
+            await manager.WebSocUpdateBlockAccess({
+                permission: 'deny',
+                start_block_ids: [{
+                    id: 'block-1',
+                    title: 'block 403 forbidden',
+                    updated_at: 946684801,
+                    data: '{}',
+                    children: '[]'
+                }],
+                block_uuids: ['block-1', 'child-1']
+            });
+
+            // User should stay on block-1, but it's now forbidden
+            expect(manager.path.length).toBe(1);
+            expect(manager.path[0].blockId).toBe('block-1');
+            expect(manager.blocks.get('block-1').forbidden).toBe(true);
+
+            // Child should be removed
+            expect(manager.blocks.has('child-1')).toBe(false);
+
+            consoleSpy.mockRestore();
+        });
+
+        test('adds blocks when permission is grant', async () => {
+            const message = {
+                permission: 'grant',
+                start_block_ids: [{
+                    id: 'new-block',
+                    title: 'New Block',
+                    updated_at: 1704067200, // 2024-01-01T00:00:00
+                    data: '{"color": [255, 0, 0, 1]}',
+                    children: '[]'
+                }],
+                block_uuids: ['new-block']
+            };
+
+            // Mock updateScreen
+            manager.updateScreen = jest.fn();
+
+            await manager.WebSocUpdateBlockAccess(message);
+
+            // Block should be saved
+            expect(manager.blocks.has('new-block')).toBe(true);
+            const savedBlock = manager.blocks.get('new-block');
+            expect(savedBlock.title).toBe('New Block');
+            expect(savedBlock.data.color).toEqual([255, 0, 0, 1]);
+
+            // updateScreen should be called
+            expect(manager.updateScreen).toHaveBeenCalledWith([expect.objectContaining({ id: 'new-block' })]);
+        });
+
+        test('handles empty block_uuids gracefully on deny', async () => {
+            const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+            manager.path = [{ blockId: 'some-block', screenName: 'Some' }];
+            manager.treeIds = ['some-block'];
+
+            await manager.WebSocUpdateBlockAccess({
+                permission: 'deny',
+                start_block_ids: [{
+                    id: 'forbidden-block',
+                    title: 'block 403 forbidden',
+                    updated_at: 946684801,
+                    data: '{}',
+                    children: '[]'
+                }],
+                block_uuids: []
+            });
+
+            // Should not throw, showBlocks should be called
+            expect(manager.showBlocks).toHaveBeenCalled();
+            // Forbidden block should be saved
+            expect(manager.blocks.get('forbidden-block').forbidden).toBe(true);
+
+            consoleSpy.mockRestore();
+        });
+    });
+
     describe('createBlock', () => {
         test('creates block locally with real UUID and queues for sync', async () => {
             // Setup parent block for Optimistic UI
