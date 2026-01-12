@@ -544,8 +544,8 @@ describe('LocalStateManager', () => {
             expect(restoredBlock.forbidden).toBe(false);
             expect(restoredBlock.children).toEqual(['child-1']);
 
-            // deleteBlock should be called to remove old forbidden entry
-            expect(manager.blockRepository.deleteBlock).toHaveBeenCalledWith('restored-block');
+            // saveBlock should be called (overwrites old forbidden entry)
+            expect(manager.blockRepository.saveBlock).toHaveBeenCalled();
 
             // updateScreen should be called
             expect(manager.updateScreen).toHaveBeenCalled();

@@ -901,8 +901,7 @@ export class LocalStateManager {
                 forbidden: false // Явно убираем флаг forbidden при grant
             };
 
-            // Удаляем старый forbidden блок из IndexedDB и сохраняем новый
-            await this.blockRepository.deleteBlock(block.id);
+            // Сохраняем блок (localforage.setItem перезапишет старый forbidden)
             await this.saveBlock(newBlock);
             newBlocks.push(newBlock);
         }
