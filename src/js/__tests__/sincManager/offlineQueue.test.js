@@ -705,7 +705,7 @@ describe('Stale Operations Cleanup', () => {
     });
 
     test('cleanupStaleOperations removes operations older than MAX_OPERATION_AGE_MS', async () => {
-        const MAX_OPERATION_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
+        const MAX_OPERATION_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
         const now = Date.now();
 
         const queue = [

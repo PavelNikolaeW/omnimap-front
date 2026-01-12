@@ -39,8 +39,9 @@ class OfflineQueueManager {
         this.RETRY_BASE_INTERVAL_MS = 5000; // Начальный интервал retry (5 сек)
         this.retryTimer = null;
 
-        // Максимальный возраст операций в очереди (24 часа)
-        this.MAX_OPERATION_AGE_MS = 24 * 60 * 60 * 1000;
+        // Максимальный возраст операций в очереди (7 дней)
+        // Офлайн-работа — киллер-фича, поэтому даём достаточно времени для синхронизации
+        this.MAX_OPERATION_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
         // Константы для таймаутов
         this.MAX_RETRY_INTERVAL_MS = 60000; // Максимум 1 минута между retry
@@ -193,7 +194,7 @@ class OfflineQueueManager {
         }
 
         if (staleOperations.length > 0) {
-            console.warn(`⚠️ Removing ${staleOperations.length} stale operations (older than 24h):`,
+            console.warn(`⚠️ Removing ${staleOperations.length} stale operations (older than 7 days):`,
                 staleOperations.map(op => `${op.type}:${op.data?.blockId || op.data?.id}`));
 
             // Отменяем pending блоки для устаревших операций

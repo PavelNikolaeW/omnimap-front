@@ -49,14 +49,14 @@
   const oldQueue = [{
     type: 'createBlock',
     data: { blockId: 'test-old-block' },
-    timestamp: Date.now() - 25 * 60 * 60 * 1000 // 25 часов назад
+    timestamp: Date.now() - 8 * 24 * 60 * 60 * 1000 // 8 дней назад
   }];
   await localforage.setItem('offlineOperationsQueue', oldQueue);
   ```
 - [ ] Перезагрузи страницу
 - [ ] В консоли должен быть лог:
   ```
-  ⚠️ Removing 1 stale operations (older than 24h): ["createBlock:test-old-block"]
+  ⚠️ Removing 1 stale operations (older than 7 days): ["createBlock:test-old-block"]
   ```
 - [ ] Проверь что очередь пуста:
   ```javascript
