@@ -1723,15 +1723,13 @@ export class LocalStateManager {
         dispatch('ShowedBlocks', {path: this.path, activeId: undefined});
     }
 
+    /**
+     * Асинхронно возвращает копию текущего path из памяти
+     * @returns {Promise<Array>} копия path или пустой массив
+     */
     async getPathPromise() {
-        const tree = await localforage.getItem('currentTree')
-        const user = await localforage.getItem('currentUser')
-        if (window.location.href.indexOf('/?') !== -1) {
-            const linkTree = await localforage.getItem(`linkSlugTreeId${user}:${window.location.search.slice(1,)}`)
-            return await localforage.getItem(`Path_${linkTree}${user}`)
-        } else {
-            return await localforage.getItem(`Path_${tree}${user}`)
-        }
+        // Используем path из памяти для консистентности с getPathSync()
+        return this.path ? [...this.path] : [];
     }
 
     /**
@@ -1747,11 +1745,12 @@ export class LocalStateManager {
     }
 
     /**
-     * Синхронно возвращает текущий path
-     * @returns {Array} path или пустой массив
+     * Синхронно возвращает копию текущего path
+     * @returns {Array} копия path или пустой массив
      */
     getPathSync() {
-        return this.path || [];
+        // Возвращаем копию чтобы избежать мутации оригинального массива
+        return this.path ? [...this.path] : [];
     }
 
     /**
@@ -1810,15 +1809,20 @@ export class LocalStateManager {
         return true;
     }
 
-    openBlock({id, parentHsl, isIframe, links}) {
+    openBlock({id, parentHsl, isIframe, links}, _isRecoveryAttempt = false) {
         // Используем this.path напрямую вместо чтения из IndexedDB
         if (!this.path || this.path.length === 0) {
+            // Защита от бесконечной рекурсии
+            if (_isRecoveryAttempt) {
+                console.warn('openBlock: recovery failed, path still empty');
+                return;
+            }
             console.warn('openBlock: path not initialized, attempting recovery...');
             // Асинхронно пытаемся восстановить состояние
             this.ensureStateInitialized().then(initialized => {
-                if (initialized && this.path && this.path.length > 0) {
-                    // Повторяем попытку после восстановления
-                    this.openBlock({id, parentHsl, isIframe, links});
+                if (initialized) {
+                    // Повторяем попытку после восстановления с флагом
+                    this.openBlock({id, parentHsl, isIframe, links}, true);
                 }
             });
             return;

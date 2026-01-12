@@ -117,11 +117,19 @@ export function savePath(path, callback) {
 }
 
 export function openSibling(siblingIndex, path) {
+    if (!siblingIndex || !path || path.length === 0) return;
+
     getBlock(siblingIndex, (err, sibling) => {
-        const pathObj = path.pop(-1)
-        if (sibling.data.view === 'link') {
+        if (!sibling) return;
+
+        const pathObj = path.pop();
+        if (!pathObj) return;
+
+        if (sibling.data?.view === 'link') {
+            if (!pathObj.links) pathObj.links = [];
             pathObj.links.push({'linkId': sibling.id, 'linkSource': sibling.data.source})
             getBlock(sibling.data.source, (err, sourceBlock) => {
+                if (!sourceBlock) return;
                 savePath(path, () => {
                     dispatch('OpenBlock', {
                         id: sourceBlock.id,
@@ -137,7 +145,7 @@ export function openSibling(siblingIndex, path) {
                     id: sibling.id,
                     parentHsl: pathObj.color,
                     isIframe: false,
-                    links: pathObj.links
+                    links: pathObj.links || []
                 })
             })
         }
