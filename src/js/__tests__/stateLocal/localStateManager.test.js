@@ -483,6 +483,8 @@ describe('LocalStateManager', () => {
         });
 
         test('adds blocks when permission is grant', async () => {
+            const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
             const message = {
                 permission: 'grant',
                 start_block_ids: [{
@@ -490,13 +492,11 @@ describe('LocalStateManager', () => {
                     title: 'New Block',
                     updated_at: 1704067200, // 2024-01-01T00:00:00
                     data: '{"color": [255, 0, 0, 1]}',
-                    children: '[]'
+                    children: '[]',
+                    parent_id: 'parent-1'
                 }],
                 block_uuids: ['new-block']
             };
-
-            // Mock updateScreen
-            manager.updateScreen = jest.fn();
 
             await manager.WebSocUpdateBlockAccess(message);
 
@@ -505,12 +505,18 @@ describe('LocalStateManager', () => {
             const savedBlock = manager.blocks.get('new-block');
             expect(savedBlock.title).toBe('New Block');
             expect(savedBlock.data.color).toEqual([255, 0, 0, 1]);
+            expect(savedBlock.parent_id).toBe('parent-1');
+            expect(savedBlock.forbidden).toBe(false);
 
-            // updateScreen should be called
-            expect(manager.updateScreen).toHaveBeenCalledWith([expect.objectContaining({ id: 'new-block' })]);
+            // showBlocks should be called
+            expect(manager.showBlocks).toHaveBeenCalled();
+
+            consoleSpy.mockRestore();
         });
 
         test('grant removes forbidden flag from previously denied block', async () => {
+            const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
             // Setup: block was previously forbidden
             const forbiddenBlock = {
                 id: 'restored-block',
@@ -520,9 +526,7 @@ describe('LocalStateManager', () => {
                 forbidden: true
             };
             manager.blocks.set('restored-block', forbiddenBlock);
-
-            // Mock updateScreen
-            manager.updateScreen = jest.fn();
+            manager.path = [{ blockId: 'restored-block', screenName: 'block 403...' }];
 
             const message = {
                 permission: 'grant',
@@ -544,11 +548,16 @@ describe('LocalStateManager', () => {
             expect(restoredBlock.forbidden).toBe(false);
             expect(restoredBlock.children).toEqual(['child-1']);
 
+            // Path should be updated with new title (truncate adds single ".")
+            expect(manager.path[0].screenName).toBe('Restored B.');
+
             // saveBlock should be called (overwrites old forbidden entry)
             expect(manager.blockRepository.saveBlock).toHaveBeenCalled();
 
-            // updateScreen should be called
-            expect(manager.updateScreen).toHaveBeenCalled();
+            // showBlocks should be called
+            expect(manager.showBlocks).toHaveBeenCalled();
+
+            consoleSpy.mockRestore();
         });
 
         test('handles empty block_uuids gracefully on deny', async () => {
