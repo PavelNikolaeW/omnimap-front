@@ -120,16 +120,25 @@ export const arrowCommands = [
         mode: ['normal'],
         execute(ctx) {
             const rootBlockEl = ctx.rootContainer.children[0]
+            if (!rootBlockEl) return
             getPath((err, path) => {
+                // Проверяем что path инициализирован
+                if (!path || path.length === 0) {
+                    console.warn('openLeft: path not initialized');
+                    return;
+                }
                 getBlock(rootBlockEl.id, (err, block) => {
+                    if (!block) return
                     let parentId = block.parent_id
                     if (!parentId) return
                     path.at(-1)?.links?.forEach(link => {
                         if (link.linkSource === block.id) parentId = link.linkId
                     })
                     getBlock(parentId, (err, parent) => {
+                        if (!parent) return
                         if (parent.data.view === 'link') {
                             getBlock(parent.parent_id, (err, parentLink) => {
+                                if (!parentLink?.data?.childOrder) return
                                 const children = parentLink.data.childOrder
                                 const index = children.indexOf(parent.id)
                                 if (index !== -1) {
@@ -138,6 +147,7 @@ export const arrowCommands = [
                                 }
                             })
                         } else {
+                            if (!parent.data?.childOrder) return
                             const children = parent.data.childOrder
                             const index = children.indexOf(block.id)
                             if (index !== -1) {
@@ -159,16 +169,25 @@ export const arrowCommands = [
         mode: ['normal'],
         execute(ctx) {
             const rootBlockEl = ctx.rootContainer.children[0]
+            if (!rootBlockEl) return
             getPath((err, path) => {
+                // Проверяем что path инициализирован
+                if (!path || path.length === 0) {
+                    console.warn('openRight: path not initialized');
+                    return;
+                }
                 getBlock(rootBlockEl.id, (err, block) => {
+                    if (!block) return
                     let parentId = block.parent_id
                     if (!parentId) return
                     path.at(-1)?.links?.forEach(link => {
                         if (link.linkSource === block.id) parentId = link.linkId
                     })
                     getBlock(parentId, (err, parent) => {
+                        if (!parent) return
                         if (parent.data.view === 'link') {
                             getBlock(parent.parent_id, (err, parentLink) => {
+                                if (!parentLink?.data?.childOrder) return
                                 const children = parentLink.data.childOrder
                                 let index = children.indexOf(parent.id)
                                 if (index !== -1) {
@@ -178,6 +197,7 @@ export const arrowCommands = [
                                 }
                             })
                         } else {
+                            if (!parent.data?.childOrder) return
                             const children = parent.data.childOrder
                             let index = children.indexOf(block.id)
                             if (index !== -1) {

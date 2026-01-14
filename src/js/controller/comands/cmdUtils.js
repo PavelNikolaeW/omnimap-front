@@ -6,6 +6,7 @@ import {
     extractLinkChain,
     resolveBlockId
 } from "../../actions/navigationActions";
+import { localStateManager } from "../../stateLocal/localStateManager";
 
 /**
  * Открыть выбранный блок (используется для Enter и клика)
@@ -88,12 +89,17 @@ export function getTreeIds(callback) {
 export function setCurrentTree(tree, callback) {
     localforage.setItem('currentTree', tree, callback)
 }
+/**
+ * Получает текущий path из localStateManager
+ * @param {Function} callback - callback(err, path)
+ */
 export function getPath(callback) {
-    localforage.getItem('currentTree', (err, tree) => {
-        localforage.getItem('currentUser', (err, user) => {
-            localforage.getItem(`Path_${tree}${user}`, callback)
-        })
-    })
+    // Используем path из памяти вместо чтения из IndexedDB
+    const path = localStateManager.getPathSync();
+    // Вызываем callback асинхронно для совместимости
+    setTimeout(() => {
+        callback(null, path);
+    }, 0);
 }
 
 export function getTreePath(tree, callback) {
@@ -111,11 +117,19 @@ export function savePath(path, callback) {
 }
 
 export function openSibling(siblingIndex, path) {
+    if (!siblingIndex || !path || path.length === 0) return;
+
     getBlock(siblingIndex, (err, sibling) => {
-        const pathObj = path.pop(-1)
-        if (sibling.data.view === 'link') {
+        if (!sibling) return;
+
+        const pathObj = path.pop();
+        if (!pathObj) return;
+
+        if (sibling.data?.view === 'link') {
+            if (!pathObj.links) pathObj.links = [];
             pathObj.links.push({'linkId': sibling.id, 'linkSource': sibling.data.source})
             getBlock(sibling.data.source, (err, sourceBlock) => {
+                if (!sourceBlock) return;
                 savePath(path, () => {
                     dispatch('OpenBlock', {
                         id: sourceBlock.id,
@@ -131,7 +145,7 @@ export function openSibling(siblingIndex, path) {
                     id: sibling.id,
                     parentHsl: pathObj.color,
                     isIframe: false,
-                    links: pathObj.links
+                    links: pathObj.links || []
                 })
             })
         }
