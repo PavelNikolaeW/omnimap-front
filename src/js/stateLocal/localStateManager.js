@@ -9,6 +9,7 @@ import {customConfirm} from "../utils/custom-dialog";
 import {treeService} from "../services/treeService";
 import {treeValidator} from "./treeValidator";
 import {offlineQueue} from "../sincManager/offlineQueue";
+import {canEdit} from "../utils/permissionUtils";
 
 /**
  * Экранирует специальные символы RegExp в строке
@@ -488,6 +489,15 @@ export class LocalStateManager {
      * Удаление блока и всех его потомков (Optimistic UI)
      */
     async deleteTreeBlock({blockId}) {
+        const block = this.blocks.get(blockId)
+        if (!block) return
+
+        // Проверка прав на удаление
+        if (!canEdit(block)) {
+            dispatch('ShowError', { message: 'Нет прав на удаление блока' });
+            return;
+        }
+
         if (!await customConfirm(`Вы уверены, что хотите удалить блок и всех его потомков?`)) return
 
         await treeService.refresh()
@@ -498,9 +508,6 @@ export class LocalStateManager {
             alert('Нельзя удалить последнее дерево')
             return
         }
-
-        const block = this.blocks.get(blockId)
-        if (!block) return
 
         // Проверяем, является ли блок pending (создан локально, но не на сервере)
         const isPending = offlineQueue.isPendingBlock(blockId);
@@ -641,6 +648,16 @@ export class LocalStateManager {
      */
     async deleteMultipleTreeBlocks({blockIds}) {
         if (!blockIds || blockIds.length === 0) return
+
+        // Проверка прав на удаление всех блоков
+        const forbiddenBlocks = blockIds.filter(id => {
+            const block = this.blocks.get(id);
+            return block && !canEdit(block);
+        });
+        if (forbiddenBlocks.length > 0) {
+            dispatch('ShowError', { message: 'Нет прав на удаление некоторых блоков' });
+            return;
+        }
 
         const count = blockIds.length
         const message = count === 1
@@ -1307,6 +1324,12 @@ export class LocalStateManager {
             return;
         }
 
+        // Проверка прав на редактирование нового родителя
+        if (!canEdit(newParent)) {
+            dispatch('ShowError', { message: 'Нет прав на перемещение в этот раздел' });
+            return;
+        }
+
         if (!newParent.data) newParent.data = {};
         const newOrder = reorderList(newParent.data.childOrder || [], block_id, before);
 
@@ -1316,6 +1339,18 @@ export class LocalStateManager {
 
         if (!block) {
             console.error('Block not found:', block_id);
+            return;
+        }
+
+        // Проверка прав на редактирование блока
+        if (!canEdit(block)) {
+            dispatch('ShowError', { message: 'Нет прав на перемещение этого блока' });
+            return;
+        }
+
+        // Проверка прав на редактирование старого родителя
+        if (oldParent && !canEdit(oldParent)) {
+            dispatch('ShowError', { message: 'Нет прав на перемещение из этого раздела' });
             return;
         }
 
@@ -2056,6 +2091,12 @@ export class LocalStateManager {
             return;
         }
 
+        // Проверка прав на редактирование родителя
+        if (!canEdit(parentBlock)) {
+            dispatch('ShowError', { message: 'Нет прав на создание блока в этом разделе' });
+            return;
+        }
+
         // Проверяем, является ли родитель диаграммой (имеет customGrid)
         // Если да — синхронизируем сразу без debounce
         const isDiagram = !!parentBlock.data?.customGrid?.grid;
@@ -2293,6 +2334,12 @@ export class LocalStateManager {
             return;
         }
 
+        // Проверка прав на редактирование
+        if (!canEdit(block)) {
+            dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
+            return;
+        }
+
         block.data.customGrid = customGrid;
         block.updated_at = new Date().toISOString();
         await this.saveBlock(block);
@@ -2319,6 +2366,12 @@ export class LocalStateManager {
         const block = await this.blockRepository.loadBlock(blockId);
         if (!block) {
             console.error(`Block ${blockId} not found`);
+            return;
+        }
+
+        // Проверка прав на редактирование
+        if (!canEdit(block)) {
+            dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
             return;
         }
 
@@ -2360,6 +2413,12 @@ export class LocalStateManager {
         const block = this.blocks.get(blockId);
         if (!block) return;
 
+        // Проверка прав на редактирование
+        if (!canEdit(block)) {
+            dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
+            return;
+        }
+
         if (!block.data) block.data = {};
         block.data.text = text;
         block.updated_at = new Date().toISOString();
@@ -2389,6 +2448,12 @@ export class LocalStateManager {
         const block = this.blocks.get(blockId);
         if (!block) return;
 
+        // Проверка прав на редактирование
+        if (!canEdit(block)) {
+            dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
+            return;
+        }
+
         block.title = title;
         block.updated_at = new Date().toISOString();
         await this.saveBlock(block);
@@ -2409,6 +2474,12 @@ export class LocalStateManager {
         // Optimistic UI: обновляем локально, синхронизация через batch import
         const block = this.blocks.get(blockId);
         if (!block) return;
+
+        // Проверка прав на редактирование
+        if (!canEdit(block)) {
+            dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
+            return;
+        }
 
         if (!block.data) block.data = {};
         block.data.view = 'iframe';
@@ -2436,6 +2507,12 @@ export class LocalStateManager {
         // Optimistic UI: обновляем локально, синхронизация через batch import
         const block = this.blocks.get(blockId);
         if (!block) return;
+
+        // Проверка прав на редактирование
+        if (!canEdit(block)) {
+            dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
+            return;
+        }
 
         if (!block.data) block.data = {};
         block.data.color = hue;
@@ -2472,6 +2549,13 @@ export class LocalStateManager {
             console.error('Source block not found:', sourceId);
             return;
         }
+
+        // Проверка прав на редактирование
+        if (!canEdit(sourceBlock)) {
+            dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
+            return;
+        }
+
         if (!sourceBlock.data) sourceBlock.data = {};
         if (!sourceBlock.data.connections) sourceBlock.data.connections = [];
 
@@ -2559,6 +2643,12 @@ export class LocalStateManager {
             return;
         }
 
+        // Проверка прав на редактирование
+        if (!canEdit(sourceBlock)) {
+            dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
+            return;
+        }
+
         // Приоритет 1: Удаление по уникальному connectionId (самый надёжный способ)
         if (connectionId) {
             sourceBlock.data.connections = sourceBlock.data.connections.filter(
@@ -2626,6 +2716,12 @@ export class LocalStateManager {
         const sourceBlock = this.blocks.get(cleanSourceId);
         if (!sourceBlock || !sourceBlock.data?.connections) {
             console.error('Source block or connections not found:', cleanSourceId);
+            return;
+        }
+
+        // Проверка прав на редактирование
+        if (!canEdit(sourceBlock)) {
+            dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
             return;
         }
 
