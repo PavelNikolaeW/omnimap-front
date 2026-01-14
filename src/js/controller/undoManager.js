@@ -582,11 +582,61 @@ class UndoManager {
                         }
                     });
                 } else {
-                    // Применяем новое состояние
+                    // Redo move: применяем состояние ПОСЛЕ перемещения
                     const afterData = entry.changes.after;
+
+                    // Сохраняем блок с новым parent_id
                     await localStateManager.saveBlock(afterData.block);
 
-                    // Обновляем родителей через перемещение
+                    // Удаляем блок из старого родителя
+                    if (entry.oldParentId !== entry.newParentId) {
+                        const oldParent = localStateManager.blocks.get(entry.oldParentId);
+                        if (oldParent) {
+                            let needsSave = false;
+
+                            if (oldParent.children?.includes(entry.blockId)) {
+                                oldParent.children = oldParent.children.filter(id => id !== entry.blockId);
+                                needsSave = true;
+                            }
+
+                            if (oldParent.data?.childOrder?.includes(entry.blockId)) {
+                                oldParent.data = {
+                                    ...oldParent.data,
+                                    childOrder: oldParent.data.childOrder.filter(id => id !== entry.blockId)
+                                };
+                                needsSave = true;
+                            }
+
+                            if (needsSave) {
+                                await localStateManager.saveBlock(oldParent);
+                            }
+                        }
+
+                        // Добавляем блок в нового родителя
+                        const newParent = localStateManager.blocks.get(entry.newParentId);
+                        if (newParent) {
+                            let needsSave = false;
+
+                            if (!newParent.children?.includes(entry.blockId)) {
+                                newParent.children = [...(newParent.children || []), entry.blockId];
+                                needsSave = true;
+                            }
+
+                            if (!newParent.data?.childOrder?.includes(entry.blockId)) {
+                                newParent.data = {
+                                    ...newParent.data,
+                                    childOrder: [...(newParent.data?.childOrder || []), entry.blockId]
+                                };
+                                needsSave = true;
+                            }
+
+                            if (needsSave) {
+                                await localStateManager.saveBlock(newParent);
+                            }
+                        }
+                    }
+
+                    // Синхронизируем с сервером
                     await offlineQueue.enqueue({
                         type: 'moveBlock',
                         data: {
