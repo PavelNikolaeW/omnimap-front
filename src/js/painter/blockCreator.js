@@ -323,15 +323,36 @@ class BlockCreator {
         const presetType = parentBlock?.layoutPresetType
 
         // Календарь: подсветка текущего дня и выходных
-        if (presetType === 'calendar' || block.data.calendarDay) {
+        // Поддерживает как месячный календарь (presetType='calendar'), так и годовой (calendarType='day')
+        if (presetType === 'calendar' || block.data.calendarDay || block.data.calendarType) {
+            // Тип календарного элемента (year, quarter, month, week, day)
+            if (block.data.calendarType) {
+                element.setAttribute('data-calendar-type', block.data.calendarType)
+            }
+
             if (block.data.calendarDay) {
                 element.setAttribute('data-calendar-day', block.data.calendarDay)
             }
-            if (block.data.isToday) {
+
+            // Динамическое вычисление isToday на основе isoDate
+            // Это позволяет корректно подсвечивать текущий день даже после смены даты
+            if (block.data.isoDate) {
+                const today = new Date().toISOString().split('T')[0]
+                if (block.data.isoDate === today) {
+                    element.setAttribute('data-calendar-today', 'true')
+                }
+            } else if (block.data.isToday) {
+                // Fallback для старого формата без isoDate
                 element.setAttribute('data-calendar-today', 'true')
             }
+
             if (block.data.isWeekend) {
                 element.setAttribute('data-calendar-weekend', 'true')
+            }
+
+            // Номер недели для отображения
+            if (block.data.calendarWeekNumber) {
+                element.setAttribute('data-calendar-week', block.data.calendarWeekNumber)
             }
         }
 

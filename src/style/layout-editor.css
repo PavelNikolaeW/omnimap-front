@@ -916,6 +916,19 @@
     outline: 3px solid var(--popup-primary, #3b82f6) !important;
     outline-offset: -3px;
     z-index: 1;
+    position: relative;
+    animation: today-pulse 2s ease-in-out infinite;
+}
+
+@keyframes today-pulse {
+    0%, 100% {
+        outline-color: var(--popup-primary, #3b82f6);
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+    }
+    50% {
+        outline-color: #60a5fa;
+        box-shadow: 0 0 8px 2px rgba(59, 130, 246, 0.3);
+    }
 }
 
 /* Цвет выходных вычисляется автоматически в CalcColor.applyWeekendShift() */
@@ -957,4 +970,132 @@
 [data-layout-role="левый_сайдбар"],
 [data-layout-role="правый_сайдбар"] {
     /* Sidebars */
+}
+
+/* ========================================
+   Calendar Generator Styles
+   ======================================== */
+
+.layout-settings__section--generator {
+    border-top: 1px solid var(--popup-border, #e5e7eb);
+    padding-top: 16px;
+    margin-top: 8px;
+}
+
+.layout-settings__section--generator .layout-settings__title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.generator-icon {
+    font-size: 1.1em;
+}
+
+.generator-card {
+    background: var(--popup-bg-secondary, #f9fafb);
+    border: 1px solid var(--popup-border, #e5e7eb);
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 8px;
+}
+
+.generator-card__description {
+    font-size: 0.85em;
+    color: var(--popup-text-muted, #6b7280);
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+
+.generator-card__options {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.generator-card__label {
+    font-size: 0.9em;
+    color: var(--popup-text, #374151);
+}
+
+.generator-card__input {
+    width: 80px;
+    padding: 6px 8px;
+    border: 1px solid var(--popup-border, #e5e7eb);
+    border-radius: 4px;
+    font-size: 0.9em;
+    background: var(--popup-bg, #ffffff);
+    color: var(--popup-text, #374151);
+}
+
+.generator-card__input:focus {
+    outline: none;
+    border-color: var(--popup-primary, #3b82f6);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.generator-card__estimate {
+    font-size: 0.8em;
+    color: var(--popup-text-muted, #6b7280);
+    margin-left: auto;
+}
+
+/* Generator Progress Bar */
+.generator-progress {
+    margin-top: 12px;
+}
+
+.generator-progress__bar-container {
+    height: 6px;
+    background: var(--popup-border, #e5e7eb);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+
+.generator-progress__bar {
+    height: 100%;
+    background: var(--popup-primary, #3b82f6);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+    width: 0%;
+}
+
+.generator-progress__text {
+    font-size: 0.8em;
+    color: var(--popup-text-muted, #6b7280);
+}
+
+/* Year Calendar Preset Styles */
+[data-calendar-type="year"] {
+    /* Год - крупный контейнер */
+}
+
+[data-calendar-type="quarter"] {
+    /* Квартал */
+}
+
+[data-calendar-type="month"] {
+    /* Месяц */
+}
+
+[data-calendar-type="week"] {
+    /* Неделя - горизонтальная полоса */
+    border-bottom: 1px solid var(--popup-border, #e5e7eb);
+}
+
+[data-calendar-type="day"] {
+    /* День */
+}
+
+/* Номер недели */
+[data-calendar-week]::before {
+    content: attr(data-calendar-week);
+    position: absolute;
+    left: 2px;
+    top: 2px;
+    font-size: 0.65em;
+    color: var(--popup-text-muted, #9ca3af);
+    opacity: 0.7;
 }
