@@ -1016,6 +1016,7 @@ export class LayoutEditorPanel extends Popup {
 
         let blocksImported = false;
         let linksCreated = 0;
+        let totalLinks = 0;
 
         try {
             // Показываем прогресс
@@ -1023,6 +1024,7 @@ export class LayoutEditorPanel extends Popup {
 
             // Генерируем структуру календаря
             const { blocks, linkRequests, stats } = generateYearCalendar(year, this.blockId);
+            totalLinks = linkRequests.length;
 
             this.showCalendarProgress({
                 stage: 'importing',
@@ -1103,7 +1105,7 @@ export class LayoutEditorPanel extends Popup {
             // Информативное сообщение в зависимости от этапа ошибки
             let message;
             if (blocksImported && linksCreated > 0) {
-                message = `Блоки созданы, но ошибка при создании ссылок (${linksCreated} из ${linksCreated}): ${error.message}`;
+                message = `Блоки созданы, но ошибка при создании ссылок (${linksCreated} из ${totalLinks}): ${error.message}`;
             } else if (blocksImported) {
                 message = `Блоки созданы, но ошибка при создании ссылок: ${error.message}`;
             } else {
