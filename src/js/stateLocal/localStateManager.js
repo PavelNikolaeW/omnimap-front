@@ -9,7 +9,7 @@ import {customConfirm} from "../utils/custom-dialog";
 import {treeService} from "../services/treeService";
 import {treeValidator} from "./treeValidator";
 import {offlineQueue} from "../sincManager/offlineQueue";
-import {canEdit} from "../utils/permissionUtils";
+import {canEdit, canDelete} from "../utils/permissionUtils";
 
 /**
  * Экранирует специальные символы RegExp в строке
@@ -43,7 +43,9 @@ class BlockRepository {
             title: block.title,
             updated_at: block.updated_at,
             // Всегда сохраняем forbidden флаг (true для 403, false/undefined для обычных)
-            forbidden: block.forbidden || false
+            forbidden: block.forbidden || false,
+            // Уровень прав: 'view', 'edit', 'edit_ac', 'delete', null (собственный блок)
+            permission: block.permission || null
         };
         await localforage.setItem(key, blockData);
     }
@@ -493,7 +495,7 @@ export class LocalStateManager {
         if (!block) return
 
         // Проверка прав на удаление
-        if (!canEdit(block)) {
+        if (!canDelete(block)) {
             dispatch('ShowError', { message: 'Нет прав на удаление блока' });
             return;
         }
@@ -652,7 +654,7 @@ export class LocalStateManager {
         // Проверка прав на удаление всех блоков
         const forbiddenBlocks = blockIds.filter(id => {
             const block = this.blocks.get(id);
-            return block && !canEdit(block);
+            return block && !canDelete(block);
         });
         if (forbiddenBlocks.length > 0) {
             dispatch('ShowError', { message: 'Нет прав на удаление некоторых блоков' });
@@ -900,7 +902,7 @@ export class LocalStateManager {
             return;
         }
 
-        // При выдаче прав (grant) - добавляем/обновляем блоки
+        // При выдаче прав (grant / view / edit / edit_ac / delete) - добавляем/обновляем блоки
         const start_block_ids = message.start_block_ids;
         const newBlocks = [];
 
@@ -911,6 +913,14 @@ export class LocalStateManager {
             const data = this._safeJsonParse(block.data, {});
             const children = this._safeJsonParse(block.children, []);
 
+            // Уровень прав: берём из block.permission (новый формат) или message.permission (legacy)
+            // При grant без уровня считаем что это полный доступ (null)
+            let blockPermission = block.permission || null;
+            if (!blockPermission && permission && permission !== 'grant') {
+                // Fallback: если block не содержит permission, но message.permission указан
+                blockPermission = permission;
+            }
+
             const newBlock = {
                 id: block.id,
                 updated_at: new Date(block.updated_at * 1000).toISOString(),
@@ -918,10 +928,11 @@ export class LocalStateManager {
                 data,
                 children,
                 parent_id: block.parent_id || false,
-                forbidden: false // Явно убираем флаг forbidden при grant
+                forbidden: false, // Явно убираем флаг forbidden при grant
+                permission: blockPermission // Уровень прав доступа
             };
 
-            // Сохраняем блок (localforage.setItem перезапишет старый forbidden)
+            // Сохраняем блок (localforage.setItem перезапишет старый forbidden и permission)
             await this.saveBlock(newBlock);
             newBlocks.push(newBlock);
 
@@ -1044,6 +1055,20 @@ export class LocalStateManager {
                     const serverData = this._safeJsonParse(block.data, {});
                     const serverChildren = this._safeJsonParse(block.children, []);
 
+                    // Определяем permission: явный с сервера > кэш > наследование от родителя
+                    let blockPermission;
+                    if (block.permission !== undefined) {
+                        // Явно указан permission с сервера
+                        blockPermission = block.permission;
+                    } else if (localBlock) {
+                        // Блок уже в кэше — сохраняем существующий permission
+                        blockPermission = localBlock.permission;
+                    } else {
+                        // Новый блок без permission — наследуем от родителя
+                        const parentBlock = this.blocks.get(normalizeParentId(block.parent_id));
+                        blockPermission = parentBlock?.permission || null;
+                    }
+
                     // Если блок pending — проверяем, наше ли это изменение или чужое
                     if (isPending && localBlock) {
                         const isSameTitle = localBlock.title === block.title;
@@ -1064,7 +1089,8 @@ export class LocalStateManager {
                                 title: block.title,
                                 data: serverData,
                                 children: serverChildren,
-                                parent_id: normalizeParentId(block.parent_id)
+                                parent_id: normalizeParentId(block.parent_id),
+                                permission: blockPermission
                             });
 
                             console.log(`⏭️ Own update confirmed, skipping render: ${block.id}`);
@@ -1114,7 +1140,8 @@ export class LocalStateManager {
                         title: block.title,
                         data: mergedData,
                         children: serverChildren,
-                        parent_id: normalizeParentId(block.parent_id)
+                        parent_id: normalizeParentId(block.parent_id),
+                        permission: blockPermission
                     });
                 }
                 processedBlocks.push(block);

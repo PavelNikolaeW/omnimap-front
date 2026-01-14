@@ -5,6 +5,8 @@ import {createEditHotkeyInputs, setCmdOpenBlock} from "./cmdUtils";
 import {HotkeyPopup} from "../popups/hotkeyPopup";
 import localforage from "localforage";
 import {AccessPopup} from "../popups/accessPopup";
+import {localStateManager} from "../../stateLocal/localStateManager";
+import {canEditAccess} from "../../utils/permissionUtils";
 import {UrlPopup} from "../popups/urlPopup";
 import {EditBlockPopup} from "../popups/editBlockPopup";
 import {SearchBlocksPopup} from "../popups/SearchPopup";
@@ -201,6 +203,14 @@ export const popupsCommands = [
             const id = ctx.blockElement?.id.split('*').at(-1)
             console.log(id)
             if (!id) return
+
+            // Проверка прав на управление доступом
+            const block = localStateManager.blocks.get(id);
+            if (!canEditAccess(block)) {
+                dispatch('ShowError', { message: 'Нет прав на управление доступом к блоку' });
+                return;
+            }
+
             ctx.closePopups()
             ctx.mode = 'editAccessBlock'
             setCmdOpenBlock(ctx);

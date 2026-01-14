@@ -5,7 +5,7 @@ import {auth} from './views/auth'
 import {registration} from './views/registration'
 import {styleConfig} from "./styles";
 import {offlineQueue} from "../sincManager/offlineQueue";
-import {isForbidden} from "../utils/permissionUtils";
+import {isForbidden, isViewOnly, getPermissionDataAttribute} from "../utils/permissionUtils";
 
 
 const viewRenderers = {
@@ -323,14 +323,23 @@ class BlockCreator {
     _applyPermissionIndicator(element, block) {
         if (!element || !block) return
 
-        if (isForbidden(block)) {
-            element.setAttribute('data-permission', 'forbidden')
-            element.setAttribute('title', 'Доступ запрещён')
-            // Запрещаем drag для forbidden блоков
-            element.removeAttribute('draggable')
+        const permissionAttr = getPermissionDataAttribute(block)
+
+        if (permissionAttr) {
+            element.setAttribute('data-permission', permissionAttr)
+
+            if (isForbidden(block)) {
+                element.setAttribute('title', 'Доступ запрещён')
+                // Запрещаем drag для forbidden блоков
+                element.removeAttribute('draggable')
+            } else if (isViewOnly(block)) {
+                element.setAttribute('title', 'Только для чтения')
+                // View-only блоки можно drag, но нельзя редактировать
+            }
         } else {
-            // Убираем атрибуты если блок не forbidden (для переиспользования элементов)
+            // Убираем атрибуты если блок с полными правами (для переиспользования элементов)
             element.removeAttribute('data-permission')
+            element.removeAttribute('title')
         }
     }
 
