@@ -1161,21 +1161,32 @@ export class LocalStateManager {
                     };
 
                     // Синхронизируем childOrder с serverChildren (даже если children пустой)
+                    // Но учитываем, что локально некоторые дети могли быть удалены (undo)
+
                     // Фильтруем childOrder — только те ID, которые есть в serverChildren
                     mergedData.childOrder = mergedData.childOrder.filter(id => serverChildren.includes(id));
-                    // Добавляем недостающие children в конец childOrder
+
+                    // Добавляем недостающие children в конец childOrder,
+                    // НО только если они существуют локально (не были удалены)
                     for (const childId of serverChildren) {
                         if (!mergedData.childOrder.includes(childId)) {
-                            mergedData.childOrder.push(childId);
+                            // Проверяем, существует ли ребёнок локально
+                            // Если его нет — значит был удалён локально (undo) и не нужно добавлять
+                            if (this.blocks.has(childId)) {
+                                mergedData.childOrder.push(childId);
+                            }
                         }
                     }
+
+                    // Фильтруем children так же — только те, что существуют локально
+                    const filteredChildren = serverChildren.filter(id => this.blocks.has(id));
 
                     await this.saveBlock({
                         id: block.id,
                         updated_at: new Date(block.updated_at * 1000).toISOString(),
                         title: block.title,
                         data: mergedData,
-                        children: serverChildren,
+                        children: filteredChildren,
                         parent_id: normalizeParentId(block.parent_id),
                         permission: blockPermission
                     });
