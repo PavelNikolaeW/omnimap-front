@@ -34,7 +34,8 @@ describe('adaptivePresets', () => {
         });
 
         it('should generate layout for known preset', () => {
-            const result = generateAdaptiveLayout('auto-grid', ['a', 'b', 'c'], 'md-sq');
+            // Используем wide форму, т.к. для square возвращает null (fallback на layoutGrid)
+            const result = generateAdaptiveLayout('auto-grid', ['a', 'b', 'c'], 'md-w');
             expect(result).not.toBeNull();
             expect(result.gridSize).toBeDefined();
             expect(result.cells).toBeDefined();
@@ -66,12 +67,12 @@ describe('adaptivePresets', () => {
             expect(result.cells['c']).toEqual({ row: 1, col: 3, rowSpan: 1, colSpan: 1 });
         });
 
-        it('should generate grid layout for square blocks', () => {
+        it('should return null for square blocks (fallback to layoutGrid)', () => {
             const childOrder = ['a', 'b', 'c', 'd'];
             const result = preset.generate(childOrder, 'xl-sq');
 
-            expect(result.gridSize.rows).toBe(2);
-            expect(result.gridSize.cols).toBe(2);
+            // Для квадратных блоков возвращаем null, чтобы использовать layoutGrid
+            expect(result).toBeNull();
         });
 
         it('should handle empty childOrder', () => {
@@ -253,14 +254,16 @@ describe('adaptivePresets', () => {
     });
 
     describe('edge cases', () => {
-        it('should handle missing blockShape gracefully', () => {
+        it('should handle missing blockShape gracefully (defaults to sq → null)', () => {
+            // null blockShape → defaults to 'md-sq' → returns null for layoutGrid fallback
             const result = generateAdaptiveLayout('auto-grid', ['a', 'b'], null);
-            expect(result).not.toBeNull();
+            expect(result).toBeNull();
         });
 
-        it('should handle invalid blockShape format', () => {
+        it('should handle invalid blockShape format (defaults to sq → null)', () => {
+            // invalid format → defaults to 'md-sq' → returns null for layoutGrid fallback
             const result = generateAdaptiveLayout('auto-grid', ['a', 'b'], 'invalid');
-            expect(result).not.toBeNull();
+            expect(result).toBeNull();
         });
 
         it('should handle single child', () => {
