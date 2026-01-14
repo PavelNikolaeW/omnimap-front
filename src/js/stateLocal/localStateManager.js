@@ -1055,6 +1055,20 @@ export class LocalStateManager {
                     const serverData = this._safeJsonParse(block.data, {});
                     const serverChildren = this._safeJsonParse(block.children, []);
 
+                    // Определяем permission: явный с сервера > кэш > наследование от родителя
+                    let blockPermission;
+                    if (block.permission !== undefined) {
+                        // Явно указан permission с сервера
+                        blockPermission = block.permission;
+                    } else if (localBlock) {
+                        // Блок уже в кэше — сохраняем существующий permission
+                        blockPermission = localBlock.permission;
+                    } else {
+                        // Новый блок без permission — наследуем от родителя
+                        const parentBlock = this.blocks.get(normalizeParentId(block.parent_id));
+                        blockPermission = parentBlock?.permission || null;
+                    }
+
                     // Если блок pending — проверяем, наше ли это изменение или чужое
                     if (isPending && localBlock) {
                         const isSameTitle = localBlock.title === block.title;
@@ -1076,7 +1090,7 @@ export class LocalStateManager {
                                 data: serverData,
                                 children: serverChildren,
                                 parent_id: normalizeParentId(block.parent_id),
-                                permission: block.permission || null
+                                permission: blockPermission
                             });
 
                             console.log(`⏭️ Own update confirmed, skipping render: ${block.id}`);
@@ -1127,7 +1141,7 @@ export class LocalStateManager {
                         data: mergedData,
                         children: serverChildren,
                         parent_id: normalizeParentId(block.parent_id),
-                        permission: block.permission || null
+                        permission: blockPermission
                     });
                 }
                 processedBlocks.push(block);
