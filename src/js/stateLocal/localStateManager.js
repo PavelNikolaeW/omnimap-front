@@ -1129,14 +1129,20 @@ export class LocalStateManager {
 
                     // Если блок существует локально, но не pending — проверяем, изменились ли данные
                     // Инвалидируем только если это реальное внешнее изменение (данные отличаются)
+                    // И блок не затронут нашей pending операцией (move, update и т.д.)
                     if (localBlock && !isPending) {
-                        const sortedStringify = (obj) => JSON.stringify(obj, Object.keys(obj || {}).sort());
-                        const localData = sortedStringify(localBlock.data || {});
-                        const serverDataStr = sortedStringify(serverData);
-                        const isDataDifferent = localBlock.title !== block.title || localData !== serverDataStr;
+                        // Проверяем, затронут ли блок нашей pending операцией в очереди
+                        const isAffectedByPending = await offlineQueue.isBlockAffectedByPendingOperation(block.id);
 
-                        if (isDataDifferent) {
-                            undoManager.invalidateEntriesForBlock(block.id);
+                        if (!isAffectedByPending) {
+                            const sortedStringify = (obj) => JSON.stringify(obj, Object.keys(obj || {}).sort());
+                            const localData = sortedStringify(localBlock.data || {});
+                            const serverDataStr = sortedStringify(serverData);
+                            const isDataDifferent = localBlock.title !== block.title || localData !== serverDataStr;
+
+                            if (isDataDifferent) {
+                                undoManager.invalidateEntriesForBlock(block.id);
+                            }
                         }
                     }
 
@@ -1164,16 +1170,25 @@ export class LocalStateManager {
                     // Учитываем:
                     // 1. Локально удалённые дети (undo) — не добавляем из serverChildren
                     // 2. Локально созданные дети (redo) — сохраняем даже если нет в serverChildren
+                    // 3. Локально перемещённые дети (undo move) — сохраняем если parent_id указывает сюда
 
-                    // Локальные дети, которые ещё не на сервере (pending sync)
+                    // Локальные дети, которые нужно сохранить
+                    // Включает: pending-created блоки И локально перемещённые (undo move)
                     const localChildren = localBlock?.children || [];
-                    const pendingLocalChildren = localChildren.filter(id =>
-                        this.blocks.has(id) && !serverChildren.includes(id) && offlineQueue.isPendingBlock(id)
-                    );
+                    const localChildrenToKeep = localChildren.filter(id => {
+                        if (!this.blocks.has(id)) return false; // Блок удалён локально
+                        if (serverChildren.includes(id)) return false; // Уже в серверном списке
 
-                    // Фильтруем childOrder — оставляем serverChildren + pending local children
+                        // Сохраняем если:
+                        // 1. pending-created блок
+                        // 2. ИЛИ блок имеет parent_id указывающий на этот блок (локально перемещён сюда через undo)
+                        const childBlock = this.blocks.get(id);
+                        return offlineQueue.isPendingBlock(id) || childBlock?.parent_id === block.id;
+                    });
+
+                    // Фильтруем childOrder — оставляем serverChildren + локальные дети для сохранения
                     mergedData.childOrder = mergedData.childOrder.filter(id =>
-                        serverChildren.includes(id) || pendingLocalChildren.includes(id)
+                        serverChildren.includes(id) || localChildrenToKeep.includes(id)
                     );
 
                     // Добавляем недостающие children из server в конец childOrder,
@@ -1188,17 +1203,17 @@ export class LocalStateManager {
                         }
                     }
 
-                    // Добавляем pending local children в конец childOrder если их там нет
-                    for (const childId of pendingLocalChildren) {
+                    // Добавляем локальные дети для сохранения в конец childOrder если их там нет
+                    for (const childId of localChildrenToKeep) {
                         if (!mergedData.childOrder.includes(childId)) {
                             mergedData.childOrder.push(childId);
                         }
                     }
 
-                    // Итоговый children = serverChildren (существующие локально) + pending local
+                    // Итоговый children = serverChildren (существующие локально) + локальные дети для сохранения
                     const filteredChildren = [
                         ...serverChildren.filter(id => this.blocks.has(id)),
-                        ...pendingLocalChildren
+                        ...localChildrenToKeep
                     ];
 
                     await this.saveBlock({

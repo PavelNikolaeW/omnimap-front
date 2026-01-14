@@ -1163,4 +1163,130 @@ describe('Batch Import Logic', () => {
             expect(changedBlocks.get('child-1').parent_id).toBe('parent-2');
         });
     });
+
+    describe('isBlockAffectedByPendingOperation', () => {
+        // Функция для проверки затронутости блока (повторяет логику из реального модуля)
+        async function isBlockAffectedByPendingOperation(queue, blockId) {
+            for (const operation of queue) {
+                const { type, data } = operation;
+                switch (type) {
+                    case 'createBlock':
+                    case 'createTree':
+                    case 'updateBlock':
+                    case 'deleteBlock':
+                        if (data.blockId === blockId || data.id === blockId) {
+                            return true;
+                        }
+                        break;
+                    case 'moveBlock':
+                        if (data.blockId === blockId ||
+                            data.oldParentId === blockId ||
+                            data.newParentId === blockId) {
+                            return true;
+                        }
+                        break;
+                }
+            }
+            return false;
+        }
+
+        test('returns true for block in createBlock operation', async () => {
+            const queue = [
+                { type: 'createBlock', data: { blockId: 'block-1', parentId: 'parent-1' } }
+            ];
+
+            expect(await isBlockAffectedByPendingOperation(queue, 'block-1')).toBe(true);
+        });
+
+        test('returns true for block in moveBlock operation', async () => {
+            const queue = [
+                { type: 'moveBlock', data: { blockId: 'block-1', oldParentId: 'parent-a', newParentId: 'parent-b' } }
+            ];
+
+            expect(await isBlockAffectedByPendingOperation(queue, 'block-1')).toBe(true);
+            expect(await isBlockAffectedByPendingOperation(queue, 'parent-a')).toBe(true);
+            expect(await isBlockAffectedByPendingOperation(queue, 'parent-b')).toBe(true);
+        });
+
+        test('returns true for parent affected by moveBlock', async () => {
+            const queue = [
+                { type: 'moveBlock', data: { blockId: 'child-1', oldParentId: 'parent-1', newParentId: 'parent-2' } }
+            ];
+
+            // Оба родителя затронуты move операцией
+            expect(await isBlockAffectedByPendingOperation(queue, 'parent-1')).toBe(true);
+            expect(await isBlockAffectedByPendingOperation(queue, 'parent-2')).toBe(true);
+        });
+
+        test('returns false for unrelated block', async () => {
+            const queue = [
+                { type: 'createBlock', data: { blockId: 'block-1', parentId: 'parent-1' } },
+                { type: 'moveBlock', data: { blockId: 'block-2', oldParentId: 'parent-a', newParentId: 'parent-b' } }
+            ];
+
+            expect(await isBlockAffectedByPendingOperation(queue, 'unrelated-block')).toBe(false);
+        });
+
+        test('returns false for empty queue', async () => {
+            expect(await isBlockAffectedByPendingOperation([], 'any-block')).toBe(false);
+        });
+    });
+
+    describe('getBlocksAffectedByPendingOperations', () => {
+        // Функция для получения всех затронутых блоков (повторяет логику из реального модуля)
+        function getBlocksAffectedByPendingOperations(queue) {
+            const affectedIds = new Set();
+
+            for (const operation of queue) {
+                const { type, data } = operation;
+                switch (type) {
+                    case 'createBlock':
+                    case 'createTree':
+                        if (data.blockId) affectedIds.add(data.blockId);
+                        if (data.parentId) affectedIds.add(data.parentId);
+                        break;
+                    case 'updateBlock':
+                        affectedIds.add(data.blockId || data.id);
+                        break;
+                    case 'moveBlock':
+                        affectedIds.add(data.blockId);
+                        if (data.oldParentId) affectedIds.add(data.oldParentId);
+                        if (data.newParentId) affectedIds.add(data.newParentId);
+                        break;
+                    case 'deleteBlock':
+                        affectedIds.add(data.blockId || data.id);
+                        break;
+                }
+            }
+
+            return affectedIds;
+        }
+
+        test('returns all affected blocks from multiple operations', () => {
+            const queue = [
+                { type: 'createBlock', data: { blockId: 'block-1', parentId: 'parent-1' } },
+                { type: 'moveBlock', data: { blockId: 'block-2', oldParentId: 'parent-a', newParentId: 'parent-b' } },
+                { type: 'updateBlock', data: { blockId: 'block-3' } },
+                { type: 'deleteBlock', data: { blockId: 'block-4' } }
+            ];
+
+            const affected = getBlocksAffectedByPendingOperations(queue);
+
+            expect(affected).toBeInstanceOf(Set);
+            expect(affected.has('block-1')).toBe(true);
+            expect(affected.has('parent-1')).toBe(true);
+            expect(affected.has('block-2')).toBe(true);
+            expect(affected.has('parent-a')).toBe(true);
+            expect(affected.has('parent-b')).toBe(true);
+            expect(affected.has('block-3')).toBe(true);
+            expect(affected.has('block-4')).toBe(true);
+        });
+
+        test('returns empty set for empty queue', () => {
+            const affected = getBlocksAffectedByPendingOperations([]);
+
+            expect(affected).toBeInstanceOf(Set);
+            expect(affected.size).toBe(0);
+        });
+    });
 });

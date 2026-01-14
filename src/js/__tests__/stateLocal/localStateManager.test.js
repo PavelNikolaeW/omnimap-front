@@ -29,7 +29,9 @@ jest.mock('../../sincManager/offlineQueue', () => {
             generateBlockId: jest.fn().mockImplementation(() => `test-block-${++mockIdCounter}`),
             registerPendingBlock: jest.fn().mockReturnValue({ resolve: jest.fn(), reject: jest.fn() }),
             resolvePendingBlock: jest.fn(),
-            isPendingBlock: jest.fn().mockReturnValue(false)
+            isPendingBlock: jest.fn().mockReturnValue(false),
+            isBlockAffectedByPendingOperation: jest.fn().mockResolvedValue(false),
+            getBlocksAffectedByPendingOperations: jest.fn().mockResolvedValue(new Set())
         }
     };
 });

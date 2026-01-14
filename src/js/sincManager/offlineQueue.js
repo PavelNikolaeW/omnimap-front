@@ -949,6 +949,73 @@ class OfflineQueueManager {
     }
 
     /**
+     * Проверяет, затронут ли блок pending операцией в очереди
+     * Учитывает move, update, create и delete операции
+     * @param {string} blockId - ID блока
+     * @returns {Promise<boolean>}
+     */
+    async isBlockAffectedByPendingOperation(blockId) {
+        const queue = await this.getQueue();
+
+        for (const operation of queue) {
+            const { type, data } = operation;
+            switch (type) {
+                case 'createBlock':
+                case 'createTree':
+                case 'updateBlock':
+                case 'deleteBlock':
+                    if (data.blockId === blockId || data.id === blockId) {
+                        return true;
+                    }
+                    break;
+                case 'moveBlock':
+                    // Move затрагивает сам блок и оба родителя
+                    if (data.blockId === blockId ||
+                        data.oldParentId === blockId ||
+                        data.newParentId === blockId) {
+                        return true;
+                    }
+                    break;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Получает список блоков, затронутых pending операциями
+     * @returns {Promise<Set<string>>}
+     */
+    async getBlocksAffectedByPendingOperations() {
+        const queue = await this.getQueue();
+        const affectedIds = new Set();
+
+        for (const operation of queue) {
+            const { type, data } = operation;
+            switch (type) {
+                case 'createBlock':
+                case 'createTree':
+                    if (data.blockId) affectedIds.add(data.blockId);
+                    if (data.parentId) affectedIds.add(data.parentId);
+                    break;
+                case 'updateBlock':
+                    affectedIds.add(data.blockId || data.id);
+                    break;
+                case 'moveBlock':
+                    affectedIds.add(data.blockId);
+                    if (data.oldParentId) affectedIds.add(data.oldParentId);
+                    if (data.newParentId) affectedIds.add(data.newParentId);
+                    break;
+                case 'deleteBlock':
+                    affectedIds.add(data.blockId || data.id);
+                    break;
+            }
+        }
+
+        return affectedIds;
+    }
+
+    /**
      * Проверяет, поддерживается ли Background Sync
      */
     isBackgroundSyncAvailable() {
