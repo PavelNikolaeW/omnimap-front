@@ -8,6 +8,8 @@ import { LayoutDataConverter } from './LayoutDataConverter.js';
 import { localStateManager } from '../../stateLocal/localStateManager.js';
 import { extractBlockId } from '../../actions/selectionActions.js';
 import { importBlocks, pollImportStatus, generateBlockId } from '../../api/importService.js';
+import { generateYearCalendar, estimateYearCalendarSize } from './CalendarGenerator.js';
+import api from '../../api/api.js';
 
 // Singleton instance для предотвращения множественных окон
 let currentInstance = null;
@@ -177,6 +179,20 @@ const PRESET_CONFIG = {
             '┌─┬─┬─┬─┬─┬─┬─┐',
             '├─┼─┼─┼─┼─┼─┼─┤',
             '└─┴─┴─┴─┴─┴─┴─┘'
+        ]
+    },
+    'year-calendar': {
+        maxBlocks: null,
+        minBlocks: 0,
+        description: 'Год → Кварталы → Месяцы → Недели → Дни',
+        category: 'special',
+        label: 'Год-календарь',
+        isGenerator: true,
+        preview: [
+            '┌───────────┐',
+            '│ Q1 │ Q2   │',
+            '│ Q3 │ Q4   │',
+            '└───────────┘'
         ]
     }
 };
@@ -830,9 +846,42 @@ export class LayoutEditorPanel extends Popup {
                     Создать блоки
                 </button>
             </div>
+
+            <div class="layout-settings__section layout-settings__section--generator">
+                <h4 class="layout-settings__title">
+                    <span class="generator-icon">&#x1F4C5;</span>
+                    Генератор календаря
+                </h4>
+                <div class="generator-card">
+                    <div class="generator-card__description">
+                        Создаёт полную иерархию: Год → Кварталы → Месяцы → Недели → Дни
+                    </div>
+                    <div class="generator-card__options">
+                        <label class="generator-card__label">Год:</label>
+                        <input type="number"
+                               id="calendar-year"
+                               value="${new Date().getFullYear()}"
+                               min="2000"
+                               max="2100"
+                               class="generator-card__input">
+                        <span id="calendar-estimate" class="generator-card__estimate"></span>
+                    </div>
+                    <button class="layout-preset-btn layout-preset-btn--primary"
+                            id="generate-calendar-btn">
+                        Создать календарь
+                    </button>
+                    <div id="calendar-progress" class="generator-progress" style="display: none;">
+                        <div class="generator-progress__bar-container">
+                            <div class="generator-progress__bar"></div>
+                        </div>
+                        <span class="generator-progress__text">0%</span>
+                    </div>
+                </div>
+            </div>
         `;
 
         this.bindSettingsEvents();
+        this.updateCalendarEstimate();
     }
 
     /**
@@ -887,6 +936,169 @@ export class LayoutEditorPanel extends Popup {
         fillBlocksBtn?.addEventListener('click', () => {
             this.createPlaceholderBlocks();
         });
+
+        // Calendar generator
+        const calendarYearInput = this.settingsPanel.querySelector('#calendar-year');
+        calendarYearInput?.addEventListener('change', () => {
+            this.updateCalendarEstimate();
+        });
+
+        const generateCalendarBtn = this.settingsPanel.querySelector('#generate-calendar-btn');
+        generateCalendarBtn?.addEventListener('click', () => {
+            this.createYearCalendar();
+        });
+    }
+
+    /**
+     * Обновляет оценку количества блоков для календаря
+     */
+    updateCalendarEstimate() {
+        const yearInput = this.settingsPanel?.querySelector('#calendar-year');
+        const estimateEl = this.settingsPanel?.querySelector('#calendar-estimate');
+
+        if (!yearInput || !estimateEl) return;
+
+        const year = parseInt(yearInput.value, 10) || new Date().getFullYear();
+        const { total, breakdown } = estimateYearCalendarSize(year);
+
+        estimateEl.textContent = `~${total} блоков`;
+        estimateEl.title = `${breakdown.year} год + ${breakdown.quarters} квартала + ${breakdown.months} месяцев + ${breakdown.weeks} недель + ${breakdown.days} дней`;
+    }
+
+    /**
+     * Показывает прогресс генерации календаря
+     * @param {{stage: string, percent: number, message?: string}} progress
+     */
+    showCalendarProgress(progress) {
+        const progressEl = this.settingsPanel?.querySelector('#calendar-progress');
+        const barEl = progressEl?.querySelector('.generator-progress__bar');
+        const textEl = progressEl?.querySelector('.generator-progress__text');
+        const btnEl = this.settingsPanel?.querySelector('#generate-calendar-btn');
+
+        if (!progressEl || !barEl || !textEl) return;
+
+        progressEl.style.display = 'block';
+        barEl.style.width = `${progress.percent}%`;
+
+        const stages = {
+            'generating': 'Генерация структуры...',
+            'importing': progress.message || 'Импорт блоков...',
+            'linking': progress.message || 'Создание ссылок...',
+            'complete': 'Готово!'
+        };
+
+        textEl.textContent = `${Math.round(progress.percent)}% - ${stages[progress.stage] || progress.stage}`;
+
+        if (btnEl) {
+            btnEl.disabled = progress.stage !== 'complete';
+        }
+
+        if (progress.stage === 'complete') {
+            setTimeout(() => {
+                progressEl.style.display = 'none';
+                if (btnEl) btnEl.disabled = false;
+            }, 1500);
+        }
+    }
+
+    /**
+     * Создаёт иерархический календарь на год
+     */
+    async createYearCalendar() {
+        const yearInput = this.settingsPanel?.querySelector('#calendar-year');
+        const year = parseInt(yearInput?.value, 10) || new Date().getFullYear();
+
+        // Валидация года
+        if (year < 2000 || year > 2100) {
+            this.showMessage('Год должен быть от 2000 до 2100', 'error');
+            return;
+        }
+
+        let blocksImported = false;
+        let linksCreated = 0;
+        let totalLinks = 0;
+
+        try {
+            // Показываем прогресс
+            this.showCalendarProgress({ stage: 'generating', percent: 0 });
+
+            // Генерируем структуру календаря
+            const { blocks, linkRequests, stats } = generateYearCalendar(year, this.blockId);
+            totalLinks = linkRequests.length;
+
+            this.showCalendarProgress({
+                stage: 'importing',
+                percent: 10,
+                message: `Импорт ${blocks.length} блоков...`
+            });
+
+            // Импортируем все блоки
+            const { task_id } = await importBlocks(blocks);
+
+            // Ожидаем завершения с обновлением прогресса
+            await pollImportStatus(task_id, (progress) => {
+                const percent = 10 + (progress.percent * 0.7);
+                this.showCalendarProgress({
+                    stage: 'importing',
+                    percent,
+                    message: `${progress.processed || 0}/${progress.total || blocks.length} блоков`
+                });
+            });
+
+            blocksImported = true;
+
+            // Ссылки уже включены в blocks массив - отдельные API вызовы не нужны
+            // stats.links показывает количество созданных ссылок
+            linksCreated = stats.links || 0;
+            totalLinks = linksCreated;
+
+            // Обновляем данные родительского блока
+            const yearBlockId = blocks[0]?.id;
+            if (yearBlockId) {
+                const currentChildOrder = this.block.data?.childOrder || [];
+                dispatch('UpdateDataBlock', {
+                    blockId: this.blockId,
+                    data: {
+                        childOrder: [...currentChildOrder, yearBlockId]
+                    }
+                });
+            }
+
+            this.showCalendarProgress({ stage: 'complete', percent: 100 });
+
+            // Перезагружаем данные и обновляем UI
+            await new Promise(resolve => setTimeout(resolve, 500));
+            this.loadBlockData();
+            dispatch('ShowBlocks');
+
+            const linksInfo = stats.links > 0 ? `, ${stats.links} ссылок` : '';
+            this.showMessage(
+                `Календарь ${year} создан: ${stats.weeks} недель, ${stats.days} дней${linksInfo}`,
+                'success'
+            );
+
+        } catch (error) {
+            console.error('Failed to create year calendar:', error);
+
+            // Информативное сообщение в зависимости от этапа ошибки
+            let message;
+            if (blocksImported && linksCreated > 0) {
+                message = `Блоки созданы, но ошибка при создании ссылок (${linksCreated} из ${totalLinks}): ${error.message}`;
+            } else if (blocksImported) {
+                message = `Блоки созданы, но ошибка при создании ссылок: ${error.message}`;
+            } else {
+                message = `Ошибка создания календаря: ${error.message}`;
+            }
+
+            this.showMessage(message, 'error');
+            this.showCalendarProgress({ stage: 'complete', percent: 100 });
+
+            // Если блоки импортированы, обновляем UI чтобы показать частичный результат
+            if (blocksImported) {
+                this.loadBlockData();
+                dispatch('ShowBlocks');
+            }
+        }
     }
 
     /**

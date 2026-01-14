@@ -1,0 +1,586 @@
+/**
+ * Tests for CalendarGenerator.js
+ *
+ * Full calendar structure with Plan & Retro at all levels:
+ * Year (Plan+Retro) → Quarters (Plan+Retro) → Months (Plan+Retro+WeeksContainer) → Weeks (Plan+Retro+DaysContainer)
+ *
+ * Link blocks are now included in the blocks array (data.view === 'link')
+ * instead of separate linkRequests array.
+ */
+
+import {
+    generateYearCalendar,
+    estimateYearCalendarSize,
+    getMonday,
+    getISOWeekNumber,
+    getISOWeekKey,
+    getMonthsInQuarter,
+    MONTH_NAMES,
+    MONTH_NAMES_SHORT,
+    WEEKDAY_NAMES
+} from '../../../controller/layoutEditor/CalendarGenerator.js';
+
+describe('CalendarGenerator', () => {
+    describe('Helper functions', () => {
+        describe('getMonday', () => {
+            it('should return Monday for a Monday date', () => {
+                const monday = new Date(2026, 0, 5);
+                const result = getMonday(monday);
+                expect(result.getDay()).toBe(1);
+                expect(result.getDate()).toBe(5);
+            });
+
+            it('should return previous Monday for a Wednesday', () => {
+                const wednesday = new Date(2026, 0, 7);
+                const result = getMonday(wednesday);
+                expect(result.getDay()).toBe(1);
+                expect(result.getDate()).toBe(5);
+            });
+
+            it('should return previous Monday for a Sunday', () => {
+                const sunday = new Date(2026, 0, 11);
+                const result = getMonday(sunday);
+                expect(result.getDay()).toBe(1);
+                expect(result.getDate()).toBe(5);
+            });
+        });
+
+        describe('getISOWeekNumber', () => {
+            it('should return week 1 for first week of year', () => {
+                const jan1 = new Date(2026, 0, 1);
+                expect(getISOWeekNumber(jan1)).toBe(1);
+            });
+
+            it('should return week 53 for last week of some years', () => {
+                const dec31_2020 = new Date(2020, 11, 31);
+                expect(getISOWeekNumber(dec31_2020)).toBe(53);
+            });
+        });
+
+        describe('getISOWeekKey', () => {
+            it('should return formatted week key', () => {
+                const date = new Date(2026, 0, 5);
+                const key = getISOWeekKey(date);
+                expect(key).toMatch(/^\d{4}-W\d{2}$/);
+            });
+        });
+
+        describe('getMonthsInQuarter', () => {
+            it('should return correct months for Q1', () => {
+                expect(getMonthsInQuarter(1)).toEqual([1, 2, 3]);
+            });
+
+            it('should return correct months for Q2', () => {
+                expect(getMonthsInQuarter(2)).toEqual([4, 5, 6]);
+            });
+
+            it('should return correct months for Q3', () => {
+                expect(getMonthsInQuarter(3)).toEqual([7, 8, 9]);
+            });
+
+            it('should return correct months for Q4', () => {
+                expect(getMonthsInQuarter(4)).toEqual([10, 11, 12]);
+            });
+        });
+    });
+
+    describe('estimateYearCalendarSize', () => {
+        it('should estimate correct number of blocks including all Plan/Retro', () => {
+            const { total, breakdown } = estimateYearCalendarSize(2026);
+
+            expect(breakdown.year).toBe(1);
+            expect(breakdown.quarters).toBe(4);
+            expect(breakdown.months).toBe(12);
+            expect(breakdown.weeksContainers).toBe(12); // 1 per month
+            expect(breakdown.weeks).toBeGreaterThan(50);
+            expect(breakdown.weeks).toBeLessThanOrEqual(53);
+            expect(breakdown.days).toBe(365);
+
+            // Plan/Retro at all levels
+            expect(breakdown.yearPlanRetro).toBe(2);
+            expect(breakdown.quarterPlanRetro).toBe(8);
+            expect(breakdown.monthPlanRetro).toBe(24);
+            expect(breakdown.weekPlanRetro).toBe(breakdown.weeks * 2);
+            expect(breakdown.daysContainers).toBe(breakdown.weeks); // 1 container per week
+
+            // Total should include all Plan/Retro, weeksContainers, daysContainers and links
+            const expectedTotal = breakdown.year + breakdown.quarters + breakdown.months +
+                breakdown.weeksContainers + breakdown.weeks + breakdown.daysContainers +
+                breakdown.days + breakdown.yearPlanRetro + breakdown.quarterPlanRetro +
+                breakdown.monthPlanRetro + breakdown.weekPlanRetro + breakdown.links;
+            expect(total).toBe(expectedTotal);
+            expect(total).toBeGreaterThan(620); // ~652 blocks with weeksContainers and links
+        });
+
+        it('should account for leap year', () => {
+            const { breakdown: leap } = estimateYearCalendarSize(2024);
+            const { breakdown: nonLeap } = estimateYearCalendarSize(2025);
+
+            expect(leap.days).toBe(366);
+            expect(nonLeap.days).toBe(365);
+        });
+    });
+
+    describe('generateYearCalendar', () => {
+        describe('Year level', () => {
+            it('should generate year block with Plan and Retro', () => {
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                const yearBlock = blocks.find(b => b.data.calendarType === 'year');
+                expect(yearBlock).toBeDefined();
+                expect(yearBlock.title).toBe('2026');
+                expect(yearBlock.data.layout).toBe('cells');
+                expect(yearBlock.data.layoutCells.gridSize).toEqual({ rows: 2, cols: 3 });
+
+                // Year should have Plan and Retro as children
+                const yearPlan = blocks.find(b => b.data.calendarType === 'yearPlan');
+                const yearRetro = blocks.find(b => b.data.calendarType === 'yearRetro');
+                expect(yearPlan).toBeDefined();
+                expect(yearRetro).toBeDefined();
+                expect(yearPlan.title).toBe('План 2026');
+                expect(yearRetro.title).toBe('Итоги 2026');
+                expect(yearRetro.data.text).toContain('Главные достижения');
+            });
+
+            it('should position Year Plan and Retro correctly', () => {
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                const yearBlock = blocks.find(b => b.data.calendarType === 'year');
+                const yearPlan = blocks.find(b => b.data.calendarType === 'yearPlan');
+                const yearRetro = blocks.find(b => b.data.calendarType === 'yearRetro');
+
+                const cells = yearBlock.data.layoutCells.cells;
+                expect(cells[yearPlan.id]).toEqual({ row: 1, col: 1, rowSpan: 1, colSpan: 1 });
+                expect(cells[yearRetro.id]).toEqual({ row: 2, col: 1, rowSpan: 1, colSpan: 1 });
+            });
+        });
+
+        describe('Quarter level', () => {
+            it('should generate 4 quarters with Plan and Retro each', () => {
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                const quarters = blocks.filter(b => b.data.calendarType === 'quarter');
+                expect(quarters.length).toBe(4);
+
+                const quarterPlans = blocks.filter(b => b.data.calendarType === 'quarterPlan');
+                const quarterRetros = blocks.filter(b => b.data.calendarType === 'quarterRetro');
+                expect(quarterPlans.length).toBe(4);
+                expect(quarterRetros.length).toBe(4);
+
+                quarters.forEach((q, i) => {
+                    expect(q.title).toBe(`Q${i + 1}`);
+                    expect(q.data.layout).toBe('cells');
+                    expect(q.data.layoutCells.gridSize).toEqual({ rows: 2, cols: 4 });
+                });
+
+                // Check titles
+                expect(quarterPlans[0].title).toBe('План Q1');
+                expect(quarterRetros[0].title).toBe('Итоги Q1');
+                expect(quarterRetros[0].data.text).toContain('Ключевые результаты');
+            });
+
+            it('should position quarters correctly in year grid', () => {
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                const yearBlock = blocks.find(b => b.data.calendarType === 'year');
+                const quarters = blocks.filter(b => b.data.calendarType === 'quarter');
+                const cells = yearBlock.data.layoutCells.cells;
+
+                // Q1 at row 1, col 2
+                expect(cells[quarters[0].id]).toEqual({ row: 1, col: 2, rowSpan: 1, colSpan: 1 });
+                // Q2 at row 1, col 3
+                expect(cells[quarters[1].id]).toEqual({ row: 1, col: 3, rowSpan: 1, colSpan: 1 });
+                // Q3 at row 2, col 2
+                expect(cells[quarters[2].id]).toEqual({ row: 2, col: 2, rowSpan: 1, colSpan: 1 });
+                // Q4 at row 2, col 3
+                expect(cells[quarters[3].id]).toEqual({ row: 2, col: 3, rowSpan: 1, colSpan: 1 });
+            });
+        });
+
+        describe('Month level', () => {
+            it('should generate 12 months with Plan and Retro each', () => {
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                const months = blocks.filter(b => b.data.calendarType === 'month');
+                expect(months.length).toBe(12);
+
+                const monthPlans = blocks.filter(b => b.data.calendarType === 'monthPlan');
+                const monthRetros = blocks.filter(b => b.data.calendarType === 'monthRetro');
+                expect(monthPlans.length).toBe(12);
+                expect(monthRetros.length).toBe(12);
+
+                MONTH_NAMES.forEach((name, i) => {
+                    const month = months.find(m => m.data.calendarMonth === i + 1);
+                    expect(month).toBeDefined();
+                    expect(month.title).toBe(name);
+                });
+
+                // Check month plan/retro titles
+                expect(monthPlans[0].title).toBe('План Янв');
+                expect(monthRetros[0].title).toBe('Итоги Янв');
+                expect(monthRetros[0].data.text).toContain('Выполненные задачи');
+            });
+
+            it('should position months correctly in quarter grid', () => {
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                const q1 = blocks.find(b => b.data.calendarType === 'quarter' && b.data.calendarQuarter === 1);
+                const jan = blocks.find(b => b.data.calendarType === 'month' && b.data.calendarMonth === 1);
+                const feb = blocks.find(b => b.data.calendarType === 'month' && b.data.calendarMonth === 2);
+                const mar = blocks.find(b => b.data.calendarType === 'month' && b.data.calendarMonth === 3);
+
+                const cells = q1.data.layoutCells.cells;
+                // Months span both rows in cols 2-4
+                expect(cells[jan.id]).toEqual({ row: 1, col: 2, rowSpan: 2, colSpan: 1 });
+                expect(cells[feb.id]).toEqual({ row: 1, col: 3, rowSpan: 2, colSpan: 1 });
+                expect(cells[mar.id]).toEqual({ row: 1, col: 4, rowSpan: 2, colSpan: 1 });
+            });
+
+            it('should have month layout with Plan/Retro in col 1 and weeks in col 2', () => {
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                const jan = blocks.find(b => b.data.calendarType === 'month' && b.data.calendarMonth === 1);
+                expect(jan.data.layout).toBe('cells');
+                expect(jan.data.layoutCells.gridSize.cols).toBe(2);
+
+                const janPlan = blocks.find(b =>
+                    b.data.calendarType === 'monthPlan' && b.data.calendarMonth === 1
+                );
+                const janRetro = blocks.find(b =>
+                    b.data.calendarType === 'monthRetro' && b.data.calendarMonth === 1
+                );
+
+                const cells = jan.data.layoutCells.cells;
+                // Plan should be in col 1
+                expect(cells[janPlan.id].col).toBe(1);
+                // Retro should be in col 1
+                expect(cells[janRetro.id].col).toBe(1);
+            });
+        });
+
+        describe('Week level', () => {
+            it('should generate weeks with Plan, Retro and DaysContainer', () => {
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                const weeks = blocks.filter(b => b.data.calendarType === 'week');
+                expect(weeks.length).toBeGreaterThan(50);
+
+                weeks.forEach(week => {
+                    // Week has 3 direct children: Plan, Retro, DaysContainer
+                    expect(week.data.childOrder).toHaveLength(3);
+                    expect(week.data.layout).toBe('cells');
+                    expect(week.data.layoutCells.gridSize).toEqual({ rows: 2, cols: 2 });
+                });
+
+                const weekPlans = blocks.filter(b => b.data.calendarType === 'weekPlan');
+                const weekRetros = blocks.filter(b => b.data.calendarType === 'weekRetro');
+                const daysContainers = blocks.filter(b => b.data.calendarType === 'daysContainer');
+
+                expect(weekPlans.length).toBe(weeks.length);
+                expect(weekRetros.length).toBe(weeks.length);
+                expect(daysContainers.length).toBe(weeks.length);
+
+                expect(weekPlans[0].title).toBe('План');
+                expect(weekRetros[0].title).toBe('Итоги');
+                expect(weekRetros[0].data.text).toContain('Что получилось');
+                expect(daysContainers[0].title).toBe('Дни');
+            });
+
+            it('should position week contents correctly (2x2 layout)', () => {
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                const weeks = blocks.filter(b => b.data.calendarType === 'week');
+
+                weeks.forEach(week => {
+                    const cells = week.data.layoutCells.cells;
+                    const childOrder = week.data.childOrder;
+
+                    // Plan at row 1, col 1 (50% width, 50% height)
+                    expect(cells[childOrder[0]]).toEqual({ row: 1, col: 1, rowSpan: 1, colSpan: 1 });
+                    // Retro at row 2, col 1 (50% width, 50% height)
+                    expect(cells[childOrder[1]]).toEqual({ row: 2, col: 1, rowSpan: 1, colSpan: 1 });
+                    // DaysContainer at col 2, spans both rows (50% width, 100% height)
+                    expect(cells[childOrder[2]]).toEqual({ row: 1, col: 2, rowSpan: 2, colSpan: 1 });
+                });
+            });
+
+            it('should have DaysContainer with 7 day children', () => {
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                const daysContainers = blocks.filter(b => b.data.calendarType === 'daysContainer');
+
+                daysContainers.forEach(container => {
+                    // DaysContainer has 7 children (Mon-Sun)
+                    expect(container.data.childOrder).toHaveLength(7);
+                    expect(container.data.layout).toBe('cells');
+                    expect(container.data.layoutCells.gridSize).toEqual({ rows: 7, cols: 1 });
+
+                    // Each day should be in a row
+                    container.data.childOrder.forEach((dayId, index) => {
+                        expect(container.data.layoutCells.cells[dayId]).toEqual({
+                            row: index + 1, col: 1, rowSpan: 1, colSpan: 1
+                        });
+                    });
+                });
+            });
+
+            it('should allow sharing DaysContainer separately from Plan/Retro', () => {
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                const daysContainers = blocks.filter(b => b.data.calendarType === 'daysContainer');
+
+                daysContainers.forEach(container => {
+                    // DaysContainer should be a valid standalone block
+                    expect(container.id).toBeDefined();
+                    expect(container.parent_id).toBeDefined();
+                    expect(container.title).toBe('Дни');
+
+                    // All days should have DaysContainer as parent
+                    const days = blocks.filter(b =>
+                        b.data.calendarType === 'day' && b.parent_id === container.id
+                    );
+                    expect(days).toHaveLength(7);
+                });
+            });
+        });
+
+        describe('Day level', () => {
+            it('should generate days with correct data', () => {
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                const days = blocks.filter(b => b.data.calendarType === 'day');
+                expect(days.length).toBeGreaterThanOrEqual(365);
+
+                days.forEach(day => {
+                    expect(day.data.calendarDay).toBeGreaterThanOrEqual(1);
+                    expect(day.data.calendarDay).toBeLessThanOrEqual(31);
+                    expect(day.data.isoDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+                    expect(typeof day.data.isWeekend).toBe('boolean');
+                    expect(day.title).toMatch(/^\d{1,2}$/);
+                });
+            });
+
+            it('should mark weekends correctly', () => {
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                const days = blocks.filter(b => b.data.calendarType === 'day');
+                const weekends = days.filter(d => d.data.isWeekend);
+
+                expect(weekends.length).toBeGreaterThan(100);
+                expect(weekends.length).toBeLessThan(115);
+            });
+        });
+
+        describe('Link blocks', () => {
+            it('should return empty linkRequests (links are in blocks array)', () => {
+                const { linkRequests } = generateYearCalendar(2026, 'parent-123');
+
+                expect(Array.isArray(linkRequests)).toBe(true);
+                expect(linkRequests.length).toBe(0); // Links are now in blocks
+            });
+
+            it('should include link blocks in blocks array', () => {
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                // Link blocks have data.view === 'link'
+                const linkBlocks = blocks.filter(b => b.data?.view === 'link');
+
+                expect(linkBlocks.length).toBeGreaterThan(0);
+
+                linkBlocks.forEach(link => {
+                    expect(link.data.source).toBeDefined();
+                    expect(link.data.calendarType).toBe('weekLink');
+                    expect(link.data.isoWeekKey).toMatch(/^\d{4}-W\d{2}$/);
+                });
+            });
+
+            it('should create link for March last week (owned by April)', () => {
+                // March 2026: last week starts March 30, Thursday is April 2
+                // This week should be owned by April but March needs a link
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                // Find March's weeksContainer
+                const marchMonth = blocks.find(b =>
+                    b.data.calendarType === 'month' && b.data.calendarMonth === 3
+                );
+                const marchWeeksContainer = blocks.find(b =>
+                    b.data.calendarType === 'weeksContainer' && b.parent_id === marchMonth.id
+                );
+
+                // March should have a link to week 2026-W14 (starts March 30)
+                const linkBlocks = blocks.filter(b =>
+                    b.data?.view === 'link' && b.parent_id === marchWeeksContainer.id
+                );
+                const w14Link = linkBlocks.find(b => b.data.isoWeekKey === '2026-W14');
+
+                expect(w14Link).toBeDefined();
+                expect(w14Link.data.source).toBeDefined();
+
+                // The source block should be owned by April
+                const weekBlock = blocks.find(b => b.id === w14Link.data.source);
+                expect(weekBlock).toBeDefined();
+                expect(weekBlock.data.calendarMonth).toBe(4); // April owns it
+            });
+
+            it('should create links for all boundary weeks', () => {
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                // Link blocks in blocks array
+                const linkBlocks = blocks.filter(b => b.data?.view === 'link');
+
+                // Each link should have a valid parent (weeksContainer)
+                const weeksContainers = blocks.filter(b => b.data.calendarType === 'weeksContainer');
+                linkBlocks.forEach(link => {
+                    const parent = weeksContainers.find(wc => wc.id === link.parent_id);
+                    expect(parent).toBeDefined();
+                });
+
+                // Should have links (some months will need them)
+                expect(linkBlocks.length).toBeGreaterThan(0);
+            });
+
+            it('should have correct link distribution across months', () => {
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                // Link blocks
+                const linkBlocks = blocks.filter(b => b.data?.view === 'link');
+                const weeksContainers = blocks.filter(b => b.data.calendarType === 'weeksContainer');
+
+                // Group links by month
+                const linksByMonth = {};
+                linkBlocks.forEach(link => {
+                    const container = weeksContainers.find(wc => wc.id === link.parent_id);
+                    const monthNum = container.data.calendarMonth;
+                    if (!linksByMonth[monthNum]) {
+                        linksByMonth[monthNum] = [];
+                    }
+                    linksByMonth[monthNum].push(link.data.isoWeekKey);
+                });
+
+                // Every link should point to a valid week block
+                linkBlocks.forEach(link => {
+                    const srcBlock = blocks.find(b => b.id === link.data.source);
+                    expect(srcBlock).toBeDefined();
+                    expect(srcBlock.data.calendarType).toBe('week');
+                });
+            });
+        });
+
+        describe('Block IDs and relationships', () => {
+            it('should generate valid UUIDs', () => {
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+                const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+                blocks.forEach(block => {
+                    expect(block.id).toMatch(uuidRegex);
+                });
+            });
+
+            it('should set correct parent-child relationships', () => {
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                const yearBlock = blocks.find(b => b.data.calendarType === 'year');
+                const quarters = blocks.filter(b => b.data.calendarType === 'quarter');
+
+                quarters.forEach(q => {
+                    expect(q.parent_id).toBe(yearBlock.id);
+                });
+
+                const months = blocks.filter(b => b.data.calendarType === 'month');
+                months.forEach(m => {
+                    const parentQuarter = quarters.find(q => q.id === m.parent_id);
+                    expect(parentQuarter).toBeDefined();
+                });
+            });
+        });
+
+        describe('Stats', () => {
+            it('should return comprehensive stats', () => {
+                const { stats } = generateYearCalendar(2026, 'parent-123');
+
+                expect(stats.years).toBe(1);
+                expect(stats.quarters).toBe(4);
+                expect(stats.months).toBe(12);
+                expect(stats.weeksContainers).toBe(12); // 1 per month
+                expect(stats.weeks).toBeGreaterThan(50);
+                expect(stats.daysContainers).toBe(stats.weeks); // 1 container per week
+                expect(stats.days).toBeGreaterThanOrEqual(365);
+
+                // Plan/Retro counts
+                expect(stats.yearPlanRetro).toBe(2);
+                expect(stats.quarterPlanRetro).toBe(8);
+                expect(stats.monthPlanRetro).toBe(24);
+                expect(stats.weekPlanRetro).toBe(stats.weeks * 2);
+
+                // Links are now counted (boundary weeks)
+                expect(stats.links).toBeGreaterThan(0);
+            });
+        });
+
+        describe('WeeksContainer', () => {
+            it('should generate weeksContainers for each month', () => {
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                const weeksContainers = blocks.filter(b => b.data.calendarType === 'weeksContainer');
+                expect(weeksContainers.length).toBe(12); // 1 per month
+
+                weeksContainers.forEach(container => {
+                    expect(container.title).toBe('Недели');
+                    expect(container.data.layout).toBe('cells');
+                    expect(container.data.layoutCells.gridSize.cols).toBe(1);
+                    expect(container.data.childOrder.length).toBeGreaterThan(0);
+                });
+            });
+
+            it('should position weeksContainer in col 2 of month', () => {
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                const months = blocks.filter(b => b.data.calendarType === 'month');
+
+                months.forEach(month => {
+                    const weeksContainer = blocks.find(b =>
+                        b.data.calendarType === 'weeksContainer' && b.parent_id === month.id
+                    );
+                    expect(weeksContainer).toBeDefined();
+
+                    const cells = month.data.layoutCells.cells;
+                    expect(cells[weeksContainer.id].col).toBe(2);
+                    expect(cells[weeksContainer.id].rowSpan).toBe(2); // Spans both rows
+                });
+            });
+
+            it('should have weeks as children of weeksContainer (not month)', () => {
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                const weeks = blocks.filter(b => b.data.calendarType === 'week');
+                const weeksContainers = blocks.filter(b => b.data.calendarType === 'weeksContainer');
+
+                weeks.forEach(week => {
+                    // Week's parent should be a weeksContainer
+                    const parent = weeksContainers.find(wc => wc.id === week.parent_id);
+                    expect(parent).toBeDefined();
+                });
+            });
+        });
+    });
+
+    describe('Constants', () => {
+        it('should have 12 month names', () => {
+            expect(MONTH_NAMES).toHaveLength(12);
+            expect(MONTH_NAMES[0]).toBe('Январь');
+            expect(MONTH_NAMES[11]).toBe('Декабрь');
+        });
+
+        it('should have 12 short month names', () => {
+            expect(MONTH_NAMES_SHORT).toHaveLength(12);
+            expect(MONTH_NAMES_SHORT[0]).toBe('Янв');
+            expect(MONTH_NAMES_SHORT[11]).toBe('Дек');
+        });
+
+        it('should have 7 weekday names', () => {
+            expect(WEEKDAY_NAMES).toHaveLength(7);
+            expect(WEEKDAY_NAMES[0]).toBe('Пн');
+            expect(WEEKDAY_NAMES[6]).toBe('Вс');
+        });
+    });
+});

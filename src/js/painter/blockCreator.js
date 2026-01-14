@@ -20,6 +20,22 @@ class BlockCreator {
         this.iframes = new Set()
         this.AllIframes = new Set()
         this.emptyBlocks = new Set()
+        // Кэш для текущей даты (обновляется раз в минуту)
+        this._cachedToday = null
+        this._todayCacheTime = 0
+    }
+
+    /**
+     * Возвращает текущую дату в формате YYYY-MM-DD с кэшированием
+     * Кэш обновляется каждую минуту для оптимизации рендеринга календаря
+     */
+    _getToday() {
+        const now = Date.now()
+        if (!this._cachedToday || now - this._todayCacheTime > 60000) {
+            this._cachedToday = new Date().toISOString().split('T')[0]
+            this._todayCacheTime = now
+        }
+        return this._cachedToday
     }
 
     createElement(block, parentBlock, screen, depth) {
@@ -355,15 +371,35 @@ class BlockCreator {
         const presetType = parentBlock?.layoutPresetType
 
         // Календарь: подсветка текущего дня и выходных
-        if (presetType === 'calendar' || block.data.calendarDay) {
+        // Поддерживает как месячный календарь (presetType='calendar'), так и годовой (calendarType='day')
+        if (presetType === 'calendar' || block.data.calendarDay || block.data.calendarType) {
+            // Тип календарного элемента (year, quarter, month, week, day)
+            if (block.data.calendarType) {
+                element.setAttribute('data-calendar-type', block.data.calendarType)
+            }
+
             if (block.data.calendarDay) {
                 element.setAttribute('data-calendar-day', block.data.calendarDay)
             }
-            if (block.data.isToday) {
+
+            // Динамическое вычисление isToday на основе isoDate
+            // Это позволяет корректно подсвечивать текущий день даже после смены даты
+            if (block.data.isoDate) {
+                if (block.data.isoDate === this._getToday()) {
+                    element.setAttribute('data-calendar-today', 'true')
+                }
+            } else if (block.data.isToday) {
+                // Fallback для старого формата без isoDate
                 element.setAttribute('data-calendar-today', 'true')
             }
+
             if (block.data.isWeekend) {
                 element.setAttribute('data-calendar-weekend', 'true')
+            }
+
+            // Номер недели для отображения
+            if (block.data.calendarWeekNumber) {
+                element.setAttribute('data-calendar-week', block.data.calendarWeekNumber)
             }
         }
 
