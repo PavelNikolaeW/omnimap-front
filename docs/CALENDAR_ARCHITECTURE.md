@@ -4,19 +4,21 @@
 
 ## Обзор
 
-Календарь генерируется через `CalendarGenerator.js` и импортируется через `LayoutEditorPanel.js`.
+Календарь генерируется через `CalendarGenerator.js` и импортируется **одним запросом** через `LayoutEditorPanel.js`.
 
-**Иерархия:** Год → Кварталы → Месяцы → Недели → Дни
+**Иерархия:** Год → Кварталы → Месяцы (WeeksContainer) → Недели (DaysContainer) → Дни
 
 **Каждый уровень имеет:** План + Итоги для планирования и ретроспективы.
+
+**Ключевая особенность:** Link-блоки для граничных недель включены прямо в payload импорта — без дополнительных API вызовов.
 
 ## Ключевые файлы
 
 | Файл | Назначение |
 |------|------------|
-| `src/js/controller/layoutEditor/CalendarGenerator.js` | Генерация ~540 блоков |
+| `src/js/controller/layoutEditor/CalendarGenerator.js` | Генерация ~650 блоков |
 | `src/js/controller/layoutEditor/LayoutEditorPanel.js` | UI + метод `createYearCalendar()` |
-| `src/js/__tests__/controller/layoutEditor/CalendarGenerator.test.js` | 32 теста |
+| `src/js/__tests__/controller/layoutEditor/CalendarGenerator.test.js` | 39 тестов |
 
 ## Структура блоков
 
@@ -63,19 +65,15 @@ data: {
 // Месяцы: rowSpan=2, colSpan=1
 ```
 
-### Месяц (gridSize: N×2)
+### Месяц (gridSize: 2×2)
 
 ```
-+----------+--------+
-| План Янв | Нед.1  |
-| (1-3,1)  | (1,2)  |
-|          | Нед.2  |
-|          | (2,2)  |
-+----------+ Нед.3  |
-| Итоги Янв| (3,2)  |
-| (4-N,1)  | Нед.4  |
-|          | (4,2)  |
-+----------+--------+
++------------------+------------------+
+| План (1,1)       | Недели (1-2, 2)  |
+|                  | WeeksContainer   |
++------------------+ rowSpan=2        |
+| Итоги (2,1)      |                  |
++------------------+------------------+
 ```
 
 ```javascript
@@ -83,26 +81,53 @@ data: {
     calendarType: 'month',
     calendarMonth: 1, // 1-12
     layout: 'cells',
-    layoutCells: { gridSize: { rows: N, cols: 2 } }
+    layoutCells: { gridSize: { rows: 2, cols: 2 } }
 }
-// План: ~60% высоты, Итоги: ~40%
-// Недели в col 2
+// План и Итоги по 50% высоты в col 1
+// WeeksContainer занимает 100% высоты в col 2
 ```
+
+### Контейнер Недель (gridSize: N×1)
+
+```
++--------+
+| Нед.1  | row 1
+| Нед.2  | row 2
+| Нед.3  | row 3
+| ...    |
+| Link   | row N (может быть ссылкой)
++--------+
+```
+
+```javascript
+data: {
+    calendarType: 'weeksContainer',
+    calendarMonth: 1,
+    calendarYear: 2026,
+    layout: 'cells',
+    layoutCells: { gridSize: { rows: N, cols: 1 }, cells: {...} },
+    childOrder: [weekId1, weekId2, ..., linkBlockId]
+}
+```
+
+**Преимущества:**
+- WeeksContainer можно шарить отдельно от планов месяца
+- Граничные недели представлены как link-блоки
 
 ### Неделя (gridSize: 2×2)
 
 ```
 +------------------+------------------+
 | План (1,1)       | Дни (1-2, 2)     |
-|                  | rowSpan=2        |
-+------------------+ (контейнер с 7   |
-| Итоги (2,1)      |  дочерними днями)|
+|                  | DaysContainer    |
++------------------+ rowSpan=2        |
+| Итоги (2,1)      |                  |
 +------------------+------------------+
 ```
 
 **Преимущества:**
 - План и Итоги занимают 50% ширины (левая колонка)
-- Контейнер Дни занимает 50% ширины (правая колонка)
+- DaysContainer занимает 50% ширины (правая колонка)
 - Можно шарить блок "Дни" как ссылку без раскрытия планов
 
 ### Контейнер Дней (gridSize: 7×1)
@@ -147,6 +172,24 @@ data: {
 title: '15' // только число
 ```
 
+### Link-блок (для граничных недель)
+
+```javascript
+{
+    id: 'uuid-link-блока',
+    parent_id: 'uuid-weeksContainer',
+    title: 'Неделя (ссылка)',
+    data: {
+        view: 'link',
+        source: 'uuid-реальной-недели',
+        calendarType: 'weekLink',
+        isoWeekKey: '2026-W14',
+        calendarYear: 2026,
+        calendarMonth: 3  // Март показывает ссылку на неделю Апреля
+    }
+}
+```
+
 ## ISO 8601 - Правило недель
 
 **Неделя принадлежит месяцу, где находится четверг.**
@@ -154,7 +197,7 @@ title: '15' // только число
 Пример: 29 дек - 4 янв
 - Пн 29, Вт 30, Ср 31 (декабрь) + Чт 1, Пт 2, Сб 3, Вс 4 (январь)
 - Четверг = 1 января → неделя принадлежит **январю**
-- Декабрь получает **ссылку** на эту неделю
+- Декабрь получает **link-блок** на эту неделю
 
 ```javascript
 function isOwner(weekStart, monthNum, year) {
@@ -166,66 +209,46 @@ function isOwner(weekStart, monthNum, year) {
 
 ## Двухпроходный алгоритм
 
-### Проход 1: Создание блоков
+### Проход 1: Создание блоков и регистрация недель
 
 ```javascript
 for (каждый месяц) {
-    const weeks = getWeeksOfMonth(year, monthNum);
-    for (week of weeks) {
+    // Создаём weeksContainer
+    for (week of weeksOfMonth) {
         if (week.isOwner) {
             // Создаём реальный блок недели
             weekRegistry.set(week.isoWeekKey, { blockId, ownerMonth });
+            allBlocks.push(weekBlock);
         } else {
-            // Помечаем для создания ссылки
-            weekIds.push({ type: 'link', isoWeekKey, row });
+            // Сохраняем для второго прохода
+            pendingLinks.push({ isoWeekKey, row });
         }
     }
 }
 ```
 
-### Проход 2: Создание ссылок
+### Проход 2: Создание link-блоков
 
 ```javascript
-for (каждый месяц) {
-    for (weekRef of месяц._weekIds) {
-        if (weekRef.type === 'link') {
-            const weekInfo = weekRegistry.get(weekRef.isoWeekKey);
-            linkRequests.push({
-                destBlockId: месяц.id,
-                srcBlockId: weekInfo.blockId,
-                row: weekRef.row,
-                col: 2
-            });
-        }
+for (каждый weeksContainer) {
+    for (link of pendingLinks) {
+        const weekInfo = weekRegistry.get(link.isoWeekKey);
+        // Создаём link-блок прямо в массив blocks
+        const linkBlock = {
+            id: generateBlockId(),
+            parent_id: weeksContainer.id,
+            title: 'Неделя (ссылка)',
+            data: {
+                view: 'link',
+                source: weekInfo.blockId,
+                calendarType: 'weekLink',
+                isoWeekKey: link.isoWeekKey
+            }
+        };
+        blocks.push(linkBlock);
+        weeksContainer.data.childOrder.push(linkBlock.id);
+        weeksContainer.data.layoutCells.cells[linkBlock.id] = { row, col: 1 };
     }
-}
-```
-
-## Link Requests
-
-Формат запроса на создание ссылки:
-
-```javascript
-{
-    destBlockId: 'uuid-месяца',
-    srcBlockId: 'uuid-недели-владельца',
-    isoWeekKey: '2026-W01',
-    row: 1,  // позиция в сетке месяца
-    col: 2   // недели всегда в col 2
-}
-```
-
-### Создание ссылок (LayoutEditorPanel.js)
-
-```javascript
-// После импорта блоков
-for (const link of linkRequests) {
-    const response = await api.pasteLinkBlock({
-        dest: link.destBlockId,
-        src: [link.srcBlockId]
-    });
-    // response.data.id - ID созданного link-блока
-    // Обновляем layoutCells месяца с позицией ссылки
 }
 ```
 
@@ -242,9 +265,11 @@ for (const link of linkRequests) {
 | `month` | Блок месяца |
 | `monthPlan` | План месяца |
 | `monthRetro` | Итоги месяца |
+| `weeksContainer` | Контейнер недель месяца (можно шарить отдельно) |
 | `week` | Блок недели |
 | `weekPlan` | План недели |
 | `weekRetro` | Итоги недели |
+| `weekLink` | Ссылка на неделю (для граничных недель) |
 | `daysContainer` | Контейнер дней недели (можно шарить отдельно) |
 | `day` | Блок дня |
 
@@ -261,6 +286,12 @@ const RETRO_TEMPLATES = {
 
 ## История изменений
 
+### v3.0 (2026-01-14)
+- ✅ **Link-блоки включены в payload импорта** — никаких дополнительных API вызовов
+- ✅ Добавлен `weeksContainer` - контейнер недель месяца
+- ✅ Новый лейаут месяца 2×2: План + Итоги (50%) | Недели (50%)
+- ✅ Возможность шарить недели отдельно от планов
+
 ### v2.0 (2026-01-14)
 - ✅ Исправлена логика граничных недель (ссылки создаются корректно)
 - ✅ Добавлен `daysContainer` - контейнер для 7 дней недели
@@ -274,27 +305,34 @@ const RETRO_TEMPLATES = {
 | Год | 1 |
 | Кварталы | 4 |
 | Месяцы | 12 |
+| weeksContainers | 12 |
 | Недели | ~53 |
+| Link-блоки | ~12 |
 | daysContainers | ~53 |
-| Дни | 365+ |
+| Дни | 365 |
 | yearPlanRetro | 2 |
 | quarterPlanRetro | 8 |
 | monthPlanRetro | 24 |
 | weekPlanRetro | ~106 |
-| **Всего** | **~593** |
+| **Всего** | **~652** |
 
 ## API endpoints
 
 ```javascript
-// Bulk import блоков
+// Bulk import блоков (включая link-блоки)
 importBlocks(blocks) → { task_id }
 pollImportStatus(task_id, callback) → Promise
 
-// Создание ссылки
-api.pasteLinkBlock({ dest, src: [srcId] }) → { data: { id: newLinkBlockId } }
-
-// Обновление layoutCells после создания ссылок
-api.updateBlock(blockId, { data: JSON.stringify(newData) })
+// Link-блоки теперь импортируются вместе с остальными блоками!
+// Формат link-блока в payload:
+{
+    id: 'uuid',
+    parent_id: 'parent-uuid',
+    data: {
+        view: 'link',
+        source: 'source-block-uuid'
+    }
+}
 ```
 
 ## Запуск тестов
@@ -303,4 +341,4 @@ api.updateBlock(blockId, { data: JSON.stringify(newData) })
 npx jest src/js/__tests__/controller/layoutEditor/CalendarGenerator.test.js --no-coverage
 ```
 
-32 теста покрывают все уровни иерархии и граничные случаи.
+39 тестов покрывают все уровни иерархии, link-блоки и граничные случаи.
