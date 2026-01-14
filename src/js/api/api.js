@@ -1,8 +1,6 @@
 import axios, {request} from 'axios';
 import Cookies from 'js-cookie';
 import {dispatch} from "../utils/utils";
-import {v4 as uuidV4} from 'uuid';
-import {LimitedMapQueue} from "../utils/limitedQueue";
 import {log} from "@jsplumb/browser-ui";
 import localforage from "localforage";
 import config from "../config";
@@ -25,7 +23,6 @@ class Api {
         this.backendUrl = config.APP_BACKEND_URL;
 
         // Настройка базового URL и создание экземпляра axios
-        this.operationChache = new LimitedMapQueue(50)
         this.api = axios.create({
             // baseURL: 'http://omnimap.ru/api/v1/',
             baseURL: this.backendUrl + '/api/v1/',
@@ -34,21 +31,6 @@ class Api {
                 'Content-Type': 'application/json'
             }
         });
-
-        // сохраняем запрос и добавляем uuid операции
-        this.api.interceptors.request.use(
-            config => {
-                const uuid = uuidV4()
-                this.operationChache.set(uuid, {
-                    url: config.url,
-                    data: config.data,
-                    timestamp: Date.now()
-                })
-                config.headers['X-Operation-UUID'] = uuid
-                return config
-            }, error => {
-                return Promise.reject(error);
-            });
 
         this.api.interceptors.request.use(
             config => {
@@ -64,34 +46,6 @@ class Api {
             }, error => {
                 return Promise.reject(error);
             });
-
-        this.api.interceptors.response.use(
-            async response => {
-                const operation = this.operationChache.get(response.headers['x-operation-uuid'])
-
-                if (operation) {
-                    operation['isFail'] = false
-                    operation['responseData'] = JSON.parse(JSON.stringify(response.data))
-
-                    if (response.headers['x-copy-block-id']) {
-                        operation['copyId'] = response.headers['x-copy-block-id']
-                    }
-
-                    dispatch("UndoStackAdd", {operation})
-                }
-
-                return response
-            }, async error => {
-                // Guard against network errors where response is undefined
-                if (error.response?.headers) {
-                    const operation = this.operationChache.get(error.response.headers['x-operation-uuid'])
-                    if (operation) {
-                        operation['isFail'] = error.response.status >= 400
-                    }
-                    if (error.response.status >= 500) this.sendHistoryOperations()
-                }
-                return Promise.reject(error);
-            })
 
         // Добавление интерцептора ответа для обработки истечения токена
         this.api.interceptors.response.use(
@@ -263,48 +217,6 @@ class Api {
         return {treeIds, blocks}
     }
 
-    /**
-     * Отправляет историю недавних операций на сервер для диагностики
-     * Вызывается при получении ошибки 500 от сервера
-     * Помогает восстановить состояние и отладить проблемы
-     */
-    async sendHistoryOperations() {
-        try {
-            // Собираем последние операции из кэша
-            const operations = this.operationChache.entries().map(([uuid, operation]) => ({
-                uuid,
-                url: operation.url,
-                data: operation.data,
-                isFail: operation.isFail,
-                timestamp: operation.timestamp || Date.now()
-            }));
-
-            if (operations.length === 0) {
-                console.log('No operations to send');
-                return;
-            }
-
-            // Отправляем на специальный эндпоинт для диагностики
-            // Используем отдельный axios вызов чтобы не попасть в бесконечный цикл
-            await axios.post(`${this.backendUrl}/api/v1/operations-history/`, {
-                operations,
-                userAgent: navigator.userAgent,
-                timestamp: Date.now()
-            }, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${Cookies.get('access')}`
-                },
-                timeout: 5000
-            });
-
-            console.log(`Sent ${operations.length} operations to server for diagnostics`);
-        } catch (error) {
-            // Не показываем ошибку пользователю, это диагностический вызов
-            console.warn('Failed to send operations history:', error.message);
-        }
-    }
-
     removeTree(blockId) {
         console.log('🗑️ Delete tree request:', blockId);
         return this.api.delete(`delete-tree/${blockId}/`).then(res => {
@@ -408,17 +320,6 @@ class Api {
 
     revertBlockToHistory(blockId, historyId) {
         return this.api.post(`blocks/${blockId}/history/${historyId}/revert/`)
-    }
-
-    undo(operation) {
-        return this.api.post('/undo/', {operation})
-    }
-
-    redo(url, data) {
-        if (url.startsWith('delete-tree'))
-            return this.api.delete(url, data)
-        else
-            return this.api.post(url, data)
     }
 
     /**
