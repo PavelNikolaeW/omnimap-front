@@ -10,6 +10,7 @@ import {treeService} from "../services/treeService";
 import {treeValidator} from "./treeValidator";
 import {offlineQueue} from "../sincManager/offlineQueue";
 import {canEdit, canDelete} from "../utils/permissionUtils";
+import {undoManager} from "../controller/undoManager";
 
 /**
  * Экранирует специальные символы RegExp в строке
@@ -529,7 +530,7 @@ export class LocalStateManager {
         // Сохраняем копии для rollback
         for (const id of allChildIds) {
             const b = this.blocks.get(id);
-            if (b) deletedBlocks.set(id, {...b});
+            if (b) deletedBlocks.set(id, {...b, data: {...b.data}});
         }
 
         // Сохраняем родительский блок для rollback
@@ -539,6 +540,15 @@ export class LocalStateManager {
             children: [...(parentBlock.children || [])],
             data: {...parentBlock.data, childOrder: [...(parentBlock.data?.childOrder || [])]}
         } : null;
+
+        // Записываем в undo stack (до удаления)
+        // Для деревьев используем recordDeleteTree с проверкой размера
+        if (allChildIds.length > 1) {
+            undoManager.recordDeleteTree(blockId, block.parent_id, deletedBlocks);
+        } else {
+            // Одиночный блок
+            undoManager.recordDelete(blockId, block.parent_id, deletedBlocks.get(blockId));
+        }
 
         // Удаляем из treeService если это корневой блок
         if (isRootTree) {
@@ -638,6 +648,9 @@ export class LocalStateManager {
         if (isRootTree) {
             await treeService.addTree(blockId);
         }
+
+        // Удаляем undo запись для отменённого удаления
+        undoManager.removeLastEntryForBlock(blockId);
 
         dispatch('ShowBlocks');
         dispatch('ShowError', { message: 'Не удалось удалить блок' });
@@ -976,6 +989,9 @@ export class LocalStateManager {
                     // Удаляем только этот блок (дети придут отдельными deleted событиями)
                     await this.removeOneBlock(block.id);
 
+                    // Инвалидируем undo записи для удалённого блока
+                    undoManager.invalidateEntriesForBlock(block.id);
+
                     // Если пользователь был на удалённом блоке — переходим к родителю
                     if (isOnDeletedBlock) {
                         console.log(`📍 Current block ${block.id} was deleted, navigating to parent`);
@@ -1100,8 +1116,18 @@ export class LocalStateManager {
                             // Снимаем pending и рендерим (last write wins)
                             offlineQueue.resolvePendingBlock(block.id);
                             console.warn(`⚠️ Concurrent edit detected for block ${block.id}, applying server version`);
+
+                            // Инвалидируем undo записи для этого блока (конфликт с другим пользователем)
+                            undoManager.invalidateEntriesForBlock(block.id);
+
                             // Продолжаем выполнение — блок будет сохранён и отрендерен ниже
                         }
+                    }
+
+                    // Если блок существует локально, но не pending — это внешнее обновление
+                    // Инвалидируем undo записи для этого блока
+                    if (localBlock && !isPending) {
+                        undoManager.invalidateEntriesForBlock(block.id);
                     }
 
                     // Если это корневой блок (дерево), добавляем через treeService
@@ -1448,6 +1474,17 @@ export class LocalStateManager {
         await this.saveBlock(block);
         await this.saveBlock(newParent);
         dispatch('ShowBlocks');
+
+        // Записываем в undo stack
+        undoManager.recordMove(
+            block_id,
+            old_parent_id,
+            new_parent_id,
+            blockBackup,
+            block,
+            oldParentBackup,
+            newParentBackup
+        );
 
         // Синхронизируем через batch import (отправит 3 блока: old parent, new parent, moved block)
         // Используем immediate:true для немедленной синхронизации
@@ -2181,6 +2218,9 @@ export class LocalStateManager {
         await this.saveBlock(parentBlock);
         dispatch('ShowBlocks');
 
+        // Записываем в undo stack
+        undoManager.recordCreate(blockId, parentId, newBlock);
+
         // Добавляем в очередь синхронизации (отправится через batch import)
         // Для диаграммы отправляем сразу без debounce
         await offlineQueue.enqueue({
@@ -2402,9 +2442,15 @@ export class LocalStateManager {
             return;
         }
 
+        // Сохраняем состояние ДО изменения для undo
+        const beforeState = { ...block, data: { ...block.data } };
+
         block.data.customStyles = customStyles;
         block.updated_at = new Date().toISOString();
         await this.saveBlock(block);
+
+        // Записываем в undo stack
+        undoManager.recordEdit(blockId, beforeState, block);
 
         // Регистрируем блок как pending для индикатора
         offlineQueue.registerPendingBlock(blockId);
@@ -2446,10 +2492,16 @@ export class LocalStateManager {
             return;
         }
 
+        // Сохраняем состояние ДО изменения для undo
+        const beforeState = { ...block, data: { ...block.data } };
+
         if (!block.data) block.data = {};
         block.data.text = text;
         block.updated_at = new Date().toISOString();
         await this.saveBlock(block);
+
+        // Записываем в undo stack
+        undoManager.recordEdit(blockId, beforeState, block);
 
         // Регистрируем блок как pending для индикатора
         offlineQueue.registerPendingBlock(blockId);
@@ -2481,9 +2533,15 @@ export class LocalStateManager {
             return;
         }
 
+        // Сохраняем состояние ДО изменения для undo
+        const beforeState = { ...block, data: { ...block.data } };
+
         block.title = title;
         block.updated_at = new Date().toISOString();
         await this.saveBlock(block);
+
+        // Записываем в undo stack
+        undoManager.recordEdit(blockId, beforeState, block);
 
         // Регистрируем блок как pending для индикатора
         offlineQueue.registerPendingBlock(blockId);
@@ -2541,10 +2599,16 @@ export class LocalStateManager {
             return;
         }
 
+        // Сохраняем состояние ДО изменения для undo
+        const beforeState = { ...block, data: { ...block.data } };
+
         if (!block.data) block.data = {};
         block.data.color = hue;
         block.updated_at = new Date().toISOString();
         await this.saveBlock(block);
+
+        // Записываем в undo stack
+        undoManager.recordEdit(blockId, beforeState, block);
 
         // Регистрируем блок как pending для индикатора
         offlineQueue.registerPendingBlock(blockId);

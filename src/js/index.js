@@ -29,7 +29,7 @@ import {SincManager} from "./sincManager/sincManager";
 import {CommandManager} from "./controller/comands/comandManager";
 import {Breadcrumbs} from "./controller/breadcrumbs";
 import {TreeNavigation} from "./controller/treeNavigation";
-import {RedoStack, UndoStack} from "./controller/undoStack";
+import {undoManager} from "./controller/undoManager";
 import Cookies from "js-cookie";
 import {isExcludedElement} from "./utils/functions";
 import {authStateManager} from "./auth/authStateManager";
@@ -291,8 +291,9 @@ async function initApp() {
     const sincManager = new SincManager()
     const breadcrumbs = new Breadcrumbs()
     const treeNavigation = new TreeNavigation()
-    const undoStack = new UndoStack()
-    const redoStack = new RedoStack()
+
+    // Инициализируем новый UndoManager (локальный undo/redo)
+    await undoManager.init()
 
 
     const isAuth = await checkAuth()
