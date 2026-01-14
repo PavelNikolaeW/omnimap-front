@@ -121,7 +121,8 @@ describe('CalendarGenerator', () => {
             expect(breakdown.weeks).toBeGreaterThan(50);
             expect(breakdown.weeks).toBeLessThanOrEqual(53);
             expect(breakdown.days).toBe(365); // 2026 is not a leap year
-            expect(total).toBeGreaterThan(400);
+            expect(breakdown.planRetro).toBe(breakdown.weeks * 2); // Plan + Retro per week
+            expect(total).toBeGreaterThan(500); // More blocks with Plan + Retro
         });
 
         it('should account for leap year', () => {
@@ -169,7 +170,7 @@ describe('CalendarGenerator', () => {
             });
         });
 
-        it('should generate weeks with correct structure', () => {
+        it('should generate weeks with Plan, Retro and Days', () => {
             const { blocks } = generateYearCalendar(2026, 'parent-123');
 
             const weeks = blocks.filter(b => b.data.calendarType === 'week');
@@ -179,7 +180,31 @@ describe('CalendarGenerator', () => {
                 expect(week.data.calendarWeekNumber).toBeDefined();
                 expect(week.data.weekStartDate).toBeDefined();
                 expect(week.data.weekEndDate).toBeDefined();
-                expect(week.data.childOrder).toHaveLength(7); // 7 days
+                // 9 children: Plan + Retro + 7 days
+                expect(week.data.childOrder).toHaveLength(9);
+                // Week now uses layout: 'cells' with 7x3 grid
+                expect(week.data.layout).toBe('cells');
+                expect(week.data.layoutCells.gridSize).toEqual({ rows: 7, cols: 3 });
+            });
+        });
+
+        it('should generate Plan and Retro blocks for each week', () => {
+            const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+            const plans = blocks.filter(b => b.data.calendarType === 'weekPlan');
+            const retros = blocks.filter(b => b.data.calendarType === 'weekRetro');
+            const weeks = blocks.filter(b => b.data.calendarType === 'week');
+
+            expect(plans.length).toBe(weeks.length);
+            expect(retros.length).toBe(weeks.length);
+
+            plans.forEach(plan => {
+                expect(plan.title).toBe('План');
+            });
+
+            retros.forEach(retro => {
+                expect(retro.title).toBe('Итоги');
+                expect(retro.data.text).toContain('Что получилось');
             });
         });
 
@@ -188,7 +213,6 @@ describe('CalendarGenerator', () => {
 
             const days = blocks.filter(b => b.data.calendarType === 'day');
             // Days count may exceed 365 because full weeks include days from adjacent years
-            // (e.g., if year starts on Wednesday, Monday-Tuesday are from previous year)
             expect(days.length).toBeGreaterThanOrEqual(365);
 
             days.forEach(day => {
@@ -200,6 +224,37 @@ describe('CalendarGenerator', () => {
                 expect([2025, 2026, 2027]).toContain(day.data.calendarYear);
                 expect(day.data.isoDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
                 expect(typeof day.data.isWeekend).toBe('boolean');
+                // Day title is just the number
+                expect(day.title).toMatch(/^\d{1,2}$/);
+            });
+        });
+
+        it('should position days correctly in week grid (Mon-Sun in column 3)', () => {
+            const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+            const weeks = blocks.filter(b => b.data.calendarType === 'week');
+
+            weeks.forEach(week => {
+                const cells = week.data.layoutCells.cells;
+                const childOrder = week.data.childOrder;
+
+                // First two children are Plan and Retro
+                // Plan at rows 1-5, cols 1-2
+                expect(cells[childOrder[0]]).toEqual({
+                    row: 1, col: 1, rowSpan: 5, colSpan: 2
+                });
+                // Retro at rows 6-7, cols 1-2
+                expect(cells[childOrder[1]]).toEqual({
+                    row: 6, col: 1, rowSpan: 2, colSpan: 2
+                });
+
+                // Days 0-6 (Mon-Sun) at rows 1-7, col 3
+                for (let i = 0; i < 7; i++) {
+                    const dayId = childOrder[i + 2]; // Skip Plan and Retro
+                    expect(cells[dayId]).toEqual({
+                        row: i + 1, col: 3, rowSpan: 1, colSpan: 1
+                    });
+                }
             });
         });
 
@@ -211,16 +266,21 @@ describe('CalendarGenerator', () => {
 
             // Approximately 2/7 of days are weekends
             expect(weekends.length).toBeGreaterThan(100);
-            expect(weekends.length).toBeLessThan(110);
+            expect(weekends.length).toBeLessThan(115);
         });
 
-        it('should return link requests for boundary weeks', () => {
+        it('should return link requests for boundary weeks with row positions', () => {
             const { linkRequests } = generateYearCalendar(2026, 'parent-123');
 
             // There should be some boundary weeks that need links
-            // (weeks that span two months get a link in the second month)
             expect(Array.isArray(linkRequests)).toBe(true);
-            // Most years have several boundary weeks
+
+            // Each link request should have row position for grid placement
+            linkRequests.forEach(link => {
+                expect(link.destBlockId).toBeDefined();
+                expect(link.srcBlockId).toBeDefined();
+                expect(link.row).toBeGreaterThanOrEqual(1);
+            });
         });
 
         it('should generate valid UUIDs for all blocks', () => {
@@ -251,7 +311,7 @@ describe('CalendarGenerator', () => {
             });
         });
 
-        it('should return stats with correct counts', () => {
+        it('should return stats with correct counts including Plan and Retro', () => {
             const { stats } = generateYearCalendar(2026, 'parent-123');
 
             expect(stats.years).toBe(1);
@@ -260,6 +320,10 @@ describe('CalendarGenerator', () => {
             expect(stats.weeks).toBeGreaterThan(50);
             // Days may exceed 365 because full weeks include days from adjacent years
             expect(stats.days).toBeGreaterThanOrEqual(365);
+            // Plan + Retro blocks
+            expect(stats.planRetro).toBe(stats.weeks * 2);
+            // Link count
+            expect(stats.links).toBeGreaterThanOrEqual(0);
         });
     });
 

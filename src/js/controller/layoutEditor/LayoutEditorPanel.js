@@ -1047,7 +1047,7 @@ export class LayoutEditorPanel extends Popup {
 
             blocksImported = true;
 
-            // Создаём ссылки для стыковых недель (параллельно по 3)
+            // Создаём ссылки для стыковых недель и обновляем layoutCells месяцев
             if (linkRequests.length > 0) {
                 this.showCalendarProgress({
                     stage: 'linking',
@@ -1055,24 +1055,92 @@ export class LayoutEditorPanel extends Popup {
                     message: `Создание ${linkRequests.length} ссылок...`
                 });
 
+                // Группируем ссылки по месяцам для последующего обновления layoutCells
+                const monthUpdates = new Map(); // destBlockId -> {cells: {}, childOrder: []}
+
+                // Инициализируем обновления для каждого месяца
+                for (const link of linkRequests) {
+                    if (!monthUpdates.has(link.destBlockId)) {
+                        // Находим месяц в blocks для получения текущих cells
+                        const monthBlock = blocks.find(b => b.id === link.destBlockId);
+                        if (monthBlock) {
+                            monthUpdates.set(link.destBlockId, {
+                                cells: { ...monthBlock.data.layoutCells.cells },
+                                childOrder: [...monthBlock.data.childOrder]
+                            });
+                        }
+                    }
+                }
+
+                // Создаём ссылки параллельно по 3 и собираем результаты
                 const BATCH_SIZE = 3;
                 for (let i = 0; i < linkRequests.length; i += BATCH_SIZE) {
                     const batch = linkRequests.slice(i, i + BATCH_SIZE);
-                    await Promise.all(batch.map(link =>
-                        api.pasteLinkBlock({
+                    const results = await Promise.all(batch.map(async (link) => {
+                        const response = await api.pasteLinkBlock({
                             dest: link.destBlockId,
                             src: [link.srcBlockId]
-                        })
-                    ));
+                        });
+                        return { link, response };
+                    }));
+
+                    // Обновляем данные для каждого созданного линка
+                    for (const { link, response } of results) {
+                        const monthUpdate = monthUpdates.get(link.destBlockId);
+                        if (monthUpdate && response?.data) {
+                            // Получаем ID созданного link-блока из ответа
+                            const linkBlockId = response.data.id || response.data.block_id;
+                            if (linkBlockId) {
+                                // Добавляем позицию в cells
+                                monthUpdate.cells[linkBlockId] = {
+                                    row: link.row,
+                                    col: 1,
+                                    rowSpan: 1,
+                                    colSpan: 1
+                                };
+                                // Добавляем в childOrder в правильной позиции
+                                monthUpdate.childOrder.push(linkBlockId);
+                            }
+                        }
+                    }
 
                     linksCreated = Math.min(i + BATCH_SIZE, linkRequests.length);
-                    const percent = 80 + (linksCreated / linkRequests.length * 20);
+                    const percent = 80 + (linksCreated / linkRequests.length * 15);
                     this.showCalendarProgress({
                         stage: 'linking',
                         percent,
                         message: `${linksCreated}/${linkRequests.length} ссылок`
                     });
                 }
+
+                // Обновляем layoutCells всех месяцев с ссылками
+                this.showCalendarProgress({
+                    stage: 'linking',
+                    percent: 95,
+                    message: 'Обновление сеток месяцев...'
+                });
+
+                const updatePromises = [];
+                for (const [monthId, update] of monthUpdates) {
+                    const monthBlock = blocks.find(b => b.id === monthId);
+                    if (monthBlock) {
+                        updatePromises.push(
+                            api.updateBlock(monthId, {
+                                data: JSON.stringify({
+                                    ...monthBlock.data,
+                                    layoutCells: {
+                                        ...monthBlock.data.layoutCells,
+                                        cells: update.cells
+                                    },
+                                    childOrder: update.childOrder
+                                })
+                            }).catch(err => {
+                                console.warn(`Failed to update month ${monthId}:`, err);
+                            })
+                        );
+                    }
+                }
+                await Promise.all(updatePromises);
             }
 
             // Обновляем данные родительского блока

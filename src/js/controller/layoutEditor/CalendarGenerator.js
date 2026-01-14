@@ -2,7 +2,7 @@
  * CalendarGenerator.js
  *
  * Генерирует иерархическую структуру календаря на год:
- * Год → 4 квартала → 12 месяцев → ~52 недели → 365 дней
+ * Год → 4 квартала → 12 месяцев → ~52 недели → (План + Ретро + 7 дней)
  *
  * Использует ISO 8601 для определения принадлежности недель к месяцам.
  */
@@ -129,7 +129,7 @@ function generateDayBlock(date, weekBlockId) {
     return {
         id: generateBlockId(),
         parent_id: weekBlockId,
-        title: String(dayOfMonth), // Только число
+        title: String(dayOfMonth),
         data: {
             calendarType: 'day',
             calendarDay: dayOfMonth,
@@ -145,12 +145,63 @@ function generateDayBlock(date, weekBlockId) {
 }
 
 /**
- * Генерирует блок недели с днями
+ * Генерирует блок плана недели
+ * @param {string} weekBlockId
+ * @param {number} weekNumber
+ * @returns {Object}
+ */
+function generatePlanBlock(weekBlockId, weekNumber) {
+    return {
+        id: generateBlockId(),
+        parent_id: weekBlockId,
+        title: 'План',
+        data: {
+            calendarType: 'weekPlan',
+            calendarWeekNumber: weekNumber,
+            text: ''
+        }
+    };
+}
+
+/**
+ * Генерирует блок ретроспективы недели
+ * @param {string} weekBlockId
+ * @param {number} weekNumber
+ * @returns {Object}
+ */
+function generateRetroBlock(weekBlockId, weekNumber) {
+    return {
+        id: generateBlockId(),
+        parent_id: weekBlockId,
+        title: 'Итоги',
+        data: {
+            calendarType: 'weekRetro',
+            calendarWeekNumber: weekNumber,
+            text: '• Что получилось:\n• Что не получилось:\n• Что улучшить:'
+        }
+    };
+}
+
+/**
+ * Генерирует блок недели с планом, ретроспективой и днями
+ *
+ * Лейаут недели (7 rows × 3 cols):
+ * +------------------+------+
+ * | План (1-5, 1-2)  | Пн   | row 1, col 3
+ * | rowSpan=5        | Вт   | row 2, col 3
+ * | colSpan=2        | Ср   | row 3, col 3
+ * |                  | Чт   | row 4, col 3
+ * |                  | Пт   | row 5, col 3
+ * +------------------+------+
+ * | Итоги (6-7, 1-2) | Сб   | row 6, col 3
+ * | rowSpan=2        | Вс   | row 7, col 3
+ * +------------------+------+
+ *
  * @param {Date} weekStart - Понедельник недели
  * @param {string} monthBlockId
  * @param {number} primaryMonth - Основной месяц
  * @param {number} year
- * @returns {{weekBlock: Object, dayBlocks: Object[]}}
+ * @returns {{weekBlock: Object, childBlocks: Object[]}}
  */
 function generateWeekBlock(weekStart, monthBlockId, primaryMonth, year) {
     const weekEnd = new Date(weekStart);
@@ -160,15 +211,44 @@ function generateWeekBlock(weekStart, monthBlockId, primaryMonth, year) {
     const isoWeekKey = getISOWeekKey(weekStart);
 
     const weekBlockId = generateBlockId();
-    const dayBlocks = [];
-    const dayIds = [];
+    const childBlocks = [];
+    const childOrder = [];
+    const cells = {};
 
-    // Генерируем 7 дней (Пн-Вс)
+    // 1. Генерируем блок Плана
+    const planBlock = generatePlanBlock(weekBlockId, weekNumber);
+    childBlocks.push(planBlock);
+    childOrder.push(planBlock.id);
+    cells[planBlock.id] = {
+        row: 1,
+        col: 1,
+        rowSpan: 5,
+        colSpan: 2
+    };
+
+    // 2. Генерируем блок Ретроспективы
+    const retroBlock = generateRetroBlock(weekBlockId, weekNumber);
+    childBlocks.push(retroBlock);
+    childOrder.push(retroBlock.id);
+    cells[retroBlock.id] = {
+        row: 6,
+        col: 1,
+        rowSpan: 2,
+        colSpan: 2
+    };
+
+    // 3. Генерируем 7 дней (Пн-Вс) в правой колонке
     const currentDay = new Date(weekStart);
     for (let i = 0; i < 7; i++) {
         const dayBlock = generateDayBlock(currentDay, weekBlockId);
-        dayBlocks.push(dayBlock);
-        dayIds.push(dayBlock.id);
+        childBlocks.push(dayBlock);
+        childOrder.push(dayBlock.id);
+        cells[dayBlock.id] = {
+            row: i + 1,
+            col: 3,
+            rowSpan: 1,
+            colSpan: 1
+        };
         currentDay.setDate(currentDay.getDate() + 1);
     }
 
@@ -181,7 +261,12 @@ function generateWeekBlock(weekStart, monthBlockId, primaryMonth, year) {
         parent_id: monthBlockId,
         title: `Неделя ${weekNumber}`,
         data: {
-            layout: 'columns',
+            layout: 'cells',
+            layoutCells: {
+                gridSize: { rows: 7, cols: 3 },
+                presetType: 'week-calendar',
+                cells
+            },
             calendarType: 'week',
             calendarWeekNumber: weekNumber,
             calendarYear: year,
@@ -190,11 +275,11 @@ function generateWeekBlock(weekStart, monthBlockId, primaryMonth, year) {
             weekEndDate: formatISODate(weekEnd),
             isBoundaryWeek,
             isoWeekKey,
-            childOrder: dayIds
+            childOrder
         }
     };
 
-    return { weekBlock, dayBlocks };
+    return { weekBlock, childBlocks };
 }
 
 /**
@@ -241,7 +326,7 @@ function getWeeksOfMonth(year, monthNum, weekRegistry) {
  * Генерирует блоки месяцев с неделями
  * Использует двухпроходный алгоритм:
  * 1. Проход: создаём недели и регистрируем их
- * 2. Проход: создаём ссылки для не-владельцев
+ * 2. Проход: создаём ссылки для не-владельцев с позициями в сетке
  */
 function generateAllMonths(year, quarterBlocks, weekRegistry) {
     const allBlocks = [];
@@ -249,6 +334,7 @@ function generateAllMonths(year, quarterBlocks, weekRegistry) {
     const monthBlocksMap = new Map(); // monthNum -> monthBlock
     let totalWeeks = 0;
     let totalDays = 0;
+    let totalPlanRetro = 0;
 
     // Первый проход: создаём все месяцы и недели-владельцы
     for (let monthNum = 1; monthNum <= 12; monthNum++) {
@@ -257,23 +343,25 @@ function generateAllMonths(year, quarterBlocks, weekRegistry) {
 
         const monthBlockId = generateBlockId();
         const weekBlocks = [];
-        const dayBlocks = [];
+        const childBlocks = [];
         const weekIds = [];
 
         const weeks = getWeeksOfMonth(year, monthNum, weekRegistry);
+        const totalWeeksInMonth = weeks.length; // Включая ссылки
 
+        let rowIndex = 1;
         for (const week of weeks) {
             if (week.isOwner) {
                 // Этот месяц владеет неделей - создаём реальный блок
-                const { weekBlock, dayBlocks: days } = generateWeekBlock(
+                const { weekBlock, childBlocks: children } = generateWeekBlock(
                     week.weekStart,
                     monthBlockId,
                     monthNum,
                     year
                 );
                 weekBlocks.push(weekBlock);
-                dayBlocks.push(...days);
-                weekIds.push({ type: 'block', id: weekBlock.id });
+                childBlocks.push(...children);
+                weekIds.push({ type: 'block', id: weekBlock.id, row: rowIndex });
 
                 // Регистрируем неделю
                 weekRegistry.set(week.isoWeekKey, {
@@ -282,11 +370,14 @@ function generateAllMonths(year, quarterBlocks, weekRegistry) {
                 });
 
                 totalWeeks++;
-                totalDays += days.length;
+                // 7 дней + 1 план + 1 ретро = 9 дочерних блоков
+                totalDays += 7;
+                totalPlanRetro += 2;
             } else {
                 // Не владелец - будет ссылка (обработаем во втором проходе)
-                weekIds.push({ type: 'link', isoWeekKey: week.isoWeekKey });
+                weekIds.push({ type: 'link', isoWeekKey: week.isoWeekKey, row: rowIndex });
             }
+            rowIndex++;
         }
 
         const monthBlock = {
@@ -296,7 +387,7 @@ function generateAllMonths(year, quarterBlocks, weekRegistry) {
             data: {
                 layout: 'cells',
                 layoutCells: {
-                    gridSize: { rows: weekIds.length, cols: 1 },
+                    gridSize: { rows: totalWeeksInMonth, cols: 1 },
                     presetType: 'month-calendar',
                     cells: {}
                 },
@@ -308,23 +399,22 @@ function generateAllMonths(year, quarterBlocks, weekRegistry) {
             },
             _weekIds: weekIds, // Временное поле для второго прохода
             _weekBlocks: weekBlocks,
-            _dayBlocks: dayBlocks
+            _childBlocks: childBlocks
         };
 
         monthBlocksMap.set(monthNum, monthBlock);
     }
 
-    // Второй проход: создаём ссылки и финализируем childOrder
+    // Второй проход: создаём ссылки и финализируем childOrder и cells
     for (let monthNum = 1; monthNum <= 12; monthNum++) {
         const monthBlock = monthBlocksMap.get(monthNum);
         const finalWeekIds = [];
 
-        let rowIndex = 1;
         for (const weekRef of monthBlock._weekIds) {
             if (weekRef.type === 'block') {
                 finalWeekIds.push(weekRef.id);
                 monthBlock.data.layoutCells.cells[weekRef.id] = {
-                    row: rowIndex,
+                    row: weekRef.row,
                     col: 1,
                     rowSpan: 1,
                     colSpan: 1
@@ -336,36 +426,35 @@ function generateAllMonths(year, quarterBlocks, weekRegistry) {
                     allLinkRequests.push({
                         destBlockId: monthBlock.id,
                         srcBlockId: weekInfo.blockId,
-                        isoWeekKey: weekRef.isoWeekKey
+                        isoWeekKey: weekRef.isoWeekKey,
+                        row: weekRef.row // Позиция в сетке месяца
                     });
-                    // Ссылка не добавляется в childOrder - она будет создана отдельно
+                    // Ссылка будет добавлена в childOrder и cells после создания
                 }
             }
-            rowIndex++;
         }
 
         monthBlock.data.childOrder = finalWeekIds;
-        monthBlock.data.layoutCells.gridSize.rows = finalWeekIds.length;
 
         // Добавляем блоки в итоговый массив
         allBlocks.push(monthBlock);
         allBlocks.push(...monthBlock._weekBlocks);
-        allBlocks.push(...monthBlock._dayBlocks);
+        allBlocks.push(...monthBlock._childBlocks);
 
         // Удаляем временные поля
         delete monthBlock._weekIds;
         delete monthBlock._weekBlocks;
-        delete monthBlock._dayBlocks;
+        delete monthBlock._childBlocks;
     }
 
-    return { allBlocks, allLinkRequests, totalWeeks, totalDays };
+    return { allBlocks, allLinkRequests, totalWeeks, totalDays, totalPlanRetro };
 }
 
 /**
  * Генерирует полную иерархию календаря на год
  * @param {number} year - Год для генерации
  * @param {string} parentBlockId - ID родительского блока
- * @returns {{blocks: Object[], linkRequests: Object[], stats: {years: number, quarters: number, months: number, weeks: number, days: number}}}
+ * @returns {{blocks: Object[], linkRequests: Object[], stats: Object}}
  */
 export function generateYearCalendar(year, parentBlockId) {
     const blocks = [];
@@ -398,8 +487,6 @@ export function generateYearCalendar(year, parentBlockId) {
         const quarterBlockId = generateBlockId();
         quarterIds.push(quarterBlockId);
 
-        const monthsInQuarter = getMonthsInQuarter(q);
-
         const quarterBlock = {
             id: quarterBlockId,
             parent_id: yearBlockId,
@@ -423,7 +510,7 @@ export function generateYearCalendar(year, parentBlockId) {
     }
 
     // 3. Генерируем месяцы с двухпроходным алгоритмом
-    const { allBlocks, allLinkRequests, totalWeeks, totalDays } =
+    const { allBlocks, allLinkRequests, totalWeeks, totalDays, totalPlanRetro } =
         generateAllMonths(year, quarterBlocks, weekRegistry);
 
     blocks.push(...allBlocks);
@@ -471,7 +558,9 @@ export function generateYearCalendar(year, parentBlockId) {
         quarters: 4,
         months: 12,
         weeks: totalWeeks,
-        days: totalDays
+        days: totalDays,
+        planRetro: totalPlanRetro,
+        links: allLinkRequests.length
     };
 
     return { blocks, linkRequests: allLinkRequests, stats };
@@ -480,7 +569,7 @@ export function generateYearCalendar(year, parentBlockId) {
 /**
  * Возвращает количество блоков которые будут созданы для года
  * @param {number} year
- * @returns {{total: number, breakdown: {year: number, quarters: number, months: number, weeks: number, days: number}}}
+ * @returns {{total: number, breakdown: Object}}
  */
 export function estimateYearCalendarSize(year) {
     // Подсчитываем точное количество недель
@@ -500,17 +589,20 @@ export function estimateYearCalendarSize(year) {
     }
 
     const daysInYear = (year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)) ? 366 : 365;
+    const planRetro = weekCount * 2; // По одному на неделю
 
     const breakdown = {
         year: 1,
         quarters: 4,
         months: 12,
         weeks: weekCount,
-        days: daysInYear
+        days: daysInYear,
+        planRetro
     };
 
     return {
-        total: breakdown.year + breakdown.quarters + breakdown.months + breakdown.weeks + breakdown.days,
+        total: breakdown.year + breakdown.quarters + breakdown.months +
+               breakdown.weeks + breakdown.days + breakdown.planRetro,
         breakdown
     };
 }
