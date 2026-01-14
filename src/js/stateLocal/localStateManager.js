@@ -745,6 +745,8 @@ export class LocalStateManager {
     }
 
     async WebSocUpdateBlockAccess(message) {
+        console.log('🔔 WebSocUpdateBlockAccess received:', JSON.stringify(message, null, 2));
+
         if (!message?.start_block_ids || !Array.isArray(message.start_block_ids)) {
             console.warn('LocalStateManager: invalid WebSocUpdateBlockAccess message');
             return;
@@ -898,16 +900,30 @@ export class LocalStateManager {
                 title: block.title,
                 data,
                 children,
+                parent_id: block.parent_id || false,
                 forbidden: false // Явно убираем флаг forbidden при grant
             };
 
             // Сохраняем блок (localforage.setItem перезапишет старый forbidden)
             await this.saveBlock(newBlock);
             newBlocks.push(newBlock);
+
+            // Обновляем path если пользователь на этом блоке
+            const pathIndex = this.path?.findIndex(p => p.blockId === block.id);
+            if (pathIndex !== -1 && pathIndex !== undefined) {
+                const color = data?.color && data.color !== 'default_color' ? data.color : [];
+                this.path[pathIndex] = {
+                    screenName: truncate(block.title, 10),
+                    color: color,
+                    blockId: block.id
+                };
+            }
         }
 
+        // Принудительно перерисовываем экран
         if (newBlocks.length > 0) {
-            this.updateScreen(newBlocks);
+            console.log(`✅ Access granted for ${newBlocks.length} blocks, refreshing screen`);
+            this.showBlocks();
         }
     }
 
