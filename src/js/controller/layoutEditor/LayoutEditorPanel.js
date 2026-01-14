@@ -1091,10 +1091,10 @@ export class LayoutEditorPanel extends Popup {
                             // Получаем ID созданного link-блока из ответа
                             const linkBlockId = response.data.id || response.data.block_id;
                             if (linkBlockId) {
-                                // Добавляем позицию в cells
+                                // Добавляем позицию в cells (col из link, недели в col 2)
                                 monthUpdate.cells[linkBlockId] = {
                                     row: link.row,
-                                    col: 1,
+                                    col: link.col,
                                     rowSpan: 1,
                                     colSpan: 1
                                 };

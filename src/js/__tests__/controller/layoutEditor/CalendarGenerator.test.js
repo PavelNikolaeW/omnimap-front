@@ -125,14 +125,15 @@ describe('CalendarGenerator', () => {
             expect(breakdown.quarterPlanRetro).toBe(8);
             expect(breakdown.monthPlanRetro).toBe(24);
             expect(breakdown.weekPlanRetro).toBe(breakdown.weeks * 2);
+            expect(breakdown.daysContainers).toBe(breakdown.weeks); // 1 container per week
 
-            // Total should include all Plan/Retro
+            // Total should include all Plan/Retro and daysContainers
             const expectedTotal = breakdown.year + breakdown.quarters + breakdown.months +
-                breakdown.weeks + breakdown.days +
+                breakdown.weeks + breakdown.daysContainers + breakdown.days +
                 breakdown.yearPlanRetro + breakdown.quarterPlanRetro +
                 breakdown.monthPlanRetro + breakdown.weekPlanRetro;
             expect(total).toBe(expectedTotal);
-            expect(total).toBeGreaterThan(530);
+            expect(total).toBeGreaterThan(580); // ~593 blocks with daysContainers
         });
 
         it('should account for leap year', () => {
@@ -282,29 +283,34 @@ describe('CalendarGenerator', () => {
         });
 
         describe('Week level', () => {
-            it('should generate weeks with Plan, Retro and Days', () => {
+            it('should generate weeks with Plan, Retro and DaysContainer', () => {
                 const { blocks } = generateYearCalendar(2026, 'parent-123');
 
                 const weeks = blocks.filter(b => b.data.calendarType === 'week');
                 expect(weeks.length).toBeGreaterThan(50);
 
                 weeks.forEach(week => {
-                    expect(week.data.childOrder).toHaveLength(9); // Plan + Retro + 7 days
+                    // Week has 3 direct children: Plan, Retro, DaysContainer
+                    expect(week.data.childOrder).toHaveLength(3);
                     expect(week.data.layout).toBe('cells');
-                    expect(week.data.layoutCells.gridSize).toEqual({ rows: 7, cols: 3 });
+                    expect(week.data.layoutCells.gridSize).toEqual({ rows: 2, cols: 2 });
                 });
 
                 const weekPlans = blocks.filter(b => b.data.calendarType === 'weekPlan');
                 const weekRetros = blocks.filter(b => b.data.calendarType === 'weekRetro');
+                const daysContainers = blocks.filter(b => b.data.calendarType === 'daysContainer');
+
                 expect(weekPlans.length).toBe(weeks.length);
                 expect(weekRetros.length).toBe(weeks.length);
+                expect(daysContainers.length).toBe(weeks.length);
 
                 expect(weekPlans[0].title).toBe('План');
                 expect(weekRetros[0].title).toBe('Итоги');
                 expect(weekRetros[0].data.text).toContain('Что получилось');
+                expect(daysContainers[0].title).toBe('Дни');
             });
 
-            it('should position week contents correctly', () => {
+            it('should position week contents correctly (2x2 layout)', () => {
                 const { blocks } = generateYearCalendar(2026, 'parent-123');
 
                 const weeks = blocks.filter(b => b.data.calendarType === 'week');
@@ -313,15 +319,51 @@ describe('CalendarGenerator', () => {
                     const cells = week.data.layoutCells.cells;
                     const childOrder = week.data.childOrder;
 
-                    // Plan at rows 1-5, cols 1-2
-                    expect(cells[childOrder[0]]).toEqual({ row: 1, col: 1, rowSpan: 5, colSpan: 2 });
-                    // Retro at rows 6-7, cols 1-2
-                    expect(cells[childOrder[1]]).toEqual({ row: 6, col: 1, rowSpan: 2, colSpan: 2 });
+                    // Plan at row 1, col 1 (50% width, 50% height)
+                    expect(cells[childOrder[0]]).toEqual({ row: 1, col: 1, rowSpan: 1, colSpan: 1 });
+                    // Retro at row 2, col 1 (50% width, 50% height)
+                    expect(cells[childOrder[1]]).toEqual({ row: 2, col: 1, rowSpan: 1, colSpan: 1 });
+                    // DaysContainer at col 2, spans both rows (50% width, 100% height)
+                    expect(cells[childOrder[2]]).toEqual({ row: 1, col: 2, rowSpan: 2, colSpan: 1 });
+                });
+            });
 
-                    // Days in col 3, rows 1-7
-                    for (let i = 0; i < 7; i++) {
-                        expect(cells[childOrder[i + 2]]).toEqual({ row: i + 1, col: 3, rowSpan: 1, colSpan: 1 });
-                    }
+            it('should have DaysContainer with 7 day children', () => {
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                const daysContainers = blocks.filter(b => b.data.calendarType === 'daysContainer');
+
+                daysContainers.forEach(container => {
+                    // DaysContainer has 7 children (Mon-Sun)
+                    expect(container.data.childOrder).toHaveLength(7);
+                    expect(container.data.layout).toBe('cells');
+                    expect(container.data.layoutCells.gridSize).toEqual({ rows: 7, cols: 1 });
+
+                    // Each day should be in a row
+                    container.data.childOrder.forEach((dayId, index) => {
+                        expect(container.data.layoutCells.cells[dayId]).toEqual({
+                            row: index + 1, col: 1, rowSpan: 1, colSpan: 1
+                        });
+                    });
+                });
+            });
+
+            it('should allow sharing DaysContainer separately from Plan/Retro', () => {
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                const daysContainers = blocks.filter(b => b.data.calendarType === 'daysContainer');
+
+                daysContainers.forEach(container => {
+                    // DaysContainer should be a valid standalone block
+                    expect(container.id).toBeDefined();
+                    expect(container.parent_id).toBeDefined();
+                    expect(container.title).toBe('Дни');
+
+                    // All days should have DaysContainer as parent
+                    const days = blocks.filter(b =>
+                        b.data.calendarType === 'day' && b.parent_id === container.id
+                    );
+                    expect(days).toHaveLength(7);
                 });
             });
         });
@@ -366,6 +408,69 @@ describe('CalendarGenerator', () => {
                     expect(link.col).toBe(2); // Weeks are in col 2
                 });
             });
+
+            it('should create link for March last week (owned by April)', () => {
+                // March 2026: last week starts March 30, Thursday is April 2
+                // This week should be owned by April but March needs a link
+                const { blocks, linkRequests } = generateYearCalendar(2026, 'parent-123');
+
+                const marchBlock = blocks.find(b =>
+                    b.data.calendarType === 'month' && b.data.calendarMonth === 3
+                );
+
+                // March should have a link to week 2026-W14 (starts March 30)
+                const marchLinks = linkRequests.filter(lr => lr.destBlockId === marchBlock.id);
+                const w14Link = marchLinks.find(lr => lr.isoWeekKey === '2026-W14');
+
+                expect(w14Link).toBeDefined();
+                expect(w14Link.srcBlockId).toBeDefined();
+
+                // The source block should be owned by April
+                const weekBlock = blocks.find(b => b.id === w14Link.srcBlockId);
+                expect(weekBlock).toBeDefined();
+                expect(weekBlock.data.calendarMonth).toBe(4); // April owns it
+            });
+
+            it('should create links for all boundary weeks', () => {
+                const { blocks, linkRequests } = generateYearCalendar(2026, 'parent-123');
+
+                // Each month that has boundary weeks should have corresponding links
+                const months = blocks.filter(b => b.data.calendarType === 'month');
+
+                // Check that link destinations are valid months
+                linkRequests.forEach(link => {
+                    const destMonth = months.find(m => m.id === link.destBlockId);
+                    expect(destMonth).toBeDefined();
+                });
+
+                // Should have links (some months will need them)
+                expect(linkRequests.length).toBeGreaterThan(0);
+            });
+
+            it('should have correct link distribution across months', () => {
+                const { blocks, linkRequests } = generateYearCalendar(2026, 'parent-123');
+
+                // Group links by destination month
+                const linksByMonth = {};
+                linkRequests.forEach(link => {
+                    const destMonth = blocks.find(b => b.id === link.destBlockId);
+                    const monthNum = destMonth.data.calendarMonth;
+                    if (!linksByMonth[monthNum]) {
+                        linksByMonth[monthNum] = [];
+                    }
+                    linksByMonth[monthNum].push(link.isoWeekKey);
+                });
+
+                // Log for debugging
+                // console.log('Links by month:', linksByMonth);
+
+                // Every link should point to a valid week block
+                linkRequests.forEach(link => {
+                    const srcBlock = blocks.find(b => b.id === link.srcBlockId);
+                    expect(srcBlock).toBeDefined();
+                    expect(srcBlock.data.calendarType).toBe('week');
+                });
+            });
         });
 
         describe('Block IDs and relationships', () => {
@@ -404,6 +509,7 @@ describe('CalendarGenerator', () => {
                 expect(stats.quarters).toBe(4);
                 expect(stats.months).toBe(12);
                 expect(stats.weeks).toBeGreaterThan(50);
+                expect(stats.daysContainers).toBe(stats.weeks); // 1 container per week
                 expect(stats.days).toBeGreaterThanOrEqual(365);
 
                 // Plan/Retro counts

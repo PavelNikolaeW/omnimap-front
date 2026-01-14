@@ -183,12 +183,34 @@ function generateRetroBlock(parentId, level, context) {
 }
 
 /**
- * Генерирует блок дня
- * @param {Date} date
- * @param {string} weekBlockId
+ * Генерирует блок контейнера дней
+ * Содержит 7 дней в виде вертикального списка.
+ * Можно шарить как ссылку отдельно от планов.
+ * @param {string} parentBlockId - ID родительской недели
+ * @param {Object} context - Контекст (год, месяц, номер недели)
  * @returns {Object}
  */
-function generateDayBlock(date, weekBlockId) {
+function generateDaysContainerBlock(parentBlockId, context) {
+    return {
+        id: generateBlockId(),
+        parent_id: parentBlockId,
+        title: 'Дни',
+        data: {
+            calendarType: 'daysContainer',
+            calendarYear: context.year,
+            calendarMonth: context.month,
+            calendarWeekNumber: context.weekNumber
+        }
+    };
+}
+
+/**
+ * Генерирует блок дня
+ * @param {Date} date
+ * @param {string} daysContainerId - ID контейнера дней
+ * @returns {Object}
+ */
+function generateDayBlock(date, daysContainerId) {
     const dayOfMonth = date.getDate();
     const monthNum = date.getMonth() + 1;
     const year = date.getFullYear();
@@ -196,7 +218,7 @@ function generateDayBlock(date, weekBlockId) {
 
     return {
         id: generateBlockId(),
-        parent_id: weekBlockId,
+        parent_id: daysContainerId,
         title: String(dayOfMonth),
         data: {
             calendarType: 'day',
@@ -213,19 +235,17 @@ function generateDayBlock(date, weekBlockId) {
 }
 
 /**
- * Генерирует блок недели с планом, ретроспективой и днями
+ * Генерирует блок недели с планом, ретроспективой и контейнером дней
  *
- * Лейаут недели (7 rows × 3 cols):
- * +------------------+------+
- * | План (1-5, 1-2)  | Пн   | row 1, col 3
- * | rowSpan=5        | Вт   | row 2, col 3
- * | colSpan=2        | Ср   | row 3, col 3
- * |                  | Чт   | row 4, col 3
- * |                  | Пт   | row 5, col 3
- * +------------------+------+
- * | Итоги (6-7, 1-2) | Сб   | row 6, col 3
- * | rowSpan=2        | Вс   | row 7, col 3
- * +------------------+------+
+ * Лейаут недели (2 rows × 2 cols) - равное распределение:
+ * +------------------+------------------+
+ * | План (1,1)       | Дни (1-2, 2)     |
+ * |                  | rowSpan=2        |
+ * +------------------+ (контейнер с 7   |
+ * | Итоги (2,1)      |  дочерними днями)|
+ * +------------------+------------------+
+ *
+ * Контейнер дней можно шарить как ссылку без раскрытия планов.
  */
 function generateWeekBlock(weekStart, monthBlockId, primaryMonth, year) {
     const weekEnd = new Date(weekStart);
@@ -245,23 +265,40 @@ function generateWeekBlock(weekStart, monthBlockId, primaryMonth, year) {
     const planBlock = generatePlanBlock(weekBlockId, 'week', context);
     childBlocks.push(planBlock);
     childOrder.push(planBlock.id);
-    cells[planBlock.id] = { row: 1, col: 1, rowSpan: 5, colSpan: 2 };
+    cells[planBlock.id] = { row: 1, col: 1, rowSpan: 1, colSpan: 1 };
 
     // 2. Итоги
     const retroBlock = generateRetroBlock(weekBlockId, 'week', context);
     childBlocks.push(retroBlock);
     childOrder.push(retroBlock.id);
-    cells[retroBlock.id] = { row: 6, col: 1, rowSpan: 2, colSpan: 2 };
+    cells[retroBlock.id] = { row: 2, col: 1, rowSpan: 1, colSpan: 1 };
 
-    // 3. Дни (Пн-Вс)
+    // 3. Контейнер дней (Пн-Вс) - можно шарить отдельно
+    const daysContainer = generateDaysContainerBlock(weekBlockId, context);
+    const daysContainerCells = {};
+    const daysChildOrder = [];
+
     const currentDay = new Date(weekStart);
     for (let i = 0; i < 7; i++) {
-        const dayBlock = generateDayBlock(currentDay, weekBlockId);
+        const dayBlock = generateDayBlock(currentDay, daysContainer.id);
         childBlocks.push(dayBlock);
-        childOrder.push(dayBlock.id);
-        cells[dayBlock.id] = { row: i + 1, col: 3, rowSpan: 1, colSpan: 1 };
+        daysChildOrder.push(dayBlock.id);
+        daysContainerCells[dayBlock.id] = { row: i + 1, col: 1, rowSpan: 1, colSpan: 1 };
         currentDay.setDate(currentDay.getDate() + 1);
     }
+
+    // Добавляем лейаут контейнера дней (7 строк × 1 столбец)
+    daysContainer.data.layout = 'cells';
+    daysContainer.data.layoutCells = {
+        gridSize: { rows: 7, cols: 1 },
+        presetType: 'days-column',
+        cells: daysContainerCells
+    };
+    daysContainer.data.childOrder = daysChildOrder;
+
+    childBlocks.push(daysContainer);
+    childOrder.push(daysContainer.id);
+    cells[daysContainer.id] = { row: 1, col: 2, rowSpan: 2, colSpan: 1 };
 
     const daysInPrimaryMonth = countDaysInMonth(weekStart, primaryMonth, year);
     const isBoundaryWeek = daysInPrimaryMonth < 7;
@@ -273,7 +310,7 @@ function generateWeekBlock(weekStart, monthBlockId, primaryMonth, year) {
         data: {
             layout: 'cells',
             layoutCells: {
-                gridSize: { rows: 7, cols: 3 },
+                gridSize: { rows: 2, cols: 2 },
                 presetType: 'week-calendar',
                 cells
             },
@@ -634,6 +671,7 @@ export function generateYearCalendar(year, parentBlockId) {
         quarters: 4,
         months: 12,
         weeks: totalWeeks,
+        daysContainers: totalWeeks, // 1 контейнер дней на каждую неделю
         days: totalDays,
         yearPlanRetro: 2,
         quarterPlanRetro: 8, // 4 квартала × 2
@@ -671,6 +709,7 @@ export function estimateYearCalendarSize(year) {
         quarters: 4,
         months: 12,
         weeks: weekCount,
+        daysContainers: weekCount, // 1 контейнер дней на каждую неделю
         days: daysInYear,
         yearPlanRetro: 2,
         quarterPlanRetro: 8,
@@ -680,7 +719,7 @@ export function estimateYearCalendarSize(year) {
 
     return {
         total: breakdown.year + breakdown.quarters + breakdown.months +
-               breakdown.weeks + breakdown.days +
+               breakdown.weeks + breakdown.daysContainers + breakdown.days +
                breakdown.yearPlanRetro + breakdown.quarterPlanRetro +
                breakdown.monthPlanRetro + breakdown.weekPlanRetro,
         breakdown
