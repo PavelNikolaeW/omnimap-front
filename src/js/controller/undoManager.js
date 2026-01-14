@@ -584,19 +584,22 @@ class UndoManager {
         const block = localStateManager.blocks.get(blockId);
         if (!block) return;
 
-        // Рекурсивно удаляем детей
-        const children = block.children || [];
+        const parentId = block.parent_id;
+
+        // Сначала удаляем из parent (ДО удаления блока, т.к. removeBlock модифицирует parent.children)
+        if (parentId) {
+            await this.removeChildFromParent(localStateManager, parentId, blockId);
+        }
+
+        // Рекурсивно удаляем детей (они сами обновят своих родителей)
+        const children = [...(block.children || [])]; // Копия т.к. массив может измениться
         for (const childId of children) {
             await this.removeBlockWithChildren(localStateManager, childId);
         }
 
-        // Удаляем сам блок
-        await localStateManager.removeBlock(blockId);
-
-        // Удаляем из children родителя
-        if (block.parent_id) {
-            await this.removeChildFromParent(localStateManager, block.parent_id, blockId);
-        }
+        // Удаляем сам блок из кэша и repository
+        localStateManager.blocks.delete(blockId);
+        await localStateManager.blockRepository.deleteBlock(blockId);
     }
 
     /**

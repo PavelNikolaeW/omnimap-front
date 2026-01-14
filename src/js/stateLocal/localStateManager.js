@@ -989,8 +989,11 @@ export class LocalStateManager {
                     // Удаляем только этот блок (дети придут отдельными deleted событиями)
                     await this.removeOneBlock(block.id);
 
-                    // Инвалидируем undo записи для удалённого блока
-                    undoManager.invalidateEntriesForBlock(block.id);
+                    // Инвалидируем undo записи ТОЛЬКО если это удаление от другого пользователя
+                    // Если localBlock undefined — мы уже удалили блок локально, это наше удаление
+                    if (localBlock) {
+                        undoManager.invalidateEntriesForBlock(block.id);
+                    }
 
                     // Если пользователь был на удалённом блоке — переходим к родителю
                     if (isOnDeletedBlock) {
@@ -1124,10 +1127,17 @@ export class LocalStateManager {
                         }
                     }
 
-                    // Если блок существует локально, но не pending — это внешнее обновление
-                    // Инвалидируем undo записи для этого блока
+                    // Если блок существует локально, но не pending — проверяем, изменились ли данные
+                    // Инвалидируем только если это реальное внешнее изменение (данные отличаются)
                     if (localBlock && !isPending) {
-                        undoManager.invalidateEntriesForBlock(block.id);
+                        const sortedStringify = (obj) => JSON.stringify(obj, Object.keys(obj || {}).sort());
+                        const localData = sortedStringify(localBlock.data || {});
+                        const serverDataStr = sortedStringify(serverData);
+                        const isDataDifferent = localBlock.title !== block.title || localData !== serverDataStr;
+
+                        if (isDataDifferent) {
+                            undoManager.invalidateEntriesForBlock(block.id);
+                        }
                     }
 
                     // Если это корневой блок (дерево), добавляем через treeService
