@@ -489,6 +489,15 @@ export class LocalStateManager {
      * Удаление блока и всех его потомков (Optimistic UI)
      */
     async deleteTreeBlock({blockId}) {
+        const block = this.blocks.get(blockId)
+        if (!block) return
+
+        // Проверка прав на удаление
+        if (!canEdit(block)) {
+            dispatch('ShowError', { message: 'Нет прав на удаление блока' });
+            return;
+        }
+
         if (!await customConfirm(`Вы уверены, что хотите удалить блок и всех его потомков?`)) return
 
         await treeService.refresh()
@@ -499,9 +508,6 @@ export class LocalStateManager {
             alert('Нельзя удалить последнее дерево')
             return
         }
-
-        const block = this.blocks.get(blockId)
-        if (!block) return
 
         // Проверяем, является ли блок pending (создан локально, но не на сервере)
         const isPending = offlineQueue.isPendingBlock(blockId);
@@ -642,6 +648,16 @@ export class LocalStateManager {
      */
     async deleteMultipleTreeBlocks({blockIds}) {
         if (!blockIds || blockIds.length === 0) return
+
+        // Проверка прав на удаление всех блоков
+        const forbiddenBlocks = blockIds.filter(id => {
+            const block = this.blocks.get(id);
+            return block && !canEdit(block);
+        });
+        if (forbiddenBlocks.length > 0) {
+            dispatch('ShowError', { message: 'Нет прав на удаление некоторых блоков' });
+            return;
+        }
 
         const count = blockIds.length
         const message = count === 1

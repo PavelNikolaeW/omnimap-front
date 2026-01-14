@@ -1005,21 +1005,27 @@ class OfflineQueueManager {
     async handlePermissionError(failedBlockIds) {
         if (!failedBlockIds || failedBlockIds.length === 0) return;
 
-        // Динамический импорт для избежания циклических зависимостей
-        const { localStateManager } = await import('../stateLocal/localStateManager.js');
+        try {
+            // Динамический импорт для избежания циклических зависимостей
+            const { localStateManager } = await import('../stateLocal/localStateManager.js');
 
-        for (const blockId of failedBlockIds) {
-            const block = localStateManager.blocks.get(blockId);
-            if (block) {
-                block.forbidden = true;
-                await localStateManager.saveBlock(block);
+            for (const blockId of failedBlockIds) {
+                const block = localStateManager.blocks.get(blockId);
+                if (block) {
+                    block.forbidden = true;
+                    await localStateManager.saveBlock(block);
+                }
+                // Убираем из pending - синхронизация для этого блока невозможна
+                this.resolvePendingBlock(blockId);
             }
-            // Убираем из pending - синхронизация для этого блока невозможна
-            this.resolvePendingBlock(blockId);
-        }
 
-        // Перерисовываем UI
-        dispatch('ShowBlocks');
+            // Перерисовываем UI
+            dispatch('ShowBlocks');
+        } catch (error) {
+            console.error('Failed to handle permission error:', error);
+            dispatch('ShowError', { message: 'Ошибка обновления прав доступа' });
+            return;
+        }
 
         // Уведомляем пользователя
         dispatch('ShowError', {

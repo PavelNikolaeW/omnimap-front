@@ -5,6 +5,7 @@ import {auth} from './views/auth'
 import {registration} from './views/registration'
 import {styleConfig} from "./styles";
 import {offlineQueue} from "../sincManager/offlineQueue";
+import {isForbidden} from "../utils/permissionUtils";
 
 
 const viewRenderers = {
@@ -322,11 +323,14 @@ class BlockCreator {
     _applyPermissionIndicator(element, block) {
         if (!element || !block) return
 
-        if (block.forbidden) {
+        if (isForbidden(block)) {
             element.setAttribute('data-permission', 'forbidden')
             element.setAttribute('title', 'Доступ запрещён')
             // Запрещаем drag для forbidden блоков
             element.removeAttribute('draggable')
+        } else {
+            // Убираем атрибуты если блок не forbidden (для переиспользования элементов)
+            element.removeAttribute('data-permission')
         }
     }
 
