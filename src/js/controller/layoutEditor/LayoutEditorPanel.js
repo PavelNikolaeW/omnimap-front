@@ -1008,6 +1008,15 @@ export class LayoutEditorPanel extends Popup {
         const yearInput = this.settingsPanel?.querySelector('#calendar-year');
         const year = parseInt(yearInput?.value, 10) || new Date().getFullYear();
 
+        // Валидация года
+        if (year < 2000 || year > 2100) {
+            this.showMessage('Год должен быть от 2000 до 2100', 'error');
+            return;
+        }
+
+        let blocksImported = false;
+        let linksCreated = 0;
+
         try {
             // Показываем прогресс
             this.showCalendarProgress({ stage: 'generating', percent: 0 });
@@ -1034,7 +1043,9 @@ export class LayoutEditorPanel extends Popup {
                 });
             });
 
-            // Создаём ссылки для стыковых недель
+            blocksImported = true;
+
+            // Создаём ссылки для стыковых недель (параллельно по 3)
             if (linkRequests.length > 0) {
                 this.showCalendarProgress({
                     stage: 'linking',
@@ -1042,18 +1053,22 @@ export class LayoutEditorPanel extends Popup {
                     message: `Создание ${linkRequests.length} ссылок...`
                 });
 
-                for (let i = 0; i < linkRequests.length; i++) {
-                    const link = linkRequests[i];
-                    await api.pasteLinkBlock({
-                        dest: link.destBlockId,
-                        src: [link.srcBlockId]
-                    });
+                const BATCH_SIZE = 3;
+                for (let i = 0; i < linkRequests.length; i += BATCH_SIZE) {
+                    const batch = linkRequests.slice(i, i + BATCH_SIZE);
+                    await Promise.all(batch.map(link =>
+                        api.pasteLinkBlock({
+                            dest: link.destBlockId,
+                            src: [link.srcBlockId]
+                        })
+                    ));
 
-                    const percent = 80 + ((i + 1) / linkRequests.length * 20);
+                    linksCreated = Math.min(i + BATCH_SIZE, linkRequests.length);
+                    const percent = 80 + (linksCreated / linkRequests.length * 20);
                     this.showCalendarProgress({
                         stage: 'linking',
                         percent,
-                        message: `${i + 1}/${linkRequests.length} ссылок`
+                        message: `${linksCreated}/${linkRequests.length} ссылок`
                     });
                 }
             }
@@ -1084,8 +1099,25 @@ export class LayoutEditorPanel extends Popup {
 
         } catch (error) {
             console.error('Failed to create year calendar:', error);
-            this.showMessage(`Ошибка создания календаря: ${error.message}`, 'error');
+
+            // Информативное сообщение в зависимости от этапа ошибки
+            let message;
+            if (blocksImported && linksCreated > 0) {
+                message = `Блоки созданы, но ошибка при создании ссылок (${linksCreated} из ${linksCreated}): ${error.message}`;
+            } else if (blocksImported) {
+                message = `Блоки созданы, но ошибка при создании ссылок: ${error.message}`;
+            } else {
+                message = `Ошибка создания календаря: ${error.message}`;
+            }
+
+            this.showMessage(message, 'error');
             this.showCalendarProgress({ stage: 'complete', percent: 100 });
+
+            // Если блоки импортированы, обновляем UI чтобы показать частичный результат
+            if (blocksImported) {
+                this.loadBlockData();
+                dispatch('ShowBlocks');
+            }
         }
     }
 

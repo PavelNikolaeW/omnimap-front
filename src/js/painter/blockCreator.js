@@ -19,6 +19,22 @@ class BlockCreator {
         this.iframes = new Set()
         this.AllIframes = new Set()
         this.emptyBlocks = new Set()
+        // Кэш для текущей даты (обновляется раз в минуту)
+        this._cachedToday = null
+        this._todayCacheTime = 0
+    }
+
+    /**
+     * Возвращает текущую дату в формате YYYY-MM-DD с кэшированием
+     * Кэш обновляется каждую минуту для оптимизации рендеринга календаря
+     */
+    _getToday() {
+        const now = Date.now()
+        if (!this._cachedToday || now - this._todayCacheTime > 60000) {
+            this._cachedToday = new Date().toISOString().split('T')[0]
+            this._todayCacheTime = now
+        }
+        return this._cachedToday
     }
 
     createElement(block, parentBlock, screen, depth) {
@@ -337,8 +353,7 @@ class BlockCreator {
             // Динамическое вычисление isToday на основе isoDate
             // Это позволяет корректно подсвечивать текущий день даже после смены даты
             if (block.data.isoDate) {
-                const today = new Date().toISOString().split('T')[0]
-                if (block.data.isoDate === today) {
+                if (block.data.isoDate === this._getToday()) {
                     element.setAttribute('data-calendar-today', 'true')
                 }
             } else if (block.data.isToday) {
