@@ -9,6 +9,7 @@ import {
     DEFAULT_CELLS_CONFIG
 } from "./layoutTypes";
 import { layoutTemplateService } from "../services/layoutTemplateService";
+import { isAdaptivePreset, generateAdaptiveLayout } from "./adaptivePresets";
 
 
 class GridClassManager {
@@ -225,6 +226,8 @@ class GridClassManager {
 
     /**
      * Раскладка cells - ячеечная с произвольными размерами и span
+     * Поддерживает адаптивные пресеты, которые генерируют конфигурацию
+     * динамически на основе формы блока (block.size.layout)
      * @param {Object} block - блок
      */
     layoutCells(block) {
@@ -239,11 +242,42 @@ class GridClassManager {
             ];
         }
 
-        // Получаем или генерируем layoutCells
-        let layoutCells = block.data?.layoutCells;
-        if (!layoutCells || !layoutCells.cells || Object.keys(layoutCells.cells).length === 0) {
-            // Генерируем начальную конфигурацию
-            layoutCells = GridLayoutCalculator.generateInitialCells(childOrder);
+        // Получаем layoutCells из данных блока
+        const savedLayoutCells = block.data?.layoutCells;
+        const presetType = savedLayoutCells?.presetType;
+        const presetOptions = savedLayoutCells?.presetOptions || {};
+
+        // Форма блока для адаптивных пресетов (например "xl-h", "md-sq")
+        const blockShape = block.size?.layout || 'md-sq';
+
+        let layoutCells;
+
+        // Проверяем, является ли пресет адаптивным
+        if (presetType && isAdaptivePreset(presetType)) {
+            // Генерируем конфигурацию динамически на основе формы блока
+            const adaptiveConfig = generateAdaptiveLayout(
+                presetType,
+                childOrder,
+                blockShape,
+                presetOptions
+            );
+
+            if (adaptiveConfig) {
+                layoutCells = {
+                    gridSize: adaptiveConfig.gridSize,
+                    cells: adaptiveConfig.cells,
+                    presetType: presetType
+                };
+            }
+        }
+
+        // Fallback: используем сохранённую конфигурацию или генерируем начальную
+        if (!layoutCells) {
+            if (savedLayoutCells?.cells && Object.keys(savedLayoutCells.cells).length > 0) {
+                layoutCells = savedLayoutCells;
+            } else {
+                layoutCells = GridLayoutCalculator.generateInitialCells(childOrder);
+            }
         }
 
         // Вычисляем позиции
@@ -260,12 +294,12 @@ class GridClassManager {
 
         // Добавляем класс пресета для стилизации
         const gridClasses = GridClassManager._setBlockGrid(result.totalGridRows, result.gridColumns);
-        if (layoutCells.presetType) {
-            gridClasses.push(`layout-preset-${layoutCells.presetType}`);
+        if (presetType) {
+            gridClasses.push(`layout-preset-${presetType}`);
         }
 
         // Сохраняем presetType для использования в painter
-        block.layoutPresetType = layoutCells.presetType || null;
+        block.layoutPresetType = presetType || null;
 
         return [
             gridClasses,
