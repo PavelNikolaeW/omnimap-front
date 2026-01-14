@@ -9,6 +9,7 @@ import { localStateManager } from '../../stateLocal/localStateManager.js';
 import { extractBlockId } from '../../actions/selectionActions.js';
 import { importBlocks, pollImportStatus, generateBlockId } from '../../api/importService.js';
 import { generateYearCalendar, estimateYearCalendarSize } from './CalendarGenerator.js';
+import { isAdaptivePreset } from '../../painter/adaptivePresets.js';
 import api from '../../api/api.js';
 
 // Singleton instance для предотвращения множественных окон
@@ -1826,7 +1827,30 @@ export class LayoutEditorPanel extends Popup {
             return;
         }
 
-        // Стандартная логика для cells layouts
+        // Проверяем, является ли пресет адаптивным
+        // Адаптивные пресеты генерируют конфигурацию динамически на основе формы блока
+        if (this.currentPresetType && isAdaptivePreset(this.currentPresetType)) {
+            dispatch('UpdateDataBlock', {
+                blockId: this.blockId,
+                data: {
+                    layout: 'cells',
+                    layoutCells: {
+                        presetType: this.currentPresetType
+                        // gridSize и cells НЕ сохраняем - генерируются при рендере
+                    }
+                }
+            });
+
+            this.close();
+
+            // Перерендер блока
+            setTimeout(() => {
+                dispatch('ShowBlocks');
+            }, 100);
+            return;
+        }
+
+        // Стандартная логика для cells layouts (custom или не-адаптивные пресеты)
         // Валидация: убеждаемся что все childBlocks имеют позиции
         const missingBlocks = this.childBlocks.filter(b => !this.cells[b.id]);
 
