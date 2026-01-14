@@ -1485,6 +1485,17 @@ export class LocalStateManager {
         await this.saveBlock(newParent);
         dispatch('ShowBlocks');
 
+        // Для same-parent reorder сохраняем состояние родителя ПОСЛЕ перемещения
+        const oldParentAfter = old_parent_id === new_parent_id ? {
+            ...newParent,
+            children: [...(newParent.children || [])],
+            data: {
+                ...newParent.data,
+                childOrder: newParent.data?.childOrder ? [...newParent.data.childOrder] : undefined,
+                customGrid: newParent.data?.customGrid ? JSON.parse(JSON.stringify(newParent.data.customGrid)) : undefined
+            }
+        } : null;
+
         // Записываем в undo stack
         undoManager.recordMove(
             block_id,
@@ -1493,7 +1504,8 @@ export class LocalStateManager {
             blockBackup,
             block,
             oldParentBackup,
-            newParentBackup
+            newParentBackup,
+            oldParentAfter
         );
 
         // Синхронизируем через batch import (отправит 3 блока: old parent, new parent, moved block)

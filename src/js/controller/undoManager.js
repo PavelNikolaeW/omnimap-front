@@ -226,8 +226,9 @@ class UndoManager {
      * @param {object} afterState - Состояние блока ПОСЛЕ перемещения
      * @param {object} oldParentBefore - Состояние старого родителя ДО
      * @param {object} newParentBefore - Состояние нового родителя ДО
+     * @param {object} oldParentAfter - Состояние старого родителя ПОСЛЕ (для same-parent reorder)
      */
-    recordMove(blockId, oldParentId, newParentId, beforeState, afterState, oldParentBefore, newParentBefore) {
+    recordMove(blockId, oldParentId, newParentId, beforeState, afterState, oldParentBefore, newParentBefore, oldParentAfter = null) {
         if (this.isApplying) return;
 
         const entry = {
@@ -244,8 +245,9 @@ class UndoManager {
                     newParent: oldParentId !== newParentId ? this.cloneState(newParentBefore) : null
                 },
                 after: {
-                    block: this.cloneState(afterState)
-                    // Состояние родителей после не нужно - восстановим из before
+                    block: this.cloneState(afterState),
+                    // Для same-parent reorder сохраняем состояние родителя ПОСЛЕ
+                    oldParent: oldParentId === newParentId ? this.cloneState(oldParentAfter) : null
                 }
             }
         };
@@ -588,8 +590,13 @@ class UndoManager {
                     // Сохраняем блок с новым parent_id
                     await localStateManager.saveBlock(afterData.block);
 
-                    // Удаляем блок из старого родителя
-                    if (entry.oldParentId !== entry.newParentId) {
+                    if (entry.oldParentId === entry.newParentId) {
+                        // Same-parent reorder: восстанавливаем родителя из сохранённого after state
+                        if (afterData.oldParent) {
+                            await localStateManager.saveBlock(afterData.oldParent);
+                        }
+                    } else {
+                        // Different parents: удаляем из старого, добавляем в новый
                         const oldParent = localStateManager.blocks.get(entry.oldParentId);
                         if (oldParent) {
                             let needsSave = false;
