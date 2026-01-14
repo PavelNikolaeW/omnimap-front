@@ -726,6 +726,17 @@ class OfflineQueueManager {
                 });
             }, 500, 300000, { silent: true });
 
+            // Обработка частичных ошибок 403 (Permission Denied)
+            if (result.errors?.length > 0) {
+                const forbiddenIds = result.errors
+                    .filter(e => e.status === 403)
+                    .map(e => e.block_id);
+
+                if (forbiddenIds.length > 0) {
+                    await this.handlePermissionError(forbiddenIds);
+                }
+            }
+
             // Обновляем локальное состояние с новыми блоками от сервера
             if (result.blocks) {
                 dispatch('BatchImportCompleted', {
@@ -984,6 +995,36 @@ class OfflineQueueManager {
 
         // Очищаем pending блоки
         this.pendingBlocks.clear();
+    }
+
+    /**
+     * Обрабатывает ошибку 403 (Permission Denied) при синхронизации
+     * Помечает затронутые блоки как forbidden и уведомляет пользователя
+     * @param {string[]} failedBlockIds - массив ID блоков с ошибкой прав
+     */
+    async handlePermissionError(failedBlockIds) {
+        if (!failedBlockIds || failedBlockIds.length === 0) return;
+
+        // Динамический импорт для избежания циклических зависимостей
+        const { localStateManager } = await import('../stateLocal/localStateManager.js');
+
+        for (const blockId of failedBlockIds) {
+            const block = localStateManager.blocks.get(blockId);
+            if (block) {
+                block.forbidden = true;
+                await localStateManager.saveBlock(block);
+            }
+            // Убираем из pending - синхронизация для этого блока невозможна
+            this.resolvePendingBlock(blockId);
+        }
+
+        // Перерисовываем UI
+        dispatch('ShowBlocks');
+
+        // Уведомляем пользователя
+        dispatch('ShowError', {
+            message: `Права на ${failedBlockIds.length} блок(ов) были отозваны`
+        });
     }
 }
 
