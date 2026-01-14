@@ -95,13 +95,19 @@ describe('CalendarGenerator', () => {
             });
         });
 
-        it('should mark boundary weeks correctly', () => {
+        it('should mark owned weeks correctly', () => {
             const weekRegistry = new Map();
             const weeks = getWeeksOfMonth(2026, 1, weekRegistry);
 
-            // Check if boundary weeks are identified
-            const boundaryWeeks = weeks.filter(w => !w.isLinkWeek);
-            expect(boundaryWeeks.length).toBeGreaterThan(0);
+            // Check if week ownership is identified
+            const ownedWeeks = weeks.filter(w => w.isOwner);
+            expect(ownedWeeks.length).toBeGreaterThan(0);
+
+            // All weeks should have daysInMonth property
+            weeks.forEach(w => {
+                expect(w.daysInMonth).toBeGreaterThanOrEqual(1);
+                expect(w.daysInMonth).toBeLessThanOrEqual(7);
+            });
         });
     });
 
