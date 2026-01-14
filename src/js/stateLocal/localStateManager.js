@@ -9,7 +9,7 @@ import {customConfirm} from "../utils/custom-dialog";
 import {treeService} from "../services/treeService";
 import {treeValidator} from "./treeValidator";
 import {offlineQueue} from "../sincManager/offlineQueue";
-import {canEdit} from "../utils/permissionUtils";
+import {canEdit, canDelete} from "../utils/permissionUtils";
 
 /**
  * Экранирует специальные символы RegExp в строке
@@ -495,7 +495,7 @@ export class LocalStateManager {
         if (!block) return
 
         // Проверка прав на удаление
-        if (!canEdit(block)) {
+        if (!canDelete(block)) {
             dispatch('ShowError', { message: 'Нет прав на удаление блока' });
             return;
         }
@@ -654,7 +654,7 @@ export class LocalStateManager {
         // Проверка прав на удаление всех блоков
         const forbiddenBlocks = blockIds.filter(id => {
             const block = this.blocks.get(id);
-            return block && !canEdit(block);
+            return block && !canDelete(block);
         });
         if (forbiddenBlocks.length > 0) {
             dispatch('ShowError', { message: 'Нет прав на удаление некоторых блоков' });
