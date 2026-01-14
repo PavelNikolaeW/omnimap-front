@@ -649,6 +649,9 @@ export class LocalStateManager {
             await treeService.addTree(blockId);
         }
 
+        // Удаляем undo запись для отменённого удаления
+        undoManager.removeLastEntryForBlock(blockId);
+
         dispatch('ShowBlocks');
         dispatch('ShowError', { message: 'Не удалось удалить блок' });
     }
@@ -985,6 +988,9 @@ export class LocalStateManager {
 
                     // Удаляем только этот блок (дети придут отдельными deleted событиями)
                     await this.removeOneBlock(block.id);
+
+                    // Инвалидируем undo записи для удалённого блока
+                    undoManager.invalidateEntriesForBlock(block.id);
 
                     // Если пользователь был на удалённом блоке — переходим к родителю
                     if (isOnDeletedBlock) {

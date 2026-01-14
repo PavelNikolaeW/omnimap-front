@@ -301,6 +301,7 @@ describe('UndoManager', () => {
 
     describe('clear', () => {
         it('should clear both stacks', () => {
+            jest.useFakeTimers();
             undoManager.undoStack = [{ id: 'e1' }];
             undoManager.redoStack = [{ id: 'e2' }];
 
@@ -308,7 +309,11 @@ describe('UndoManager', () => {
 
             expect(undoManager.undoStack).toHaveLength(0);
             expect(undoManager.redoStack).toHaveLength(0);
+
+            // Run debounce timer
+            jest.advanceTimersByTime(300);
             expect(localforage.setItem).toHaveBeenCalled();
+            jest.useRealTimers();
         });
     });
 
@@ -341,12 +346,95 @@ describe('UndoManager', () => {
     });
 
     describe('persistence', () => {
-        it('should save to storage on push', () => {
+        it('should save to storage on push with debounce', () => {
+            jest.useFakeTimers();
             undoManager.recordEdit('block-1', {}, {});
+
+            // saveToStorage should schedule with debounce
+            expect(undoManager._saveTimeout).not.toBeNull();
+
+            // Run debounce timer
+            jest.advanceTimersByTime(300);
 
             expect(localforage.setItem).toHaveBeenCalledWith('undoStack', {
                 undoStack: expect.any(Array)
             });
+            jest.useRealTimers();
+        });
+    });
+
+    describe('destroy', () => {
+        it('should remove event listeners and clear timeout', async () => {
+            await undoManager.init();
+            undoManager._saveTimeout = setTimeout(() => {}, 1000);
+
+            undoManager.destroy();
+
+            expect(undoManager.isInitialized).toBe(false);
+            expect(undoManager._saveTimeout).toBeNull();
+        });
+    });
+
+    describe('removeLastEntryForBlock', () => {
+        it('should remove last entry for specified block', () => {
+            undoManager.undoStack = [
+                { id: 'e1', blockId: 'block-1' },
+                { id: 'e2', blockId: 'block-2' },
+                { id: 'e3', blockId: 'block-1' }
+            ];
+
+            const result = undoManager.removeLastEntryForBlock('block-1');
+
+            expect(result).toBe(true);
+            expect(undoManager.undoStack).toHaveLength(2);
+            // Should remove last block-1 entry (e3), not first one (e1)
+            expect(undoManager.undoStack[0].id).toBe('e1');
+            expect(undoManager.undoStack[1].id).toBe('e2');
+        });
+
+        it('should return false when no entry found', () => {
+            undoManager.undoStack = [{ id: 'e1', blockId: 'block-1' }];
+
+            const result = undoManager.removeLastEntryForBlock('block-999');
+
+            expect(result).toBe(false);
+            expect(undoManager.undoStack).toHaveLength(1);
+        });
+    });
+
+    describe('sortBlocksByHierarchy', () => {
+        it('should return blocks in BFS order (parent before children)', () => {
+            const subtreeData = {
+                'root': { id: 'root', children: ['child-1', 'child-2'] },
+                'child-1': { id: 'child-1', children: ['grandchild-1'] },
+                'child-2': { id: 'child-2', children: [] },
+                'grandchild-1': { id: 'grandchild-1', children: [] }
+            };
+
+            const result = undoManager.sortBlocksByHierarchy(subtreeData, 'root');
+
+            expect(result).toHaveLength(4);
+            expect(result[0].id).toBe('root');
+            // Children should come after parent
+            const rootIdx = result.findIndex(b => b.id === 'root');
+            const child1Idx = result.findIndex(b => b.id === 'child-1');
+            const grandchild1Idx = result.findIndex(b => b.id === 'grandchild-1');
+
+            expect(rootIdx).toBeLessThan(child1Idx);
+            expect(child1Idx).toBeLessThan(grandchild1Idx);
+        });
+
+        it('should include orphan blocks at the end', () => {
+            const subtreeData = {
+                'root': { id: 'root', children: ['child-1'] },
+                'child-1': { id: 'child-1', children: [] },
+                'orphan': { id: 'orphan', children: [] } // Not linked via children
+            };
+
+            const result = undoManager.sortBlocksByHierarchy(subtreeData, 'root');
+
+            expect(result).toHaveLength(3);
+            expect(result[2].id).toBe('orphan');
         });
     });
 });

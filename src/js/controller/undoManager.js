@@ -20,6 +20,7 @@ class UndoManager {
     static MAX_STACK_SIZE = 100;      // Максимум 100 записей
     static MERGE_WINDOW_MS = 2000;    // Объединять правки в течение 2 сек
     static MAX_TREE_SIZE = 500;       // Максимум блоков для сохранения удалённого дерева
+    static SAVE_DEBOUNCE_MS = 300;    // Debounce для saveToStorage
 
     constructor() {
         /**
@@ -44,6 +45,12 @@ class UndoManager {
         this.redoStack = [];
         this.isApplying = false;      // Флаг для предотвращения рекурсии
         this.isInitialized = false;   // Флаг инициализации
+        this._saveTimeout = null;     // Таймер debounce для saveToStorage
+
+        // Привязываем методы для использования как обработчики событий
+        this._boundUndo = () => this.undo();
+        this._boundRedo = () => this.redo();
+        this._boundClear = () => this.clear();
 
         // Не вызываем init() в конструкторе - будет вызван извне после загрузки приложения
     }
@@ -58,11 +65,11 @@ class UndoManager {
         await this.loadFromStorage();
 
         // Слушаем события Undo/Redo от команд
-        window.addEventListener('Undo', () => this.undo());
-        window.addEventListener('Redo', () => this.redo());
+        window.addEventListener('Undo', this._boundUndo);
+        window.addEventListener('Redo', this._boundRedo);
 
         // Очищаем при logout
-        window.addEventListener('Logout', () => this.clear());
+        window.addEventListener('Logout', this._boundClear);
 
         this.isInitialized = true;
 
@@ -70,6 +77,25 @@ class UndoManager {
         this.dispatchStackState();
 
         console.log(`UndoManager initialized: ${this.undoStack.length} entries loaded`);
+    }
+
+    /**
+     * Уничтожение менеджера - очистка слушателей событий
+     * Вызывать при демонтировании приложения
+     */
+    destroy() {
+        window.removeEventListener('Undo', this._boundUndo);
+        window.removeEventListener('Redo', this._boundRedo);
+        window.removeEventListener('Logout', this._boundClear);
+
+        // Очищаем таймер debounce
+        if (this._saveTimeout) {
+            clearTimeout(this._saveTimeout);
+            this._saveTimeout = null;
+        }
+
+        this.isInitialized = false;
+        console.log('UndoManager destroyed');
     }
 
     /**
@@ -454,25 +480,30 @@ class UndoManager {
                     // Undo удаления дерева = восстанавливаем все блоки
                     const subtreeData = entry.changes.before;
 
-                    // Сначала восстанавливаем все блоки
-                    for (const [blockId, blockData] of Object.entries(subtreeData)) {
+                    // Сортируем блоки по иерархии: родители должны быть созданы раньше детей
+                    // Это предотвращает race condition при восстановлении
+                    const sortedBlocks = this.sortBlocksByHierarchy(subtreeData, entry.blockId);
+
+                    // Восстанавливаем блоки в правильном порядке
+                    for (const blockData of sortedBlocks) {
                         await localStateManager.saveBlock(blockData);
                     }
 
                     // Добавляем корень в children родителя
                     await this.addChildToParent(localStateManager, entry.parentId, entry.blockId);
 
-                    // Синхронизируем - нужно отправить все блоки
-                    for (const blockId of Object.keys(subtreeData)) {
+                    // Синхронизируем - нужно отправить все блоки в том же порядке
+                    for (const blockData of sortedBlocks) {
                         await offlineQueue.enqueue({
                             type: 'createBlock',
-                            data: { blockId, parentId: subtreeData[blockId].parent_id }
+                            data: { blockId: blockData.id, parentId: blockData.parent_id }
                         });
                     }
                 } else {
                     // Redo удаления дерева = удаляем все блоки
                     const subtreeData = entry.changes.before;
 
+                    // При удалении порядок не важен, удаляем всё
                     for (const blockId of Object.keys(subtreeData)) {
                         await localStateManager.removeBlock(blockId);
                     }
@@ -620,6 +651,49 @@ class UndoManager {
     }
 
     /**
+     * Сортировать блоки по иерархии (родители перед детьми)
+     * Использует BFS от корня для правильного порядка восстановления
+     * @private
+     * @param {Object} subtreeData - Объект с данными блоков {blockId: blockData}
+     * @param {string} rootId - ID корневого блока
+     * @returns {Array} - Массив blockData в порядке от корня к листьям
+     */
+    sortBlocksByHierarchy(subtreeData, rootId) {
+        const result = [];
+        const visited = new Set();
+        const queue = [rootId];
+
+        while (queue.length > 0) {
+            const currentId = queue.shift();
+
+            if (visited.has(currentId) || !subtreeData[currentId]) {
+                continue;
+            }
+
+            visited.add(currentId);
+            const blockData = subtreeData[currentId];
+            result.push(blockData);
+
+            // Добавляем детей в очередь
+            const children = blockData.children || [];
+            for (const childId of children) {
+                if (!visited.has(childId) && subtreeData[childId]) {
+                    queue.push(childId);
+                }
+            }
+        }
+
+        // Если есть блоки, которые не попали через BFS (сироты), добавляем их в конец
+        for (const [blockId, blockData] of Object.entries(subtreeData)) {
+            if (!visited.has(blockId)) {
+                result.push(blockData);
+            }
+        }
+
+        return result;
+    }
+
+    /**
      * Инвалидировать записи для блока (при конфликте с другим пользователем)
      *
      * @param {string} blockId - ID блока
@@ -705,6 +779,24 @@ class UndoManager {
     }
 
     /**
+     * Удалить последнюю запись для блока (при rollback неудачной операции)
+     * @param {string} blockId - ID блока
+     */
+    removeLastEntryForBlock(blockId) {
+        // Ищем последнюю запись для этого блока
+        for (let i = this.undoStack.length - 1; i >= 0; i--) {
+            if (this.undoStack[i].blockId === blockId) {
+                this.undoStack.splice(i, 1);
+                this.saveToStorage();
+                this.dispatchStackState();
+                console.log(`Removed undo entry for block ${blockId} (rollback)`);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Загрузить стек из IndexedDB
      * @private
      */
@@ -721,10 +813,26 @@ class UndoManager {
     }
 
     /**
-     * Сохранить стек в IndexedDB
+     * Сохранить стек в IndexedDB с debounce
      * @private
      */
-    async saveToStorage() {
+    saveToStorage() {
+        // Отменяем предыдущий таймер
+        if (this._saveTimeout) {
+            clearTimeout(this._saveTimeout);
+        }
+
+        // Запускаем новый с задержкой
+        this._saveTimeout = setTimeout(() => {
+            this._saveToStorageNow();
+        }, UndoManager.SAVE_DEBOUNCE_MS);
+    }
+
+    /**
+     * Немедленное сохранение стека в IndexedDB
+     * @private
+     */
+    async _saveToStorageNow() {
         try {
             await localforage.setItem(UndoManager.STORAGE_KEY, {
                 undoStack: this.undoStack
