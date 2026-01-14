@@ -1448,24 +1448,10 @@ export class LocalStateManager {
             return;
         }
 
-        // Сохраняем backup для rollback
-        const blockBackup = {...block, parent_id: block.parent_id};
-        const oldParentBackup = oldParent ? {
-            ...oldParent,
-            children: [...(oldParent.children || [])],
-            data: {
-                ...oldParent.data,
-                customGrid: oldParent.data?.customGrid ? JSON.parse(JSON.stringify(oldParent.data.customGrid)) : undefined
-            }
-        } : null;
-        const newParentBackup = {
-            ...newParent,
-            children: [...(newParent.children || [])],
-            data: {
-                ...newParent.data,
-                customGrid: newParent.data?.customGrid ? JSON.parse(JSON.stringify(newParent.data.customGrid)) : undefined
-            }
-        };
+        // Сохраняем backup для rollback (deep clone чтобы избежать shared references)
+        const blockBackup = JSON.parse(JSON.stringify(block));
+        const oldParentBackup = oldParent ? JSON.parse(JSON.stringify(oldParent)) : null;
+        const newParentBackup = JSON.parse(JSON.stringify(newParent));
 
         // Обновляем parent_id блока
         block.parent_id = new_parent_id;
@@ -1516,16 +1502,10 @@ export class LocalStateManager {
         await this.saveBlock(newParent);
         dispatch('ShowBlocks');
 
-        // Для same-parent reorder сохраняем состояние родителя ПОСЛЕ перемещения
-        const oldParentAfter = old_parent_id === new_parent_id ? {
-            ...newParent,
-            children: [...(newParent.children || [])],
-            data: {
-                ...newParent.data,
-                childOrder: newParent.data?.childOrder ? [...newParent.data.childOrder] : undefined,
-                customGrid: newParent.data?.customGrid ? JSON.parse(JSON.stringify(newParent.data.customGrid)) : undefined
-            }
-        } : null;
+        // Для same-parent reorder сохраняем состояние родителя ПОСЛЕ перемещения (deep clone)
+        const oldParentAfter = old_parent_id === new_parent_id
+            ? JSON.parse(JSON.stringify(newParent))
+            : null;
 
         // Записываем в undo stack
         undoManager.recordMove(
@@ -2496,7 +2476,7 @@ export class LocalStateManager {
         }
 
         // Сохраняем состояние ДО изменения для undo
-        const beforeState = { ...block, data: { ...block.data } };
+        const beforeState = JSON.parse(JSON.stringify(block));
 
         block.data.customStyles = customStyles;
         block.updated_at = new Date().toISOString();
@@ -2517,21 +2497,49 @@ export class LocalStateManager {
         dispatch('ShowBlocks');
     }
 
-    updateDataBlock({blockId, data}) {
-        try {
-            const block = this.blocks.get(blockId);
-            if (!block) throw new Error(`Block with id ${blockId} not found.`);
-
-            api.updateBlock(blockId, {data: data}).then(res => {
-                if (res.status === 200) {
-                    const updatedBlock = res.data;
-                    this.saveBlock(updatedBlock).then(() => dispatch('ShowBlocks'));
-                }
-            });
-
-        } catch (err) {
-            console.error(err);
+    async updateDataBlock({blockId, data}) {
+        // Optimistic UI: обновляем локально, синхронизация через batch import
+        const block = this.blocks.get(blockId);
+        if (!block) {
+            console.error(`Block with id ${blockId} not found.`);
+            return;
         }
+
+        // Проверка прав на редактирование
+        if (!canEdit(block)) {
+            dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
+            return;
+        }
+
+        // Сохраняем состояние ДО изменения для undo (deep clone)
+        const beforeState = JSON.parse(JSON.stringify(block));
+
+        // Мержим новые data с существующими (сохраняем childOrder и connections)
+        const preservedFields = {
+            childOrder: block.data?.childOrder,
+            connections: block.data?.connections
+        };
+        block.data = {
+            ...data,
+            childOrder: preservedFields.childOrder,
+            connections: preservedFields.connections
+        };
+        block.updated_at = new Date().toISOString();
+        await this.saveBlock(block);
+
+        // Записываем в undo stack
+        undoManager.recordEdit(blockId, beforeState, block);
+
+        // Регистрируем блок как pending для индикатора
+        offlineQueue.registerPendingBlock(blockId);
+
+        // Добавляем в очередь синхронизации
+        await offlineQueue.enqueue({
+            type: 'updateBlock',
+            data: { id: blockId }
+        });
+
+        dispatch('ShowBlocks');
     }
 
     async textUpdate({blockId, text}) {
@@ -2546,7 +2554,7 @@ export class LocalStateManager {
         }
 
         // Сохраняем состояние ДО изменения для undo
-        const beforeState = { ...block, data: { ...block.data } };
+        const beforeState = JSON.parse(JSON.stringify(block));
 
         if (!block.data) block.data = {};
         block.data.text = text;
@@ -2587,7 +2595,7 @@ export class LocalStateManager {
         }
 
         // Сохраняем состояние ДО изменения для undo
-        const beforeState = { ...block, data: { ...block.data } };
+        const beforeState = JSON.parse(JSON.stringify(block));
 
         block.title = title;
         block.updated_at = new Date().toISOString();
@@ -2653,7 +2661,7 @@ export class LocalStateManager {
         }
 
         // Сохраняем состояние ДО изменения для undo
-        const beforeState = { ...block, data: { ...block.data } };
+        const beforeState = JSON.parse(JSON.stringify(block));
 
         if (!block.data) block.data = {};
         block.data.color = hue;
