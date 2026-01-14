@@ -404,11 +404,12 @@ class UndoManager {
                     return;
                 }
 
-                // Применяем изменения
+                // Применяем изменения - ПОЛНАЯ замена свойств из снапшота
+                // НЕ используем merge для data, т.к. нужно восстановить ТОЧНОЕ состояние
                 const updatedBlock = { ...block, ...changes };
-                if (changes.data) {
-                    updatedBlock.data = { ...block.data, ...changes.data };
-                }
+                // changes.data уже включен через spread выше
+                // Дополнительный merge удалён, т.к. он приводил к сохранению
+                // свойств (например text), которых не было в before state
 
                 await localStateManager.saveBlock(updatedBlock);
 
@@ -544,6 +545,32 @@ class UndoManager {
                     // Восстанавливаем нового родителя (если отличается от старого)
                     if (beforeData.newParent && entry.oldParentId !== entry.newParentId) {
                         await localStateManager.saveBlock(beforeData.newParent);
+                    }
+
+                    // Safety net: явно удаляем блок из children/childOrder нового родителя
+                    // на случай если backup содержит некорректные данные
+                    if (entry.oldParentId !== entry.newParentId) {
+                        const newParentCurrent = localStateManager.blocks.get(entry.newParentId);
+                        if (newParentCurrent) {
+                            let needsSave = false;
+
+                            if (newParentCurrent.children?.includes(entry.blockId)) {
+                                newParentCurrent.children = newParentCurrent.children.filter(id => id !== entry.blockId);
+                                needsSave = true;
+                            }
+
+                            if (newParentCurrent.data?.childOrder?.includes(entry.blockId)) {
+                                newParentCurrent.data = {
+                                    ...newParentCurrent.data,
+                                    childOrder: newParentCurrent.data.childOrder.filter(id => id !== entry.blockId)
+                                };
+                                needsSave = true;
+                            }
+
+                            if (needsSave) {
+                                await localStateManager.saveBlock(newParentCurrent);
+                            }
+                        }
                     }
 
                     await offlineQueue.enqueue({
