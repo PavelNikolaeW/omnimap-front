@@ -43,7 +43,9 @@ class BlockRepository {
             title: block.title,
             updated_at: block.updated_at,
             // Всегда сохраняем forbidden флаг (true для 403, false/undefined для обычных)
-            forbidden: block.forbidden || false
+            forbidden: block.forbidden || false,
+            // Уровень прав: 'view', 'edit', 'edit_ac', 'delete', null (собственный блок)
+            permission: block.permission || null
         };
         await localforage.setItem(key, blockData);
     }
@@ -900,7 +902,7 @@ export class LocalStateManager {
             return;
         }
 
-        // При выдаче прав (grant) - добавляем/обновляем блоки
+        // При выдаче прав (grant / view / edit / edit_ac / delete) - добавляем/обновляем блоки
         const start_block_ids = message.start_block_ids;
         const newBlocks = [];
 
@@ -911,6 +913,14 @@ export class LocalStateManager {
             const data = this._safeJsonParse(block.data, {});
             const children = this._safeJsonParse(block.children, []);
 
+            // Уровень прав: берём из block.permission (новый формат) или message.permission (legacy)
+            // При grant без уровня считаем что это полный доступ (null)
+            let blockPermission = block.permission || null;
+            if (!blockPermission && permission && permission !== 'grant') {
+                // Fallback: если block не содержит permission, но message.permission указан
+                blockPermission = permission;
+            }
+
             const newBlock = {
                 id: block.id,
                 updated_at: new Date(block.updated_at * 1000).toISOString(),
@@ -918,10 +928,11 @@ export class LocalStateManager {
                 data,
                 children,
                 parent_id: block.parent_id || false,
-                forbidden: false // Явно убираем флаг forbidden при grant
+                forbidden: false, // Явно убираем флаг forbidden при grant
+                permission: blockPermission // Уровень прав доступа
             };
 
-            // Сохраняем блок (localforage.setItem перезапишет старый forbidden)
+            // Сохраняем блок (localforage.setItem перезапишет старый forbidden и permission)
             await this.saveBlock(newBlock);
             newBlocks.push(newBlock);
 
@@ -1064,7 +1075,8 @@ export class LocalStateManager {
                                 title: block.title,
                                 data: serverData,
                                 children: serverChildren,
-                                parent_id: normalizeParentId(block.parent_id)
+                                parent_id: normalizeParentId(block.parent_id),
+                                permission: block.permission || null
                             });
 
                             console.log(`⏭️ Own update confirmed, skipping render: ${block.id}`);
@@ -1114,7 +1126,8 @@ export class LocalStateManager {
                         title: block.title,
                         data: mergedData,
                         children: serverChildren,
-                        parent_id: normalizeParentId(block.parent_id)
+                        parent_id: normalizeParentId(block.parent_id),
+                        permission: block.permission || null
                     });
                 }
                 processedBlocks.push(block);
