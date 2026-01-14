@@ -2491,9 +2491,16 @@ export class LocalStateManager {
             const block = this.blocks.get(blockId);
             if (!block) throw new Error(`Block with id ${blockId} not found.`);
 
+            // Сохраняем состояние ДО изменения для undo
+            const beforeState = { ...block, data: { ...block.data } };
+
             api.updateBlock(blockId, {data: data}).then(res => {
                 if (res.status === 200) {
                     const updatedBlock = res.data;
+
+                    // Записываем в undo stack после успешного обновления
+                    undoManager.recordEdit(blockId, beforeState, updatedBlock);
+
                     this.saveBlock(updatedBlock).then(() => dispatch('ShowBlocks'));
                 }
             });
