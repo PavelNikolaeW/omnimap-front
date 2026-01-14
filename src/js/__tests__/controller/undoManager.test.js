@@ -16,11 +16,16 @@ jest.mock('../../utils/utils', () => ({
 }));
 
 // Мокаем localStateManager
+const mockBlocks = new Map();
+const mockLocalStateManager = {
+    blocks: mockBlocks,
+    saveBlock: jest.fn().mockResolvedValue(undefined),
+    removeBlock: jest.fn().mockResolvedValue(undefined)
+};
 jest.mock('../../stateLocal/localStateManager', () => ({
     localStateManager: {
-        blocks: new Map(),
-        saveBlock: jest.fn().mockResolvedValue(undefined),
-        removeBlock: jest.fn().mockResolvedValue(undefined)
+        blocks: mockBlocks,
+        getInstance: () => mockLocalStateManager
     }
 }));
 

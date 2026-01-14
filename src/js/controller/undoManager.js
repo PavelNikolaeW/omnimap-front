@@ -386,8 +386,11 @@ class UndoManager {
      */
     async applyEntry(entry, direction) {
         // Динамический импорт для избежания циклических зависимостей
-        const { localStateManager } = await import('../stateLocal/localStateManager.js');
+        const { localStateManager: lsm } = await import('../stateLocal/localStateManager.js');
         const { offlineQueue } = await import('../sincManager/offlineQueue.js');
+
+        // Получаем реальный экземпляр с полным API (saveBlock, removeBlock и т.д.)
+        const localStateManager = lsm.getInstance();
 
         const isUndo = direction === 'undo';
 
