@@ -9,6 +9,7 @@
  */
 
 import { dispatch } from '../utils/utils';
+import { parseGridSize } from '../utils/gridUtils';
 import { diagramEditor } from './diagramEditor';
 
 export class DragDropManager {
@@ -385,11 +386,7 @@ export class DragDropManager {
         const customGrid = diagramData?.data?.customGrid;
         if (!customGrid?.grid) return null;
 
-        // Парсим размер grid
-        const colsClass = customGrid.grid.find(cls => cls.startsWith('grid-template-columns_'));
-        const rowsClass = customGrid.grid.find(cls => cls.startsWith('grid-template-rows_'));
-        const cols = colsClass ? (colsClass.split('__').length - 1) : 1;
-        const rows = rowsClass ? (rowsClass.split('__').length - 1) : 1;
+        const { cols, rows } = parseGridSize(customGrid.grid);
 
         const rect = diagramElement.getBoundingClientRect();
 

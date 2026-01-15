@@ -1,4 +1,5 @@
 import { dispatch } from "../utils/utils";
+import { parseGridSize } from "../utils/gridUtils";
 import localforage from "localforage";
 
 /**
@@ -399,16 +400,7 @@ export class DiagramEditor {
      * Парсинг грид-классов для получения размеров сетки
      */
     parseGridSize() {
-        if (!this.customGrid?.grid) return { cols: 1, rows: 1 };
-
-        const grid = this.customGrid.grid;
-        const colsClass = grid.find(cls => cls.startsWith('grid-template-columns_'));
-        const rowsClass = grid.find(cls => cls.startsWith('grid-template-rows_'));
-
-        const cols = colsClass ? (colsClass.split('__').length - 1) : 1;
-        const rows = rowsClass ? (rowsClass.split('__').length - 1) : 1;
-
-        return { cols, rows };
+        return parseGridSize(this.customGrid?.grid);
     }
 
     /**

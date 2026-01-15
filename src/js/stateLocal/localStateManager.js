@@ -4,6 +4,7 @@ import {Painter} from "../painter/painter";
 import api from "../api/api";
 
 import {isExcludedElement, truncate, normalizeParentId} from '../utils/functions'
+import {parseGridSize} from '../utils/gridUtils'
 import {jsPlumbInstance} from "../controller/arrowManager";
 import {customConfirm} from "../utils/custom-dialog";
 import {treeService} from "../services/treeService";
@@ -1557,11 +1558,7 @@ export class LocalStateManager {
      * @returns {Array} - ['grid-column_X__Y', 'grid-row_X__Y']
      */
     _calculateBlockPositionInDiagram(customGrid, blockId, dropPosition) {
-        // Парсим размер grid
-        const colsClass = customGrid.grid?.find(cls => cls.startsWith('grid-template-columns_'));
-        const rowsClass = customGrid.grid?.find(cls => cls.startsWith('grid-template-rows_'));
-        const gridCols = colsClass ? (colsClass.split('__').length - 1) : 3;
-        const gridRows = rowsClass ? (rowsClass.split('__').length - 1) : 3;
+        const { cols: gridCols, rows: gridRows } = parseGridSize(customGrid.grid, { cols: 3, rows: 3 });
 
         // Находим минимальный размер блока среди существующих в диаграмме
         const { width: blockWidth, height: blockHeight } = this._findMinBlockSizeInDiagram(customGrid);

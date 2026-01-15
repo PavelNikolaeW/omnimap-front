@@ -270,8 +270,8 @@ class GridClassManager {
                 };
             } else {
                 // Пресет вернул null (например, для квадратной формы) → используем layoutGrid
-                // Вычисляем оптимальное количество колонок
-                const cols = Math.ceil(Math.sqrt(lenChildren));
+                // Вычисляем оптимальное количество колонок (минимум 1)
+                const cols = Math.max(1, Math.ceil(Math.sqrt(lenChildren)));
                 return this.layoutGrid(block, { rows: 1, columns: cols });
             }
         }
