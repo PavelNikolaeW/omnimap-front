@@ -1,5 +1,6 @@
 import localforage from "localforage";
 import {dispatch} from "../utils/utils";
+import {parseGridSize} from "../utils/gridUtils";
 import {diagramEditor} from "./diagramEditor";
 import {blockStyleManager, connectionStyleManager} from "./blockStyleManager";
 import {contextManager} from "./comands/contextManager";
@@ -351,8 +352,7 @@ export class DiagramUtils {
 
     // Возвращает новые координаты блока после попытки перемещения
     _moveBlock(blockId, direction, customGrid) {
-        const columns = customGrid.grid[0].split('__').length - 1;
-        const rows = customGrid.grid[1].split('__').length - 1;
+        const { cols: columns, rows } = parseGridSize(customGrid.grid, { cols: 3, rows: 3 });
 
         const parseRange = (str) => str.match(/_(\d+)__?(\d+)?/).slice(1, 3).map(Number);
 
@@ -410,8 +410,7 @@ export class DiagramUtils {
     }
 
     _stretchBlock(blockId, direction, customGrid, stretchMode = true) {
-        const columns = customGrid.grid[0].split('__').length - 1;
-        const rows = customGrid.grid[1].split('__').length - 1;
+        const { cols: columns, rows } = parseGridSize(customGrid.grid, { cols: 3, rows: 3 });
 
         const parseRange = (str) =>
             str.match(/_(\d+)__?(\d+)?/).slice(1, 3).map(Number);

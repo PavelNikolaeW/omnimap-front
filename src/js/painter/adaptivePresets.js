@@ -46,20 +46,8 @@ const autoGridPreset = {
             return { gridSize: { rows: 1, cols: n }, cells };
         }
 
-        // Квадрат → оптимальная сетка
-        const cols = Math.ceil(Math.sqrt(n));
-        const rows = Math.ceil(n / cols);
-
-        for (let i = 0; i < n; i++) {
-            cells[childOrder[i]] = {
-                row: Math.floor(i / cols) + 1,
-                col: (i % cols) + 1,
-                rowSpan: 1,
-                colSpan: 1
-            };
-        }
-
-        return { gridSize: { rows, cols }, cells };
+        // Квадрат → fallback на layoutGrid (лучше распределяет блоки)
+        return null;
     }
 };
 
@@ -571,25 +559,8 @@ const quarterCalendarPreset = {
             return { gridSize: { rows: 2, cols }, cells };
         }
 
-        // Квадрат → 2x2 с месяцами
-        const cols = 2;
-
-        // План
-        if (n > 0) cells[childOrder[0]] = { row: 1, col: 1, rowSpan: 1, colSpan: 1 };
-        // Итоги
-        if (n > 1) cells[childOrder[1]] = { row: 1, col: 2, rowSpan: 1, colSpan: 1 };
-        // Месяцы в ряд
-        for (let i = 2; i < n; i++) {
-            const idx = i - 2;
-            cells[childOrder[i]] = {
-                row: 2 + Math.floor(idx / 2),
-                col: (idx % 2) + 1,
-                rowSpan: 1,
-                colSpan: 1
-            };
-        }
-
-        return { gridSize: { rows: 2 + Math.ceil((n - 2) / 2), cols }, cells };
+        // Квадрат → fallback на layoutGrid
+        return null;
     }
 };
 
