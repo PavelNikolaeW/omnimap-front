@@ -12,6 +12,7 @@ import {treeValidator} from "./treeValidator";
 import {offlineQueue} from "../sincManager/offlineQueue";
 import {canEdit, canDelete} from "../utils/permissionUtils";
 import {undoManager} from "../controller/undoManager";
+import {onboardingManager} from "../onboarding";
 
 /**
  * Экранирует специальные символы RegExp в строке
@@ -87,9 +88,17 @@ export class LocalStateManager {
         });
 
         window.addEventListener('InitAnonimUser', async () => {
-            const publicTreeBlocks = await api.getTreeBlocks();
-            await this.initUser(publicTreeBlocks, 'anonim');
-            dispatch('ShowBlocks');
+            // Проверяем, нужен ли туториал для нового пользователя
+            const tutorialData = onboardingManager.getTutorialData();
+            if (tutorialData) {
+                await this.initUser(tutorialData, 'anonim');
+                dispatch('ShowBlocks');
+                dispatch('ShowOnboardingWelcome');
+            } else {
+                const publicTreeBlocks = await api.getTreeBlocks();
+                await this.initUser(publicTreeBlocks, 'anonim');
+                dispatch('ShowBlocks');
+            }
         });
 
         window.addEventListener('InitUser', async (e) => {
