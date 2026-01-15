@@ -6,7 +6,7 @@
  */
 
 import { onboardingManager } from './OnboardingManager';
-import { dispatch } from '../utils/utils';
+import { treeService } from '../services/treeService';
 
 class WelcomeBanner {
     constructor() {
@@ -182,9 +182,9 @@ class WelcomeBanner {
      */
     _handleStart() {
         this.hide();
-        // Переключаемся на туториальное дерево по treeId
-        // tutorialGraph генерирует корень с ID 'tutorial-root'
-        dispatch('SwitchTree', { treeId: 'tutorial-root' });
+        // Переключаемся на туториальное дерево (index 2 = второе дерево)
+        // Для нового пользователя: [userRoot, tutorialRoot], поэтому туториал — index 2 (1-based)
+        treeService.switchTreeByIndex(2);
         // Показываем подсказку
         onboardingManager.showHint(
             'Это обучающее дерево. Изучите разделы и вернитесь в "Мои заметки" (Space+0)',
