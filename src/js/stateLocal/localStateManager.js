@@ -103,6 +103,11 @@ export class LocalStateManager {
                 // Добавляем туториальные блоки к данным с бэкенда
                 const tutorialData = onboardingManager.getTutorialData();
                 if (tutorialData) {
+                    // NOTE: Туториальные блоки — это локальная демо-структура.
+                    // Они НЕ синхронизируются с backend и НЕ передаются через WebSocket.
+                    // Это сделано намеренно: туториал — одноразовый гайд для знакомства с интерфейсом.
+                    // При dismissTutorial() или completeOnboarding() они больше не загружаются.
+
                     // Объединяем деревья: сначала с бэкенда, потом туториал
                     const mergedTreeIds = [...treeBlocks.treeIds, ...tutorialData.treeIds];
                     // Объединяем блоки

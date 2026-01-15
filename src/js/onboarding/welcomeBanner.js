@@ -6,11 +6,34 @@
  */
 
 import { onboardingManager } from './OnboardingManager';
+import { dispatch } from '../utils/utils';
 
 class WelcomeBanner {
     constructor() {
         this._element = null;
         this._isVisible = false;
+        this._boundShow = null;
+    }
+
+    /**
+     * Инициализация: подписка на событие показа баннера
+     * Вызывается из OnboardingManager.init()
+     */
+    init() {
+        if (this._boundShow) return; // уже инициализирован
+        this._boundShow = () => this.show();
+        window.addEventListener('ShowOnboardingWelcome', this._boundShow);
+    }
+
+    /**
+     * Очистка ресурсов
+     */
+    destroy() {
+        if (this._boundShow) {
+            window.removeEventListener('ShowOnboardingWelcome', this._boundShow);
+            this._boundShow = null;
+        }
+        this.hide();
     }
 
     /**
@@ -159,10 +182,9 @@ class WelcomeBanner {
      */
     _handleStart() {
         this.hide();
-        // Переключаемся на туториальное дерево (Space+1)
-        import('../utils/utils').then(({ dispatch }) => {
-            dispatch('SwitchTree', { index: 1 });
-        });
+        // Переключаемся на туториальное дерево по treeId
+        // tutorialGraph генерирует корень с ID 'tutorial-root'
+        dispatch('SwitchTree', { treeId: 'tutorial-root' });
         // Показываем подсказку
         onboardingManager.showHint(
             'Это обучающее дерево. Изучите разделы и вернитесь в "Мои заметки" (Space+0)',
@@ -182,8 +204,3 @@ class WelcomeBanner {
 
 // Singleton экземпляр
 export const welcomeBanner = new WelcomeBanner();
-
-// Подписываемся на событие показа баннера
-window.addEventListener('ShowOnboardingWelcome', () => {
-    welcomeBanner.show();
-});

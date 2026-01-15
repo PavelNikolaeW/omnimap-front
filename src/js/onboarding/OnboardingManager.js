@@ -10,6 +10,7 @@
 import { dispatch } from '../utils/utils';
 import { CONTEXTUAL_HINTS } from './hints';
 import { getTutorialBlocks } from './tutorialGraph';
+import { welcomeBanner } from './welcomeBanner';
 
 /**
  * Ключи для localStorage
@@ -26,6 +27,7 @@ class OnboardingManager {
         this._shownHints = new Set();
         this._hintElement = null;
         this._hintTimeout = null;
+        this._eventHandlers = [];
     }
 
     /**
@@ -41,6 +43,9 @@ class OnboardingManager {
 
         // Подписываемся на события для контекстных подсказок
         this._subscribeToEvents();
+
+        // Инициализируем welcome banner
+        welcomeBanner.init();
 
         console.log('[OnboardingManager] initialized');
     }
@@ -168,10 +173,34 @@ class OnboardingManager {
      */
     _subscribeToEvents() {
         Object.entries(CONTEXTUAL_HINTS).forEach(([hintId, config]) => {
-            window.addEventListener(config.trigger, (e) => {
-                this._handleHintTrigger(hintId, config, e.detail);
-            });
+            const handler = (e) => this._handleHintTrigger(hintId, config, e.detail);
+            this._eventHandlers.push({ event: config.trigger, handler });
+            window.addEventListener(config.trigger, handler);
         });
+    }
+
+    /**
+     * Очистка ресурсов (event listeners, DOM элементы)
+     * Вызывать при logout или при необходимости полного сброса
+     */
+    destroy() {
+        // Удаляем все event listeners
+        this._eventHandlers.forEach(({ event, handler }) => {
+            window.removeEventListener(event, handler);
+        });
+        this._eventHandlers = [];
+
+        // Очищаем welcome banner
+        welcomeBanner.destroy();
+
+        // Удаляем DOM элемент подсказки
+        if (this._hintElement && this._hintElement.parentNode) {
+            this._hintElement.parentNode.removeChild(this._hintElement);
+        }
+        this._hintElement = null;
+
+        // Сбрасываем флаг инициализации
+        this._initialized = false;
     }
 
     /**
