@@ -13,6 +13,7 @@ import {offlineQueue} from "../sincManager/offlineQueue";
 import {canEdit, canDelete} from "../utils/permissionUtils";
 import {undoManager} from "../controller/undoManager";
 import {onboardingManager} from "../onboarding";
+import {checkAndInitializeOnboarding} from "../services/homePageInitializer";
 
 /**
  * Экранирует специальные символы RegExp в строке
@@ -97,34 +98,38 @@ export class LocalStateManager {
 
         window.addEventListener('InitUser', async (e) => {
             const treeBlocks = await api.getTreeBlocks();
+            const isNewUser = onboardingManager.isNewUser();
 
-            // Проверяем, нужен ли туториал для нового пользователя
-            if (onboardingManager.isNewUser()) {
-                // Добавляем туториальные блоки к данным с бэкенда
+            // Для нового пользователя: добавляем туториальные блоки
+            if (isNewUser) {
                 const tutorialData = onboardingManager.getTutorialData();
                 if (tutorialData) {
                     // NOTE: Туториальные блоки — это локальная демо-структура.
                     // Они НЕ синхронизируются с backend и НЕ передаются через WebSocket.
                     // Это сделано намеренно: туториал — одноразовый гайд для знакомства с интерфейсом.
-                    // При dismissTutorial() или completeOnboarding() они больше не загружаются.
 
                     // Объединяем деревья: сначала с бэкенда, потом туториал
                     const mergedTreeIds = [...treeBlocks.treeIds, ...tutorialData.treeIds];
-                    // Объединяем блоки
                     tutorialData.blocks.forEach((block, id) => {
                         treeBlocks.blocks.set(id, block);
                     });
                     treeBlocks.treeIds = mergedTreeIds;
-
-                    await this.initUser(treeBlocks, e.detail.user);
-                    dispatch('ShowBlocks');
-                    dispatch('ShowOnboardingWelcome');
-                    return;
                 }
             }
 
             await this.initUser(treeBlocks, e.detail.user);
+
+            // Создаём начальную структуру Home Page для новых пользователей (через API)
+            if (this.currentTree) {
+                await checkAndInitializeOnboarding(this.currentTree, this.blocks);
+            }
+
             dispatch('ShowBlocks');
+
+            // Показываем welcome баннер для новых пользователей
+            if (isNewUser) {
+                dispatch('ShowOnboardingWelcome');
+            }
         });
 
         window.addEventListener('LoadTrees', async (e) => {

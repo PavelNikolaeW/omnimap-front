@@ -195,6 +195,35 @@ class Api {
         delete this.api.defaults.headers.common['Authorization'];
     }
 
+    /**
+     * Получить статус онбординга пользователя
+     * @returns {Promise<{onboarding_completed: boolean}>}
+     */
+    async getOnboardingStatus() {
+        try {
+            const response = await this.api.get('/onboarding/status/');
+            return response.data;
+        } catch (error) {
+            console.error('Failed to get onboarding status:', error);
+            // По умолчанию считаем что онбординг завершён (для старых пользователей)
+            return { onboarding_completed: true };
+        }
+    }
+
+    /**
+     * Пометить онбординг как завершённый
+     * @returns {Promise<boolean>}
+     */
+    async completeOnboarding() {
+        try {
+            await this.api.post('/onboarding/status/');
+            return true;
+        } catch (error) {
+            console.error('Failed to complete onboarding:', error);
+            return false;
+        }
+    }
+
     async createBlock(parentId, title = '', data = {}) {
         return await this.api.post(`new-block/${parentId}/`, {title, data})
     }

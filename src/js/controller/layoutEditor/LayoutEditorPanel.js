@@ -195,6 +195,31 @@ const PRESET_CONFIG = {
             '│ Q3 │ Q4   │',
             '└───────────┘'
         ]
+    },
+    'home': {
+        maxBlocks: 6,
+        minBlocks: 0,
+        description: 'Начальная страница экзокортекса',
+        category: 'special',
+        label: 'Home',
+        preview: [
+            '┌──┬─────┐',
+            '├──┴──┬──┤',
+            '├─────┴──┤',
+            '└────────┘'
+        ]
+    },
+    'areas': {
+        maxBlocks: 8,
+        minBlocks: 0,
+        description: '8 областей ответственности (2×4)',
+        category: 'special',
+        label: 'Areas',
+        preview: [
+            '┌──┬──┬──┬──┐',
+            '├──┼──┼──┼──┤',
+            '└──┴──┴──┴──┘'
+        ]
     }
 };
 
@@ -1404,6 +1429,16 @@ export class LayoutEditorPanel extends Popup {
                 result = this.generateCalendarCellsWithPlaceholders(childOrder);
                 break;
 
+            case 'home':
+                this.gridSize = { rows: 4, cols: 12 };
+                result = this.generateHomePageCellsWithPlaceholders(childOrder);
+                break;
+
+            case 'areas':
+                this.gridSize = { rows: 2, cols: 4 };
+                result = this.generateAreasCellsWithPlaceholders(childOrder);
+                break;
+
             default:
                 return;
         }
@@ -1748,6 +1783,140 @@ export class LayoutEditorPanel extends Popup {
             const row = Math.floor((i - positions.length) / 3) + 4;
             const col = ((i - positions.length) % 3) * 4 + 1;
             cells[childOrder[i]] = { row, col, rowSpan: 1, colSpan: 4 };
+        }
+
+        return { cells, placeholders };
+    }
+
+    /**
+     * Генерирует ячейки для Home Page пресета с placeholders
+     * Структура: Inbox, Focus, Projects, Spaces, Areas, Archive
+     */
+    generateHomePageCellsWithPlaceholders(childOrder) {
+        const cells = {};
+        const placeholders = [];
+
+        // Позиции для Home Page (6 блоков)
+        const positions = [
+            {
+                row: 1, col: 1, rowSpan: 1, colSpan: 4,
+                label: 'Inbox',
+                role: 'inbox',
+                color: '#fef3c7',
+                borderColor: '#f59e0b',
+                description: 'Точка захвата — сюда падает всё новое'
+            },
+            {
+                row: 1, col: 5, rowSpan: 1, colSpan: 8,
+                label: 'Focus',
+                role: 'focus',
+                color: '#dbeafe',
+                borderColor: '#3b82f6',
+                description: 'Текущий контекст и закреплённые блоки'
+            },
+            {
+                row: 2, col: 1, rowSpan: 1, colSpan: 6,
+                label: 'Projects',
+                role: 'projects',
+                color: '#dcfce7',
+                borderColor: '#22c55e',
+                description: 'Активные проекты с конечной целью'
+            },
+            {
+                row: 2, col: 7, rowSpan: 1, colSpan: 6,
+                label: 'Spaces',
+                role: 'spaces',
+                color: '#fce7f3',
+                borderColor: '#ec4899',
+                description: 'Общие пространства (команды, семья)'
+            },
+            {
+                row: 3, col: 1, rowSpan: 1, colSpan: 12,
+                label: 'Areas',
+                role: 'areas',
+                color: '#e0e7ff',
+                borderColor: '#6366f1',
+                description: 'Долгосрочные области ответственности'
+            },
+            {
+                row: 4, col: 1, rowSpan: 1, colSpan: 12,
+                label: 'Archive',
+                role: 'archive',
+                color: '#f3f4f6',
+                borderColor: '#9ca3af',
+                description: 'Завершённые проекты и устаревшее'
+            }
+        ];
+
+        for (let i = 0; i < positions.length; i++) {
+            const pos = positions[i];
+            if (i < childOrder.length) {
+                cells[childOrder[i]] = { row: pos.row, col: pos.col, rowSpan: pos.rowSpan, colSpan: pos.colSpan };
+            } else {
+                placeholders.push({
+                    row: pos.row, col: pos.col, rowSpan: pos.rowSpan, colSpan: pos.colSpan,
+                    blockId: generateBlockId(),
+                    text: pos.label,
+                    data: {
+                        text: pos.label,
+                        homePageRole: pos.role,
+                        style: {
+                            backgroundColor: pos.color,
+                            borderColor: pos.borderColor
+                        }
+                    }
+                });
+            }
+        }
+
+        return { cells, placeholders };
+    }
+
+    /**
+     * Генерирует ячейки для Areas пресета с placeholders
+     * 8 областей ответственности в сетке 2×4
+     */
+    generateAreasCellsWithPlaceholders(childOrder) {
+        const cells = {};
+        const placeholders = [];
+
+        // 8 областей ответственности с цветами
+        const areas = [
+            { label: 'Self', labelRu: 'Я', icon: '🧠', color: '#8B5CF6', description: 'Личность, развитие, смыслы' },
+            { label: 'Relationships', labelRu: 'Отношения', icon: '👥', color: '#EC4899', description: 'Семья, друзья, сообщества' },
+            { label: 'Work', labelRu: 'Работа', icon: '💼', color: '#3B82F6', description: 'Карьера, навыки, нетворк' },
+            { label: 'Finance', labelRu: 'Финансы', icon: '💰', color: '#10B981', description: 'Доходы, расходы, накопления' },
+            { label: 'Environment', labelRu: 'Среда', icon: '🏠', color: '#A16207', description: 'Дом, вещи, цифровое' },
+            { label: 'Energy', labelRu: 'Энергия', icon: '⚡', color: '#F97316', description: 'Сон, питание, движение' },
+            { label: 'Creation', labelRu: 'Творчество', icon: '🎨', color: '#14B8A6', description: 'Хобби, проекты для души' },
+            { label: 'World', labelRu: 'Мир', icon: '🌍', color: '#6366F1', description: 'Позиция, вклад, экология' }
+        ];
+
+        // Сетка 2×4
+        for (let i = 0; i < areas.length; i++) {
+            const area = areas[i];
+            const row = Math.floor(i / 4) + 1;
+            const col = (i % 4) + 1;
+            const position = { row, col, rowSpan: 1, colSpan: 1 };
+
+            if (i < childOrder.length) {
+                cells[childOrder[i]] = position;
+            } else {
+                placeholders.push({
+                    ...position,
+                    blockId: generateBlockId(),
+                    text: `${area.icon} ${area.labelRu}`,
+                    data: {
+                        text: `${area.icon} ${area.labelRu}`,
+                        areaType: area.label.toLowerCase(),
+                        areaIcon: area.icon,
+                        style: {
+                            backgroundColor: area.color + '20',  // 12% opacity
+                            borderColor: area.color
+                        }
+                    }
+                });
+            }
         }
 
         return { cells, placeholders };
