@@ -19,6 +19,7 @@ import '../style/layout.css';
 import '../style/p2p-chat.css';
 import '../style/diagram-editor.css';
 import '../style/layout-editor.css';
+import '../style/onboarding.css';
 
 import {dispatch} from "./utils/utils";
 import {localStateManager} from "./stateLocal/localStateManager";
@@ -39,6 +40,7 @@ import {statusIndicators} from "./core/statusIndicators";
 import {initDevCacheManager} from "./core/devCacheManager";
 import {chatBadgeManager} from "./controller/chatBadgeManager";
 import {handleChatDeepLink, initChatEventListeners} from "./controller/chatDeepLinkHandler";
+import {onboardingManager} from "./onboarding";
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
     // Храним ссылку на updatefound handler для возможности cleanup
@@ -238,6 +240,9 @@ async function fastInitialization() {
 
     // Инициализируем authStateManager после localforage
     await authStateManager.init();
+
+    // Инициализируем онбординг для новых пользователей
+    onboardingManager.init();
 
     // Запрашиваем persistent storage в фоне
     if ('storage' in navigator && 'persist' in navigator.storage) {
