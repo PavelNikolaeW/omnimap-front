@@ -212,6 +212,26 @@ export async function initializeHomePage(rootBlockId, onProgress = null) {
 
         console.log('HomePageInitializer: Generated', blocks.length, 'blocks');
 
+        // DEBUG: Проверяем что Areas блок имеет layoutCells
+        const areasBlock = blocks.find(b => b.data?.homePageRole === 'areas');
+        if (areasBlock) {
+            console.log('HomePageInitializer: Areas block data:', {
+                id: areasBlock.id,
+                hasLayoutCells: !!areasBlock.data?.layoutCells,
+                hasChildOrder: !!areasBlock.data?.childOrder,
+                childOrderLength: areasBlock.data?.childOrder?.length,
+                layoutCells: areasBlock.data?.layoutCells
+            });
+        }
+
+        // DEBUG: Проверяем rootBlockUpdate
+        console.log('HomePageInitializer: Root block update:', {
+            hasLayoutCells: !!rootBlockUpdate.data?.layoutCells,
+            gridSize: rootBlockUpdate.data?.layoutCells?.gridSize,
+            presetType: rootBlockUpdate.data?.layoutCells?.presetType,
+            cellsCount: Object.keys(rootBlockUpdate.data?.layoutCells?.cells || {}).length
+        });
+
         // Импортируем блоки
         const { task_id } = await importBlocks(blocks);
 
