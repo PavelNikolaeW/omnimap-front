@@ -12,7 +12,6 @@ import {treeValidator} from "./treeValidator";
 import {offlineQueue} from "../sincManager/offlineQueue";
 import {canEdit, canDelete, canCreateInSandbox, canDeleteInSandbox, canEditInSandbox, isInSandbox} from "../utils/permissionUtils";
 import {undoManager} from "../controller/undoManager";
-import {onboardingManager} from "../onboarding";
 import {checkAndInitializeOnboarding} from "../services/homePageInitializer";
 
 /**
@@ -101,38 +100,21 @@ export class LocalStateManager {
 
         window.addEventListener('InitUser', async (e) => {
             const treeBlocks = await api.getTreeBlocks();
-            const isNewUser = onboardingManager.isNewUser();
-
-            // Для нового пользователя: добавляем туториальные блоки
-            if (isNewUser) {
-                const tutorialData = onboardingManager.getTutorialData();
-                if (tutorialData) {
-                    // NOTE: Туториальные блоки — это локальная демо-структура.
-                    // Они НЕ синхронизируются с backend и НЕ передаются через WebSocket.
-                    // Это сделано намеренно: туториал — одноразовый гайд для знакомства с интерфейсом.
-
-                    // Объединяем деревья: сначала с бэкенда, потом туториал
-                    const mergedTreeIds = [...treeBlocks.treeIds, ...tutorialData.treeIds];
-                    tutorialData.blocks.forEach((block, id) => {
-                        treeBlocks.blocks.set(id, block);
-                    });
-                    treeBlocks.treeIds = mergedTreeIds;
-                }
-            }
+            const hadNoBlocks = treeBlocks.treeIds.length === 0 ||
+                (treeBlocks.treeIds.length === 1 && !treeBlocks.blocks.get(treeBlocks.treeIds[0])?.data?.childOrder?.length);
 
             await this.initUser(treeBlocks, e.detail.user);
 
-            // Создаём начальную структуру Home Page для новых пользователей (через API)
+            // Создаём начальную структуру для новых пользователей (Home Page + Tutorial через API)
             if (this.currentTree) {
                 await checkAndInitializeOnboarding(this.currentTree, this.blocks);
             }
 
             // Для новых пользователей перезагружаем блоки с сервера,
-            // т.к. home page блоки созданы через API и ещё не в локальном state
-            if (isNewUser) {
+            // т.к. блоки созданы через API и ещё не в локальном state
+            if (hadNoBlocks) {
                 dispatch('LoadTrees');
                 // Показываем welcome баннер после загрузки блоков
-                // Небольшая задержка чтобы блоки успели отрисоваться
                 setTimeout(() => {
                     dispatch('ShowOnboardingWelcome');
                 }, 500);
@@ -143,20 +125,6 @@ export class LocalStateManager {
 
         window.addEventListener('LoadTrees', async (e) => {
             const treeBlocks = await api.getTreeBlocks();
-
-            // Для новых пользователей добавляем туториальные блоки
-            // (они хранятся только локально, не на сервере)
-            const isNewUser = onboardingManager.isNewUser();
-            if (isNewUser) {
-                const tutorialData = onboardingManager.getTutorialData();
-                if (tutorialData) {
-                    // Объединяем: сначала с сервера, потом туториал
-                    treeBlocks.treeIds = [...treeBlocks.treeIds, ...tutorialData.treeIds];
-                    tutorialData.blocks.forEach((block, id) => {
-                        treeBlocks.blocks.set(id, block);
-                    });
-                }
-            }
 
             // Обновляем treeIds в localforage
             if (this.currentUser) {
@@ -211,6 +179,7 @@ export class LocalStateManager {
         window.addEventListener('Login', async (e) => {
             const treeBlocks = await api.getTreeBlocks();
             console.log(treeBlocks)
+
             await this.initUser(treeBlocks, e.detail.user);
             dispatch('ShowBlocks');
             const sidebar = document.getElementById('sidebar')
