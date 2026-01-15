@@ -2016,6 +2016,12 @@ export class LayoutEditorPanel extends Popup {
 
         this.cellManager = null;
 
+        // Сбрасываем текущую команду на openBlock,
+        // чтобы клики по блокам снова открывали блоки, а не редактор
+        if (this.ctx) {
+            this.ctx.setCmd('openBlock');
+        }
+
         // Очищаем singleton
         currentInstance = null;
 
