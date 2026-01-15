@@ -2583,15 +2583,12 @@ export class LocalStateManager {
         // Сохраняем состояние ДО изменения для undo (deep clone)
         const beforeState = JSON.parse(JSON.stringify(block));
 
-        // Мержим новые data с существующими (сохраняем childOrder и connections)
-        const preservedFields = {
-            childOrder: block.data?.childOrder,
-            connections: block.data?.connections
-        };
+        // Мержим новые data с существующими
+        // childOrder и connections: используем переданные если есть, иначе сохраняем существующие
         block.data = {
             ...data,
-            childOrder: preservedFields.childOrder,
-            connections: preservedFields.connections
+            childOrder: data.childOrder !== undefined ? data.childOrder : block.data?.childOrder,
+            connections: data.connections !== undefined ? data.connections : block.data?.connections
         };
         block.updated_at = new Date().toISOString();
         await this.saveBlock(block);

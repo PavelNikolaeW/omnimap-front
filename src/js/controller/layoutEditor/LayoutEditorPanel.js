@@ -170,18 +170,6 @@ const PRESET_CONFIG = {
             '└────┴──┘'
         ]
     },
-    'calendar': {
-        maxBlocks: 35,
-        minBlocks: 0,
-        description: 'Календарь на месяц (5 недель)',
-        category: 'special',
-        label: 'Календарь',
-        preview: [
-            '┌─┬─┬─┬─┬─┬─┬─┐',
-            '├─┼─┼─┼─┼─┼─┼─┤',
-            '└─┴─┴─┴─┴─┴─┴─┘'
-        ]
-    },
     'year-calendar': {
         maxBlocks: null,
         minBlocks: 0,
@@ -199,14 +187,19 @@ const PRESET_CONFIG = {
     'home': {
         maxBlocks: 6,
         minBlocks: 0,
-        description: 'Начальная страница экзокортекса',
+        description: 'Начальная страница экзокортекса (9×7)',
         category: 'special',
         label: 'Home',
         preview: [
-            '┌──┬─────┐',
-            '├──┴──┬──┤',
-            '├─────┴──┤',
-            '└────────┘'
+            '┌────┬───┐',
+            '│    │ F │',
+            '│    ├───┤',
+            '│ In │ P │',
+            '│    ├───┤',
+            '│    │ A │',
+            '│    ├───┤',
+            '│    │S│A│',
+            '└────┴───┘'
         ]
     },
     'areas': {
@@ -1424,13 +1417,8 @@ export class LayoutEditorPanel extends Popup {
                 result = this.generateGalleryCellsWithPlaceholders(childOrder);
                 break;
 
-            case 'calendar':
-                this.gridSize = { rows: 5, cols: 7 };
-                result = this.generateCalendarCellsWithPlaceholders(childOrder);
-                break;
-
             case 'home':
-                this.gridSize = { rows: 4, cols: 12 };
+                this.gridSize = { rows: 9, cols: 7 };
                 result = this.generateHomePageCellsWithPlaceholders(childOrder);
                 break;
 
@@ -1674,76 +1662,6 @@ export class LayoutEditorPanel extends Popup {
     }
 
     /**
-     * Генерирует ячейки для календаря с placeholders
-     * Создаёт блоки с актуальными датами текущего месяца
-     */
-    generateCalendarCellsWithPlaceholders(childOrder) {
-        const cells = {};
-        const placeholders = [];
-
-        // Получаем первый день текущего месяца
-        const today = new Date();
-        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-        const startDayOfWeek = firstDay.getDay(); // 0 = воскресенье
-
-        // Сдвиг для начала с понедельника (0 = пн, 6 = вс)
-        const mondayOffset = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
-
-        // Количество дней в месяце
-        const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-
-        // Названия месяцев
-        const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-                           'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-        const monthName = monthNames[today.getMonth()];
-
-        let blockIndex = 0;
-        const daysNeeded = 35; // 5 недель × 7 дней
-
-        for (let i = 0; i < daysNeeded; i++) {
-            const row = Math.floor(i / 7) + 1;
-            const col = (i % 7) + 1;
-            const position = { row, col, rowSpan: 1, colSpan: 1 };
-
-            // Вычисляем день месяца
-            const dayNum = i - mondayOffset + 1;
-            const isValidDay = dayNum >= 1 && dayNum <= daysInMonth;
-            const isWeekend = col === 6 || col === 7; // Сб, Вс
-            const isToday = isValidDay && dayNum === today.getDate();
-
-            if (blockIndex < childOrder.length) {
-                cells[childOrder[blockIndex]] = position;
-                blockIndex++;
-            } else {
-                // Создаём placeholder с полными данными
-                const blockId = generateBlockId();
-                const dayText = isValidDay ? `${dayNum}` : '';
-                const fullDate = isValidDay
-                    ? `${dayNum} ${monthName}`
-                    : '';
-
-                placeholders.push({
-                    ...position,
-                    blockId,
-                    text: dayText,
-                    data: {
-                        text: fullDate,
-                        calendarDay: isValidDay ? dayNum : null,
-                        calendarMonth: today.getMonth() + 1,
-                        calendarYear: today.getFullYear(),
-                        isWeekend,
-                        isToday,
-                        // Цвета выходных вычисляются автоматически в CalcColor.applyWeekendShift()
-                        // isToday подсвечивается через CSS [data-calendar-today]
-                    }
-                });
-            }
-        }
-
-        return { cells, placeholders };
-    }
-
-    /**
      * Генерирует ячейки для dashboard пресета с placeholders
      */
     generateDashboardCellsWithPlaceholders(childOrder) {
@@ -1790,7 +1708,9 @@ export class LayoutEditorPanel extends Popup {
 
     /**
      * Генерирует ячейки для Home Page пресета с placeholders
-     * Структура: Inbox, Focus, Projects, Spaces, Areas, Archive
+     * Структура: Inbox (большой слева), справа в столбик: Focus, Projects, Areas, Spaces, Archive
+     * Сетка: 9 строк × 7 колонок
+     * Высота справа: 2+2+2+2+1
      */
     generateHomePageCellsWithPlaceholders(childOrder) {
         const cells = {};
@@ -1799,7 +1719,7 @@ export class LayoutEditorPanel extends Popup {
         // Позиции для Home Page (6 блоков)
         const positions = [
             {
-                row: 1, col: 1, rowSpan: 1, colSpan: 4,
+                row: 1, col: 1, rowSpan: 9, colSpan: 4,
                 label: 'Inbox',
                 role: 'inbox',
                 color: '#fef3c7',
@@ -1807,7 +1727,7 @@ export class LayoutEditorPanel extends Popup {
                 description: 'Точка захвата — сюда падает всё новое'
             },
             {
-                row: 1, col: 5, rowSpan: 1, colSpan: 8,
+                row: 1, col: 5, rowSpan: 2, colSpan: 3,
                 label: 'Focus',
                 role: 'focus',
                 color: '#dbeafe',
@@ -1815,7 +1735,7 @@ export class LayoutEditorPanel extends Popup {
                 description: 'Текущий контекст и закреплённые блоки'
             },
             {
-                row: 2, col: 1, rowSpan: 1, colSpan: 6,
+                row: 3, col: 5, rowSpan: 2, colSpan: 3,
                 label: 'Projects',
                 role: 'projects',
                 color: '#dcfce7',
@@ -1823,15 +1743,7 @@ export class LayoutEditorPanel extends Popup {
                 description: 'Активные проекты с конечной целью'
             },
             {
-                row: 2, col: 7, rowSpan: 1, colSpan: 6,
-                label: 'Spaces',
-                role: 'spaces',
-                color: '#fce7f3',
-                borderColor: '#ec4899',
-                description: 'Общие пространства (команды, семья)'
-            },
-            {
-                row: 3, col: 1, rowSpan: 1, colSpan: 12,
+                row: 5, col: 5, rowSpan: 2, colSpan: 3,
                 label: 'Areas',
                 role: 'areas',
                 color: '#e0e7ff',
@@ -1839,7 +1751,15 @@ export class LayoutEditorPanel extends Popup {
                 description: 'Долгосрочные области ответственности'
             },
             {
-                row: 4, col: 1, rowSpan: 1, colSpan: 12,
+                row: 7, col: 5, rowSpan: 2, colSpan: 3,
+                label: 'Spaces',
+                role: 'spaces',
+                color: '#fce7f3',
+                borderColor: '#ec4899',
+                description: 'Общие пространства (команды, семья)'
+            },
+            {
+                row: 9, col: 5, rowSpan: 1, colSpan: 3,
                 label: 'Archive',
                 role: 'archive',
                 color: '#f3f4f6',
@@ -1880,16 +1800,16 @@ export class LayoutEditorPanel extends Popup {
         const cells = {};
         const placeholders = [];
 
-        // 8 областей ответственности с цветами
+        // 8 областей ответственности с цветами и подсказками
         const areas = [
-            { label: 'Self', labelRu: 'Я', icon: '🧠', color: '#8B5CF6', description: 'Личность, развитие, смыслы' },
-            { label: 'Relationships', labelRu: 'Отношения', icon: '👥', color: '#EC4899', description: 'Семья, друзья, сообщества' },
-            { label: 'Work', labelRu: 'Работа', icon: '💼', color: '#3B82F6', description: 'Карьера, навыки, нетворк' },
-            { label: 'Finance', labelRu: 'Финансы', icon: '💰', color: '#10B981', description: 'Доходы, расходы, накопления' },
-            { label: 'Environment', labelRu: 'Среда', icon: '🏠', color: '#A16207', description: 'Дом, вещи, цифровое' },
-            { label: 'Energy', labelRu: 'Энергия', icon: '⚡', color: '#F97316', description: 'Сон, питание, движение' },
-            { label: 'Creation', labelRu: 'Творчество', icon: '🎨', color: '#14B8A6', description: 'Хобби, проекты для души' },
-            { label: 'World', labelRu: 'Мир', icon: '🌍', color: '#6366F1', description: 'Позиция, вклад, экология' }
+            { label: 'Self', labelRu: 'Я', color: '#8B5CF6', hint: 'Личность, развитие, цели, ценности, привычки, обучение' },
+            { label: 'Relationships', labelRu: 'Отношения', color: '#EC4899', hint: 'Семья, друзья, коллеги, сообщества, нетворкинг' },
+            { label: 'Work', labelRu: 'Работа', color: '#3B82F6', hint: 'Карьера, навыки, должность, задачи, коллеги' },
+            { label: 'Finance', labelRu: 'Финансы', color: '#10B981', hint: 'Доходы, расходы, бюджет, инвестиции, накопления' },
+            { label: 'Environment', labelRu: 'Среда', color: '#A16207', hint: 'Дом, вещи, пространство, цифровые инструменты' },
+            { label: 'Energy', labelRu: 'Энергия', color: '#F97316', hint: 'Здоровье, сон, питание, спорт, отдых, энергия' },
+            { label: 'Creation', labelRu: 'Творчество', color: '#14B8A6', hint: 'Хобби, идеи, проекты для души, самовыражение' },
+            { label: 'World', labelRu: 'Мир', color: '#6366F1', hint: 'Общество, экология, волонтёрство, вклад в мир' }
         ];
 
         // Сетка 2×4
@@ -1905,11 +1825,10 @@ export class LayoutEditorPanel extends Popup {
                 placeholders.push({
                     ...position,
                     blockId: generateBlockId(),
-                    text: `${area.icon} ${area.labelRu}`,
+                    text: area.labelRu,
                     data: {
-                        text: `${area.icon} ${area.labelRu}`,
+                        text: area.hint,
                         areaType: area.label.toLowerCase(),
-                        areaIcon: area.icon,
                         style: {
                             backgroundColor: area.color + '20',  // 12% opacity
                             borderColor: area.color
