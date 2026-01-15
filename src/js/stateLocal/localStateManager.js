@@ -103,6 +103,27 @@ export class LocalStateManager {
 
         window.addEventListener('InitUser', async (e) => {
             const treeBlocks = await api.getTreeBlocks();
+
+            // Проверяем, нужен ли туториал для нового пользователя
+            if (onboardingManager.isNewUser()) {
+                // Добавляем туториальные блоки к данным с бэкенда
+                const tutorialData = onboardingManager.getTutorialData();
+                if (tutorialData) {
+                    // Объединяем деревья: сначала с бэкенда, потом туториал
+                    const mergedTreeIds = [...treeBlocks.treeIds, ...tutorialData.treeIds];
+                    // Объединяем блоки
+                    tutorialData.blocks.forEach((block, id) => {
+                        treeBlocks.blocks.set(id, block);
+                    });
+                    treeBlocks.treeIds = mergedTreeIds;
+
+                    await this.initUser(treeBlocks, e.detail.user);
+                    dispatch('ShowBlocks');
+                    dispatch('ShowOnboardingWelcome');
+                    return;
+                }
+            }
+
             await this.initUser(treeBlocks, e.detail.user);
             dispatch('ShowBlocks');
         });
