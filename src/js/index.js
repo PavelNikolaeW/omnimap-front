@@ -443,6 +443,21 @@ function setInterface() {
             e.preventDefault();
         }
     });
+
+    // Сбрасываем выделение при обычном клике (не при выделении)
+    let lastSelectionLength = 0;
+    document.addEventListener('click', (e) => {
+        const sel = window.getSelection();
+        const currentLength = sel?.toString().trim().length || 0;
+
+        // Если выделение не изменилось или уменьшилось - сбрасываем
+        // (при тройном клике выделение увеличивается)
+        if (currentLength > 0 && currentLength <= lastSelectionLength) {
+            sel.removeAllRanges();
+        }
+
+        lastSelectionLength = sel?.toString().trim().length || 0;
+    }, true); // capture phase - до других обработчиков
 })();
 
 

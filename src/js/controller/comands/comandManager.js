@@ -198,13 +198,6 @@ export class CommandManager {
                     return
                 }
             }
-            const selection = window.getSelection()
-            // позволяем выделять текст курсором
-            if (selection && (selection.toString().trim().length > 0 || this.selectedText.length > 0)) {
-                this.selectedText = selection.toString().trim()
-                return
-            }
-
             // Проверка на режим выбора блока-диаграммы
             if (uiManager.isPendingDiagramSelection()) {
                 const {element, link} = this.ctxManager.getRelevantElements(target)
@@ -233,18 +226,31 @@ export class CommandManager {
             }
             this.ctxManager.isTree = false
 
-            // Клик на текстовый элемент - откладываем открытие для проверки выделения (тройной клик)
+            // Клик на текстовый элемент - проверяем выделение
             const isTextElement = target.closest('titleblock, contentblock')
             if (isTextElement) {
+                const selectionBefore = window.getSelection()?.toString().trim() || ''
+
                 setTimeout(() => {
                     const sel = window.getSelection()
-                    if (sel && sel.toString().trim().length > 0) {
-                        this.selectedText = sel.toString().trim()
+                    const selectionAfter = sel?.toString().trim() || ''
+
+                    // Если выделение увеличилось - это тройной клик, сохраняем
+                    if (selectionAfter.length > selectionBefore.length) {
+                        this.selectedText = selectionAfter
                         return
                     }
+
+                    // Иначе сбрасываем выделение и открываем блок
+                    if (sel) sel.removeAllRanges()
+                    this.selectedText = ''
                     this.executeCommand(this.ctxManager)
                 }, 10)
             } else {
+                // Сбрасываем выделение при клике вне текста
+                const sel = window.getSelection()
+                if (sel) sel.removeAllRanges()
+                this.selectedText = ''
                 this.executeCommand(this.ctxManager)
             }
         }
