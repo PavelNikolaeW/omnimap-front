@@ -15,49 +15,55 @@ import { dispatch } from '../utils/utils.js';
 /**
  * Конфигурация 6 блоков верхнего уровня Home Page
  */
+/**
+ * Конфигурация 6 блоков верхнего уровня Home Page
+ * Сетка: 9 строк × 7 колонок
+ * Inbox большой слева, справа в столбик: Focus, Projects, Areas, Spaces, Archive
+ * Высота справа: 2+2+2+2+1
+ */
 const HOME_PAGE_BLOCKS = [
     {
         label: 'Inbox',
         role: 'inbox',
         color: '#fef3c7',
         borderColor: '#f59e0b',
-        position: { row: 1, col: 1, rowSpan: 1, colSpan: 4 }
+        position: { row: 1, col: 1, rowSpan: 9, colSpan: 4 }
     },
     {
         label: 'Focus',
         role: 'focus',
         color: '#dbeafe',
         borderColor: '#3b82f6',
-        position: { row: 1, col: 5, rowSpan: 1, colSpan: 8 }
+        position: { row: 1, col: 5, rowSpan: 2, colSpan: 3 }
     },
     {
         label: 'Projects',
         role: 'projects',
         color: '#dcfce7',
         borderColor: '#22c55e',
-        position: { row: 2, col: 1, rowSpan: 1, colSpan: 6 }
-    },
-    {
-        label: 'Spaces',
-        role: 'spaces',
-        color: '#fce7f3',
-        borderColor: '#ec4899',
-        position: { row: 2, col: 7, rowSpan: 1, colSpan: 6 }
+        position: { row: 3, col: 5, rowSpan: 2, colSpan: 3 }
     },
     {
         label: 'Areas',
         role: 'areas',
         color: '#e0e7ff',
         borderColor: '#6366f1',
-        position: { row: 3, col: 1, rowSpan: 1, colSpan: 12 },
+        position: { row: 5, col: 5, rowSpan: 2, colSpan: 3 },
         hasChildren: true  // Пометка что внутри будут дочерние блоки
+    },
+    {
+        label: 'Spaces',
+        role: 'spaces',
+        color: '#fce7f3',
+        borderColor: '#ec4899',
+        position: { row: 7, col: 5, rowSpan: 2, colSpan: 3 }
     },
     {
         label: 'Archive',
         role: 'archive',
         color: '#f3f4f6',
         borderColor: '#9ca3af',
-        position: { row: 4, col: 1, rowSpan: 1, colSpan: 12 }
+        position: { row: 9, col: 5, rowSpan: 1, colSpan: 3 }
     }
 ];
 
@@ -65,14 +71,14 @@ const HOME_PAGE_BLOCKS = [
  * Конфигурация 8 областей ответственности
  */
 const AREAS_BLOCKS = [
-    { label: 'Self', labelRu: 'Я', icon: '🧠', color: '#8B5CF6' },
-    { label: 'Relationships', labelRu: 'Отношения', icon: '👥', color: '#EC4899' },
-    { label: 'Work', labelRu: 'Работа', icon: '💼', color: '#3B82F6' },
-    { label: 'Finance', labelRu: 'Финансы', icon: '💰', color: '#10B981' },
-    { label: 'Environment', labelRu: 'Среда', icon: '🏠', color: '#A16207' },
-    { label: 'Energy', labelRu: 'Энергия', icon: '⚡', color: '#F97316' },
-    { label: 'Creation', labelRu: 'Творчество', icon: '🎨', color: '#14B8A6' },
-    { label: 'World', labelRu: 'Мир', icon: '🌍', color: '#6366F1' }
+    { label: 'Self', labelRu: 'Я', color: '#8B5CF6', hint: 'Личность, развитие, цели, ценности, привычки, обучение' },
+    { label: 'Relationships', labelRu: 'Отношения', color: '#EC4899', hint: 'Семья, друзья, коллеги, сообщества, нетворкинг' },
+    { label: 'Work', labelRu: 'Работа', color: '#3B82F6', hint: 'Карьера, навыки, должность, задачи, коллеги' },
+    { label: 'Finance', labelRu: 'Финансы', color: '#10B981', hint: 'Доходы, расходы, бюджет, инвестиции, накопления' },
+    { label: 'Environment', labelRu: 'Среда', color: '#A16207', hint: 'Дом, вещи, пространство, цифровые инструменты' },
+    { label: 'Energy', labelRu: 'Энергия', color: '#F97316', hint: 'Здоровье, сон, питание, спорт, отдых, энергия' },
+    { label: 'Creation', labelRu: 'Творчество', color: '#14B8A6', hint: 'Хобби, идеи, проекты для души, самовыражение' },
+    { label: 'World', labelRu: 'Мир', color: '#6366F1', hint: 'Общество, экология, волонтёрство, вклад в мир' }
 ];
 
 /**
@@ -118,11 +124,10 @@ function generateHomePageStructure(rootBlockId) {
         blocks.push({
             id: blockId,
             parent_id: areasBlockId,
-            title: `${area.icon} ${area.labelRu}`,
+            title: area.labelRu,
             data: {
-                text: `${area.icon} ${area.labelRu}`,
+                text: area.hint,
                 areaType: area.label.toLowerCase(),
-                areaIcon: area.icon,
                 style: {
                     backgroundColor: area.color + '20',  // 12% opacity
                     borderColor: area.color
@@ -138,7 +143,7 @@ function generateHomePageStructure(rootBlockId) {
             layout: 'cells',
             childOrder: homePageChildOrder,
             layoutCells: {
-                gridSize: { rows: 4, cols: 12 },
+                gridSize: { rows: 9, cols: 7 },
                 presetType: 'home',
                 cells: {}
             }
