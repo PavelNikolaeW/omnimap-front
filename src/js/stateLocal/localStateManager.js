@@ -127,11 +127,17 @@ export class LocalStateManager {
                 await checkAndInitializeOnboarding(this.currentTree, this.blocks);
             }
 
-            dispatch('ShowBlocks');
-
-            // Показываем welcome баннер для новых пользователей
+            // Для новых пользователей перезагружаем блоки с сервера,
+            // т.к. home page блоки созданы через API и ещё не в локальном state
             if (isNewUser) {
-                dispatch('ShowOnboardingWelcome');
+                dispatch('LoadTrees');
+                // Показываем welcome баннер после загрузки блоков
+                // Небольшая задержка чтобы блоки успели отрисоваться
+                setTimeout(() => {
+                    dispatch('ShowOnboardingWelcome');
+                }, 500);
+            } else {
+                dispatch('ShowBlocks');
             }
         });
 
@@ -2206,11 +2212,14 @@ export class LocalStateManager {
 
     /**
      * Находит свободную позицию в layoutCells сетке
+     * Если нет свободного места - автоматически расширяет сетку на 1 строку
      * @param {Object} layoutCells - {gridSize, cells}
-     * @returns {{row: number, col: number} | null} - позиция или null если нет места
+     * @returns {{row: number, col: number, gridExpanded: boolean}} - позиция (всегда возвращает позицию)
      */
     _findFreePositionInLayoutCells(layoutCells) {
-        if (!layoutCells?.gridSize || !layoutCells?.cells) return null;
+        if (!layoutCells?.gridSize || !layoutCells?.cells) {
+            return { row: 1, col: 1, gridExpanded: false };
+        }
 
         const { gridSize, cells } = layoutCells;
         const occupied = new Set();
@@ -2226,16 +2235,22 @@ export class LocalStateManager {
             }
         }
 
-        // Ищем первую свободную ячейку
+        // Ищем первую свободную ячейку в существующей сетке
         for (let r = 1; r <= gridSize.rows; r++) {
             for (let c = 1; c <= gridSize.cols; c++) {
                 if (!occupied.has(`${r}-${c}`)) {
-                    return { row: r, col: c };
+                    return { row: r, col: c, gridExpanded: false };
                 }
             }
         }
 
-        return null; // Нет свободного места
+        // Нет свободного места - расширяем сетку на 1 строку
+        // Возвращаем первую ячейку новой строки
+        return {
+            row: gridSize.rows + 1,
+            col: 1,
+            gridExpanded: true
+        };
     }
 
     async createBlock({parentId, title}) {
@@ -2264,10 +2279,10 @@ export class LocalStateManager {
 
         if (hasLayoutCells) {
             newCellPosition = this._findFreePositionInLayoutCells(parentBlock.data.layoutCells);
-            if (!newCellPosition) {
-                console.warn('No free space in layoutCells grid');
-                dispatch('ShowError', { message: 'Нет свободного места в сетке. Расширьте сетку в редакторе раскладки.' });
-                return;
+            // Если сетка была расширена - увеличиваем gridSize
+            if (newCellPosition.gridExpanded) {
+                parentBlock.data.layoutCells.gridSize.rows = newCellPosition.row;
+                console.log('Grid expanded to', newCellPosition.row, 'rows for new block');
             }
         }
 
@@ -2374,10 +2389,10 @@ export class LocalStateManager {
 
         if (hasLayoutCells) {
             newCellPosition = this._findFreePositionInLayoutCells(parentBlock.data.layoutCells);
-            if (!newCellPosition) {
-                console.warn('No free space in layoutCells grid');
-                dispatch('ShowError', { message: 'Нет свободного места в сетке. Расширьте сетку в редакторе раскладки.' });
-                return;
+            // Если сетка была расширена - увеличиваем gridSize
+            if (newCellPosition.gridExpanded) {
+                parentBlock.data.layoutCells.gridSize.rows = newCellPosition.row;
+                console.log('Grid expanded to', newCellPosition.row, 'rows for iframe block');
             }
         }
 
