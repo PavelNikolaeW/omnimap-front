@@ -734,12 +734,12 @@ const weeksColumnPreset = {
 
 /**
  * Пресет для контейнера дней недели
- * Квадратная форма: 4×2 сетка (7 дней, Вс занимает 2 колонки)
- * +-----+-----+-----+-----+
- * | Пн  | Вт  | Ср  | Чт  |
- * +-----+-----+-----+-----+
- * | Пт  | Сб  | Вс (colspan=2)|
- * +-----+-----+-----+-----+
+ * Квадратная форма: 12-колоночная сетка (7 дней, равномерное распределение)
+ * +-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+
+ * | Пн (3 cols)   | Вт (3 cols)   | Ср (3 cols)   | Чт (3 cols)   |
+ * +-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+
+ * | Пт (4 cols)         | Сб (4 cols)         | Вс (4 cols)         |
+ * +-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+
  */
 const daysColumnPreset = {
     name: 'Дни недели',
@@ -769,18 +769,19 @@ const daysColumnPreset = {
             return { gridSize: { rows: 1, cols: n }, cells };
         }
 
-        // Квадрат → 4×2 с Вс занимающим 2 колонки
+        // Квадрат → 12 колонок для равномерного распределения
         if (n === 7) {
-            // Row 1: Пн, Вт, Ср, Чт
-            for (let i = 0; i < 4; i++) {
-                cells[childOrder[i]] = { row: 1, col: i + 1, rowSpan: 1, colSpan: 1 };
-            }
-            // Row 2: Пт, Сб, Вс (colspan=2)
-            cells[childOrder[4]] = { row: 2, col: 1, rowSpan: 1, colSpan: 1 };  // Пт
-            cells[childOrder[5]] = { row: 2, col: 2, rowSpan: 1, colSpan: 1 };  // Сб
-            cells[childOrder[6]] = { row: 2, col: 3, rowSpan: 1, colSpan: 2 };  // Вс
+            // Row 1: Пн, Вт, Ср, Чт (по 3 колонки каждый)
+            cells[childOrder[0]] = { row: 1, col: 1, rowSpan: 1, colSpan: 3 };   // Пн
+            cells[childOrder[1]] = { row: 1, col: 4, rowSpan: 1, colSpan: 3 };   // Вт
+            cells[childOrder[2]] = { row: 1, col: 7, rowSpan: 1, colSpan: 3 };   // Ср
+            cells[childOrder[3]] = { row: 1, col: 10, rowSpan: 1, colSpan: 3 };  // Чт
+            // Row 2: Пт, Сб, Вс (по 4 колонки каждый)
+            cells[childOrder[4]] = { row: 2, col: 1, rowSpan: 1, colSpan: 4 };   // Пт
+            cells[childOrder[5]] = { row: 2, col: 5, rowSpan: 1, colSpan: 4 };   // Сб
+            cells[childOrder[6]] = { row: 2, col: 9, rowSpan: 1, colSpan: 4 };   // Вс
 
-            return { gridSize: { rows: 2, cols: 4 }, cells };
+            return { gridSize: { rows: 2, cols: 12 }, cells };
         }
 
         // Для других количеств — авто-сетка

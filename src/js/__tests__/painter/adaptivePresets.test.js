@@ -291,13 +291,18 @@ describe('adaptivePresets', () => {
             expect(result.gridSize.cols).toBe(7);
         });
 
-        it('should generate 4x2 grid for 7 days in square form', () => {
+        it('should generate 12-col grid for 7 days in square form with equal bottom row', () => {
             const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
             const result = generateAdaptiveLayout('days-column', days, 'xl-sq');
             expect(result.gridSize.rows).toBe(2);
-            expect(result.gridSize.cols).toBe(4);
-            // Last day (sun) should have colspan=2
-            expect(result.cells['sun'].colSpan).toBe(2);
+            expect(result.gridSize.cols).toBe(12);
+            // Top row: 4 days × 3 cols each
+            expect(result.cells['mon'].colSpan).toBe(3);
+            expect(result.cells['thu'].colSpan).toBe(3);
+            // Bottom row: 3 days × 4 cols each (equal width)
+            expect(result.cells['fri'].colSpan).toBe(4);
+            expect(result.cells['sat'].colSpan).toBe(4);
+            expect(result.cells['sun'].colSpan).toBe(4);
         });
     });
 
