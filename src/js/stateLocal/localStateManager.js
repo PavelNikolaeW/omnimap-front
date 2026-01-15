@@ -135,6 +135,9 @@ export class LocalStateManager {
             for (const block of treeBlocks.blocks.values()) {
                 await this.saveBlock(block);
             }
+
+            // Явно обновляем навигацию после загрузки деревьев
+            dispatch('UpdateTreeNavigation');
             dispatch('ShowBlocks');
         })
 

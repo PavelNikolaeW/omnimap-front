@@ -21,6 +21,7 @@ class TreeService {
 
     _addListeners() {
         window.addEventListener('Login', this._handleLogin);
+        window.addEventListener('InitUser', this._handleLogin);  // При регистрации также инициализируем
         window.addEventListener('Logout', this._handleLogout);
     }
 
@@ -86,9 +87,8 @@ class TreeService {
      * Загрузить treeIds из localforage (для синхронизации)
      */
     async refresh() {
-        if (!this._currentUser) {
-            this._currentUser = await localforage.getItem('currentUser');
-        }
+        // Всегда перечитываем currentUser чтобы подхватить смену пользователя
+        this._currentUser = await localforage.getItem('currentUser');
         if (this._currentUser) {
             this._treeIds = await localforage.getItem(`treeIds${this._currentUser}`) || [];
             this._currentTree = await localforage.getItem('currentTree');
