@@ -259,6 +259,8 @@ export const popupsCommands = [
                         if (res.status !== 200) throw new Error("Ошибка загрузки участников группы");
                         return res.data;
                     }),
+                getSandboxMode: (blockId) => api.getSandboxMode(blockId),
+                setSandboxMode: (blockId, mode) => api.setSandboxMode(blockId, mode),
                 onCancel() {
                     ctx.mode = "normal";
                 },

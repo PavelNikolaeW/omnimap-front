@@ -3,6 +3,7 @@ import {pollTaskStatus} from "../../api/api";
 import {customConfirm} from "../../utils/custom-dialog";
 import chatApi from "../../api/chatApi";
 import {GroupChatView} from "./groupChatView";
+import {dispatch} from "../../utils/utils";
 
 /**
  * Функция для вывода сообщений в попапе.
@@ -247,10 +248,18 @@ export class AccessPopup extends Popup {
         // Варианты прав – можно передать свои через options
         this.permissionChoices = options.permissionChoices || [
             {value: "view", label: "Просмотр"},
+            {value: "sandbox", label: "Sandbox (создание)"},
             {value: "edit", label: "Редактирование"},
             {value: "edit_ac", label: "Редактирование прав"},
             {value: "delete", label: "Администратор"},
             {value: "deny", label: "Запретить"},
+        ];
+
+        // Варианты sandbox режима
+        this.sandboxModeChoices = [
+            {value: "none", label: "Отключён"},
+            {value: "open", label: "Открытый (все видят все)"},
+            {value: "private", label: "Приватный (видны только свои)"},
         ];
 
         // Локальные данные
@@ -442,13 +451,110 @@ export class AccessPopup extends Popup {
         groupSection.appendChild(groupForm);
         this.contentArea.appendChild(groupSection);
 
+        // --- Секция для Sandbox режима ---
+        this.createSandboxSection();
+
         // --- Секция для группового чата ---
         this.createChatSection();
 
         // Загружаем данные при открытии попапа
         this.loadAccessList();
         this.loadGroups();
+        this.loadSandboxMode();
         this.loadBlockChat();
+    }
+
+    /**
+     * Создаёт секцию "Sandbox режим" для блока
+     */
+    createSandboxSection() {
+        const sandboxSection = document.createElement("div");
+        sandboxSection.className = "popup-section";
+
+        const sandboxTitle = document.createElement("div");
+        sandboxTitle.className = "popup-section__title";
+        sandboxTitle.textContent = "Sandbox режим";
+        sandboxSection.appendChild(sandboxTitle);
+
+        const sandboxDescription = document.createElement("div");
+        sandboxDescription.className = "popup-section__description";
+        sandboxDescription.style.marginBottom = "8px";
+        sandboxDescription.style.fontSize = "12px";
+        sandboxDescription.style.color = "#666";
+        sandboxDescription.textContent = "Sandbox позволяет пользователям создавать блоки, но редактировать/удалять только свои.";
+        sandboxSection.appendChild(sandboxDescription);
+
+        // Контейнер для текущего режима
+        this.sandboxModeDisplay = document.createElement("div");
+        this.sandboxModeDisplay.className = "popup-message popup-message--info";
+        this.sandboxModeDisplay.style.marginBottom = "8px";
+        this.sandboxModeDisplay.textContent = "Загрузка...";
+        sandboxSection.appendChild(this.sandboxModeDisplay);
+
+        // Форма для изменения режима
+        const sandboxForm = document.createElement("div");
+        sandboxForm.className = "popup-form-field popup-form-field--row";
+
+        const sandboxSelect = document.createElement("select");
+        sandboxSelect.className = "popup-select";
+        sandboxSelect.id = "sandbox-mode-select";
+        this.sandboxModeChoices.forEach((choice) => {
+            const option = document.createElement("option");
+            option.value = choice.value;
+            option.textContent = choice.label;
+            sandboxSelect.appendChild(option);
+        });
+        sandboxForm.appendChild(sandboxSelect);
+
+        const sandboxBtn = document.createElement("button");
+        sandboxBtn.textContent = "Применить";
+        sandboxBtn.className = "popup-btn popup-btn--primary";
+        sandboxBtn.addEventListener("click", () => {
+            this.updateSandboxMode(sandboxSelect.value);
+        });
+        sandboxForm.appendChild(sandboxBtn);
+
+        sandboxSection.appendChild(sandboxForm);
+        this.contentArea.appendChild(sandboxSection);
+    }
+
+    /**
+     * Загружает текущий режим sandbox для блока
+     */
+    async loadSandboxMode() {
+        try {
+            const response = await this.options.getSandboxMode(this.blockId);
+            const currentMode = response.data?.sandbox_mode || 'none';
+            const modeLabel = this.sandboxModeChoices.find(c => c.value === currentMode)?.label || currentMode;
+            this.sandboxModeDisplay.textContent = `Текущий режим: ${modeLabel}`;
+
+            const select = document.getElementById('sandbox-mode-select');
+            if (select) {
+                select.value = currentMode;
+            }
+        } catch (error) {
+            console.error('Failed to load sandbox mode:', error);
+            this.sandboxModeDisplay.textContent = 'Не удалось загрузить режим';
+            this.sandboxModeDisplay.className = "popup-message popup-message--error";
+        }
+    }
+
+    /**
+     * Обновляет режим sandbox для блока
+     * @param {string} mode - 'none' | 'open' | 'private'
+     */
+    async updateSandboxMode(mode) {
+        clearMessage(this.messageContainer);
+        try {
+            await this.options.setSandboxMode(this.blockId, mode);
+            showMessage(this.messageContainer, "Режим sandbox обновлён", "success");
+            await this.loadSandboxMode();
+            // Обновляем отображение блоков после изменения sandbox режима
+            dispatch('ShowBlocks');
+        } catch (error) {
+            console.error('Failed to update sandbox mode:', error);
+            showMessage(this.messageContainer, "Ошибка обновления режима sandbox");
+        }
     }
 
     /**

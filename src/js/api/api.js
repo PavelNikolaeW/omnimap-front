@@ -305,6 +305,25 @@ class Api {
         return this.api.post(`access/${blockId}/`, data)
     }
 
+    /**
+     * Получить режим sandbox для блока
+     * @param {string} blockId - ID блока
+     * @returns {Promise<{id: string, sandbox_mode: string}>}
+     */
+    getSandboxMode(blockId) {
+        return this.api.get(`blocks/${blockId}/sandbox/`)
+    }
+
+    /**
+     * Установить режим sandbox для блока
+     * @param {string} blockId - ID блока
+     * @param {string} mode - 'none' | 'open' | 'private'
+     * @returns {Promise<{id: string, sandbox_mode: string, previous_mode: string}>}
+     */
+    setSandboxMode(blockId, mode) {
+        return this.api.post(`blocks/${blockId}/sandbox/`, { sandbox_mode: mode })
+    }
+
     createUrlLink(blockId, slug) {
         return this.api.post(`create-url/${blockId}/`, {slug})
     }
