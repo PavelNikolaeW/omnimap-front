@@ -650,6 +650,14 @@ export function generateYearCalendar(year, parentBlockId) {
             }
         }
 
+        // Сортируем childOrder по позиции row, чтобы порядок соответствовал визуальному расположению
+        const cells = weeksContainer.data.layoutCells.cells;
+        weeksContainer.data.childOrder.sort((a, b) => {
+            const rowA = cells[a]?.row || 0;
+            const rowB = cells[b]?.row || 0;
+            return rowA - rowB;
+        });
+
         // Удаляем временное поле
         delete weeksContainer._pendingLinks;
     }

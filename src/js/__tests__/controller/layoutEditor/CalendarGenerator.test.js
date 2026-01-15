@@ -561,6 +561,51 @@ describe('CalendarGenerator', () => {
                     expect(parent).toBeDefined();
                 });
             });
+
+            it('should have childOrder sorted by row position', () => {
+                // This test verifies that links are placed in correct order
+                // March 2026: Week 9 (link at row 1) should come before Week 10 (owned at row 2)
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                const weeksContainers = blocks.filter(b => b.data.calendarType === 'weeksContainer');
+
+                weeksContainers.forEach(container => {
+                    const { childOrder } = container.data;
+                    const cells = container.data.layoutCells.cells;
+
+                    // childOrder should be sorted by row
+                    for (let i = 1; i < childOrder.length; i++) {
+                        const prevRow = cells[childOrder[i - 1]]?.row || 0;
+                        const currRow = cells[childOrder[i]]?.row || 0;
+                        expect(currRow).toBeGreaterThanOrEqual(prevRow);
+                    }
+                });
+            });
+
+            it('should place Week 9 link first in March childOrder', () => {
+                // March 2026: Week 9 (Feb 23 - Mar 1) is owned by February
+                // but appears in March as a link at position 1
+                const { blocks } = generateYearCalendar(2026, 'parent-123');
+
+                const marchMonth = blocks.find(b =>
+                    b.data.calendarType === 'month' && b.data.calendarMonth === 3
+                );
+                const marchWeeksContainer = blocks.find(b =>
+                    b.data.calendarType === 'weeksContainer' && b.parent_id === marchMonth.id
+                );
+
+                const { childOrder } = marchWeeksContainer.data;
+                const cells = marchWeeksContainer.data.layoutCells.cells;
+
+                // First element should be at row 1 (the link to Week 9)
+                const firstChildId = childOrder[0];
+                expect(cells[firstChildId].row).toBe(1);
+
+                // The first block should be a link
+                const firstBlock = blocks.find(b => b.id === firstChildId);
+                expect(firstBlock.data.view).toBe('link');
+                expect(firstBlock.data.isoWeekKey).toBe('2026-W09');
+            });
         });
     });
 

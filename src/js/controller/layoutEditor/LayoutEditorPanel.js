@@ -1067,16 +1067,19 @@ export class LayoutEditorPanel extends Popup {
 
             this.showCalendarProgress({ stage: 'complete', percent: 100 });
 
-            // Перезагружаем данные и обновляем UI
+            // Закрываем редактор после успешного создания календаря
+            // чтобы пользователь случайно не применил пресет к родительскому блоку
             await new Promise(resolve => setTimeout(resolve, 500));
-            this.loadBlockData();
-            dispatch('ShowBlocks');
 
             const linksInfo = stats.links > 0 ? `, ${stats.links} ссылок` : '';
             this.showMessage(
                 `Календарь ${year} создан: ${stats.weeks} недель, ${stats.days} дней${linksInfo}`,
                 'success'
             );
+
+            // Закрываем редактор и обновляем UI
+            this.close();
+            dispatch('ShowBlocks');
 
         } catch (error) {
             console.error('Failed to create year calendar:', error);
@@ -2012,6 +2015,12 @@ export class LayoutEditorPanel extends Popup {
         }
 
         this.cellManager = null;
+
+        // Сбрасываем текущую команду на openBlock,
+        // чтобы клики по блокам снова открывали блоки, а не редактор
+        if (this.ctx) {
+            this.ctx.setCmd('openBlock');
+        }
 
         // Очищаем singleton
         currentInstance = null;

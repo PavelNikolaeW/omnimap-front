@@ -241,15 +241,110 @@ describe('adaptivePresets', () => {
                 expect(result.gridSize.rows).toBe(2);
             });
         });
+
+        describe('quarter-calendar', () => {
+            const preset = ADAPTIVE_PRESETS['quarter-calendar'];
+
+            it('should generate 6x2 layout for square blocks', () => {
+                const childOrder = ['plan', 'retro', 'jan', 'feb', 'mar'];
+                const result = preset.generate(childOrder, 'xl-sq');
+
+                expect(result.gridSize.cols).toBe(6);
+                expect(result.gridSize.rows).toBe(2);
+                // Plan and Retro span 3 columns each
+                expect(result.cells['plan'].colSpan).toBe(3);
+                expect(result.cells['retro'].colSpan).toBe(3);
+                // Months span 2 rows, 1 column each
+                expect(result.cells['jan'].rowSpan).toBe(2);
+                expect(result.cells['jan'].colSpan).toBe(1);
+                expect(result.cells['feb'].rowSpan).toBe(2);
+                expect(result.cells['mar'].rowSpan).toBe(2);
+            });
+
+            it('should generate 4-column layout for wide blocks', () => {
+                const childOrder = ['plan', 'retro', 'jan', 'feb', 'mar'];
+                const result = preset.generate(childOrder, 'xl-w');
+
+                expect(result.gridSize.cols).toBe(4);
+                expect(result.gridSize.rows).toBe(2);
+            });
+
+            it('should stack for high blocks', () => {
+                const childOrder = ['plan', 'retro', 'jan', 'feb', 'mar'];
+                const result = preset.generate(childOrder, 'xl-h');
+
+                expect(result.gridSize.cols).toBe(1);
+                expect(result.gridSize.rows).toBe(5);
+            });
+        });
     });
 
-    describe('alias presets', () => {
-        it('days-column should be alias for auto-grid', () => {
-            expect(ADAPTIVE_PRESETS['days-column']).toBe(ADAPTIVE_PRESETS['auto-grid']);
+    describe('days-column preset', () => {
+        it('should generate column layout for high form', () => {
+            const result = generateAdaptiveLayout('days-column', ['a', 'b', 'c', 'd', 'e', 'f', 'g'], 'xl-h');
+            expect(result.gridSize.rows).toBe(7);
+            expect(result.gridSize.cols).toBe(1);
         });
 
-        it('weeks-column should be alias for auto-grid', () => {
-            expect(ADAPTIVE_PRESETS['weeks-column']).toBe(ADAPTIVE_PRESETS['auto-grid']);
+        it('should generate row layout for wide form', () => {
+            const result = generateAdaptiveLayout('days-column', ['a', 'b', 'c', 'd', 'e', 'f', 'g'], 'xl-w');
+            expect(result.gridSize.rows).toBe(1);
+            expect(result.gridSize.cols).toBe(7);
+        });
+
+        it('should generate 12-col grid for 7 days in square form with equal bottom row', () => {
+            const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+            const result = generateAdaptiveLayout('days-column', days, 'xl-sq');
+            expect(result.gridSize.rows).toBe(2);
+            expect(result.gridSize.cols).toBe(12);
+            // Top row: 4 days × 3 cols each
+            expect(result.cells['mon'].colSpan).toBe(3);
+            expect(result.cells['thu'].colSpan).toBe(3);
+            // Bottom row: 3 days × 4 cols each (equal width)
+            expect(result.cells['fri'].colSpan).toBe(4);
+            expect(result.cells['sat'].colSpan).toBe(4);
+            expect(result.cells['sun'].colSpan).toBe(4);
+        });
+    });
+
+    describe('weeks-column preset', () => {
+        it('should generate column layout for high form', () => {
+            const result = generateAdaptiveLayout('weeks-column', ['w1', 'w2', 'w3', 'w4'], 'xl-h');
+            expect(result.gridSize.rows).toBe(4);
+            expect(result.gridSize.cols).toBe(1);
+        });
+
+        it('should generate row layout for wide form', () => {
+            const result = generateAdaptiveLayout('weeks-column', ['w1', 'w2', 'w3', 'w4'], 'xl-w');
+            expect(result.gridSize.rows).toBe(1);
+            expect(result.gridSize.cols).toBe(4);
+        });
+
+        it('should generate 2x2 grid for 4 weeks in square form', () => {
+            const result = generateAdaptiveLayout('weeks-column', ['w1', 'w2', 'w3', 'w4'], 'xl-sq');
+            expect(result.gridSize.rows).toBe(2);
+            expect(result.gridSize.cols).toBe(2);
+        });
+
+        it('should generate 2x6 grid for 5 weeks in square form', () => {
+            const weeks = ['w1', 'w2', 'w3', 'w4', 'w5'];
+            const result = generateAdaptiveLayout('weeks-column', weeks, 'xl-sq');
+            expect(result.gridSize.rows).toBe(2);
+            expect(result.gridSize.cols).toBe(6);
+            // Top 3 weeks: colspan=2 each
+            expect(result.cells['w1'].colSpan).toBe(2);
+            expect(result.cells['w2'].colSpan).toBe(2);
+            expect(result.cells['w3'].colSpan).toBe(2);
+            // Bottom 2 weeks: colspan=3 each
+            expect(result.cells['w4'].colSpan).toBe(3);
+            expect(result.cells['w5'].colSpan).toBe(3);
+        });
+
+        it('should generate 2x3 grid for 6 weeks in square form', () => {
+            const weeks = ['w1', 'w2', 'w3', 'w4', 'w5', 'w6'];
+            const result = generateAdaptiveLayout('weeks-column', weeks, 'xl-sq');
+            expect(result.gridSize.rows).toBe(2);
+            expect(result.gridSize.cols).toBe(3);
         });
     });
 
