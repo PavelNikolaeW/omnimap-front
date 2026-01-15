@@ -11,10 +11,20 @@
  */
 export const PERMISSIONS = {
     VIEW: 'view',
+    SANDBOX: 'sandbox',
     EDIT: 'edit',
     EDIT_AC: 'edit_ac',
     DELETE: 'delete',
     FORBIDDEN: 'forbidden'
+};
+
+/**
+ * Режимы sandbox
+ */
+export const SANDBOX_MODES = {
+    NONE: null,
+    OPEN: 'open',
+    PRIVATE: 'private'
 };
 
 /**
@@ -24,6 +34,7 @@ export const PERMISSIONS = {
 const HIERARCHY = {
     'forbidden': 0,
     'view': 1,
+    'sandbox': 1.5,  // между view и edit - может создавать, но не редактировать чужие
     'edit': 2,
     'edit_ac': 3,
     'delete': 4,
@@ -106,5 +117,127 @@ export function getPermissionDataAttribute(block) {
     if (!block) return null;
     if (block.forbidden) return 'forbidden';
     if (block.permission === PERMISSIONS.VIEW) return 'view-only';
+    return null;
+}
+
+// ==========================================
+// Sandbox Mode Functions
+// ==========================================
+
+/**
+ * Проверяет, находится ли родительский блок в sandbox режиме
+ * @param {Object} parentBlock - родительский блок
+ * @returns {boolean} true если родитель в sandbox режиме
+ */
+export function isInSandbox(parentBlock) {
+    if (!parentBlock) return false;
+    return parentBlock.sandbox_mode === SANDBOX_MODES.OPEN ||
+           parentBlock.sandbox_mode === SANDBOX_MODES.PRIVATE;
+}
+
+/**
+ * Проверяет, является ли пользователь создателем блока
+ * @param {Object} block - блок с creator_id
+ * @param {number|string} currentUserId - ID текущего пользователя
+ * @returns {boolean} true если пользователь создал блок
+ */
+export function isBlockOwner(block, currentUserId) {
+    if (!block?.creator_id || !currentUserId) return false;
+    // Приводим к числу для сравнения
+    return Number(block.creator_id) === Number(currentUserId);
+}
+
+/**
+ * Проверяет, является ли пользователь владельцем контейнера (имеет delete права)
+ * @param {Object} parentBlock - родительский sandbox контейнер
+ * @returns {boolean} true если пользователь владелец контейнера
+ */
+export function isContainerOwner(parentBlock) {
+    if (!parentBlock) return false;
+    const level = getPermissionLevel(parentBlock);
+    // delete (4) или собственный блок (5)
+    return level >= HIERARCHY['delete'];
+}
+
+/**
+ * Проверяет, может ли пользователь создавать блоки в sandbox
+ * @param {Object} parentBlock - родительский блок
+ * @returns {boolean} true если можно создавать блоки
+ */
+export function canCreateInSandbox(parentBlock) {
+    if (!parentBlock) return false;
+
+    // Если не sandbox - используем стандартную проверку на edit
+    if (!isInSandbox(parentBlock)) {
+        return canEdit(parentBlock);
+    }
+
+    // В sandbox: нужно минимум sandbox право или выше
+    const level = getPermissionLevel(parentBlock);
+    return level >= HIERARCHY['sandbox'];
+}
+
+/**
+ * Проверяет, может ли пользователь редактировать блок в sandbox контексте
+ * @param {Object} block - блок для редактирования
+ * @param {Object} parentBlock - родительский контейнер
+ * @param {number|string} currentUserId - ID текущего пользователя
+ * @returns {boolean} true если можно редактировать
+ */
+export function canEditInSandbox(block, parentBlock, currentUserId) {
+    if (!block) return false;
+    if (block.forbidden) return false;
+
+    // Если не в sandbox - стандартная проверка
+    if (!isInSandbox(parentBlock)) {
+        return canEdit(block);
+    }
+
+    // В sandbox: владелец блока ИЛИ владелец контейнера
+    return isBlockOwner(block, currentUserId) || isContainerOwner(parentBlock);
+}
+
+/**
+ * Проверяет, может ли пользователь удалять блок в sandbox контексте
+ * @param {Object} block - блок для удаления
+ * @param {Object} parentBlock - родительский контейнер
+ * @param {number|string} currentUserId - ID текущего пользователя
+ * @returns {boolean} true если можно удалить
+ */
+export function canDeleteInSandbox(block, parentBlock, currentUserId) {
+    if (!block) return false;
+    if (block.forbidden) return false;
+
+    // Если не в sandbox - стандартная проверка
+    if (!isInSandbox(parentBlock)) {
+        return canDelete(block);
+    }
+
+    // В sandbox: владелец блока ИЛИ владелец контейнера
+    return isBlockOwner(block, currentUserId) || isContainerOwner(parentBlock);
+}
+
+/**
+ * Получает data-permission атрибут для блока в sandbox контексте
+ * @param {Object} block - блок
+ * @param {Object} parentBlock - родительский контейнер
+ * @param {number|string} currentUserId - ID текущего пользователя
+ * @returns {string|null} значение для data-permission атрибута
+ */
+export function getSandboxPermissionAttribute(block, parentBlock, currentUserId) {
+    // Сначала проверяем стандартные ограничения
+    const standardAttr = getPermissionDataAttribute(block);
+    if (standardAttr) return standardAttr;
+
+    // Если не в sandbox - нет дополнительных ограничений
+    if (!isInSandbox(parentBlock)) {
+        return null;
+    }
+
+    // В sandbox: помечаем блоки которые нельзя редактировать
+    if (!canEditInSandbox(block, parentBlock, currentUserId)) {
+        return 'sandbox-readonly';
+    }
+
     return null;
 }

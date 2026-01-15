@@ -843,3 +843,76 @@ button:focus {
     z-index: 10;
     pointer-events: none;
 }
+
+/* ==========================================
+   Sandbox Mode Indicators
+   ========================================== */
+
+/* Sandbox container indicators */
+[data-sandbox-mode] {
+    position: relative;
+}
+
+/* Open sandbox - users icon (top-left) */
+[data-sandbox-mode="open"]::before {
+    content: '';
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: 18px;
+    height: 18px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234ade80'%3E%3Cpath d='M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z'/%3E%3C/svg%3E");
+    background-size: contain;
+    background-repeat: no-repeat;
+    z-index: 10;
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+/* Private sandbox - lock with users icon (top-left) */
+[data-sandbox-mode="private"]::before {
+    content: '';
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: 18px;
+    height: 18px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23f59e0b'%3E%3Cpath d='M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z'/%3E%3C/svg%3E");
+    background-size: contain;
+    background-repeat: no-repeat;
+    z-index: 10;
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+/* Sandbox readonly blocks - other user's blocks */
+[data-permission="sandbox-readonly"] {
+    position: relative;
+    border: 2px dashed rgba(100, 100, 100, 0.3) !important;
+}
+
+/* User icon indicator for sandbox-readonly blocks */
+[data-permission="sandbox-readonly"]::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 16px;
+    height: 16px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239ca3af'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E");
+    background-size: contain;
+    background-repeat: no-repeat;
+    z-index: 10;
+    pointer-events: none;
+}
+
+/* Disable text editing in sandbox-readonly blocks */
+[data-permission="sandbox-readonly"] [contenteditable] {
+    pointer-events: none;
+    cursor: default;
+}
+
+/* Block owner indicator in sandbox - subtle green border */
+[data-block-owner="true"] {
+    box-shadow: inset 0 0 0 2px rgba(34, 197, 94, 0.25);
+}

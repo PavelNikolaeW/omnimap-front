@@ -5,7 +5,8 @@ import {auth} from './views/auth'
 import {registration} from './views/registration'
 import {styleConfig} from "./styles";
 import {offlineQueue} from "../sincManager/offlineQueue";
-import {isForbidden, isViewOnly, getPermissionDataAttribute} from "../utils/permissionUtils";
+import {isForbidden, isViewOnly, getPermissionDataAttribute, isInSandbox, isBlockOwner, getSandboxPermissionAttribute} from "../utils/permissionUtils";
+import {authStateManager} from "../auth/authStateManager";
 
 
 const viewRenderers = {
@@ -101,8 +102,11 @@ class BlockCreator {
             // Применить data-атрибуты для layoutCells (календарь, kanban и т.д.)
             this._applyLayoutCellsData(element, block, parentBlock)
 
-            // Применить индикатор прав доступа (forbidden)
-            this._applyPermissionIndicator(element, block)
+            // Применить индикатор прав доступа (forbidden, view-only, sandbox)
+            this._applyPermissionIndicator(element, block, parentBlock)
+
+            // Применить индикатор sandbox режима для контейнера
+            this._applySandboxContainerIndicator(element, block)
 
             // Делаем блок draggable для HTML5 drag-and-drop
             // Исключаем только layoutCells (календарь, kanban) - там свой механизм
@@ -335,10 +339,41 @@ class BlockCreator {
      * Применяет индикатор прав доступа к блоку
      * @param {HTMLElement} element - DOM элемент блока
      * @param {Object} block - данные блока
+     * @param {Object} parentBlock - родительский блок (для sandbox проверки)
      */
-    _applyPermissionIndicator(element, block) {
+    _applyPermissionIndicator(element, block, parentBlock) {
         if (!element || !block) return
 
+        // Получаем текущего пользователя для sandbox проверки
+        const currentUserId = authStateManager.getUser();
+
+        // Сначала проверяем sandbox контекст
+        if (isInSandbox(parentBlock)) {
+            const sandboxAttr = getSandboxPermissionAttribute(block, parentBlock, currentUserId);
+
+            if (sandboxAttr) {
+                element.setAttribute('data-permission', sandboxAttr);
+
+                if (sandboxAttr === 'sandbox-readonly') {
+                    element.setAttribute('title', 'Блок другого пользователя');
+                }
+            } else {
+                // Убираем атрибуты если это свой блок в sandbox
+                element.removeAttribute('data-permission');
+                element.removeAttribute('title');
+            }
+
+            // Помечаем блоки владельца в sandbox
+            if (isBlockOwner(block, currentUserId)) {
+                element.setAttribute('data-block-owner', 'true');
+            } else {
+                element.removeAttribute('data-block-owner');
+            }
+
+            return;
+        }
+
+        // Стандартная логика для не-sandbox блоков
         const permissionAttr = getPermissionDataAttribute(block)
 
         if (permissionAttr) {
@@ -356,6 +391,24 @@ class BlockCreator {
             // Убираем атрибуты если блок с полными правами (для переиспользования элементов)
             element.removeAttribute('data-permission')
             element.removeAttribute('title')
+        }
+
+        // Убираем sandbox-specific атрибуты если не в sandbox
+        element.removeAttribute('data-block-owner');
+    }
+
+    /**
+     * Применяет индикатор sandbox режима для контейнера
+     * @param {HTMLElement} element - DOM элемент блока
+     * @param {Object} block - данные блока
+     */
+    _applySandboxContainerIndicator(element, block) {
+        if (!element || !block) return
+
+        if (block.sandbox_mode) {
+            element.setAttribute('data-sandbox-mode', block.sandbox_mode);
+        } else {
+            element.removeAttribute('data-sandbox-mode');
         }
     }
 

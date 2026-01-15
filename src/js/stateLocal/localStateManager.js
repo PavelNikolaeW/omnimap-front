@@ -10,7 +10,7 @@ import {customConfirm} from "../utils/custom-dialog";
 import {treeService} from "../services/treeService";
 import {treeValidator} from "./treeValidator";
 import {offlineQueue} from "../sincManager/offlineQueue";
-import {canEdit, canDelete} from "../utils/permissionUtils";
+import {canEdit, canDelete, canCreateInSandbox, canDeleteInSandbox, isInSandbox} from "../utils/permissionUtils";
 import {undoManager} from "../controller/undoManager";
 import {onboardingManager} from "../onboarding";
 
@@ -47,8 +47,11 @@ class BlockRepository {
             updated_at: block.updated_at,
             // Всегда сохраняем forbidden флаг (true для 403, false/undefined для обычных)
             forbidden: block.forbidden || false,
-            // Уровень прав: 'view', 'edit', 'edit_ac', 'delete', null (собственный блок)
-            permission: block.permission || null
+            // Уровень прав: 'view', 'edit', 'edit_ac', 'delete', 'sandbox', null (собственный блок)
+            permission: block.permission || null,
+            // Sandbox поля
+            creator_id: block.creator_id || null,
+            sandbox_mode: block.sandbox_mode || null
         };
         await localforage.setItem(key, blockData);
     }
@@ -525,8 +528,11 @@ export class LocalStateManager {
         const block = this.blocks.get(blockId)
         if (!block) return
 
-        // Проверка прав на удаление
-        if (!canDelete(block)) {
+        // Получаем родительский блок для проверки sandbox режима
+        const parentBlock = block.parent_id ? this.blocks.get(block.parent_id) : null;
+
+        // Проверка прав на удаление (с учётом sandbox режима)
+        if (!canDeleteInSandbox(block, parentBlock, this.currentUser)) {
             dispatch('ShowError', { message: 'Нет прав на удаление блока' });
             return;
         }
@@ -2229,8 +2235,8 @@ export class LocalStateManager {
             return;
         }
 
-        // Проверка прав на редактирование родителя
-        if (!canEdit(parentBlock)) {
+        // Проверка прав на создание в родителе (с учётом sandbox режима)
+        if (!canCreateInSandbox(parentBlock)) {
             dispatch('ShowError', { message: 'Нет прав на создание блока в этом разделе' });
             return;
         }
@@ -2262,7 +2268,9 @@ export class LocalStateManager {
             parent_id: parentId,
             children: [],
             data: { childOrder: [] },
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
+            // Устанавливаем creator_id для sandbox режима
+            creator_id: this.currentUser || null
         };
 
         // Обновляем родительский блок
