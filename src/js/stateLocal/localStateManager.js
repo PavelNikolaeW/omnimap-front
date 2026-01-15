@@ -144,6 +144,20 @@ export class LocalStateManager {
         window.addEventListener('LoadTrees', async (e) => {
             const treeBlocks = await api.getTreeBlocks();
 
+            // Для новых пользователей добавляем туториальные блоки
+            // (они хранятся только локально, не на сервере)
+            const isNewUser = onboardingManager.isNewUser();
+            if (isNewUser) {
+                const tutorialData = onboardingManager.getTutorialData();
+                if (tutorialData) {
+                    // Объединяем: сначала с сервера, потом туториал
+                    treeBlocks.treeIds = [...treeBlocks.treeIds, ...tutorialData.treeIds];
+                    tutorialData.blocks.forEach((block, id) => {
+                        treeBlocks.blocks.set(id, block);
+                    });
+                }
+            }
+
             // Обновляем treeIds в localforage
             if (this.currentUser) {
                 await localforage.setItem(`treeIds${this.currentUser}`, treeBlocks.treeIds);
