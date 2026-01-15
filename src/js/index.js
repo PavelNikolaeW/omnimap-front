@@ -392,9 +392,28 @@ function setInterface() {
         clickStartTime = Date.now();
         startX = e.clientX;
         startY = e.clientY;
+
+        // Если клик на текстовый элемент внутри draggable блока - временно отключаем drag
+        // чтобы позволить выделение текста
+        const textElement = e.target.closest('titleblock, contentblock');
+        if (textElement) {
+            const blockElement = textElement.closest('[draggable="true"]');
+            if (blockElement) {
+                blockElement.setAttribute('draggable', 'false');
+                blockElement._wasTextSelection = true;
+            }
+        }
     });
 
     document.addEventListener('mouseup', (e) => {
+        // Восстанавливаем draggable на блоках, которые были временно отключены для выделения текста
+        document.querySelectorAll('[block][draggable="false"]').forEach(block => {
+            if (block._wasTextSelection) {
+                block.setAttribute('draggable', 'true');
+                delete block._wasTextSelection;
+            }
+        });
+
         if (isExcludedElement(e.target, 'index')) {
             // стандартное поведение для полей ввода текста
             return;
@@ -409,12 +428,36 @@ function setInterface() {
             Math.hypot(deltaX, deltaY) < MOVE_THRESHOLD
         ) {
             const sel = window.getSelection();
-            if (!sel.isCollapsed) {
+            // Сбрасываем только случайное выделение (пустое или очень короткое)
+            // Если пользователь выделил текст (тройной клик и т.д.) - не сбрасываем
+            if (!sel.isCollapsed && sel.toString().trim().length === 0) {
                 sel.removeAllRanges();
-                console.log('removed')
             }
         }
     });
+
+    // Предотвращаем drag если он начинается с текстового элемента
+    document.addEventListener('dragstart', (e) => {
+        const textElement = e.target.closest('titleblock, contentblock');
+        if (textElement) {
+            e.preventDefault();
+        }
+    });
+
+    // Сбрасываем выделение при обычном клике (не при выделении)
+    let lastSelectionLength = 0;
+    document.addEventListener('click', (e) => {
+        const sel = window.getSelection();
+        const currentLength = sel?.toString().trim().length || 0;
+
+        // Если выделение не изменилось или уменьшилось - сбрасываем
+        // (при тройном клике выделение увеличивается)
+        if (currentLength > 0 && currentLength <= lastSelectionLength) {
+            sel.removeAllRanges();
+        }
+
+        lastSelectionLength = sel?.toString().trim().length || 0;
+    }, true); // capture phase - до других обработчиков
 })();
 
 

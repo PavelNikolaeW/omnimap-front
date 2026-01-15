@@ -198,10 +198,10 @@ export class CommandManager {
                     return
                 }
             }
+            // Если есть выделенный текст - не открываем блок
+            // (сброс выделения происходит в index.js при следующем клике)
             const selection = window.getSelection()
-            // позволяем выделять текст курсором
-            if (selection && (selection.toString().trim().length > 0 || this.selectedText.length > 0)) {
-                this.selectedText = selection.toString().trim()
+            if (selection && selection.toString().trim().length > 0) {
                 return
             }
 
