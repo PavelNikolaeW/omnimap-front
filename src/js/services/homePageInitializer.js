@@ -255,11 +255,10 @@ export async function initializeHomePage(rootBlockId, onProgress = null) {
             onProgress({ stage: 'configuring', percent: 85, message: 'Настройка раскладки...' });
         }
 
-        // Обновляем корневой блок с layoutCells
-        dispatch('UpdateDataBlock', {
-            blockId: rootBlockId,
-            data: rootBlockUpdate.data
-        });
+        // Обновляем корневой блок с layoutCells через API напрямую
+        // ВАЖНО: Используем api.updateBlock() вместо dispatch('UpdateDataBlock')
+        // потому что после этого вызывается LoadTrees, который перезапишет локальные изменения
+        await api.updateBlock(rootBlockId, rootBlockUpdate.data);
 
         // Устанавливаем sandbox режим для соответствующих блоков
         for (const { blockId, mode } of sandboxBlocks) {
