@@ -3,6 +3,7 @@ import {pollTaskStatus} from "../../api/api";
 import {customConfirm} from "../../utils/custom-dialog";
 import chatApi from "../../api/chatApi";
 import {GroupChatView} from "./groupChatView";
+import {dispatch} from "../../utils/utils";
 
 /**
  * Функция для вывода сообщений в попапе.
@@ -548,6 +549,8 @@ export class AccessPopup extends Popup {
             await this.options.setSandboxMode(this.blockId, mode);
             showMessage(this.messageContainer, "Режим sandbox обновлён", "success");
             await this.loadSandboxMode();
+            // Обновляем отображение блоков после изменения sandbox режима
+            dispatch('ShowBlocks');
         } catch (error) {
             console.error('Failed to update sandbox mode:', error);
             showMessage(this.messageContainer, "Ошибка обновления режима sandbox");

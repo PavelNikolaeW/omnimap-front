@@ -10,7 +10,7 @@ import {customConfirm} from "../utils/custom-dialog";
 import {treeService} from "../services/treeService";
 import {treeValidator} from "./treeValidator";
 import {offlineQueue} from "../sincManager/offlineQueue";
-import {canEdit, canDelete, canCreateInSandbox, canDeleteInSandbox, isInSandbox} from "../utils/permissionUtils";
+import {canEdit, canDelete, canCreateInSandbox, canDeleteInSandbox, canEditInSandbox, isInSandbox} from "../utils/permissionUtils";
 import {undoManager} from "../controller/undoManager";
 import {onboardingManager} from "../onboarding";
 
@@ -435,6 +435,15 @@ export class LocalStateManager {
                 return;
             }
 
+            // Получаем родительский блок для проверки sandbox режима
+            const parentBlock = block.parent_id ? this.blocks.get(block.parent_id) : null;
+
+            // Проверка прав на редактирование (с учётом sandbox режима)
+            if (!canEditInSandbox(block, parentBlock, this.currentUser)) {
+                dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
+                return;
+            }
+
             // Обновляем данные блока с информацией об изображении
             if (imageData) {
                 block.data.image = {
@@ -569,8 +578,7 @@ export class LocalStateManager {
             if (b) deletedBlocks.set(id, {...b, data: {...b.data}});
         }
 
-        // Сохраняем родительский блок для rollback
-        const parentBlock = this.blocks.get(block.parent_id);
+        // Сохраняем родительский блок для rollback (используем уже полученный parentBlock)
         const parentBackup = parentBlock ? {
             ...parentBlock,
             children: [...(parentBlock.children || [])],
@@ -2483,8 +2491,11 @@ export class LocalStateManager {
             return;
         }
 
-        // Проверка прав на редактирование
-        if (!canEdit(block)) {
+        // Получаем родительский блок для проверки sandbox режима
+        const parentBlock = block.parent_id ? this.blocks.get(block.parent_id) : null;
+
+        // Проверка прав на редактирование (с учётом sandbox режима)
+        if (!canEditInSandbox(block, parentBlock, this.currentUser)) {
             dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
             return;
         }
@@ -2518,8 +2529,11 @@ export class LocalStateManager {
             return;
         }
 
-        // Проверка прав на редактирование
-        if (!canEdit(block)) {
+        // Получаем родительский блок для проверки sandbox режима
+        const parentBlock = block.parent_id ? this.blocks.get(block.parent_id) : null;
+
+        // Проверка прав на редактирование (с учётом sandbox режима)
+        if (!canEditInSandbox(block, parentBlock, this.currentUser)) {
             dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
             return;
         }
@@ -2554,8 +2568,11 @@ export class LocalStateManager {
             return;
         }
 
-        // Проверка прав на редактирование
-        if (!canEdit(block)) {
+        // Получаем родительский блок для проверки sandbox режима
+        const parentBlock = block.parent_id ? this.blocks.get(block.parent_id) : null;
+
+        // Проверка прав на редактирование (с учётом sandbox режима)
+        if (!canEditInSandbox(block, parentBlock, this.currentUser)) {
             dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
             return;
         }
@@ -2596,8 +2613,11 @@ export class LocalStateManager {
         const block = this.blocks.get(blockId);
         if (!block) return;
 
-        // Проверка прав на редактирование
-        if (!canEdit(block)) {
+        // Получаем родительский блок для проверки sandbox режима
+        const parentBlock = block.parent_id ? this.blocks.get(block.parent_id) : null;
+
+        // Проверка прав на редактирование (с учётом sandbox режима)
+        if (!canEditInSandbox(block, parentBlock, this.currentUser)) {
             dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
             return;
         }

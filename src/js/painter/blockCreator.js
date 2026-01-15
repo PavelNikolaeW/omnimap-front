@@ -348,6 +348,7 @@ class BlockCreator {
         const currentUserId = authStateManager.getUser();
 
         // Сначала проверяем sandbox контекст
+        // Если пользователь не определён, показываем все блоки как readonly в sandbox
         if (isInSandbox(parentBlock)) {
             const sandboxAttr = getSandboxPermissionAttribute(block, parentBlock, currentUserId);
 
