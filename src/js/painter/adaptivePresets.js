@@ -530,7 +530,14 @@ const monthCalendarPreset = {
 
 /**
  * Пресет для квартала календаря
- * План + Итоги слева, 3 месяца справа
+ * План + Итоги слева (3 колонки), 3 месяца справа (по 1 колонке, rowSpan=2)
+ *
+ * Квадратная форма (6 cols × 2 rows):
+ * +--------+--------+--------+--------+--------+--------+
+ * | План (colspan=3)         | М1     | М2     | М3     |
+ * +--------+--------+--------+ (r=2)  | (r=2)  | (r=2)  |
+ * | Итоги (colspan=3)        |        |        |        |
+ * +--------+--------+--------+--------+--------+--------+
  */
 const quarterCalendarPreset = {
     name: 'Квартал',
@@ -541,21 +548,19 @@ const quarterCalendarPreset = {
         const cells = {};
 
         if (n === 0) {
-            return { gridSize: { rows: 2, cols: 4 }, cells };
+            return { gridSize: { rows: 2, cols: 6 }, cells };
         }
 
         // Высокий → всё в столбец
         if (form === 'h') {
-            const cols = 1;
-
             for (let i = 0; i < n; i++) {
-                cells[childOrder[i]] = { row: i + 1, col: 1, rowSpan: 1, colSpan: cols };
+                cells[childOrder[i]] = { row: i + 1, col: 1, rowSpan: 1, colSpan: 1 };
             }
 
-            return { gridSize: { rows: n, cols }, cells };
+            return { gridSize: { rows: n, cols: 1 }, cells };
         }
 
-        // Широкий → План+Итоги слева, месяцы горизонтально
+        // Широкий → План+Итоги слева (1 col), месяцы горизонтально (rowSpan=2)
         if (form === 'w') {
             const cols = 4;
 
@@ -571,25 +576,19 @@ const quarterCalendarPreset = {
             return { gridSize: { rows: 2, cols }, cells };
         }
 
-        // Квадрат → 2x2 с месяцами
-        const cols = 2;
+        // Квадрат → 6 cols × 2 rows: План+Итоги (3 cols) слева, месяцы (1 col, rowSpan=2) справа
+        const cols = 6;
 
-        // План
-        if (n > 0) cells[childOrder[0]] = { row: 1, col: 1, rowSpan: 1, colSpan: 1 };
-        // Итоги
-        if (n > 1) cells[childOrder[1]] = { row: 1, col: 2, rowSpan: 1, colSpan: 1 };
-        // Месяцы в ряд
-        for (let i = 2; i < n; i++) {
-            const idx = i - 2;
-            cells[childOrder[i]] = {
-                row: 2 + Math.floor(idx / 2),
-                col: (idx % 2) + 1,
-                rowSpan: 1,
-                colSpan: 1
-            };
-        }
+        // План (занимает 3 колонки)
+        if (n > 0) cells[childOrder[0]] = { row: 1, col: 1, rowSpan: 1, colSpan: 3 };
+        // Итоги (занимает 3 колонки)
+        if (n > 1) cells[childOrder[1]] = { row: 2, col: 1, rowSpan: 1, colSpan: 3 };
+        // Месяцы (каждый по 1 колонке, rowSpan=2)
+        if (n > 2) cells[childOrder[2]] = { row: 1, col: 4, rowSpan: 2, colSpan: 1 };
+        if (n > 3) cells[childOrder[3]] = { row: 1, col: 5, rowSpan: 2, colSpan: 1 };
+        if (n > 4) cells[childOrder[4]] = { row: 1, col: 6, rowSpan: 2, colSpan: 1 };
 
-        return { gridSize: { rows: 2 + Math.ceil((n - 2) / 2), cols }, cells };
+        return { gridSize: { rows: 2, cols }, cells };
     }
 };
 
@@ -640,13 +639,172 @@ const yearCalendarPreset = {
     }
 };
 
+// ============ WEEKS COLUMN ============
+
+/**
+ * Пресет для контейнера недель месяца
+ * Квадратная форма:
+ * - 4 недели: 2×2 сетка
+ * - 5 недель: 2×6 сетка (3 сверху по 2 cols, 2 снизу по 3 cols)
+ * - 6 недель: 2×3 сетка
+ */
+const weeksColumnPreset = {
+    name: 'Недели месяца',
+
+    generate: (childOrder, blockShape) => {
+        const { form } = parseShape(blockShape);
+        const n = childOrder.length;
+        const cells = {};
+
+        if (n === 0) {
+            return { gridSize: { rows: 1, cols: 1 }, cells };
+        }
+
+        // Высокий → столбец
+        if (form === 'h') {
+            for (let i = 0; i < n; i++) {
+                cells[childOrder[i]] = { row: i + 1, col: 1, rowSpan: 1, colSpan: 1 };
+            }
+            return { gridSize: { rows: n, cols: 1 }, cells };
+        }
+
+        // Широкий → ряд
+        if (form === 'w') {
+            for (let i = 0; i < n; i++) {
+                cells[childOrder[i]] = { row: 1, col: i + 1, rowSpan: 1, colSpan: 1 };
+            }
+            return { gridSize: { rows: 1, cols: n }, cells };
+        }
+
+        // Квадрат → оптимальная раскладка без пустых мест
+        if (n === 4) {
+            // 2×2 сетка
+            for (let i = 0; i < n; i++) {
+                cells[childOrder[i]] = {
+                    row: Math.floor(i / 2) + 1,
+                    col: (i % 2) + 1,
+                    rowSpan: 1,
+                    colSpan: 1
+                };
+            }
+            return { gridSize: { rows: 2, cols: 2 }, cells };
+        }
+
+        if (n === 5) {
+            // 2×6 сетка: 3 сверху (по 2 cols), 2 снизу (по 3 cols)
+            // Row 1: W1(1-2), W2(3-4), W3(5-6)
+            // Row 2: W4(1-3), W5(4-6)
+            cells[childOrder[0]] = { row: 1, col: 1, rowSpan: 1, colSpan: 2 };
+            cells[childOrder[1]] = { row: 1, col: 3, rowSpan: 1, colSpan: 2 };
+            cells[childOrder[2]] = { row: 1, col: 5, rowSpan: 1, colSpan: 2 };
+            cells[childOrder[3]] = { row: 2, col: 1, rowSpan: 1, colSpan: 3 };
+            cells[childOrder[4]] = { row: 2, col: 4, rowSpan: 1, colSpan: 3 };
+            return { gridSize: { rows: 2, cols: 6 }, cells };
+        }
+
+        if (n === 6) {
+            // 2×3 сетка
+            for (let i = 0; i < n; i++) {
+                cells[childOrder[i]] = {
+                    row: Math.floor(i / 3) + 1,
+                    col: (i % 3) + 1,
+                    rowSpan: 1,
+                    colSpan: 1
+                };
+            }
+            return { gridSize: { rows: 2, cols: 3 }, cells };
+        }
+
+        // Для других количеств — используем авто-сетку
+        const cols = Math.ceil(Math.sqrt(n));
+        const rows = Math.ceil(n / cols);
+        for (let i = 0; i < n; i++) {
+            cells[childOrder[i]] = {
+                row: Math.floor(i / cols) + 1,
+                col: (i % cols) + 1,
+                rowSpan: 1,
+                colSpan: 1
+            };
+        }
+        return { gridSize: { rows, cols }, cells };
+    }
+};
+
+// ============ DAYS COLUMN ============
+
+/**
+ * Пресет для контейнера дней недели
+ * Квадратная форма: 4×2 сетка (7 дней, Вс занимает 2 колонки)
+ * +-----+-----+-----+-----+
+ * | Пн  | Вт  | Ср  | Чт  |
+ * +-----+-----+-----+-----+
+ * | Пт  | Сб  | Вс (colspan=2)|
+ * +-----+-----+-----+-----+
+ */
+const daysColumnPreset = {
+    name: 'Дни недели',
+
+    generate: (childOrder, blockShape) => {
+        const { form } = parseShape(blockShape);
+        const n = childOrder.length;
+        const cells = {};
+
+        if (n === 0) {
+            return { gridSize: { rows: 1, cols: 1 }, cells };
+        }
+
+        // Высокий → столбец
+        if (form === 'h') {
+            for (let i = 0; i < n; i++) {
+                cells[childOrder[i]] = { row: i + 1, col: 1, rowSpan: 1, colSpan: 1 };
+            }
+            return { gridSize: { rows: n, cols: 1 }, cells };
+        }
+
+        // Широкий → ряд
+        if (form === 'w') {
+            for (let i = 0; i < n; i++) {
+                cells[childOrder[i]] = { row: 1, col: i + 1, rowSpan: 1, colSpan: 1 };
+            }
+            return { gridSize: { rows: 1, cols: n }, cells };
+        }
+
+        // Квадрат → 4×2 с Вс занимающим 2 колонки
+        if (n === 7) {
+            // Row 1: Пн, Вт, Ср, Чт
+            for (let i = 0; i < 4; i++) {
+                cells[childOrder[i]] = { row: 1, col: i + 1, rowSpan: 1, colSpan: 1 };
+            }
+            // Row 2: Пт, Сб, Вс (colspan=2)
+            cells[childOrder[4]] = { row: 2, col: 1, rowSpan: 1, colSpan: 1 };  // Пт
+            cells[childOrder[5]] = { row: 2, col: 2, rowSpan: 1, colSpan: 1 };  // Сб
+            cells[childOrder[6]] = { row: 2, col: 3, rowSpan: 1, colSpan: 2 };  // Вс
+
+            return { gridSize: { rows: 2, cols: 4 }, cells };
+        }
+
+        // Для других количеств — авто-сетка
+        const cols = Math.ceil(Math.sqrt(n));
+        const rows = Math.ceil(n / cols);
+        for (let i = 0; i < n; i++) {
+            cells[childOrder[i]] = {
+                row: Math.floor(i / cols) + 1,
+                col: (i % cols) + 1,
+                rowSpan: 1,
+                colSpan: 1
+            };
+        }
+        return { gridSize: { rows, cols }, cells };
+    }
+};
+
 // ============ EXPORT ============
 
 export const ADAPTIVE_PRESETS = {
     // Универсальные
     'auto-grid': autoGridPreset,
-    'days-column': autoGridPreset,    // alias для дней недели
-    'weeks-column': autoGridPreset,   // alias для недель месяца
+    'days-column': daysColumnPreset,
+    'weeks-column': weeksColumnPreset,
 
     // Layouts
     'sidebar': sidebarPreset,
