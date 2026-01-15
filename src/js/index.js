@@ -392,9 +392,28 @@ function setInterface() {
         clickStartTime = Date.now();
         startX = e.clientX;
         startY = e.clientY;
+
+        // Если клик на текстовый элемент внутри draggable блока - временно отключаем drag
+        // чтобы позволить выделение текста
+        const textElement = e.target.closest('titleblock, contentblock');
+        if (textElement) {
+            const blockElement = textElement.closest('[draggable="true"]');
+            if (blockElement) {
+                blockElement.setAttribute('draggable', 'false');
+                blockElement._wasTextSelection = true;
+            }
+        }
     });
 
     document.addEventListener('mouseup', (e) => {
+        // Восстанавливаем draggable на блоках, которые были временно отключены для выделения текста
+        document.querySelectorAll('[block][draggable="false"]').forEach(block => {
+            if (block._wasTextSelection) {
+                block.setAttribute('draggable', 'true');
+                delete block._wasTextSelection;
+            }
+        });
+
         if (isExcludedElement(e.target, 'index')) {
             // стандартное поведение для полей ввода текста
             return;
