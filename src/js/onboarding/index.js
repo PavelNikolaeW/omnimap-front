@@ -18,3 +18,10 @@ export { getTutorialBlocks, TUTORIAL_STRUCTURE } from './tutorialGraph';
 
 // Welcome баннер
 export { welcomeBanner } from './welcomeBanner';
+
+// Экспорт в window для доступа из консоли браузера
+// Использование: onboardingManager.reset() для сброса онбординга
+import { onboardingManager as _om } from './OnboardingManager';
+if (typeof window !== 'undefined') {
+    window.onboardingManager = _om;
+}
