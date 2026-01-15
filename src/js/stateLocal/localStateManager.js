@@ -88,17 +88,11 @@ export class LocalStateManager {
         });
 
         window.addEventListener('InitAnonimUser', async () => {
-            // Проверяем, нужен ли туториал для нового пользователя
-            const tutorialData = onboardingManager.getTutorialData();
-            if (tutorialData) {
-                await this.initUser(tutorialData, 'anonim');
-                dispatch('ShowBlocks');
-                dispatch('ShowOnboardingWelcome');
-            } else {
-                const publicTreeBlocks = await api.getTreeBlocks();
-                await this.initUser(publicTreeBlocks, 'anonim');
-                dispatch('ShowBlocks');
-            }
+            // Анонимные пользователи видят только страницу регистрации
+            // Туториал им не нужен
+            const publicTreeBlocks = await api.getTreeBlocks();
+            await this.initUser(publicTreeBlocks, 'anonim');
+            dispatch('ShowBlocks');
         });
 
         window.addEventListener('InitUser', async (e) => {
