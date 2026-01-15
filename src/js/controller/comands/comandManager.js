@@ -232,7 +232,21 @@ export class CommandManager {
                 this.ctxManager.setCmd('pasteBlock')
             }
             this.ctxManager.isTree = false
-            this.executeCommand(this.ctxManager)
+
+            // Клик на текстовый элемент - откладываем открытие для проверки выделения (тройной клик)
+            const isTextElement = target.closest('titleblock, contentblock')
+            if (isTextElement) {
+                setTimeout(() => {
+                    const sel = window.getSelection()
+                    if (sel && sel.toString().trim().length > 0) {
+                        this.selectedText = sel.toString().trim()
+                        return
+                    }
+                    this.executeCommand(this.ctxManager)
+                }, 10)
+            } else {
+                this.executeCommand(this.ctxManager)
+            }
         }
     }
 
