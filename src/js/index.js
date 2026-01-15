@@ -435,6 +435,14 @@ function setInterface() {
             }
         }
     });
+
+    // Предотвращаем drag если он начинается с текстового элемента
+    document.addEventListener('dragstart', (e) => {
+        const textElement = e.target.closest('titleblock, contentblock');
+        if (textElement) {
+            e.preventDefault();
+        }
+    });
 })();
 
 
