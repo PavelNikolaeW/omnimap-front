@@ -182,7 +182,7 @@ function generateHomePageStructure(rootBlockId) {
  */
 export async function initializeHomePage(rootBlockId, onProgress = null) {
     try {
-        console.log('🏠 HomePageInitializer: Starting initialization for root block:', rootBlockId);
+        console.log('HomePageInitializer: Starting initialization for root block:', rootBlockId);
 
         // Генерируем структуру
         const { blocks, rootBlockUpdate } = generateHomePageStructure(rootBlockId);
@@ -191,7 +191,7 @@ export async function initializeHomePage(rootBlockId, onProgress = null) {
             onProgress({ stage: 'generating', percent: 10, message: 'Генерация структуры...' });
         }
 
-        console.log('🏠 HomePageInitializer: Generated', blocks.length, 'blocks');
+        console.log('HomePageInitializer: Generated', blocks.length, 'blocks');
 
         // Импортируем блоки
         const { task_id } = await importBlocks(blocks);
@@ -226,12 +226,12 @@ export async function initializeHomePage(rootBlockId, onProgress = null) {
             onProgress({ stage: 'complete', percent: 100, message: 'Готово!' });
         }
 
-        console.log('🏠 HomePageInitializer: Successfully initialized home page');
+        console.log('HomePageInitializer: Successfully initialized home page');
 
         return { success: true };
 
     } catch (error) {
-        console.error('🏠 HomePageInitializer: Failed to initialize:', error);
+        console.error('HomePageInitializer: Failed to initialize:', error);
         return { success: false, error: error.message };
     }
 }
@@ -239,19 +239,29 @@ export async function initializeHomePage(rootBlockId, onProgress = null) {
 /**
  * Проверяет статус онбординга и инициализирует Home Page если нужно
  * @param {string} rootBlockId - ID корневого блока пользователя
+ * @param {Map} blocksMap - Map блоков из localStateManager (избегаем circular dependency)
  * @returns {Promise<void>}
  */
-export async function checkAndInitializeOnboarding(rootBlockId) {
+export async function checkAndInitializeOnboarding(rootBlockId, blocksMap) {
     try {
         // Проверяем статус онбординга
         const { onboarding_completed } = await api.getOnboardingStatus();
 
         if (onboarding_completed) {
-            console.log('🏠 Onboarding already completed, skipping initialization');
+            console.log('HomePageInitializer: Onboarding already completed, skipping');
             return;
         }
 
-        console.log('🏠 New user detected, initializing home page...');
+        // Idempotency check: проверяем, не созданы ли блоки частично
+        // (защита от дубликатов при повторном вызове после частичной ошибки)
+        const rootBlock = blocksMap?.get(rootBlockId);
+        if (rootBlock?.data?.childOrder?.length > 0) {
+            console.log('HomePageInitializer: Root block already has children, marking complete');
+            await api.completeOnboarding();
+            return;
+        }
+
+        console.log('HomePageInitializer: New user detected, initializing home page...');
 
         // Инициализируем Home Page
         const result = await initializeHomePage(rootBlockId);
@@ -259,16 +269,14 @@ export async function checkAndInitializeOnboarding(rootBlockId) {
         if (result.success) {
             // Помечаем онбординг как завершённый
             await api.completeOnboarding();
-            console.log('🏠 Onboarding completed successfully');
-
-            // Перерисовываем UI
-            dispatch('ShowBlocks');
+            console.log('HomePageInitializer: Onboarding completed successfully');
+            // ShowBlocks вызывается в localStateManager после этой функции
         } else {
-            console.error('🏠 Failed to initialize home page:', result.error);
+            console.error('HomePageInitializer: Failed to initialize:', result.error);
         }
 
     } catch (error) {
-        console.error('🏠 Onboarding check failed:', error);
+        console.error('HomePageInitializer: Onboarding check failed:', error);
     }
 }
 
