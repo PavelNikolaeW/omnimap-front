@@ -2,8 +2,8 @@
  * HomePageInitializer
  *
  * Создаёт начальную структуру экзокортекса для новых пользователей:
- * - Home Page с 6 блоками верхнего уровня
- * - Areas с 8 областями ответственности
+ * - Home Page с 6 блоками верхнего уровня (Inbox, Focus, Projects, Areas, Spaces, Archive)
+ * - Туториальное дерево с обучающими материалами
  *
  * Используется после регистрации когда onboarding_completed: false
  */
@@ -11,6 +11,7 @@
 import { importBlocks, pollImportStatus, generateBlockId } from '../api/importService.js';
 import api from '../api/api.js';
 import { dispatch } from '../utils/utils.js';
+import { TUTORIAL_STRUCTURE } from '../onboarding/tutorialGraph.js';
 
 /**
  * Конфигурация 6 блоков верхнего уровня Home Page
@@ -24,7 +25,8 @@ const HOME_PAGE_BLOCKS = [
         role: 'inbox',
         color: '#fef3c7',
         borderColor: '#f59e0b',
-        position: { row: 1, col: 1, rowSpan: 9, colSpan: 4 }
+        position: { row: 1, col: 1, rowSpan: 9, colSpan: 4 },
+        sandboxMode: 'open'  // Inbox доступен для записи всем
     },
     {
         label: 'Focus',
@@ -65,6 +67,11 @@ const HOME_PAGE_BLOCKS = [
 ];
 
 /**
+ * Размер сетки для Home Page
+ */
+const HOME_PAGE_GRID = { rows: 9, cols: 7 };
+
+/**
  * Конфигурация 8 областей ответственности
  */
 const AREAS_BLOCKS = [
@@ -81,17 +88,16 @@ const AREAS_BLOCKS = [
 /**
  * Генерирует структуру блоков для импорта
  * @param {string} rootBlockId - ID корневого блока пользователя
- * @returns {Array} Массив блоков для импорта
+ * @returns {{blocks: Array, rootBlockUpdate: Object, sandboxBlocks: Array}} Структура для импорта
  */
 function generateHomePageStructure(rootBlockId) {
     const blocks = [];
     const homePageChildOrder = [];
-    const areasBlockId = generateBlockId();
-    const areasChildOrder = [];
+    const sandboxBlocks = [];  // Блоки для установки sandbox режима
 
     // Генерируем 6 блоков верхнего уровня
     for (const config of HOME_PAGE_BLOCKS) {
-        const blockId = config.role === 'areas' ? areasBlockId : generateBlockId();
+        const blockId = generateBlockId();
         homePageChildOrder.push(blockId);
 
         blocks.push({
@@ -107,30 +113,11 @@ function generateHomePageStructure(rootBlockId) {
                 }
             }
         });
-    }
 
-    // Генерируем 8 областей внутри Areas (сетка 2×4)
-    for (let i = 0; i < AREAS_BLOCKS.length; i++) {
-        const area = AREAS_BLOCKS[i];
-        const blockId = generateBlockId();
-        areasChildOrder.push(blockId);
-
-        const row = Math.floor(i / 4) + 1;
-        const col = (i % 4) + 1;
-
-        blocks.push({
-            id: blockId,
-            parent_id: areasBlockId,
-            title: area.labelRu,
-            data: {
-                text: area.hint,
-                areaType: area.label.toLowerCase(),
-                style: {
-                    backgroundColor: area.color + '20',  // 12% opacity
-                    borderColor: area.color
-                }
-            }
-        });
+        // Запоминаем блоки с sandbox режимом
+        if (config.sandboxMode) {
+            sandboxBlocks.push({ blockId, mode: config.sandboxMode });
+        }
     }
 
     // Обновляем блок корневой страницы с layoutCells
@@ -140,7 +127,7 @@ function generateHomePageStructure(rootBlockId) {
             layout: 'cells',
             childOrder: homePageChildOrder,
             layoutCells: {
-                gridSize: { rows: 9, cols: 7 },
+                gridSize: HOME_PAGE_GRID,
                 presetType: 'home',
                 cells: {}
             }
@@ -153,27 +140,57 @@ function generateHomePageStructure(rootBlockId) {
         rootBlockUpdate.data.layoutCells.cells[blockId] = config.position;
     });
 
-    // Обновляем блок Areas с layoutCells для 8 областей
-    const areasBlockIndex = blocks.findIndex(b => b.id === areasBlockId);
-    if (areasBlockIndex !== -1) {
-        const areasLayoutCells = {
-            gridSize: { rows: 2, cols: 4 },
-            presetType: 'areas',
-            cells: {}
-        };
+    // Генерируем 8 областей внутри Areas (сетка 2×4)
+    const areasBlock = HOME_PAGE_BLOCKS.find(b => b.role === 'areas');
+    if (areasBlock && areasBlock.hasChildren) {
+        const areasBlockId = homePageChildOrder[HOME_PAGE_BLOCKS.indexOf(areasBlock)];
+        const areasChildOrder = [];
 
-        areasChildOrder.forEach((childId, index) => {
-            const row = Math.floor(index / 4) + 1;
-            const col = (index % 4) + 1;
-            areasLayoutCells.cells[childId] = { row, col, rowSpan: 1, colSpan: 1 };
-        });
+        for (let i = 0; i < AREAS_BLOCKS.length; i++) {
+            const area = AREAS_BLOCKS[i];
+            const blockId = generateBlockId();
+            areasChildOrder.push(blockId);
 
-        blocks[areasBlockIndex].data.layout = 'cells';
-        blocks[areasBlockIndex].data.childOrder = areasChildOrder;
-        blocks[areasBlockIndex].data.layoutCells = areasLayoutCells;
+            const row = Math.floor(i / 4) + 1;
+            const col = (i % 4) + 1;
+
+            blocks.push({
+                id: blockId,
+                parent_id: areasBlockId,
+                title: area.labelRu,
+                data: {
+                    text: area.hint,
+                    areaType: area.label.toLowerCase(),
+                    style: {
+                        backgroundColor: area.color + '20',  // 12% opacity
+                        borderColor: area.color
+                    }
+                }
+            });
+        }
+
+        // Обновляем блок Areas с layoutCells для 8 областей
+        const areasBlockIndex = blocks.findIndex(b => b.id === areasBlockId);
+        if (areasBlockIndex !== -1) {
+            const areasLayoutCells = {
+                gridSize: { rows: 2, cols: 4 },
+                presetType: 'areas',
+                cells: {}
+            };
+
+            areasChildOrder.forEach((childId, index) => {
+                const row = Math.floor(index / 4) + 1;
+                const col = (index % 4) + 1;
+                areasLayoutCells.cells[childId] = { row, col, rowSpan: 1, colSpan: 1 };
+            });
+
+            blocks[areasBlockIndex].data.layout = 'cells';
+            blocks[areasBlockIndex].data.childOrder = areasChildOrder;
+            blocks[areasBlockIndex].data.layoutCells = areasLayoutCells;
+        }
     }
 
-    return { blocks, rootBlockUpdate };
+    return { blocks, rootBlockUpdate, sandboxBlocks };
 }
 
 /**
@@ -187,7 +204,7 @@ export async function initializeHomePage(rootBlockId, onProgress = null) {
         console.log('HomePageInitializer: Starting initialization for root block:', rootBlockId);
 
         // Генерируем структуру
-        const { blocks, rootBlockUpdate } = generateHomePageStructure(rootBlockId);
+        const { blocks, rootBlockUpdate, sandboxBlocks } = generateHomePageStructure(rootBlockId);
 
         if (onProgress) {
             onProgress({ stage: 'generating', percent: 10, message: 'Генерация структуры...' });
@@ -224,6 +241,16 @@ export async function initializeHomePage(rootBlockId, onProgress = null) {
             data: rootBlockUpdate.data
         });
 
+        // Устанавливаем sandbox режим для соответствующих блоков
+        for (const { blockId, mode } of sandboxBlocks) {
+            try {
+                await api.setSandboxMode(blockId, mode);
+                console.log(`HomePageInitializer: Set sandbox mode '${mode}' for block ${blockId}`);
+            } catch (err) {
+                console.warn(`HomePageInitializer: Failed to set sandbox mode for ${blockId}:`, err);
+            }
+        }
+
         if (onProgress) {
             onProgress({ stage: 'complete', percent: 100, message: 'Готово!' });
         }
@@ -239,7 +266,141 @@ export async function initializeHomePage(rootBlockId, onProgress = null) {
 }
 
 /**
- * Проверяет статус онбординга и инициализирует Home Page если нужно
+ * Генерирует структуру туториального дерева для импорта
+ * @returns {{blocks: Array, rootId: string}} Блоки и ID корневого блока
+ */
+function generateTutorialStructure() {
+    const blocks = [];
+    const idMap = {};
+
+    // Генерируем UUID для каждого блока
+    Object.keys(TUTORIAL_STRUCTURE).forEach(key => {
+        idMap[key] = generateBlockId();
+    });
+
+    const rootId = idMap['root'];
+
+    // Находит родительский ключ для блока
+    const findParentKey = (childKey) => {
+        if (childKey === 'root') return null;
+        for (const [key, block] of Object.entries(TUTORIAL_STRUCTURE)) {
+            if (block.children.includes(childKey)) {
+                return key;
+            }
+        }
+        return null;
+    };
+
+    // Преобразуем блоки
+    Object.entries(TUTORIAL_STRUCTURE).forEach(([key, block]) => {
+        const id = idMap[key];
+        const parentKey = findParentKey(key);
+        const parentId = parentKey ? idMap[parentKey] : null;
+
+        // Преобразуем children из ключей в UUID
+        const childrenIds = block.children.map(childKey => idMap[childKey]);
+
+        blocks.push({
+            id,
+            parent_id: parentId,
+            title: block.title,
+            data: {
+                text: block.data.text,
+                color: block.data.color,
+                childOrder: childrenIds
+            }
+        });
+    });
+
+    return { blocks, rootId };
+}
+
+/**
+ * Создаёт туториальное дерево на сервере
+ * @returns {Promise<{success: boolean, rootId?: string, error?: string}>}
+ */
+export async function initializeTutorialTree() {
+    try {
+        console.log('HomePageInitializer: Creating tutorial tree...');
+
+        // Сначала создаём корневое дерево через API
+        const treeResponse = await api.createTree('Обучение OmniMap');
+        if (treeResponse.status !== 201) {
+            throw new Error('Failed to create tutorial tree');
+        }
+
+        const tutorialRootId = treeResponse.data.id;
+        console.log('HomePageInitializer: Tutorial tree created:', tutorialRootId);
+
+        // Генерируем структуру туториальных блоков
+        const { blocks } = generateTutorialStructure();
+
+        // Заменяем parent_id=null на tutorialRootId для корневых блоков
+        // и обновляем ссылки для дочерних
+        const idMap = { root: tutorialRootId };
+        const blocksForImport = [];
+
+        // Строим новую карту ID (root -> tutorialRootId, остальные -> новые UUID)
+        blocks.forEach(block => {
+            if (block.parent_id === null) {
+                // Это root блок из TUTORIAL_STRUCTURE — пропускаем, используем созданное дерево
+                // Но сохраняем его данные для обновления корневого блока
+                idMap['__root_data__'] = block;
+            } else {
+                blocksForImport.push(block);
+            }
+        });
+
+        // Обновляем parent_id для блоков первого уровня
+        blocksForImport.forEach(block => {
+            // Находим блок в оригинальной структуре
+            const originalKey = Object.entries(TUTORIAL_STRUCTURE).find(([_, b]) =>
+                b.title === block.title
+            )?.[0];
+
+            if (originalKey) {
+                const parentKey = Object.entries(TUTORIAL_STRUCTURE).find(([_, b]) =>
+                    b.children.includes(originalKey)
+                )?.[0];
+
+                if (parentKey === 'root') {
+                    block.parent_id = tutorialRootId;
+                }
+            }
+        });
+
+        if (blocksForImport.length > 0) {
+            // Импортируем дочерние блоки
+            const { task_id } = await importBlocks(blocksForImport);
+            await pollImportStatus(task_id, null, 500, 60000, { silent: true });
+        }
+
+        // Обновляем корневой блок с данными туториала
+        const rootData = idMap['__root_data__'];
+        if (rootData) {
+            dispatch('UpdateDataBlock', {
+                blockId: tutorialRootId,
+                data: {
+                    text: rootData.data.text,
+                    color: rootData.data.color,
+                    childOrder: blocksForImport
+                        .filter(b => b.parent_id === tutorialRootId)
+                        .map(b => b.id)
+                }
+            });
+        }
+
+        console.log('HomePageInitializer: Tutorial tree initialized successfully');
+        return { success: true, rootId: tutorialRootId };
+
+    } catch (error) {
+        console.error('HomePageInitializer: Failed to initialize tutorial:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Проверяет статус онбординга и инициализирует Home Page + Tutorial если нужно
  * @param {string} rootBlockId - ID корневого блока пользователя
  * @param {Map} blocksMap - Map блоков из localStateManager (избегаем circular dependency)
  * @returns {Promise<void>}
@@ -263,19 +424,26 @@ export async function checkAndInitializeOnboarding(rootBlockId, blocksMap) {
             return;
         }
 
-        console.log('HomePageInitializer: New user detected, initializing home page...');
+        console.log('HomePageInitializer: New user detected, initializing...');
 
-        // Инициализируем Home Page
-        const result = await initializeHomePage(rootBlockId);
-
-        if (result.success) {
-            // Помечаем онбординг как завершённый
-            await api.completeOnboarding();
-            console.log('HomePageInitializer: Onboarding completed successfully');
-            // ShowBlocks вызывается в localStateManager после этой функции
-        } else {
-            console.error('HomePageInitializer: Failed to initialize:', result.error);
+        // 1. Инициализируем Home Page
+        const homeResult = await initializeHomePage(rootBlockId);
+        if (!homeResult.success) {
+            console.error('HomePageInitializer: Failed to initialize home page:', homeResult.error);
+            return;
         }
+
+        // 2. Создаём туториальное дерево
+        const tutorialResult = await initializeTutorialTree();
+        if (!tutorialResult.success) {
+            console.warn('HomePageInitializer: Tutorial tree creation failed:', tutorialResult.error);
+            // Не блокируем онбординг из-за ошибки туториала
+        }
+
+        // Помечаем онбординг как завершённый
+        await api.completeOnboarding();
+        console.log('HomePageInitializer: Onboarding completed successfully');
+        // ShowBlocks вызывается в localStateManager после этой функции
 
     } catch (error) {
         console.error('HomePageInitializer: Onboarding check failed:', error);
@@ -284,5 +452,6 @@ export async function checkAndInitializeOnboarding(rootBlockId, blocksMap) {
 
 export default {
     initializeHomePage,
+    initializeTutorialTree,
     checkAndInitializeOnboarding
 };

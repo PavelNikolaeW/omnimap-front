@@ -335,13 +335,55 @@ npx playwright show-trace e2e/test-results/*/trace.zip
 
 ---
 
+## 🧪 Smoke тесты на dev среде
+
+### ⚠️ Ограничение: auth без cookies
+
+**Проблема**: Dev среда (omnimap.cloud.ru) не сохраняет auth токены в cookies после логина.
+**Последствие**: Playwright `storageState` не может сохранить сессию между тестами.
+
+### Статус адаптации smoke тестов
+
+| Тест | Статус | Примечание |
+|------|--------|------------|
+| SM-01 | ✅ Работает | Адаптирован для регистрации нового пользователя |
+| SM-02-08 | ❌ Не работают | Требуют переиспользования auth сессии (нет cookies) |
+
+### Запуск SM-01 на dev
+
+```bash
+# Единственный рабочий smoke тест на dev
+PLAYWRIGHT_BASE_URL=http://omnimap.cloud.ru npx playwright test --config=playwright.smoke.config.ts --grep="SM-01"
+```
+
+### Почему остальные smoke тесты не работают на dev
+
+Smoke тесты спроектированы для работы с `storageState`:
+1. Setup проект логинится один раз → сохраняет cookies
+2. Все smoke тесты переиспользуют эту auth сессию
+
+На dev:
+- ❌ Cookies не сохраняются после логина
+- ❌ Каждый тест получает новый Page object (`about:blank`)
+- ❌ При `page.goto('/')` теряется auth (токены в памяти браузера)
+
+### Рекомендации
+
+Для полноценного smoke тестирования на dev требуется один из вариантов:
+
+1. **Настроить cookies на dev** - чтобы токены сохранялись как в production
+2. **Переписать smoke тесты** - каждый тест регистрирует нового пользователя (как onboarding)
+3. **Тестировать smoke на localhost** - где auth работает корректно
+
+---
+
 ## 🔄 Следующие шаги
 
 ### Адаптация других тестов
 
 Приоритет для адаптации:
 
-1. **Smoke тесты** (`e2e/tests/smoke/smoke.spec.ts`) - критичные проверки
+1. ✅ **Smoke тесты** (`e2e/tests/smoke/smoke.spec.ts`) - адаптированы
 2. **Auth тесты** (`e2e/tests/auth/auth.spec.ts`) - логин/логаут
 3. **Block operations** (`e2e/tests/blocks/block-operations.spec.ts`) - CRUD операции
 4. **Sync тесты** (`e2e/tests/sync/sync.spec.ts`) - WebSocket синхронизация
