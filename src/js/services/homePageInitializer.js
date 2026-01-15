@@ -14,6 +14,8 @@ import { dispatch } from '../utils/utils.js';
 
 /**
  * Конфигурация 6 блоков верхнего уровня Home Page
+ * Раскладка: сетка 9 строк × 7 колонок
+ * Inbox слева (5 колонок × 9 строк), остальные справа сверху вниз
  */
 const HOME_PAGE_BLOCKS = [
     {
@@ -21,74 +23,64 @@ const HOME_PAGE_BLOCKS = [
         role: 'inbox',
         color: '#fef3c7',
         borderColor: '#f59e0b',
-        position: { row: 1, col: 1, rowSpan: 1, colSpan: 4 }
+        position: { row: 1, col: 1, rowSpan: 9, colSpan: 5 },
+        sandboxMode: 'open'  // Inbox доступен для записи всем
     },
     {
         label: 'Focus',
         role: 'focus',
         color: '#dbeafe',
         borderColor: '#3b82f6',
-        position: { row: 1, col: 5, rowSpan: 1, colSpan: 8 }
+        position: { row: 1, col: 6, rowSpan: 2, colSpan: 2 }
     },
     {
         label: 'Projects',
         role: 'projects',
         color: '#dcfce7',
         borderColor: '#22c55e',
-        position: { row: 2, col: 1, rowSpan: 1, colSpan: 6 }
-    },
-    {
-        label: 'Spaces',
-        role: 'spaces',
-        color: '#fce7f3',
-        borderColor: '#ec4899',
-        position: { row: 2, col: 7, rowSpan: 1, colSpan: 6 }
+        position: { row: 3, col: 6, rowSpan: 2, colSpan: 2 }
     },
     {
         label: 'Areas',
         role: 'areas',
         color: '#e0e7ff',
         borderColor: '#6366f1',
-        position: { row: 3, col: 1, rowSpan: 1, colSpan: 12 },
-        hasChildren: true  // Пометка что внутри будут дочерние блоки
+        position: { row: 5, col: 6, rowSpan: 2, colSpan: 2 }
+    },
+    {
+        label: 'Spaces',
+        role: 'spaces',
+        color: '#fce7f3',
+        borderColor: '#ec4899',
+        position: { row: 7, col: 6, rowSpan: 2, colSpan: 2 }
     },
     {
         label: 'Archive',
         role: 'archive',
         color: '#f3f4f6',
         borderColor: '#9ca3af',
-        position: { row: 4, col: 1, rowSpan: 1, colSpan: 12 }
+        position: { row: 9, col: 6, rowSpan: 1, colSpan: 2 }
     }
 ];
 
 /**
- * Конфигурация 8 областей ответственности
+ * Размер сетки для Home Page
  */
-const AREAS_BLOCKS = [
-    { label: 'Self', labelRu: 'Я', icon: '🧠', color: '#8B5CF6' },
-    { label: 'Relationships', labelRu: 'Отношения', icon: '👥', color: '#EC4899' },
-    { label: 'Work', labelRu: 'Работа', icon: '💼', color: '#3B82F6' },
-    { label: 'Finance', labelRu: 'Финансы', icon: '💰', color: '#10B981' },
-    { label: 'Environment', labelRu: 'Среда', icon: '🏠', color: '#A16207' },
-    { label: 'Energy', labelRu: 'Энергия', icon: '⚡', color: '#F97316' },
-    { label: 'Creation', labelRu: 'Творчество', icon: '🎨', color: '#14B8A6' },
-    { label: 'World', labelRu: 'Мир', icon: '🌍', color: '#6366F1' }
-];
+const HOME_PAGE_GRID = { rows: 9, cols: 7 };
 
 /**
  * Генерирует структуру блоков для импорта
  * @param {string} rootBlockId - ID корневого блока пользователя
- * @returns {Array} Массив блоков для импорта
+ * @returns {{blocks: Array, rootBlockUpdate: Object, sandboxBlocks: Array}} Структура для импорта
  */
 function generateHomePageStructure(rootBlockId) {
     const blocks = [];
     const homePageChildOrder = [];
-    const areasBlockId = generateBlockId();
-    const areasChildOrder = [];
+    const sandboxBlocks = [];  // Блоки для установки sandbox режима
 
     // Генерируем 6 блоков верхнего уровня
     for (const config of HOME_PAGE_BLOCKS) {
-        const blockId = config.role === 'areas' ? areasBlockId : generateBlockId();
+        const blockId = generateBlockId();
         homePageChildOrder.push(blockId);
 
         blocks.push({
@@ -104,31 +96,11 @@ function generateHomePageStructure(rootBlockId) {
                 }
             }
         });
-    }
 
-    // Генерируем 8 областей внутри Areas (сетка 2×4)
-    for (let i = 0; i < AREAS_BLOCKS.length; i++) {
-        const area = AREAS_BLOCKS[i];
-        const blockId = generateBlockId();
-        areasChildOrder.push(blockId);
-
-        const row = Math.floor(i / 4) + 1;
-        const col = (i % 4) + 1;
-
-        blocks.push({
-            id: blockId,
-            parent_id: areasBlockId,
-            title: `${area.icon} ${area.labelRu}`,
-            data: {
-                text: `${area.icon} ${area.labelRu}`,
-                areaType: area.label.toLowerCase(),
-                areaIcon: area.icon,
-                style: {
-                    backgroundColor: area.color + '20',  // 12% opacity
-                    borderColor: area.color
-                }
-            }
-        });
+        // Запоминаем блоки с sandbox режимом
+        if (config.sandboxMode) {
+            sandboxBlocks.push({ blockId, mode: config.sandboxMode });
+        }
     }
 
     // Обновляем блок корневой страницы с layoutCells
@@ -138,7 +110,7 @@ function generateHomePageStructure(rootBlockId) {
             layout: 'cells',
             childOrder: homePageChildOrder,
             layoutCells: {
-                gridSize: { rows: 4, cols: 12 },
+                gridSize: HOME_PAGE_GRID,
                 presetType: 'home',
                 cells: {}
             }
@@ -151,27 +123,7 @@ function generateHomePageStructure(rootBlockId) {
         rootBlockUpdate.data.layoutCells.cells[blockId] = config.position;
     });
 
-    // Обновляем блок Areas с layoutCells для 8 областей
-    const areasBlockIndex = blocks.findIndex(b => b.id === areasBlockId);
-    if (areasBlockIndex !== -1) {
-        const areasLayoutCells = {
-            gridSize: { rows: 2, cols: 4 },
-            presetType: 'areas',
-            cells: {}
-        };
-
-        areasChildOrder.forEach((childId, index) => {
-            const row = Math.floor(index / 4) + 1;
-            const col = (index % 4) + 1;
-            areasLayoutCells.cells[childId] = { row, col, rowSpan: 1, colSpan: 1 };
-        });
-
-        blocks[areasBlockIndex].data.layout = 'cells';
-        blocks[areasBlockIndex].data.childOrder = areasChildOrder;
-        blocks[areasBlockIndex].data.layoutCells = areasLayoutCells;
-    }
-
-    return { blocks, rootBlockUpdate };
+    return { blocks, rootBlockUpdate, sandboxBlocks };
 }
 
 /**
@@ -185,7 +137,7 @@ export async function initializeHomePage(rootBlockId, onProgress = null) {
         console.log('HomePageInitializer: Starting initialization for root block:', rootBlockId);
 
         // Генерируем структуру
-        const { blocks, rootBlockUpdate } = generateHomePageStructure(rootBlockId);
+        const { blocks, rootBlockUpdate, sandboxBlocks } = generateHomePageStructure(rootBlockId);
 
         if (onProgress) {
             onProgress({ stage: 'generating', percent: 10, message: 'Генерация структуры...' });
@@ -221,6 +173,16 @@ export async function initializeHomePage(rootBlockId, onProgress = null) {
             blockId: rootBlockId,
             data: rootBlockUpdate.data
         });
+
+        // Устанавливаем sandbox режим для соответствующих блоков
+        for (const { blockId, mode } of sandboxBlocks) {
+            try {
+                await api.setSandboxMode(blockId, mode);
+                console.log(`HomePageInitializer: Set sandbox mode '${mode}' for block ${blockId}`);
+            } catch (err) {
+                console.warn(`HomePageInitializer: Failed to set sandbox mode for ${blockId}:`, err);
+            }
+        }
 
         if (onProgress) {
             onProgress({ stage: 'complete', percent: 100, message: 'Готово!' });
