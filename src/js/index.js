@@ -409,9 +409,10 @@ function setInterface() {
             Math.hypot(deltaX, deltaY) < MOVE_THRESHOLD
         ) {
             const sel = window.getSelection();
-            if (!sel.isCollapsed) {
+            // Сбрасываем только случайное выделение (пустое или очень короткое)
+            // Если пользователь выделил текст (тройной клик и т.д.) - не сбрасываем
+            if (!sel.isCollapsed && sel.toString().trim().length === 0) {
                 sel.removeAllRanges();
-                console.log('removed')
             }
         }
     });
