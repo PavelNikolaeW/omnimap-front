@@ -213,7 +213,7 @@ test.describe('Onboarding @onboarding', () => {
     // Нажимаем OK
     await page.click('button:has-text("OK")');
 
-    // Grid должен автоматически расширитьсяи блок создан
+    // Grid должен автоматически расшириться и блок создан
     const errorMessage = page.locator('text=Нет свободного места в сетке');
     await expect(errorMessage).not.toBeVisible({ timeout: 2000 });
 
@@ -258,15 +258,15 @@ test.describe('Onboarding @onboarding', () => {
     await areasBlock.click();
     await page.keyboard.press('Enter');
 
-    // Должны открыться 8 area блоков
-    await expect(page.locator('text=🧠 Я').first()).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('text=👥 Отношения').first()).toBeVisible();
-    await expect(page.locator('text=💼 Работа').first()).toBeVisible();
-    await expect(page.locator('text=💰 Финансы').first()).toBeVisible();
-    await expect(page.locator('text=🏠 Среда').first()).toBeVisible();
-    await expect(page.locator('text=⚡ Энергия').first()).toBeVisible();
-    await expect(page.locator('text=🎨 Творчество').first()).toBeVisible();
-    await expect(page.locator('text=🌍 Мир').first()).toBeVisible();
+    // Должны открыться 8 area блоков (без emoji в заголовках)
+    await expect(page.locator('text=Я').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=Отношения').first()).toBeVisible();
+    await expect(page.locator('text=Работа').first()).toBeVisible();
+    await expect(page.locator('text=Финансы').first()).toBeVisible();
+    await expect(page.locator('text=Среда').first()).toBeVisible();
+    await expect(page.locator('text=Энергия').first()).toBeVisible();
+    await expect(page.locator('text=Творчество').first()).toBeVisible();
+    await expect(page.locator('text=Мир').first()).toBeVisible();
   });
 
   test('OB-07: должен показать корректные цвета для блоков домашней страницы', async ({ page }) => {

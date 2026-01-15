@@ -14,9 +14,6 @@ import { dispatch } from '../utils/utils.js';
 
 /**
  * Конфигурация 6 блоков верхнего уровня Home Page
- */
-/**
- * Конфигурация 6 блоков верхнего уровня Home Page
  * Сетка: 9 строк × 7 колонок
  * Inbox большой слева, справа в столбик: Focus, Projects, Areas, Spaces, Archive
  * Высота справа: 2+2+2+2+1
