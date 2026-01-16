@@ -143,3 +143,127 @@
 .block-link--pending .pending-placeholder__icon {
     animation: pending-pulse 2s ease-in-out infinite;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Access Requests Popup
+   ───────────────────────────────────────────────────────────────────────────── */
+.access-requests-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--popup-border);
+    padding-bottom: 8px;
+}
+
+.access-requests-tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    border-radius: 6px 6px 0 0;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--popup-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.access-requests-tab:hover {
+    background: var(--popup-border);
+    color: var(--popup-fg);
+}
+
+.access-requests-tab.active {
+    background: var(--popup-primary);
+    color: #fff;
+}
+
+.tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    font-size: 12px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+}
+
+.access-requests-tab:not(.active) .tab-count {
+    background: var(--popup-border);
+}
+
+.access-requests-list {
+    min-height: 200px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.access-request-item {
+    transition: all 0.2s ease;
+}
+
+.access-request-user,
+.access-request-block,
+.access-request-date {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    font-size: 14px;
+}
+
+.access-request-user i,
+.access-request-block i,
+.access-request-date i {
+    width: 16px;
+    color: var(--popup-muted);
+}
+
+.access-request-date {
+    font-size: 12px;
+    color: var(--popup-muted);
+}
+
+.access-request-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 6px;
+}
+
+.access-request-status--pending {
+    background: #fef3c7;
+    color: #b45309;
+}
+
+.access-request-status--approved {
+    background: #d1fae5;
+    color: #047857;
+}
+
+.access-request-status--rejected {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.popup-select--sm {
+    padding: 6px 28px 6px 10px;
+    font-size: 13px;
+    min-width: 120px;
+}
+
+.popup-btn--sm {
+    padding: 6px 10px;
+    font-size: 13px;
+}
+
+.popup-btn--sm i {
+    font-size: 12px;
+}

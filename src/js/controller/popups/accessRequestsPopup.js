@@ -15,6 +15,18 @@ const PERMISSION_OPTIONS = [
     { value: 'delete', label: 'Полный доступ', description: 'Все права включая удаление' }
 ];
 
+/**
+ * Экранирование HTML для предотвращения XSS
+ * @param {string} text - текст для экранирования
+ * @returns {string} - безопасный текст
+ */
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 export class AccessRequestsPopup extends Popup {
     constructor(options = {}) {
         super({
@@ -56,17 +68,34 @@ export class AccessRequestsPopup extends Popup {
     initContent() {
         this.contentArea.innerHTML = '';
 
-        // Табы
+        // Табы - создаём через DOM API для безопасности
         const tabs = document.createElement('div');
         tabs.className = 'access-requests-tabs';
-        tabs.innerHTML = `
-            <button class="access-requests-tab active" data-tab="incoming">
-                Входящие <span class="tab-count" id="incoming-count">0</span>
-            </button>
-            <button class="access-requests-tab" data-tab="sent">
-                Отправленные <span class="tab-count" id="sent-count">0</span>
-            </button>
-        `;
+
+        const incomingTab = document.createElement('button');
+        incomingTab.className = 'access-requests-tab active';
+        incomingTab.dataset.tab = 'incoming';
+        incomingTab.dataset.testid = 'access-requests-tab-incoming';
+        incomingTab.textContent = 'Входящие ';
+        const incomingCount = document.createElement('span');
+        incomingCount.className = 'tab-count';
+        incomingCount.id = 'incoming-count';
+        incomingCount.textContent = '0';
+        incomingTab.appendChild(incomingCount);
+
+        const sentTab = document.createElement('button');
+        sentTab.className = 'access-requests-tab';
+        sentTab.dataset.tab = 'sent';
+        sentTab.dataset.testid = 'access-requests-tab-sent';
+        sentTab.textContent = 'Отправленные ';
+        const sentCount = document.createElement('span');
+        sentCount.className = 'tab-count';
+        sentCount.id = 'sent-count';
+        sentCount.textContent = '0';
+        sentTab.appendChild(sentCount);
+
+        tabs.appendChild(incomingTab);
+        tabs.appendChild(sentTab);
         this.contentArea.appendChild(tabs);
 
         // Контейнер для списка
@@ -88,10 +117,12 @@ export class AccessRequestsPopup extends Popup {
         // Кнопка закрытия
         const closeBtn = document.createElement('div');
         closeBtn.className = 'popup-buttons';
-        closeBtn.innerHTML = `
-            <button class="popup-btn popup-btn--secondary" data-testid="popup-close-btn">Закрыть</button>
-        `;
-        closeBtn.querySelector('button').addEventListener('click', () => this.close());
+        const closeBtnEl = document.createElement('button');
+        closeBtnEl.className = 'popup-btn popup-btn--secondary';
+        closeBtnEl.dataset.testid = 'popup-close-btn';
+        closeBtnEl.textContent = 'Закрыть';
+        closeBtnEl.addEventListener('click', () => this.close());
+        closeBtn.appendChild(closeBtnEl);
         this.popupEl.appendChild(closeBtn);
     }
 
@@ -130,23 +161,29 @@ export class AccessRequestsPopup extends Popup {
      * Отображение загрузки
      */
     showLoading() {
-        this.listContainer.innerHTML = `
-            <div class="popup-loading">
-                <div class="popup-spinner"></div>
-                Загрузка...
-            </div>
-        `;
+        this.listContainer.innerHTML = '';
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'popup-loading';
+        const spinner = document.createElement('div');
+        spinner.className = 'popup-spinner';
+        loadingDiv.appendChild(spinner);
+        loadingDiv.appendChild(document.createTextNode('Загрузка...'));
+        this.listContainer.appendChild(loadingDiv);
     }
 
     /**
      * Отображение ошибки
      */
     showError(message) {
-        this.listContainer.innerHTML = `
-            <div class="popup-list-empty" style="color: var(--popup-danger)">
-                <i class="fas fa-exclamation-circle"></i> ${message}
-            </div>
-        `;
+        this.listContainer.innerHTML = '';
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'popup-list-empty';
+        errorDiv.style.color = 'var(--popup-danger)';
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-exclamation-circle';
+        errorDiv.appendChild(icon);
+        errorDiv.appendChild(document.createTextNode(' ' + message));
+        this.listContainer.appendChild(errorDiv);
     }
 
     /**
@@ -156,27 +193,30 @@ export class AccessRequestsPopup extends Popup {
         const requests = this.activeTab === 'incoming' ? this.incomingRequests : this.sentRequests;
 
         if (requests.length === 0) {
-            this.listContainer.innerHTML = `
-                <div class="popup-list-empty">
-                    ${this.activeTab === 'incoming'
-                        ? 'Нет входящих запросов на доступ'
-                        : 'Вы не отправляли запросов на доступ'}
-                </div>
-            `;
+            this.listContainer.innerHTML = '';
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'popup-list-empty';
+            emptyDiv.textContent = this.activeTab === 'incoming'
+                ? 'Нет входящих запросов на доступ'
+                : 'Вы не отправляли запросов на доступ';
+            this.listContainer.appendChild(emptyDiv);
             return;
         }
 
-        this.listContainer.innerHTML = `<div class="popup-list"></div>`;
-        const list = this.listContainer.querySelector('.popup-list');
+        this.listContainer.innerHTML = '';
+        const list = document.createElement('div');
+        list.className = 'popup-list';
 
         requests.forEach(request => {
             const item = this.createRequestItem(request);
             list.appendChild(item);
         });
+
+        this.listContainer.appendChild(list);
     }
 
     /**
-     * Создание элемента запроса
+     * Создание элемента запроса (безопасно от XSS)
      */
     createRequestItem(request) {
         const item = document.createElement('div');
@@ -193,76 +233,101 @@ export class AccessRequestsPopup extends Popup {
             minute: '2-digit'
         });
 
-        if (isIncoming) {
-            // Входящий запрос - показываем кнопки одобрить/отклонить
-            item.innerHTML = `
-                <div class="popup-list-item__content">
-                    <div class="access-request-user">
-                        <i class="fas fa-user"></i>
-                        <strong>${user?.username || 'Неизвестный пользователь'}</strong>
-                    </div>
-                    <div class="access-request-block">
-                        <i class="fas fa-cube"></i>
-                        ${request.block?.title || 'Блок без названия'}
-                    </div>
-                    <div class="access-request-date">
-                        <i class="fas fa-clock"></i>
-                        ${date}
-                    </div>
-                </div>
-                <div class="popup-list-item__actions">
-                    <select class="popup-select popup-select--sm permission-select">
-                        ${PERMISSION_OPTIONS.map(opt => `
-                            <option value="${opt.value}">${opt.label}</option>
-                        `).join('')}
-                    </select>
-                    <button class="popup-btn popup-btn--success popup-btn--sm approve-btn" title="Одобрить">
-                        <i class="fas fa-check"></i>
-                    </button>
-                    <button class="popup-btn popup-btn--danger popup-btn--sm reject-btn" title="Отклонить">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            `;
+        // Контент
+        const content = document.createElement('div');
+        content.className = 'popup-list-item__content';
 
-            // Обработчики кнопок
-            item.querySelector('.approve-btn').addEventListener('click', () => {
-                const permission = item.querySelector('.permission-select').value;
+        // Пользователь
+        const userDiv = document.createElement('div');
+        userDiv.className = 'access-request-user';
+        const userIcon = document.createElement('i');
+        userIcon.className = 'fas fa-user';
+        userDiv.appendChild(userIcon);
+        if (!isIncoming) {
+            userDiv.appendChild(document.createTextNode('Владелец: '));
+        }
+        const userStrong = document.createElement('strong');
+        userStrong.textContent = user?.username || 'Неизвестный пользователь';
+        userDiv.appendChild(userStrong);
+        content.appendChild(userDiv);
+
+        // Блок
+        const blockDiv = document.createElement('div');
+        blockDiv.className = 'access-request-block';
+        const blockIcon = document.createElement('i');
+        blockIcon.className = 'fas fa-cube';
+        blockDiv.appendChild(blockIcon);
+        blockDiv.appendChild(document.createTextNode(request.block?.title || 'Блок без названия'));
+        content.appendChild(blockDiv);
+
+        // Дата
+        const dateDiv = document.createElement('div');
+        dateDiv.className = 'access-request-date';
+        const dateIcon = document.createElement('i');
+        dateIcon.className = 'fas fa-clock';
+        dateDiv.appendChild(dateIcon);
+        dateDiv.appendChild(document.createTextNode(date));
+        content.appendChild(dateDiv);
+
+        item.appendChild(content);
+
+        // Actions
+        const actions = document.createElement('div');
+        actions.className = 'popup-list-item__actions';
+
+        if (isIncoming) {
+            // Селект прав
+            const select = document.createElement('select');
+            select.className = 'popup-select popup-select--sm permission-select';
+            PERMISSION_OPTIONS.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt.value;
+                option.textContent = opt.label;
+                select.appendChild(option);
+            });
+            actions.appendChild(select);
+
+            // Кнопка одобрить
+            const approveBtn = document.createElement('button');
+            approveBtn.className = 'popup-btn popup-btn--success popup-btn--sm approve-btn';
+            approveBtn.title = 'Одобрить';
+            const approveIcon = document.createElement('i');
+            approveIcon.className = 'fas fa-check';
+            approveBtn.appendChild(approveIcon);
+            approveBtn.addEventListener('click', () => {
+                const permission = select.value;
                 this.handleApprove(request.id, permission, item);
             });
+            actions.appendChild(approveBtn);
 
-            item.querySelector('.reject-btn').addEventListener('click', () => {
+            // Кнопка отклонить
+            const rejectBtn = document.createElement('button');
+            rejectBtn.className = 'popup-btn popup-btn--danger popup-btn--sm reject-btn';
+            rejectBtn.title = 'Отклонить';
+            const rejectIcon = document.createElement('i');
+            rejectIcon.className = 'fas fa-times';
+            rejectBtn.appendChild(rejectIcon);
+            rejectBtn.addEventListener('click', () => {
                 this.handleReject(request.id, item);
             });
+            actions.appendChild(rejectBtn);
         } else {
-            // Отправленный запрос - показываем статус
+            // Статус для отправленных
             const statusInfo = this.getStatusInfo(request.status);
-
-            item.innerHTML = `
-                <div class="popup-list-item__content">
-                    <div class="access-request-user">
-                        <i class="fas fa-user"></i>
-                        Владелец: <strong>${user?.username || 'Неизвестный'}</strong>
-                    </div>
-                    <div class="access-request-block">
-                        <i class="fas fa-cube"></i>
-                        ${request.block?.title || 'Блок без названия'}
-                    </div>
-                    <div class="access-request-date">
-                        <i class="fas fa-clock"></i>
-                        ${date}
-                    </div>
-                </div>
-                <div class="popup-list-item__actions">
-                    <span class="access-request-status access-request-status--${request.status}">
-                        <i class="${statusInfo.icon}"></i>
-                        ${statusInfo.label}
-                        ${request.granted_permission ? ` (${this.getPermissionLabel(request.granted_permission)})` : ''}
-                    </span>
-                </div>
-            `;
+            const statusSpan = document.createElement('span');
+            statusSpan.className = `access-request-status access-request-status--${request.status}`;
+            const statusIcon = document.createElement('i');
+            statusIcon.className = statusInfo.icon;
+            statusSpan.appendChild(statusIcon);
+            let statusText = statusInfo.label;
+            if (request.granted_permission) {
+                statusText += ` (${this.getPermissionLabel(request.granted_permission)})`;
+            }
+            statusSpan.appendChild(document.createTextNode(' ' + statusText));
+            actions.appendChild(statusSpan);
         }
 
+        item.appendChild(actions);
         return item;
     }
 
@@ -272,7 +337,10 @@ export class AccessRequestsPopup extends Popup {
     async handleApprove(requestId, permission, itemElement) {
         const btn = itemElement.querySelector('.approve-btn');
         btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        btn.innerHTML = '';
+        const spinner = document.createElement('i');
+        spinner.className = 'fas fa-spinner fa-spin';
+        btn.appendChild(spinner);
 
         try {
             await api.approveAccessRequest(requestId, permission);
@@ -298,7 +366,10 @@ export class AccessRequestsPopup extends Popup {
         } catch (error) {
             console.error('Failed to approve request:', error);
             btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-check"></i>';
+            btn.innerHTML = '';
+            const icon = document.createElement('i');
+            icon.className = 'fas fa-check';
+            btn.appendChild(icon);
             toastManager.error('Не удалось одобрить запрос');
         }
     }
@@ -309,7 +380,10 @@ export class AccessRequestsPopup extends Popup {
     async handleReject(requestId, itemElement) {
         const btn = itemElement.querySelector('.reject-btn');
         btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        btn.innerHTML = '';
+        const spinner = document.createElement('i');
+        spinner.className = 'fas fa-spinner fa-spin';
+        btn.appendChild(spinner);
 
         try {
             await api.rejectAccessRequest(requestId);
@@ -335,7 +409,10 @@ export class AccessRequestsPopup extends Popup {
         } catch (error) {
             console.error('Failed to reject request:', error);
             btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-times"></i>';
+            btn.innerHTML = '';
+            const icon = document.createElement('i');
+            icon.className = 'fas fa-times';
+            btn.appendChild(icon);
             toastManager.error('Не удалось отклонить запрос');
         }
     }
@@ -367,135 +444,4 @@ export class AccessRequestsPopup extends Popup {
         window.removeEventListener('OpenAccessRequestsPopup', this._handleOpenPopup);
         super.close();
     }
-}
-
-// CSS стили для компонента
-const styles = `
-    .access-requests-tabs {
-        display: flex;
-        gap: 4px;
-        margin-bottom: 16px;
-        border-bottom: 1px solid var(--popup-border);
-        padding-bottom: 8px;
-    }
-
-    .access-requests-tab {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 8px 16px;
-        background: transparent;
-        border: none;
-        border-radius: 6px 6px 0 0;
-        font-size: 14px;
-        font-weight: 500;
-        color: var(--popup-muted);
-        cursor: pointer;
-        transition: all 0.15s ease;
-    }
-
-    .access-requests-tab:hover {
-        background: var(--popup-border);
-        color: var(--popup-fg);
-    }
-
-    .access-requests-tab.active {
-        background: var(--popup-primary);
-        color: #fff;
-    }
-
-    .tab-count {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 20px;
-        height: 20px;
-        padding: 0 6px;
-        font-size: 12px;
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 10px;
-    }
-
-    .access-requests-tab:not(.active) .tab-count {
-        background: var(--popup-border);
-    }
-
-    .access-requests-list {
-        min-height: 200px;
-        max-height: 400px;
-        overflow-y: auto;
-    }
-
-    .access-request-item {
-        transition: all 0.2s ease;
-    }
-
-    .access-request-user,
-    .access-request-block,
-    .access-request-date {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 4px;
-        font-size: 14px;
-    }
-
-    .access-request-user i,
-    .access-request-block i,
-    .access-request-date i {
-        width: 16px;
-        color: var(--popup-muted);
-    }
-
-    .access-request-date {
-        font-size: 12px;
-        color: var(--popup-muted);
-    }
-
-    .access-request-status {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 12px;
-        font-size: 13px;
-        font-weight: 500;
-        border-radius: 6px;
-    }
-
-    .access-request-status--pending {
-        background: #fef3c7;
-        color: #b45309;
-    }
-
-    .access-request-status--approved {
-        background: #d1fae5;
-        color: #047857;
-    }
-
-    .access-request-status--rejected {
-        background: #fee2e2;
-        color: #b91c1c;
-    }
-
-    .popup-select--sm {
-        padding: 6px 28px 6px 10px;
-        font-size: 13px;
-        min-width: 120px;
-    }
-
-    .popup-btn--sm {
-        padding: 6px 10px;
-        font-size: 13px;
-    }
-
-    .popup-btn--sm i {
-        font-size: 12px;
-    }
-`;
-
-// Вставляем стили
-if (typeof document !== 'undefined') {
-    const styleEl = document.createElement('style');
-    styleEl.textContent = styles;
-    document.head.appendChild(styleEl);
 }

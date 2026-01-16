@@ -12,6 +12,7 @@ class AccessRequestsBadgeManager {
         this.requestsCount = 0;
         this.initialized = false;
         this.initialLoadDone = false;
+        this._initTimeoutId = null;
 
         // Привязываем методы
         this._handleNewRequest = this._handleNewRequest.bind(this);
@@ -43,7 +44,8 @@ class AccessRequestsBadgeManager {
         this.initialized = true;
 
         // Пробуем создать badge с небольшой задержкой (если кнопка уже есть)
-        setTimeout(() => {
+        this._initTimeoutId = setTimeout(() => {
+            this._initTimeoutId = null;
             const button = document.getElementById(this.buttonId);
             if (button && !this.initialLoadDone) {
                 this._handleUIButtonsRendered();
@@ -60,6 +62,12 @@ class AccessRequestsBadgeManager {
         window.removeEventListener('UIButtonsRendered', this._handleUIButtonsRendered);
         window.removeEventListener('Logout', this._handleLogout);
         window.removeEventListener('WebSocketConnected', this._handleWebSocketConnected);
+
+        // Очищаем setTimeout
+        if (this._initTimeoutId) {
+            clearTimeout(this._initTimeoutId);
+            this._initTimeoutId = null;
+        }
 
         this.initialized = false;
         this.initialLoadDone = false;
