@@ -71,26 +71,36 @@ class FocusManager {
     /**
      * Получает список всех доступных контейнеров для добавления в фокус
      * Включает пользовательские контейнеры и дефолтный Home Focus
+     *
+     * Оптимизация: один проход по всем блокам вместо двух отдельных вызовов
      * @returns {Array<Object>} Массив контейнеров [{id, title, isHomeFocus}]
      */
     getAllAvailableContainers() {
         const containers = [];
+        let homeFocusBlock = null;
 
-        // Добавляем пользовательские контейнеры
-        const userContainers = this.findAllFocusContainers();
-        for (const container of userContainers) {
-            containers.push({
-                id: container.id,
-                title: container.name,
-                isHomeFocus: false
-            });
+        // Один проход по всем блокам
+        for (const [id, block] of localStateManager.blocks) {
+            // Проверяем пользовательские контейнеры фокуса
+            if (block.data?.isFocusContainer) {
+                containers.push({
+                    id,
+                    title: block.data?.focusContainerName || block.title || 'Контейнер фокуса',
+                    isHomeFocus: false
+                });
+            }
+
+            // Запоминаем Home Focus
+            if (block.data?.homePageRole === 'focus') {
+                homeFocusBlock = block;
+                this._homeFocusBlockId = id;
+            }
         }
 
-        // Добавляем дефолтный Home Focus
-        const homeFocus = this.findHomeFocusBlock();
-        if (homeFocus) {
+        // Добавляем дефолтный Home Focus в конец списка
+        if (homeFocusBlock) {
             containers.push({
-                id: homeFocus.id,
+                id: homeFocusBlock.id,
                 title: 'Focus (Home)',
                 isHomeFocus: true
             });
@@ -192,17 +202,17 @@ class FocusManager {
     /**
      * Обновляет ссылку на текущую неделю в дефолтном Home Focus
      * Авторотация: удаляет старую ссылку на неделю и создаёт новую
+     *
+     * Важно: операции выполняются последовательно чтобы избежать race condition
      */
     async updateCurrentWeekLink() {
         const homeFocus = this.findHomeFocusBlock();
         if (!homeFocus) {
-            console.log('FocusManager: Home Focus block not found, skipping week rotation');
             return;
         }
 
         const currentWeekBlock = this.findCurrentWeekBlock();
         if (!currentWeekBlock) {
-            console.log('FocusManager: Current week block not found in calendar');
             return;
         }
 
@@ -213,7 +223,7 @@ class FocusManager {
         // Проверяем, есть ли уже ссылка на текущую неделю
         const childOrder = homeFocus.data?.childOrder || [];
         let hasCurrentWeekLink = false;
-        let oldWeekLinkIds = [];
+        const oldWeekLinkIds = [];
 
         for (const childId of childOrder) {
             const childBlock = localStateManager.blocks.get(childId);
@@ -231,29 +241,26 @@ class FocusManager {
             }
         }
 
-        // Если уже есть ссылка на текущую неделю - ничего не делаем
+        // Если уже есть ссылка на текущую неделю и нет старых ссылок - ничего не делаем
         if (hasCurrentWeekLink && oldWeekLinkIds.length === 0) {
-            console.log('FocusManager: Current week link already exists');
             return;
         }
 
-        // Удаляем старые ссылки на недели (авторотация)
+        // Сначала удаляем старые ссылки на недели (авторотация)
+        // Выполняем последовательно чтобы избежать race condition
         for (const oldLinkId of oldWeekLinkIds) {
-            dispatch('DeleteTreeBlock', { blockId: oldLinkId });
+            await new Promise(resolve => {
+                dispatch('DeleteTreeBlock', { blockId: oldLinkId });
+                // Даём время на обработку события
+                setTimeout(resolve, 50);
+            });
         }
 
-        // Добавляем ссылку на текущую неделю если её нет
+        // Затем добавляем ссылку на текущую неделю если её нет
         if (!hasCurrentWeekLink) {
             dispatch('PasteLinkBlock', {
                 dest: homeFocusId,
                 src: [currentWeekId]
-            });
-
-            console.log('FocusManager: Updated current week link', {
-                homeFocusId,
-                currentWeekId,
-                weekKey: currentWeekKey,
-                removedOldLinks: oldWeekLinkIds.length
             });
         }
     }
@@ -261,20 +268,13 @@ class FocusManager {
     /**
      * Инициализирует ссылку на текущую неделю при первом входе
      * Вызывается при открытии Home Focus
+     *
+     * Обрабатывает оба случая:
+     * - Первая инициализация (пустой Home Focus)
+     * - Авторотация (проверка актуальности недели)
      */
     async initializeWeekLinkIfNeeded() {
-        const homeFocus = this.findHomeFocusBlock();
-        if (!homeFocus) return;
-
-        // Проверяем, пустой ли Home Focus
-        const childOrder = homeFocus.data?.childOrder || [];
-        if (childOrder.length === 0) {
-            // Первая инициализация - добавляем ссылку на текущую неделю
-            await this.updateCurrentWeekLink();
-        } else {
-            // Проверяем актуальность недели (авторотация)
-            await this.updateCurrentWeekLink();
-        }
+        await this.updateCurrentWeekLink();
     }
 }
 

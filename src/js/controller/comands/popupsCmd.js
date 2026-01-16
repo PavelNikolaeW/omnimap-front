@@ -613,6 +613,7 @@ export const popupsCommands = [
         execute(ctx) {
             // Если блок не выбран - входим в режим выбора
             if (!ctx.blockElement && ctx.mode !== MODES.ADD_TO_FOCUS) {
+                ctx.previousMode = ctx.mode;  // Сохраняем для возврата
                 ctx.mode = MODES.ADD_TO_FOCUS;
                 document.body.style.cursor = 'crosshair';
                 // Показываем подсказку
@@ -669,7 +670,8 @@ export const popupsCommands = [
             const blockTitle = block?.title || ctx.blockElement?.querySelector('titleBlock')?.innerText || 'Блок';
 
             ctx.closePopups();
-            ctx.mode = 'addToFocus';
+            const previousMode = ctx.previousMode;  // Сохраняем до сброса
+            ctx.mode = MODES.ADD_TO_FOCUS;
 
             // Показываем popup выбора контейнера
             ctx.popup = new FocusContainerPopup({
@@ -677,11 +679,13 @@ export const popupsCommands = [
                 blockTitle: blockTitle,
                 onSelect(containerId) {
                     focusManager.addBlockToFocusContainer(blockId, containerId);
-                    ctx.mode = MODES.NORMAL;
+                    ctx.mode = previousMode || MODES.NORMAL;
+                    ctx.previousMode = undefined;
                     setCmdOpenBlock(ctx);
                 },
                 onCancel() {
-                    ctx.mode = MODES.NORMAL;
+                    ctx.mode = previousMode || MODES.NORMAL;
+                    ctx.previousMode = undefined;
                     setCmdOpenBlock(ctx);
                 }
             });

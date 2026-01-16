@@ -33,6 +33,10 @@ export class FocusContainerPopup extends Popup {
         this.onSelect = options.onSelect;
         this.onCancelCallback = options.onCancel;
 
+        // Хранилище для cleanup event listeners
+        this._buttonHandlers = [];
+        this._cancelHandler = null;
+
         this.renderContent();
     }
 
@@ -111,8 +115,10 @@ export class FocusContainerPopup extends Popup {
         title.textContent = container.title;
         button.appendChild(title);
 
-        // Обработчик клика
-        button.addEventListener('click', () => this.handleContainerSelect(container.id));
+        // Обработчик клика с сохранением ссылки для cleanup
+        const handler = () => this.handleContainerSelect(container.id);
+        button.addEventListener('click', handler);
+        this._buttonHandlers.push({ button, handler });
 
         return button;
     }
@@ -137,7 +143,8 @@ export class FocusContainerPopup extends Popup {
 
         this.cancelButton = this.createCancelButton();
         this.cancelButton.textContent = 'Отмена';
-        this.cancelButton.addEventListener('click', () => this.handleCancel());
+        this._cancelHandler = () => this.handleCancel();
+        this.cancelButton.addEventListener('click', this._cancelHandler);
 
         container.appendChild(this.cancelButton);
         this.popupEl.appendChild(container);
@@ -171,5 +178,25 @@ export class FocusContainerPopup extends Popup {
         if (!str) return '';
         if (str.length <= maxLength) return str;
         return str.substring(0, maxLength - 3) + '...';
+    }
+
+    /**
+     * Очистка event listeners при закрытии popup
+     */
+    close() {
+        // Cleanup button handlers
+        for (const { button, handler } of this._buttonHandlers) {
+            button.removeEventListener('click', handler);
+        }
+        this._buttonHandlers = [];
+
+        // Cleanup cancel handler
+        if (this._cancelHandler && this.cancelButton) {
+            this.cancelButton.removeEventListener('click', this._cancelHandler);
+            this._cancelHandler = null;
+        }
+
+        // Call parent close
+        super.close();
     }
 }
