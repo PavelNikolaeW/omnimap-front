@@ -150,6 +150,25 @@ class BlockCreator {
         element.setAttribute('blockLink', block.data.source)
         element.setAttribute('layout', block.size.layout)
 
+        // Обработка pending ссылки (ожидание доступа)
+        if (block.data.pending) {
+            element.setAttribute('data-pending', 'true')
+            element.setAttribute('data-request-id', block.data.request_id || '')
+            this._applyStyles(element, ['block-link', 'block-link--pending', ...grid, ...(parentBlock.childrenPositions[block.id])])
+
+            // Создаём заглушку вместо контента
+            const placeholder = this._createPendingPlaceholder(block)
+            element.appendChild(placeholder)
+
+            // Не добавляем source в childOrder - его нельзя отрендерить
+            block.data.childOrder = []
+            block.childrenPositions = {}
+            block.grid = grid
+            block.contentEl = null
+            block.color = [...(parentBlock.color || [])]
+            return element
+        }
+
         this._applyStyles(element, ['block-link', ...grid, ...(parentBlock.childrenPositions[block.id])])
 
         block.data.childOrder = [sourceId]
@@ -158,6 +177,29 @@ class BlockCreator {
         block.contentEl = null
         block.color = [...(parentBlock.color || [])]
         return element
+    }
+
+    /**
+     * Создаёт заглушку для pending ссылки
+     * @param {Object} block - блок-ссылка с pending статусом
+     * @returns {HTMLElement} - DOM элемент заглушки
+     */
+    _createPendingPlaceholder(block) {
+        const placeholder = document.createElement('div')
+        placeholder.className = 'block-link-pending-placeholder'
+        placeholder.setAttribute('data-testid', `pending-placeholder-${block.id}`)
+
+        placeholder.innerHTML = `
+            <div class="pending-placeholder__icon">
+                <i class="fas fa-clock"></i>
+            </div>
+            <div class="pending-placeholder__text">
+                <div class="pending-placeholder__title">Ожидание доступа</div>
+                <div class="pending-placeholder__description">Запрос отправлен владельцу блока</div>
+            </div>
+        `
+
+        return placeholder
     }
 
     createIframe(block, parentBlock) {

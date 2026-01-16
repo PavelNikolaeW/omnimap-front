@@ -374,6 +374,26 @@ export class UpdateServiceWebSocket {
                 }
             } else if (message.type === 'block_update_access') {
                 dispatch('WebSocUpdateBlockAccess', message);
+            } else if (message.action === 'access_request') {
+                // Обработка событий запросов на доступ
+                if (message.type === 'new_request') {
+                    // Новый запрос на доступ (для владельца блока)
+                    dispatch('AccessRequestNew', {
+                        requestId: message.request_id,
+                        requester: message.requester,
+                        block: message.block,
+                        ownerId: message.owner_id
+                    });
+                } else if (message.type === 'response') {
+                    // Ответ на запрос (для запрашивающего)
+                    dispatch('AccessRequestResponse', {
+                        requestId: message.request_id,
+                        approved: message.approved,
+                        permission: message.permission,
+                        block: message.block,
+                        userId: message.user_id
+                    });
+                }
             }
         };
 

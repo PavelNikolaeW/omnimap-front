@@ -1,0 +1,269 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACCESS REQUESTS STYLES
+   Стили для системы запросов на доступ
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Badge для кнопки запросов на доступ
+   ───────────────────────────────────────────────────────────────────────────── */
+.with-badge {
+    position: relative;
+}
+
+.access-requests-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    text-align: center;
+    color: #fff;
+    background: #ef4444;
+    border-radius: 9px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    z-index: 10;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Pending Link Placeholder
+   ───────────────────────────────────────────────────────────────────────────── */
+.block-link--pending {
+    border: 2px dashed #d1d5db !important;
+    background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%) !important;
+}
+
+.block-link-pending-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+    padding: 16px;
+    box-sizing: border-box;
+    text-align: center;
+    user-select: none;
+}
+
+.pending-placeholder__icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fef3c7;
+    border-radius: 50%;
+    margin-bottom: 12px;
+}
+
+.pending-placeholder__icon i {
+    font-size: 24px;
+    color: #b45309;
+}
+
+.pending-placeholder__text {
+    max-width: 200px;
+}
+
+.pending-placeholder__title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 4px;
+}
+
+.pending-placeholder__description {
+    font-size: 12px;
+    color: #6b7280;
+    line-height: 1.4;
+}
+
+/* Rejected link placeholder */
+.block-link--rejected {
+    border: 2px dashed #fca5a5 !important;
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%) !important;
+}
+
+.block-link--rejected .pending-placeholder__icon {
+    background: #fee2e2;
+}
+
+.block-link--rejected .pending-placeholder__icon i {
+    color: #b91c1c;
+}
+
+.block-link--rejected .pending-placeholder__title {
+    color: #b91c1c;
+}
+
+/* Small block pending - simplified */
+[layout^="xxxs"] .block-link-pending-placeholder,
+[layout^="xxs"] .block-link-pending-placeholder {
+    padding: 8px;
+}
+
+[layout^="xxxs"] .pending-placeholder__icon,
+[layout^="xxs"] .pending-placeholder__icon {
+    width: 32px;
+    height: 32px;
+    margin-bottom: 8px;
+}
+
+[layout^="xxxs"] .pending-placeholder__icon i,
+[layout^="xxs"] .pending-placeholder__icon i {
+    font-size: 16px;
+}
+
+[layout^="xxxs"] .pending-placeholder__description,
+[layout^="xxs"] .pending-placeholder__description {
+    display: none;
+}
+
+[layout^="xxxs"] .pending-placeholder__title,
+[layout^="xxs"] .pending-placeholder__title {
+    font-size: 12px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Pulse animation for pending status
+   ───────────────────────────────────────────────────────────────────────────── */
+@keyframes pending-pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+}
+
+.block-link--pending .pending-placeholder__icon {
+    animation: pending-pulse 2s ease-in-out infinite;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Access Requests Popup
+   ───────────────────────────────────────────────────────────────────────────── */
+.access-requests-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--popup-border);
+    padding-bottom: 8px;
+}
+
+.access-requests-tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    border-radius: 6px 6px 0 0;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--popup-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.access-requests-tab:hover {
+    background: var(--popup-border);
+    color: var(--popup-fg);
+}
+
+.access-requests-tab.active {
+    background: var(--popup-primary);
+    color: #fff;
+}
+
+.tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    font-size: 12px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+}
+
+.access-requests-tab:not(.active) .tab-count {
+    background: var(--popup-border);
+}
+
+.access-requests-list {
+    min-height: 200px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.access-request-item {
+    transition: all 0.2s ease;
+}
+
+.access-request-user,
+.access-request-block,
+.access-request-date {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    font-size: 14px;
+}
+
+.access-request-user i,
+.access-request-block i,
+.access-request-date i {
+    width: 16px;
+    color: var(--popup-muted);
+}
+
+.access-request-date {
+    font-size: 12px;
+    color: var(--popup-muted);
+}
+
+.access-request-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 6px;
+}
+
+.access-request-status--pending {
+    background: #fef3c7;
+    color: #b45309;
+}
+
+.access-request-status--approved {
+    background: #d1fae5;
+    color: #047857;
+}
+
+.access-request-status--rejected {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.popup-select--sm {
+    padding: 6px 28px 6px 10px;
+    font-size: 13px;
+    min-width: 120px;
+}
+
+.popup-btn--sm {
+    padding: 6px 10px;
+    font-size: 13px;
+}
+
+.popup-btn--sm i {
+    font-size: 12px;
+}

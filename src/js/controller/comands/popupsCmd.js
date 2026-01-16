@@ -17,6 +17,7 @@ import {SubscriptionPopup} from "../popups/subscriptionPopup";
 import {NotificationSettingsPopup} from "../popups/notificationSettingsPopup";
 import {RemindersListPopup} from "../popups/remindersListPopup";
 import {SubscriptionsListPopup} from "../popups/subscriptionsListPopup";
+import {AccessRequestsPopup} from "../popups/accessRequestsPopup";
 import {FocusContainerPopup} from "../popups/focusContainerPopup";
 import {focusManager} from "../../services/focusManager";
 import {MODES} from "../../actions/selectionActions";
@@ -594,6 +595,28 @@ export const popupsCommands = [
                 onOpen(blockId) {
                     dispatch('OpenBlock', { id: blockId });
                 },
+                onCancel() {
+                    ctx.mode = 'normal';
+                }
+            });
+        }
+    },
+    {
+        id: "accessRequests",
+        mode: ['normal'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Запросы на доступ',
+            classes: ['sidebar-button', 'fas', 'fa-user-check', 'fas-lg']
+        },
+        defaultHotkey: 'shift+r',
+        description: 'Открыть запросы на доступ к блокам',
+        execute(ctx) {
+            ctx.mode = 'accessRequests';
+            ctx.closePopups();
+            setCmdOpenBlock(ctx);
+
+            ctx.popup = new AccessRequestsPopup({
                 onCancel() {
                     ctx.mode = 'normal';
                 }
