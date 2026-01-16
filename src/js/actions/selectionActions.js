@@ -16,7 +16,8 @@ export const MODES = {
     CONNECT_SELECT_SOURCE: 'connectSelectSource',  // Ожидание выбора блока-источника
     CUT_BLOCK: 'cutBlock',
     DIAGRAM: 'diagram',
-    CHAT: 'chat'
+    CHAT: 'chat',
+    ADD_TO_FOCUS: 'addToFocus'  // Ожидание выбора блока для добавления в фокус
 };
 
 /**

@@ -17,6 +17,9 @@ import {SubscriptionPopup} from "../popups/subscriptionPopup";
 import {NotificationSettingsPopup} from "../popups/notificationSettingsPopup";
 import {RemindersListPopup} from "../popups/remindersListPopup";
 import {SubscriptionsListPopup} from "../popups/subscriptionsListPopup";
+import {FocusContainerPopup} from "../popups/focusContainerPopup";
+import {focusManager} from "../../services/focusManager";
+import {MODES} from "../../actions/selectionActions";
 
 
 export const popupsCommands = [
@@ -595,6 +598,128 @@ export const popupsCommands = [
                     ctx.mode = 'normal';
                 }
             });
+        }
+    },
+    {
+        id: "addToFocus",
+        mode: ['normal', 'addToFocus'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Добавить в фокус',
+            classes: ['sidebar-button', 'fas', 'fa-bullseye', 'fas-lg']
+        },
+        defaultHotkey: 'shift+k',
+        description: 'Добавить блок в контейнер фокуса',
+        execute(ctx) {
+            // Если блок не выбран - входим в режим выбора
+            if (!ctx.blockElement && ctx.mode !== MODES.ADD_TO_FOCUS) {
+                ctx.mode = MODES.ADD_TO_FOCUS;
+                document.body.style.cursor = 'crosshair';
+                // Показываем подсказку
+                let hint = document.getElementById('command-hint');
+                if (!hint) {
+                    hint = document.createElement('div');
+                    hint.id = 'command-hint';
+                    hint.style.cssText = `
+                        position: fixed;
+                        top: 60px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        background: rgba(0, 0, 0, 0.8);
+                        color: white;
+                        padding: 10px 20px;
+                        border-radius: 8px;
+                        z-index: 10000;
+                        font-size: 14px;
+                        transition: opacity 0.3s ease;
+                    `;
+                    document.body.appendChild(hint);
+                }
+                hint.textContent = 'Кликните на блок для добавления в фокус (Esc для отмены)';
+                hint.style.opacity = '1';
+                hint.style.display = 'block';
+                return;
+            }
+
+            // Если в режиме ADD_TO_FOCUS и кликнули на блок
+            if (ctx.mode === MODES.ADD_TO_FOCUS && ctx.blockElement) {
+                document.body.style.cursor = '';
+                // Скрываем подсказку
+                const hint = document.getElementById('command-hint');
+                if (hint) {
+                    hint.style.opacity = '0';
+                    setTimeout(() => { hint.style.display = 'none'; }, 300);
+                }
+            }
+
+            // Получаем ID выбранного блока
+            let blockId = ctx.blockElement?.id?.split('*').at(-1);
+            if (ctx.blockLinkElement?.hasAttribute('blockLink')) {
+                blockId = ctx.blockLinkElement.getAttribute('blocklink');
+            }
+
+            if (!blockId) {
+                ctx.mode = MODES.NORMAL;
+                setCmdOpenBlock(ctx);
+                return;
+            }
+
+            // Получаем название блока
+            const block = localStateManager.blocks.get(blockId);
+            const blockTitle = block?.title || ctx.blockElement?.querySelector('titleBlock')?.innerText || 'Блок';
+
+            ctx.closePopups();
+            ctx.mode = 'addToFocus';
+
+            // Показываем popup выбора контейнера
+            ctx.popup = new FocusContainerPopup({
+                blockId: blockId,
+                blockTitle: blockTitle,
+                onSelect(containerId) {
+                    focusManager.addBlockToFocusContainer(blockId, containerId);
+                    ctx.mode = MODES.NORMAL;
+                    setCmdOpenBlock(ctx);
+                },
+                onCancel() {
+                    ctx.mode = MODES.NORMAL;
+                    setCmdOpenBlock(ctx);
+                }
+            });
+        }
+    },
+    {
+        id: "markAsFocusContainer",
+        mode: ['normal'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Сделать контейнером фокуса',
+            classes: ['sidebar-button', 'fas', 'fa-folder-plus', 'fas-lg']
+        },
+        defaultHotkey: 'shift+ctrl+k',
+        description: 'Пометить блок как контейнер фокуса',
+        execute(ctx) {
+            let blockId = ctx.blockElement?.id?.split('*').at(-1);
+            if (ctx.blockLinkElement?.hasAttribute('blockLink')) {
+                blockId = ctx.blockLinkElement.getAttribute('blocklink');
+            }
+
+            if (!blockId) {
+                dispatch('ShowError', { message: 'Выберите блок' });
+                return;
+            }
+
+            // Проверяем, является ли блок уже контейнером
+            if (focusManager.isFocusContainer(blockId)) {
+                // Снимаем метку
+                focusManager.unmarkAsFocusContainer(blockId);
+                dispatch('ShowToast', { message: 'Метка контейнера фокуса снята', type: 'info' });
+            } else {
+                // Помечаем как контейнер
+                focusManager.markAsFocusContainer(blockId);
+                dispatch('ShowToast', { message: 'Блок помечен как контейнер фокуса', type: 'success' });
+            }
+
+            setCmdOpenBlock(ctx);
         }
     },
 ]

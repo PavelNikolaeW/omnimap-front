@@ -12,6 +12,7 @@ import { importBlocks, pollImportStatus, generateBlockId } from '../api/importSe
 import api from '../api/api.js';
 import { dispatch } from '../utils/utils.js';
 import { TUTORIAL_STRUCTURE } from '../onboarding/tutorialGraph.js';
+import { generateYearCalendar } from '../controller/layoutEditor/CalendarGenerator.js';
 
 /**
  * Конфигурация 6 блоков верхнего уровня Home Page
@@ -187,6 +188,38 @@ function generateHomePageStructure(rootBlockId) {
             blocks[areasBlockIndex].data.layout = 'cells';
             blocks[areasBlockIndex].data.childOrder = areasChildOrder;
             blocks[areasBlockIndex].data.layoutCells = areasLayoutCells;
+        }
+    }
+
+    // Генерируем календарь на текущий год внутри Archive
+    const archiveIndex = HOME_PAGE_BLOCKS.findIndex(b => b.role === 'archive');
+    if (archiveIndex !== -1) {
+        const archiveBlockId = homePageChildOrder[archiveIndex];
+        const currentYear = new Date().getFullYear();
+
+        try {
+            const { blocks: calendarBlocks, stats } = generateYearCalendar(currentYear, archiveBlockId);
+
+            // Добавляем все блоки календаря
+            blocks.push(...calendarBlocks);
+
+            // Находим блок года (первый блок в calendarBlocks)
+            const yearBlockId = calendarBlocks[0]?.id;
+
+            // Обновляем Archive с childOrder содержащим год
+            const archiveBlockIndex = blocks.findIndex(b => b.id === archiveBlockId);
+            if (archiveBlockIndex !== -1 && yearBlockId) {
+                blocks[archiveBlockIndex].data.childOrder = [yearBlockId];
+            }
+
+            console.log('HomePageInitializer: Calendar generated', {
+                year: currentYear,
+                totalBlocks: calendarBlocks.length,
+                stats
+            });
+        } catch (error) {
+            console.warn('HomePageInitializer: Failed to generate calendar:', error);
+            // Календарь опционален, продолжаем без него
         }
     }
 
@@ -468,6 +501,9 @@ export async function checkAndInitializeOnboarding(rootBlockId, blocksMap) {
         console.error('HomePageInitializer: Onboarding check failed:', error);
     }
 }
+
+// Экспорт для тестирования
+export { generateHomePageStructure };
 
 export default {
     initializeHomePage,

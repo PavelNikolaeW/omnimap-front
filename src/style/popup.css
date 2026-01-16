@@ -987,3 +987,86 @@
         transform: rotate(360deg);
     }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Focus Container Popup - Выбор контейнера фокуса
+   ───────────────────────────────────────────────────────────────────────────── */
+.focus-containers-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--popup-spacing-sm);
+    margin: var(--popup-spacing-md) 0;
+}
+
+.focus-container-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--popup-spacing-md);
+    width: 100%;
+    padding: var(--popup-spacing-md) var(--popup-spacing-lg);
+    font-family: inherit;
+    font-size: var(--popup-font-size-base);
+    font-weight: 500;
+    color: var(--popup-fg);
+    background: var(--popup-bg);
+    border: 1px solid var(--popup-border);
+    border-radius: var(--popup-radius-md);
+    cursor: pointer;
+    transition: all var(--popup-transition);
+    text-align: left;
+}
+
+.focus-container-btn:hover {
+    background: #f3f4f6;
+    border-color: var(--popup-primary);
+}
+
+.focus-container-btn:active {
+    transform: scale(0.98);
+}
+
+.focus-container-btn--home {
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    border-color: #3b82f6;
+}
+
+.focus-container-btn--home:hover {
+    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+    border-color: #2563eb;
+}
+
+.focus-container-icon {
+    width: 20px;
+    height: 20px;
+    color: var(--popup-primary);
+    flex-shrink: 0;
+}
+
+.focus-container-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Popup text styles */
+.popup-text {
+    margin: 0;
+    font-size: var(--popup-font-size-base);
+    color: var(--popup-fg);
+    line-height: 1.5;
+}
+
+.popup-text--muted {
+    color: var(--popup-muted);
+}
+
+.popup-text--small {
+    font-size: var(--popup-font-size-sm);
+}
+
+.popup-section--hint {
+    margin-top: var(--popup-spacing-md);
+    padding-top: var(--popup-spacing-md);
+    border-top: 1px solid var(--popup-border);
+}

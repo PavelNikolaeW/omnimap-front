@@ -232,6 +232,10 @@ export const commands = [
             if (ctx.mode === MODES.DIAGRAM) {
                 ctx.diagramUtils.hiddenInputs()
             }
+            if (ctx.mode === MODES.ADD_TO_FOCUS) {
+                document.body.style.cursor = ''
+                hideHint()
+            }
             ctx.mode = MODES.NORMAL
             ctx.event = undefined
             ctx.blockId = undefined
