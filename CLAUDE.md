@@ -1,482 +1,186 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+OmniMap Frontend - visual knowledge mapping with real-time sync.
+
+## Quick Start
+
+```bash
+npm start          # Dev server (remote backend)
+npm run start_local # Dev server (local backend)
+npm run build      # Production build
+npm test           # Unit tests
+npm run test:e2e   # E2E tests
+```
+
+## Documentation
+
+**Architecture overview:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+
+| Module | Description |
+|--------|-------------|
+| [API](docs/modules/API.md) | HTTP client, JWT auth, endpoints |
+| [State](docs/modules/STATE.md) | Block storage, IndexedDB |
+| [Sync](docs/modules/SYNC.md) | WebSocket, offline queue |
+| [Painter](docs/modules/PAINTER.md) | Rendering, Grid layout |
+| [Commands](docs/modules/COMMANDS.md) | Hotkeys, command system |
+| [Actions](docs/modules/ACTIONS.md) | Business logic |
+| [Diagrams](docs/modules/DIAGRAMS.md) | Connections, shapes |
+| [Utils](docs/modules/UTILS.md) | Helpers, permissions, queues |
+| [Onboarding](docs/modules/ONBOARDING.md) | Tutorial, hints, welcome flow |
+| [Home Page](docs/modules/HOME_PAGE.md) | Initial structure for new users |
+| [Layout Editor](docs/LAYOUT_EDITOR.md) | Visual grid editor |
 
 ## Git Workflow
 
-**IMPORTANT: Разработка ведётся в отдельных ветках!**
-
-1. **Создай ветку** для задачи:
-   ```bash
-   git checkout -b feature/название-задачи
-   # или
-   git checkout -b fix/описание-бага
-   ```
-
-2. **Работай в своей ветке** — никогда не коммить напрямую в `main`
-
-3. **После завершения задачи** создай Pull Request:
-   ```bash
-   git push -u origin feature/название-задачи
-   gh pr create --title "Описание" --body "Детали изменений"
-   ```
-
-4. **Дождись ревью** от Claude Code Action перед мержем
-
-## Project Overview
-
-OmniMap is a web-based visual knowledge mapping application built with JavaScript (ES6+) and Webpack 5. It enables users to create, visualize, and collaborate on hierarchical block-based information structures with real-time synchronization.
-
-## Build & Development Commands
+**Работай в отдельной ветке, не коммить в main напрямую!**
 
 ```bash
-# Development server (uses remote backend at omnimap.ru)
-npm start
-
-# Development with local backend
-npm run start_local
-
-# Production build (minified, with service worker)
-npm run build
-
-# Debug build with source maps
-npm run build:debug
+git checkout -b feature/название-задачи
+# ... работа ...
+git push -u origin feature/название-задачи
+gh pr create --title "Описание" --body "Детали"
 ```
 
-Environment variables are configured in webpack configs:
-- `APP_BACKEND_URL`: Backend API endpoint
-- `LLM_GATEWAY_URL`: LLM service endpoint
-- `SINC_SERVICE_URL`: WebSocket sync service URL
+## Cross-Service Changes
 
-## Architecture
+**НЕ редактируй код других сервисов напрямую!**
 
-### Event-Driven Communication
+Если нужны изменения в `omnimap-back`, `llm-gateway` или `omnimap-sync`:
+1. Создай `BACKEND_TASKS.md` в директории соответствующего сервиса
+2. Укажи в PR что требуются изменения в других сервисах
 
-The app uses a custom event system via window events. Components communicate through `dispatch()` (from `utils/utils.js`):
+## Key Patterns
+
+### Event System
 
 ```javascript
-dispatch('EventName', { key: value });  // Emit
-window.addEventListener('EventName', (e) => { /* handle e.detail */ });  // Listen
+import { dispatch } from '../utils/utils';
+dispatch('EventName', { data });
+window.addEventListener('EventName', (e) => e.detail);
 ```
 
-Key events: `ShowBlocks`, `OpenBlock`, `UpdateBlocks`, `UndoStackAdd`, `ContextChanged`
+Key events: `ShowBlocks`, `OpenBlock`, `UpdateBlocks`, `CreateBlock`, `MoveBlock`, `WebSocUpdateBlock`
 
-### Core Modules
-
-- **`src/js/index.js`**: Application entry point, initializes all managers
-- **`src/js/controller/comands/comandManager.js`**: Command registration and hotkey binding (uses `hotkeys-js`)
-- **`src/js/controller/comands/contextManager.js`**: UI state management (selected block, mode, etc.)
-- **`src/js/stateLocal/localStateManager.js`**: Block repository and persistence (uses IndexedDB via `localforage`)
-- **`src/js/painter/painter.js`**: Queue-based recursive renderer for block hierarchy
-- **`src/js/sincManager/sincManager.js`**: Real-time WebSocket synchronization
-- **`src/js/api/api.js`**: Axios-based API client with JWT token handling
-
-### Command System
-
-Commands are registered in `comandManager.js` with hotkey bindings:
-
-```javascript
-{
-  id: 'commandName',
-  hotkey: 'ctrl+k',
-  mode: 'edit',  // or 'select', 'all'
-  execute: (ctx) => { /* action */ },
-  description: 'What this does'
-}
-```
-
-Context (`ctx`) includes: `blockElement`, `mode`, `blockId`, `selectedBlocks`, etc.
-
-### State Management
-
-- **LocalStateManager**: Maintains block tree, handles IndexedDB persistence
-- **ContextManager**: Tracks UI state (selection, mode, focus)
-- **UndoStack**: Manages undo/redo via operation UUIDs
-
-### Real-Time Synchronization Architecture
-
-The app uses a 3-tier sync architecture: Backend → Sync Service → Frontend.
-
-```
-┌─────────────────┐     RabbitMQ      ┌─────────────────┐      WebSocket      ┌─────────────────┐
-│  omnimap-back   │ ──────────────→  │  omnimap-sync   │ ──────────────────→  │  omnimap-front  │
-│  (Django)       │                   │  (FastAPI)      │                      │  (JS)           │
-└─────────────────┘                   └─────────────────┘                      └─────────────────┘
-```
-
-#### Backend → RabbitMQ Messages (api/tasks.py)
-
-| Task Function | RabbitMQ Action | When Used |
-|---------------|-----------------|-----------|
-| `send_message_block_update` | `update_block` | Single block CRUD |
-| `send_message_blocks_update` | `update_blocks` | Batch import (created + updated) |
-| `send_message_unsubscribe_user` | `unsubscribe` | Block deletion |
-| `send_message_subscribe_user` | `subscribe` | Grant access |
-| `send_message_access_update` | `update_access` | Permission changes |
-
-#### Sync Service → WebSocket Messages (omnimap-sync)
-
-| WebSocket Message Type | Source | Format |
-|------------------------|--------|--------|
-| `block_updates` | Response to `get_updates` request | `{type, updates: [block, ...]}` |
-| `block_update` | Single block change | `{type, block_uuid, data: block}` |
-| `block_updates_batch` | Multiple blocks for one user | `{type, updates: [{type, block_uuid, data}, ...]}` |
-| `block_update_access` | Permission change | `{type, start_block_ids, block_uuids, permission}` |
-
-#### Frontend WebSocket Handling (sincManager/webSocket.js)
-
-```javascript
-// Message routing with debounce for live updates
-'block_updates'       → dispatch immediately (initial sync)
-'block_update'        → _queueBlockUpdates() → 50ms debounce → dispatch
-'block_updates_batch' → _queueBlockUpdates() → 50ms debounce → dispatch
-'block_update_access' → dispatch immediately
-```
-
-Key optimizations:
-- **Debounce (50ms)**: Accumulates rapid `block_update` messages into single batch
-- **Deduplication**: Same block ID in buffer → last update wins
-- **Subtree deletion**: `removeBlock()` recursively removes children
-
-#### Block Data Format (from backend)
+### Block Data Format
 
 ```javascript
 {
   id: 'uuid',
-  title: 'Block title',
-  data: '{"text": "...", "childOrder": [...]}',  // JSON string
+  title: 'Title',
   parent_id: 'parent-uuid' | false,
-  updated_at: 1234567890,  // Unix timestamp
-  children: '["child-uuid-1", "child-uuid-2"]',  // JSON string
-  deleted: true  // Optional, for deletion sync
+  children: '["child-1"]',  // JSON string
+  updated_at: 1234567890,
+  permission: 'view'|'edit'|'delete'|null,
+  data: {
+    text: 'Content',
+    childOrder: ['child-1', 'child-2'],
+    color: [180, 50, 50],  // HSL
+    connections: [{ sourceId, targetId, type }],
+    customGrid: { grid, cells },  // Diagram mode
+    layoutCells: { gridSize, cells },  // Layout editor
+    customStyles: { shape, border, shadow }
+  }
 }
 ```
 
-#### Key Sync Events
-
-| Event | Dispatched By | Handled By |
-|-------|---------------|------------|
-| `WebSocUpdateBlock` | webSocket.js | LocalStateManager.webSocUpdateBlock() |
-| `WebSocUpdateBlockAccess` | webSocket.js | LocalStateManager.WebSocUpdateBlockAccess() |
-| `WebSocketConnected` | webSocket.js | statusIndicators |
-| `WebSocketDisconnected` | webSocket.js | statusIndicators |
-
-### Rendering Pipeline
-
-`Painter` → `BlockCreator` → DOM. Uses CSS Grid for layout (`gridLayoutCalculator.js`, `gridClassManager.js`).
-
-### Offline Queue (sincManager/offlineQueue.js)
-
-Operations are queued when offline and synced when connection restored:
-
-```javascript
-// Queue stores operations with timestamps
-{ type: 'createBlock', data: {...}, timestamp: Date.now() }
-{ type: 'updateBlock', data: {...}, timestamp: Date.now() }
-{ type: 'deleteBlock', data: {...}, timestamp: Date.now() }
-```
-
-Key methods:
-- `enqueue(operation, options)`: Add operation to queue
-- `processQueue()`: Sync all pending operations
-- `getQueueLength()`: Check pending operations count
-
-#### Sync Behavior by Context
-
-| Context | Sync Delay | Reason |
-|---------|------------|--------|
-| **Normal blocks** | 3 seconds (`SYNC_DEBOUNCE_MS`) | Allows batching multiple rapid changes |
-| **Diagram blocks** | Immediate | Parent has `customGrid.grid`; avoids UI errors |
-
-```javascript
-// In localStateManager.createBlock():
-const isDiagram = !!parentBlock.data?.customGrid?.grid;
-await offlineQueue.enqueue(operation, { immediate: isDiagram });
-```
-
-## Key Directories
-
-```
-src/js/
-├── api/          # HTTP client with auth interceptors
-├── auth/         # Authentication logic
-├── controller/   # Commands, popups, UI management
-│   ├── comands/  # Command definitions and managers
-│   └── popups/   # Modal components
-├── painter/      # Rendering engine and layout
-├── sincManager/  # WebSocket real-time sync
-├── stateLocal/   # Block storage and state
-└── utils/        # Helper functions
-```
-
-## Adding New Features
-
-### New Command
-1. Add command definition in `src/js/controller/comands/commands.js`
-2. Register hotkey in `comandManager.js`
-3. Access UI state via `contextManager.getContext()`
-
-### New Popup
-1. Extend base `Popup` class from `src/js/controller/popups/popup.js`
-2. Implement `show()`, `hide()`, and event handlers
-3. Register in `index.js` initialization
-
-### Block Operations
-Use `LocalStateManager` methods for CRUD operations on blocks. Operations are synced via `SincManager`.
-
-## Authentication
-
-Cookie-based JWT tokens (`access`, `refresh`). API client auto-refreshes on 401. User stored as `currentUser` in IndexedDB.
-
-## Testing
-
-### Unit Tests (Jest)
-
-```bash
-npm test              # Run all tests
-npm run test:watch    # Watch mode
-npm run test:coverage # With coverage report
-
-# Run a single test file
-npx jest src/js/__tests__/controller/blockStyleManager.test.js
-
-# Run tests matching a pattern
-npx jest --testNamePattern="should apply shape preset"
-```
-
-Test files are located in `src/js/__tests__/` mirroring the source structure.
-
-### E2E Tests (Playwright)
-
-```bash
-npm run test:e2e           # Run all E2E tests
-npm run test:e2e:ui        # Interactive UI mode
-npm run test:e2e:debug     # Debug mode with inspector
-npm run test:e2e:headed    # Run with visible browser
-npm run test:e2e:chromium  # Run only in Chromium
-
-# Run a single E2E test file
-npx playwright test e2e/tests/search.spec.ts
-
-# Run tests with specific tag
-npx playwright test --grep "@smoke"
-```
-
-E2E tests are in `e2e/tests/`. Auth fixture handles login automatically.
-
-## Workflow Rules
-
-**After any code changes:**
-1. Run `npm test` to verify tests pass
-2. Commit changes with descriptive message
-
-## Cross-Service Changes (ВАЖНО!)
-
-**НИКОГДА не изменяй код других сервисов напрямую!**
-
-Если изменения на фронтенде требуют изменений в других сервисах:
-
-1. **НЕ редактируй** файлы в `omnimap-back`, `llm-gateway` или `omnimap-sync`
-2. **Создай файл задач** `BACKEND_TASKS.md` в ../omnimap-back:
-   ```markdown
-   # Задачи для backend-сервисов
-
-   ## omnimap-back
-   - [ ] Добавить эндпоинт GET /api/v1/example
-   - [ ] Изменить формат ответа в /api/v1/blocks
-
-   ## llm-gateway
-   - [ ] Добавить поддержку нового параметра stream_options
-
-   ## omnimap-sync
-   - [ ] Добавить новый тип сообщения "block_moved"
-   ```
-3. **В PR укажи**, что требуются изменения в других сервисах
-4. Агент, работающий над соответствующим сервисом, выполнит задачи и создаст отдельный PR
-
-**Причина:** Каждый сервис имеет свои тесты. Изменения без прогона тестов ломают CI/CD.
-
-## Diagram Mode & Block Styling
-
-### Режимы приложения (MODES)
-
-Определены в `src/js/actions/selectionActions.js`:
+### Application Modes
 
 ```javascript
 MODES = {
-    NORMAL: 'normal',              // Обычный режим навигации
-    TEXT_EDIT: 'textEdit',         // Редактирование текста блока
-    CONNECT_TO_BLOCK: 'connectToBlock',      // Ожидание выбора целевого блока для соединения
-    CONNECT_SELECT_SOURCE: 'connectSelectSource', // Ожидание выбора блока-источника
-    CUT_BLOCK: 'cutBlock',         // Режим вырезания блока
-    DIAGRAM: 'diagram',            // Режим редактирования диаграммы
-    CHAT: 'chat'                   // Режим чата
+  NORMAL: 'normal',
+  TEXT_EDIT: 'textEdit',
+  CONNECT_TO_BLOCK: 'connectToBlock',
+  CONNECT_SELECT_SOURCE: 'connectSelectSource',
+  CUT_BLOCK: 'cutBlock',
+  DIAGRAM: 'diagram',
+  CHAT: 'chat'
 }
 ```
 
-**Важно:** При создании соединений сохраняй `ctx.previousMode` чтобы вернуться в исходный режим (DIAGRAM или NORMAL).
+## Adding Features
 
-### Менеджеры стилей
+### New Command
 
-**Файл:** `src/js/controller/blockStyleManager.js`
-
-#### BlockStyleManager
-
-Управляет визуальными стилями блоков:
-
+Add to `src/js/controller/comands/commands.js`:
 ```javascript
-// Singleton экземпляр
-import { blockStyleManager } from './blockStyleManager';
-
-// Показать панель для блока
-blockStyleManager.show(blockId, blockElement);
-
-// Режим выбора блока (кнопка → клик на блок)
-blockStyleManager.startStyleSelectionMode();
-
-// Применить пресет формы
-blockStyleManager.applyShapePreset('decision');  // diamond shape
-blockStyleManager.applyShapePresetDirect('process', blockId, element);  // без панели
-```
-
-#### ConnectionStyleManager
-
-Управляет стилями соединений (стрелок):
-
-```javascript
-import { connectionStyleManager } from './blockStyleManager';
-
-connectionStyleManager.toggle();  // Показать/скрыть панель
-connectionStyleManager.startConnectionMode();  // Начать создание соединения
-```
-
-### Типы соединений (CONNECTION_TYPES)
-
-**Файл:** `src/js/controller/connectionTypes.js`
-
-```javascript
-CONNECTION_TYPES = {
-    DEFAULT: 'default',      // Стандартное (Flowchart)
-    DASHED: 'dashed',        // Пунктирная линия
-    DOTTED: 'dotted',        // Точечная линия
-    DOUBLE: 'double',        // Двусторонняя стрелка
-    CURVED: 'curved',        // Bezier кривая
-    STRAIGHT: 'straight',    // Прямая линия
-    // ... и другие UML типы
+{
+  id: 'myCommand',
+  defaultHotkey: 'ctrl+m',
+  mode: ['normal'],
+  execute: (ctx) => { /* logic */ },
+  description: 'What it does'
 }
 ```
 
-**ВАЖНО:** Типы в нижнем регистре! Не используй `'DASHED'`, используй `'dashed'`.
+### New Block Shape
 
-### Пресеты форм для диаграмм
+1. CSS in `src/style/diagram-editor.css`:
+```css
+[data-block-shape="myshape"] { clip-path: ...; }
+[data-block-shape="myshape"][data-block-shadow="md"] {
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+}
+```
+2. Add preset in `BlockStyleManager.presetShapes`
 
-Определены в `BlockStyleManager.presetShapes`:
+### New Connection Type
 
-| Пресет | Форма | Использование |
-|--------|-------|---------------|
-| `process` | Rectangle | Обычный процесс |
-| `decision` | Diamond | Условие/решение |
-| `data` | Parallelogram | Ввод/вывод данных |
-| `database` | Cylinder | База данных |
-| `document` | Document | Документ |
-| `terminal` | Ellipse | Начало/конец |
-| `manual` | Trapezoid | Ручной ввод |
-| `subprocess` | Rounded | Подпроцесс |
+1. Add to `CONNECTION_TYPES` in `src/js/controller/connectionTypes.js`
+2. Add config to `CONNECTION_CONFIGS`
 
-### CSS Data-атрибуты для стилей блоков
+### New Popup
 
-**Файл:** `src/style/diagram-editor.css`
+1. Extend `Popup` class from `src/js/controller/popups/popup.js`
+2. Implement `show()`, `hide()`, handlers
+3. Register in `index.js`
 
-Стили применяются через data-атрибуты на элементе блока:
+## Testing
 
-```html
-<div block
-     data-block-shape="diamond"
-     data-block-border="medium"
-     data-block-shadow="md"
-     data-block-font-size="lg"
-     data-block-text-align="center"
-     style="background-color: #fef3c7; border-color: #f59e0b;">
+```bash
+npm test                          # All unit tests
+npx jest path/to/test.js          # Single test
+npm run test:e2e                  # E2E tests
+npm run test:e2e:ui               # E2E with UI
 ```
 
-#### Формы (data-block-shape)
-- `rounded`, `pill`, `diamond`, `hexagon`, `parallelogram`, `trapezoid`, `cylinder`, `document`, `ellipse`
+## Directory Structure
 
-#### Границы (data-block-border)
-- `thin` (1px), `medium` (2px), `thick` (4px), `dashed`, `dotted`, `double`
-- **Цвет** задаётся через inline `style="border-color: #xxx"`
+```
+src/js/
+├── actions/        # Business logic (blockActions, selectionActions)
+├── api/            # HTTP clients (api.js, chatApi.js, llmApi.js)
+├── auth/           # Authentication
+├── controller/     # UI controllers
+│   ├── comands/    # Command system (comandManager, contextManager)
+│   ├── layoutEditor/  # Visual grid editor
+│   └── popups/     # Modal dialogs
+├── core/           # Health check, status indicators
+├── onboarding/     # Onboarding (OnboardingManager, hints, tutorial)
+├── painter/        # Rendering (painter, blockCreator, grid*)
+├── services/       # TreeService, homePageInitializer, layoutTemplates
+├── sincManager/    # WebSocket sync (webSocket, offlineQueue)
+├── stateLocal/     # State management (localStateManager)
+└── utils/          # Utilities (dispatch, permissions, etc.)
+```
 
-#### Тени (data-block-shadow)
-- `sm`, `md`, `lg`, `xl`, `inner`
-- Для форм с `clip-path` (diamond, hexagon, trapezoid, document) используется `filter: drop-shadow`
+## Key Files
 
-#### Размер шрифта (data-block-font-size)
-- `xs`, `sm`, `md`, `lg`, `xl`
-
-#### Выравнивание (data-block-text-align)
-- `left`, `center`, `right`
-
-### Команды соединений
-
-**Файл:** `src/js/controller/comands/commands.js`
-
-Все команды поддерживают flow: кнопка → клик источник → клик цель
-
-| Команда | Тип | Hotkey |
-|---------|-----|--------|
-| `connectBlock` | default | `a` |
-| `connectDashed` | dashed | - |
-| `connectDouble` | double | - |
-| `connectCurved` | curved | - |
-| `connectStraight` | straight | - |
-| `deleteConnectBlock` | удаление | `shift+a` |
-
-### Добавление новой формы блока
-
-1. Добавь CSS в `src/style/diagram-editor.css`:
-   ```css
-   [data-block-shape="newshape"] {
-       /* clip-path или border-radius */
-   }
-   ```
-
-2. Если используешь `clip-path`, добавь поддержку теней:
-   ```css
-   [data-block-shape="newshape"][data-block-shadow="md"] {
-       filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
-   }
-   ```
-
-3. Добавь пресет в `BlockStyleManager.presetShapes`
-
-4. Добавь UI в `src/index.html` (секция `.shape-presets`)
-
-### Добавление нового типа соединения
-
-1. Добавь тип в `CONNECTION_TYPES` (`connectionTypes.js`)
-2. Добавь конфигурацию в `CONNECTION_CONFIGS` (jsPlumb настройки)
-3. Добавь команду в `commands.js` (опционально)
-
-## Visual Layout Editor
-
-Визуальный drag-and-drop редактор для настройки раскладки дочерних блоков.
-
-**Hotkey:** `l+e`
-
-**Подробная документация:** [docs/LAYOUT_EDITOR.md](docs/LAYOUT_EDITOR.md)
-
-**Ключевые файлы:**
-- `src/js/controller/layoutEditor/` — компоненты редактора
-- `src/style/layout-editor.css` — стили
-- `src/js/painter/calcBlockColor.js` — цвета блоков (включая выходные)
-
-**Формат данных:** `block.data.layoutCells` с `gridSize`, `cells`, `presetType`
-
-**Пресеты:** 2x2, 3x3, 4x4, sidebar, dashboard, kanban, holy-grail, gallery, calendar
+| File | Purpose |
+|------|---------|
+| `src/js/index.js` | Entry point |
+| `src/js/stateLocal/localStateManager.js` | Block state, events |
+| `src/js/sincManager/webSocket.js` | WebSocket client |
+| `src/js/painter/painter.js` | Render engine |
+| `src/js/controller/comands/commands.js` | All commands |
+| `src/js/controller/comands/contextManager.js` | UI state |
+| `src/js/api/api.js` | HTTP client |
+| `src/js/onboarding/OnboardingManager.js` | Onboarding state |
+| `src/js/services/homePageInitializer.js` | Home page creation |
 
 ## Notes
 
-- Code comments are in Russian
-- Production build generates a Service Worker for offline support
-- React components (zustand stores, react-query) are used for chat UI in `src/js/controller/popups/`
-- jsPlumb library (`@jsplumb/browser-ui`) handles arrow/connection rendering
+- Comments in Russian
+- jsPlumb (`@jsplumb/browser-ui`) for connections
+- React + Zustand for chat UI
+- localforage for IndexedDB
+- hotkeys-js for keyboard shortcuts

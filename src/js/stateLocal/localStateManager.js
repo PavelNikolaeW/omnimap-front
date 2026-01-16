@@ -13,6 +13,7 @@ import {offlineQueue} from "../sincManager/offlineQueue";
 import {canEdit, canDelete, canCreateInSandbox, canDeleteInSandbox, canEditInSandbox, isInSandbox} from "../utils/permissionUtils";
 import {undoManager} from "../controller/undoManager";
 import {checkAndInitializeOnboarding} from "../services/homePageInitializer";
+import {focusManager} from "../services/focusManager";
 
 /**
  * Экранирует специальные символы RegExp в строке
@@ -2230,6 +2231,13 @@ export class LocalStateManager {
         if (!block) {
             console.warn('openBlock: block not found:', id);
             return;
+        }
+
+        // Автоматическое обновление ссылки на текущую неделю при открытии Home Focus
+        if (block.data?.homePageRole === 'focus') {
+            focusManager.initializeWeekLinkIfNeeded().catch(err => {
+                console.warn('Failed to update current week link:', err);
+            });
         }
 
         const title = block.title;
