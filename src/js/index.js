@@ -20,6 +20,8 @@ import '../style/p2p-chat.css';
 import '../style/diagram-editor.css';
 import '../style/layout-editor.css';
 import '../style/onboarding.css';
+import '../style/toast.css';
+import '../style/accessRequests.css';
 
 import {dispatch} from "./utils/utils";
 import {localStateManager} from "./stateLocal/localStateManager";
@@ -41,6 +43,8 @@ import {initDevCacheManager} from "./core/devCacheManager";
 import {chatBadgeManager} from "./controller/chatBadgeManager";
 import {handleChatDeepLink, initChatEventListeners} from "./controller/chatDeepLinkHandler";
 import {onboardingManager} from "./onboarding";
+import {toastManager} from "./controller/toastManager";
+import {accessRequestsBadgeManager} from "./controller/accessRequestsBadgeManager";
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
     // Храним ссылку на updatefound handler для возможности cleanup
@@ -292,6 +296,12 @@ async function initApp() {
 
     // Инициализируем менеджер badge для чата
     chatBadgeManager.init();
+
+    // Инициализируем систему toast-уведомлений
+    toastManager.init();
+
+    // Инициализируем менеджер badge для запросов на доступ
+    accessRequestsBadgeManager.init();
 
     const sincManager = new SincManager()
     const breadcrumbs = new Breadcrumbs()

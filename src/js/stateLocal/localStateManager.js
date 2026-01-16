@@ -337,6 +337,16 @@ export class LocalStateManager {
         window.addEventListener('BatchImportCompleted', (e) => {
             this.handleBatchImportCompleted(e.detail)
         })
+
+        // Обработка одобрения запроса на доступ - обновляем pending блок
+        window.addEventListener('AccessRequestApproved', async (e) => {
+            await this.handleAccessRequestApproved(e.detail)
+        })
+
+        // Обработка отклонения запроса на доступ
+        window.addEventListener('AccessRequestRejected', async (e) => {
+            await this.handleAccessRequestRejected(e.detail)
+        })
     }
 
     /**
@@ -348,6 +358,51 @@ export class LocalStateManager {
             await this.saveBlock(block);
             // Не вызываем ShowBlocks здесь, чтобы избежать лишних перерисовок
         }
+    }
+
+    /**
+     * Обрабатывает одобрение запроса на доступ
+     * Убирает pending статус с блока-ссылки и перезагружает его содержимое
+     * @param {Object} detail - {blockId, permission}
+     */
+    async handleAccessRequestApproved({blockId, permission}) {
+        if (!blockId) return;
+
+        // Ищем блок-ссылку с pending статусом на этот блок
+        for (const [id, block] of this.blocks) {
+            if (block.data?.view === 'link' && block.data?.pending && block.data?.source === blockId) {
+                // Убираем pending статус
+                delete block.data.pending;
+                delete block.data.request_id;
+                await this.saveBlock(block);
+                console.log(`[AccessRequest] Block ${id} approved with permission: ${permission}`);
+            }
+        }
+
+        // Перезагружаем данные с сервера
+        this.showBlocks();
+    }
+
+    /**
+     * Обрабатывает отклонение запроса на доступ
+     * Обновляет UI блока с rejected статусом
+     * @param {Object} detail - {blockId}
+     */
+    async handleAccessRequestRejected({blockId}) {
+        if (!blockId) return;
+
+        // Ищем блок-ссылку с pending статусом на этот блок
+        for (const [id, block] of this.blocks) {
+            if (block.data?.view === 'link' && block.data?.pending && block.data?.source === blockId) {
+                // Помечаем как rejected (UI покажет другой placeholder)
+                block.data.rejected = true;
+                await this.saveBlock(block);
+                console.log(`[AccessRequest] Block ${id} rejected`);
+            }
+        }
+
+        // Обновляем UI
+        this.showBlocks();
     }
 
     /**
