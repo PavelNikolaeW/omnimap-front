@@ -638,6 +638,53 @@ class Api {
         return this.api.post('notifications/push/test/')
     }
 
+    // =====================================================
+    // ACCESS REQUESTS API - Запросы на доступ
+    // =====================================================
+
+    /**
+     * Получить список входящих запросов на доступ (для владельца)
+     * @returns {Promise<Array>} - Список запросов с requester, block, link_block_id, created_at
+     */
+    getAccessRequests() {
+        return this.api.get('access-requests/')
+    }
+
+    /**
+     * Получить список отправленных запросов (для запрашивающего)
+     * @returns {Promise<Array>} - Список запросов со статусами
+     */
+    getSentAccessRequests() {
+        return this.api.get('access-requests/sent/')
+    }
+
+    /**
+     * Получить количество ожидающих запросов (для badge)
+     * @returns {Promise<{count: number}>}
+     */
+    getAccessRequestsCount() {
+        return this.api.get('access-requests/count/')
+    }
+
+    /**
+     * Одобрить запрос на доступ
+     * @param {string} requestId - ID запроса
+     * @param {string} permission - Уровень прав: view|sandbox|edit|edit_ac|delete
+     * @returns {Promise<{status: string, permission: string, request_id: string}>}
+     */
+    approveAccessRequest(requestId, permission) {
+        return this.api.post(`access-requests/${requestId}/approve/`, { permission })
+    }
+
+    /**
+     * Отклонить запрос на доступ
+     * @param {string} requestId - ID запроса
+     * @returns {Promise<{status: string, request_id: string}>}
+     */
+    rejectAccessRequest(requestId) {
+        return this.api.post(`access-requests/${requestId}/reject/`)
+    }
+
 }
 
 const api = new Api()
