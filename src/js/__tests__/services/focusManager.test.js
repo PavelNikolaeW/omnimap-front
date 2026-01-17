@@ -434,4 +434,135 @@ describe('FocusManager', () => {
             expect(dispatch).not.toHaveBeenCalled();
         });
     });
+
+    describe('caching behavior', () => {
+        it('should return cached value on second call to findHomeFocusBlock', () => {
+            const focusBlock = {
+                id: 'focus-id',
+                data: { homePageRole: 'focus' }
+            };
+            mockBlocks.set('focus-id', focusBlock);
+
+            const result1 = focusManager.findHomeFocusBlock();
+            const result2 = focusManager.findHomeFocusBlock();
+
+            expect(result1).toBe(result2);
+            expect(focusManager._homeFocusBlockId).toBe('focus-id');
+        });
+
+        it('should return cached value on second call to findAllFocusContainers', () => {
+            mockBlocks.set('container1', {
+                id: 'container1',
+                title: 'Work',
+                data: { isFocusContainer: true }
+            });
+
+            const result1 = focusManager.findAllFocusContainers();
+            const result2 = focusManager.findAllFocusContainers();
+
+            expect(result1).toEqual(result2);
+            expect(focusManager._focusContainersCache).not.toBeNull();
+        });
+
+        it('should invalidate cache when block is deleted from cache', () => {
+            const focusBlock = {
+                id: 'focus-id',
+                data: { homePageRole: 'focus' }
+            };
+            mockBlocks.set('focus-id', focusBlock);
+
+            // Prime the cache
+            focusManager.findHomeFocusBlock();
+            expect(focusManager._homeFocusBlockId).toBe('focus-id');
+
+            // Delete the block
+            mockBlocks.delete('focus-id');
+
+            // Should detect invalid cache and return null
+            const result = focusManager.findHomeFocusBlock();
+            expect(result).toBeNull();
+            expect(focusManager._homeFocusBlockId).toBeNull();
+        });
+
+        it('should invalidate containers cache when markAsFocusContainer is called', () => {
+            mockBlocks.set('block-id', {
+                id: 'block-id',
+                title: 'Block',
+                data: {}
+            });
+
+            // Prime the cache
+            focusManager.findAllFocusContainers();
+            expect(focusManager._focusContainersCache).not.toBeNull();
+
+            // Mark as container should invalidate
+            focusManager.markAsFocusContainer('block-id');
+            expect(focusManager._focusContainersCache).toBeNull();
+        });
+
+        it('should invalidate containers cache when unmarkAsFocusContainer is called', () => {
+            mockBlocks.set('container-id', {
+                id: 'container-id',
+                title: 'Container',
+                data: { isFocusContainer: true }
+            });
+
+            // Prime the cache
+            focusManager.findAllFocusContainers();
+            expect(focusManager._focusContainersCache).not.toBeNull();
+
+            // Unmark should invalidate
+            focusManager.unmarkAsFocusContainer('container-id');
+            expect(focusManager._focusContainersCache).toBeNull();
+        });
+
+        it('should invalidate cache via invalidateCache method', () => {
+            mockBlocks.set('focus-id', {
+                id: 'focus-id',
+                data: { homePageRole: 'focus' }
+            });
+            mockBlocks.set('container-id', {
+                id: 'container-id',
+                data: { isFocusContainer: true }
+            });
+
+            // Prime all caches
+            focusManager.findHomeFocusBlock();
+            focusManager.findAllFocusContainers();
+
+            expect(focusManager._homeFocusBlockId).toBe('focus-id');
+            expect(focusManager._focusContainersCache).not.toBeNull();
+
+            // Invalidate all
+            focusManager.invalidateCache();
+
+            expect(focusManager._homeFocusBlockId).toBeNull();
+            expect(focusManager._currentWeekBlockId).toBeNull();
+            expect(focusManager._currentWeekKey).toBeNull();
+            expect(focusManager._focusContainersCache).toBeNull();
+        });
+
+        it('should detect new containers added externally', () => {
+            // Start with one container
+            mockBlocks.set('container1', {
+                id: 'container1',
+                data: { isFocusContainer: true }
+            });
+
+            const result1 = focusManager.findAllFocusContainers();
+            expect(result1).toHaveLength(1);
+
+            // Add another container externally (simulating WebSocket update)
+            mockBlocks.set('container2', {
+                id: 'container2',
+                data: { isFocusContainer: true }
+            });
+
+            // Invalidate cache (as would happen via WebSocket event)
+            focusManager.invalidateContainersCache();
+
+            const result2 = focusManager.findAllFocusContainers();
+            expect(result2).toHaveLength(2);
+        });
+    });
 });

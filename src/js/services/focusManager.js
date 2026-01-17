@@ -18,11 +18,66 @@ class FocusManager {
         this._currentWeekBlockId = null;
         this._currentWeekKey = null;
         this._focusContainersCache = null; // Map<id, {id, title, name}>
+        this._listenersAdded = false;
+    }
+
+    /**
+     * Добавляет слушатели событий для инвалидации кэша
+     * Вызывается один раз при первом использовании
+     */
+    _addEventListeners() {
+        if (this._listenersAdded) return;
+        this._listenersAdded = true;
+
+        // Полная перезагрузка блоков
+        window.addEventListener('InitUser', () => this.invalidateCache());
+        window.addEventListener('Login', () => this.invalidateCache());
+        window.addEventListener('Logout', () => this.invalidateCache());
+
+        // Удаление блоков — инвалидируем если удалён кэшированный блок
+        window.addEventListener('DeleteTreeBlock', (e) => {
+            const { blockId } = e.detail || {};
+            if (!blockId) return;
+
+            if (this._homeFocusBlockId === blockId ||
+                this._currentWeekBlockId === blockId ||
+                this._focusContainersCache?.has(blockId)) {
+                this.invalidateCache();
+            }
+        });
+
+        // WebSocket обновления — инвалидируем при изменении флагов
+        window.addEventListener('WebSocUpdateBlock', (e) => {
+            const blocks = e.detail;
+            if (!Array.isArray(blocks)) return;
+
+            for (const block of blocks) {
+                if (!block?.id) continue;
+
+                // Если изменились критичные поля — инвалидируем весь кэш
+                if (block.data?.homePageRole !== undefined ||
+                    block.data?.isFocusContainer !== undefined ||
+                    block.data?.calendarType !== undefined) {
+                    this.invalidateCache();
+                    break;
+                }
+
+                // Если блок удалён и он в кэше
+                if (block.deleted && (
+                    this._homeFocusBlockId === block.id ||
+                    this._currentWeekBlockId === block.id ||
+                    this._focusContainersCache?.has(block.id)
+                )) {
+                    this.invalidateCache();
+                    break;
+                }
+            }
+        });
     }
 
     /**
      * Сбрасывает весь кэш
-     * Вызывать при полной перезагрузке блоков (InitUser, logout)
+     * Вызывается автоматически при InitUser, Login, Logout, WebSocUpdateBlock, DeleteTreeBlock
      */
     invalidateCache() {
         this._homeFocusBlockId = null;
@@ -45,6 +100,9 @@ class FocusManager {
      * @returns {Object|null} Блок с homePageRole='focus' или null
      */
     findHomeFocusBlock() {
+        // Подключаем слушатели при первом использовании
+        this._addEventListeners();
+
         // Проверяем кэш
         if (this._homeFocusBlockId) {
             const cached = localStateManager.blocks.get(this._homeFocusBlockId);
