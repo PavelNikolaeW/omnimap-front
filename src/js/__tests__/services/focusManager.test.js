@@ -40,8 +40,7 @@ describe('FocusManager', () => {
         mockBlocks.clear();
 
         // Reset internal cache
-        focusManager._homeFocusBlockId = null;
-        focusManager._currentWeekBlockId = null;
+        focusManager.invalidateCache();
     });
 
     describe('findHomeFocusBlock', () => {
