@@ -106,7 +106,6 @@ function generateHomePageStructure(rootBlockId) {
             parent_id: rootBlockId,
             title: config.label,
             data: {
-                text: config.label,
                 homePageRole: config.role,
                 style: {
                     backgroundColor: config.color,

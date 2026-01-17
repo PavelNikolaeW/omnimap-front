@@ -16,13 +16,104 @@ class FocusManager {
         // Кэш для быстрого доступа
         this._homeFocusBlockId = null;
         this._currentWeekBlockId = null;
+        this._currentWeekKey = null;
+        this._focusContainersCache = null; // Map<id, {id, title, name}>
+        this._listenersAdded = false;
+    }
+
+    /**
+     * Добавляет слушатели событий для инвалидации кэша
+     * Вызывается один раз при первом использовании
+     */
+    _addEventListeners() {
+        if (this._listenersAdded) return;
+        this._listenersAdded = true;
+
+        // Полная перезагрузка блоков
+        window.addEventListener('InitUser', () => this.invalidateCache());
+        window.addEventListener('Login', () => this.invalidateCache());
+        window.addEventListener('Logout', () => this.invalidateCache());
+
+        // Удаление блоков — инвалидируем если удалён кэшированный блок
+        window.addEventListener('DeleteTreeBlock', (e) => {
+            const { blockId } = e.detail || {};
+            if (!blockId) return;
+
+            if (this._homeFocusBlockId === blockId ||
+                this._currentWeekBlockId === blockId ||
+                this._focusContainersCache?.has(blockId)) {
+                this.invalidateCache();
+            }
+        });
+
+        // WebSocket обновления — инвалидируем при изменении флагов
+        window.addEventListener('WebSocUpdateBlock', (e) => {
+            const blocks = e.detail;
+            if (!Array.isArray(blocks)) return;
+
+            for (const block of blocks) {
+                if (!block?.id) continue;
+
+                // Если изменились критичные поля — инвалидируем весь кэш
+                if (block.data?.homePageRole !== undefined ||
+                    block.data?.isFocusContainer !== undefined ||
+                    block.data?.calendarType !== undefined) {
+                    this.invalidateCache();
+                    break;
+                }
+
+                // Если блок удалён и он в кэше
+                if (block.deleted && (
+                    this._homeFocusBlockId === block.id ||
+                    this._currentWeekBlockId === block.id ||
+                    this._focusContainersCache?.has(block.id)
+                )) {
+                    this.invalidateCache();
+                    break;
+                }
+            }
+        });
+    }
+
+    /**
+     * Сбрасывает весь кэш
+     * Вызывается автоматически при InitUser, Login, Logout, WebSocUpdateBlock, DeleteTreeBlock
+     */
+    invalidateCache() {
+        this._homeFocusBlockId = null;
+        this._currentWeekBlockId = null;
+        this._currentWeekKey = null;
+        this._focusContainersCache = null;
+    }
+
+    /**
+     * Сбрасывает кэш контейнеров фокуса
+     * Вызывать при изменении isFocusContainer у блоков
+     */
+    invalidateContainersCache() {
+        this._focusContainersCache = null;
     }
 
     /**
      * Находит дефолтный блок Focus на Home Page
+     * Использует кэш для быстрого доступа
      * @returns {Object|null} Блок с homePageRole='focus' или null
      */
     findHomeFocusBlock() {
+        // Подключаем слушатели при первом использовании
+        this._addEventListeners();
+
+        // Проверяем кэш
+        if (this._homeFocusBlockId) {
+            const cached = localStateManager.blocks.get(this._homeFocusBlockId);
+            if (cached?.data?.homePageRole === 'focus') {
+                return cached;
+            }
+            // Кэш невалиден - сбрасываем
+            this._homeFocusBlockId = null;
+        }
+
+        // Полный поиск
         for (const [id, block] of localStateManager.blocks) {
             if (block.data?.homePageRole === 'focus') {
                 this._homeFocusBlockId = id;
@@ -34,14 +125,28 @@ class FocusManager {
 
     /**
      * Находит блок текущей недели по ISO ключу
+     * Использует кэш, инвалидирует при смене недели
      * @returns {Object|null} Блок недели или null
      */
     findCurrentWeekBlock() {
         const currentWeekKey = getISOWeekKey(new Date());
 
+        // Проверяем кэш (с учётом смены недели)
+        if (this._currentWeekBlockId && this._currentWeekKey === currentWeekKey) {
+            const cached = localStateManager.blocks.get(this._currentWeekBlockId);
+            if (cached?.data?.calendarType === 'week' && cached?.data?.isoWeekKey === currentWeekKey) {
+                return cached;
+            }
+            // Кэш невалиден - сбрасываем
+            this._currentWeekBlockId = null;
+            this._currentWeekKey = null;
+        }
+
+        // Полный поиск
         for (const [id, block] of localStateManager.blocks) {
             if (block.data?.calendarType === 'week' && block.data?.isoWeekKey === currentWeekKey) {
                 this._currentWeekBlockId = id;
+                this._currentWeekKey = currentWeekKey;
                 return block;
             }
         }
@@ -50,52 +155,58 @@ class FocusManager {
 
     /**
      * Находит все блоки-контейнеры фокуса
+     * Использует кэш для избежания полного перебора
      * @returns {Array<Object>} Массив блоков с isFocusContainer=true
      */
     findAllFocusContainers() {
-        const containers = [];
+        // Проверяем кэш
+        if (this._focusContainersCache) {
+            // Валидируем кэш - проверяем что блоки ещё существуют и имеют нужный флаг
+            const valid = [...this._focusContainersCache.values()].every(c => {
+                const block = localStateManager.blocks.get(c.id);
+                return block?.data?.isFocusContainer;
+            });
+            if (valid) {
+                return [...this._focusContainersCache.values()];
+            }
+            this._focusContainersCache = null;
+        }
+
+        // Полный поиск и заполнение кэша
+        this._focusContainersCache = new Map();
 
         for (const [id, block] of localStateManager.blocks) {
             if (block.data?.isFocusContainer) {
-                containers.push({
+                const container = {
                     id,
                     title: block.title || block.data?.focusContainerName || 'Без названия',
                     name: block.data?.focusContainerName || block.title || 'Контейнер фокуса'
-                });
+                };
+                this._focusContainersCache.set(id, container);
             }
         }
 
-        return containers;
+        return [...this._focusContainersCache.values()];
     }
 
     /**
      * Получает список всех доступных контейнеров для добавления в фокус
      * Включает пользовательские контейнеры и дефолтный Home Focus
      *
-     * Оптимизация: один проход по всем блокам вместо двух отдельных вызовов
+     * Использует кэш для пользовательских контейнеров
      * @returns {Array<Object>} Массив контейнеров [{id, title, isHomeFocus}]
      */
     getAllAvailableContainers() {
-        const containers = [];
-        let homeFocusBlock = null;
+        // Получаем пользовательские контейнеры (с кэшированием)
+        const focusContainers = this.findAllFocusContainers();
+        const containers = focusContainers.map(c => ({
+            id: c.id,
+            title: c.name,
+            isHomeFocus: false
+        }));
 
-        // Один проход по всем блокам
-        for (const [id, block] of localStateManager.blocks) {
-            // Проверяем пользовательские контейнеры фокуса
-            if (block.data?.isFocusContainer) {
-                containers.push({
-                    id,
-                    title: block.data?.focusContainerName || block.title || 'Контейнер фокуса',
-                    isHomeFocus: false
-                });
-            }
-
-            // Запоминаем Home Focus
-            if (block.data?.homePageRole === 'focus') {
-                homeFocusBlock = block;
-                this._homeFocusBlockId = id;
-            }
-        }
+        // Получаем Home Focus (с кэшированием)
+        const homeFocusBlock = this.findHomeFocusBlock();
 
         // Добавляем дефолтный Home Focus в конец списка
         if (homeFocusBlock) {
@@ -151,6 +262,9 @@ class FocusManager {
 
         const containerName = name || block.title || 'Контейнер фокуса';
 
+        // Инвалидируем кэш контейнеров
+        this.invalidateContainersCache();
+
         dispatch('UpdateDataBlock', {
             blockId,
             data: {
@@ -176,6 +290,9 @@ class FocusManager {
             console.warn('FocusManager: Block not found:', blockId);
             return;
         }
+
+        // Инвалидируем кэш контейнеров
+        this.invalidateContainersCache();
 
         const newData = { ...block.data };
         delete newData.isFocusContainer;
