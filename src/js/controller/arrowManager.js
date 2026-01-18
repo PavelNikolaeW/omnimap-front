@@ -222,7 +222,7 @@ class ArrowManager {
                 // Если введена пустая строка, удаляем лейбл (если он был)
                 if (labelOverlay) {
                     connection.removeOverlay("label");
-                    this.updateConnectionLabel(connection.source.id, connection.target.id, "");
+                    this.updateConnectionInStorage(connection, "");
                 }
             } else {
                 // Добавляем или обновляем лейбл
@@ -231,7 +231,7 @@ class ArrowManager {
                 } else {
                     connection.addOverlay(this.createLabelOverlay(newLabel));
                 }
-                this.updateConnectionLabel(connection.source.id, connection.target.id, newLabel);
+                this.updateConnectionInStorage(connection, newLabel);
             }
         })
 
@@ -255,22 +255,59 @@ class ArrowManager {
     }
 
     /**
-     * Обновляет лейбл соединения в локальном хранилище.
-     * @param {string} sourceId - ID источника.
-     * @param {string} targetId - ID цели.
-     * @param {string} newLabel - Новый лейбл.
+     * Обновляет данные соединения в локальном хранилище.
+     * Извлекает параметры из jsPlumb connection и сохраняет через UpdateConnectionBlock.
+     * @param {Object} connection - Объект соединения jsPlumb.
+     * @param {string} newLabel - Новый лейбл (опционально).
      */
-    updateConnectionLabel(sourceId, targetId, newLabel) {
-        dispatch('AddConnectionBlock', {
+    updateConnectionInStorage(connection, newLabel = null) {
+        const connectionData = connection.getData?.() || {};
+        const sourceId = connection.source.id;
+        const targetId = connection.target.id;
+
+        // Собираем текущие overlays из соединения
+        const overlays = [];
+        const overlayMap = connection.getOverlays?.() || {};
+        for (const [id, overlay] of Object.entries(overlayMap)) {
+            if (overlay.type === 'Arrow') {
+                overlays.push({
+                    type: 'Arrow',
+                    options: overlay.options || {}
+                });
+            } else if (overlay.type === 'Label' && id === 'label') {
+                overlays.push({
+                    type: 'Label',
+                    options: {
+                        label: newLabel !== null ? newLabel : (overlay.getLabel?.() || ''),
+                        location: 0.5,
+                        cssClass: 'connection-label',
+                        id: 'label'
+                    }
+                });
+            }
+        }
+
+        // Если был передан newLabel, но Label overlay не существует, добавляем его
+        if (newLabel && !overlays.some(o => o.type === 'Label')) {
+            overlays.push({
+                type: 'Label',
+                options: {
+                    label: newLabel,
+                    location: 0.5,
+                    cssClass: 'connection-label',
+                    id: 'label'
+                }
+            });
+        }
+
+        dispatch('UpdateConnectionBlock', {
+            id: connectionData.connectionId,
             sourceId,
             targetId,
-            connector,
-            paintStyle,
-            overlays,
-            anchors,
-            endpoint,
-            endpointStyle
-        })
+            sourceAnchor: connectionData.sourceAnchor,
+            targetAnchor: connectionData.targetAnchor,
+            overlays
+        });
     }
 
     /**
@@ -303,34 +340,6 @@ class ArrowManager {
      */
     completeConnectionToElement(sourceId, targetId, connectionType = CONNECTION_TYPES.DEFAULT, color = null, sourceAnchor = null, targetAnchor = null) {
         this.createConnection(sourceId, targetId, connectionType, sourceAnchor, targetAnchor, color);
-    }
-
-    /**
-     * Сохраняет соединение с полной конфигурацией.
-     * @param {string} sourceId
-     * @param {string} targetId
-     * @param {Object} connector
-     * @param {Object} paintStyle
-     * @param {Array} overlays
-     * @param {Array} anchors
-     * @param {Object} endpoint
-     * @param {Object} endpointStyle
-     * @param {string} connectionType - Тип соединения
-     * @param {string} color - Цвет соединения
-     */
-    saveConnection(sourceId, targetId, connector, paintStyle, overlays, anchors, endpoint, endpointStyle, connectionType = null, color = null) {
-        dispatch("AddConnectionBlock", {
-            sourceId,
-            targetId,
-            connector,
-            paintStyle,
-            overlays,
-            anchors,
-            endpoint,
-            endpointStyle,
-            connectionType,
-            color
-        });
     }
 
     /**
