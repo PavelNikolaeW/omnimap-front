@@ -25,6 +25,7 @@ export class TreeNavigation {
         this._handleUpdateNavigation = this._handleUpdateNavigation.bind(this);
         this._handleDragStart = this._handleDragStart.bind(this);
         this._handleDragOver = this._handleDragOver.bind(this);
+        this._handleDragLeave = this._handleDragLeave.bind(this);
         this._handleDragEnd = this._handleDragEnd.bind(this);
         this._handleDrop = this._handleDrop.bind(this);
 
@@ -47,6 +48,7 @@ export class TreeNavigation {
         // Drag and drop handlers
         this.element.addEventListener('dragstart', this._handleDragStart);
         this.element.addEventListener('dragover', this._handleDragOver);
+        this.element.addEventListener('dragleave', this._handleDragLeave);
         this.element.addEventListener('dragend', this._handleDragEnd);
         this.element.addEventListener('drop', this._handleDrop);
     }
@@ -64,6 +66,7 @@ export class TreeNavigation {
         // Drag and drop handlers
         this.element.removeEventListener('dragstart', this._handleDragStart);
         this.element.removeEventListener('dragover', this._handleDragOver);
+        this.element.removeEventListener('dragleave', this._handleDragLeave);
         this.element.removeEventListener('dragend', this._handleDragEnd);
         this.element.removeEventListener('drop', this._handleDrop);
 
@@ -229,6 +232,18 @@ export class TreeNavigation {
     }
 
     /**
+     * Обработчик dragleave - очищает индикатор при выходе из контейнера
+     */
+    _handleDragLeave(e) {
+        if (!this.isDragging) return;
+
+        // Проверяем, что действительно покинули контейнер, а не перешли на дочерний элемент
+        if (!this.element.contains(e.relatedTarget)) {
+            this._removeDropIndicator();
+        }
+    }
+
+    /**
      * Обработчик drop - выполняет перемещение
      */
     async _handleDrop(e) {
@@ -267,7 +282,10 @@ export class TreeNavigation {
         }
 
         // Выполняем перемещение
-        await treeService.moveTree(this.draggedTreeId, newIndex);
+        const result = await treeService.moveTree(this.draggedTreeId, newIndex);
+        if (!result.success) {
+            console.warn('Failed to move tree:', result.error?.message);
+        }
 
         this._cleanupDrag();
     }
@@ -300,7 +318,6 @@ export class TreeNavigation {
         indicator.style.left = `${left}px`;
         indicator.style.top = `${rect.top - containerRect.top}px`;
 
-        this.element.style.position = 'relative';
         this.element.appendChild(indicator);
     }
 
