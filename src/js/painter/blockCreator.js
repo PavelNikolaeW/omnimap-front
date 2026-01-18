@@ -129,7 +129,9 @@ class BlockCreator {
         const [size, form] = block.size.layout.split('-')
         const gap = styleConfig[size][form ?? 'table'].gap
         if (block.data?.customGrid && Object.keys(block.data?.customGrid).length) return [block.size.layout, 'gap_0px']
-        return [block.size.layout, `gap_${this._calculateGap(block.children.length, gap, 2, )}px`]
+        // Используем childOrder как источник истины для расчёта grid
+        const childCount = block.data?.childOrder?.length || 0;
+        return [block.size.layout, `gap_${this._calculateGap(childCount, gap, 2)}px`]
     }
     _calculateGap(numElements, gapMax, gapMin) {
         // Используем формулу с коэффициентом, определяющим кривую снижения.

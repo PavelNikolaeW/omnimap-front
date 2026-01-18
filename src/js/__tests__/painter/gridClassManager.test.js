@@ -322,4 +322,64 @@ describe('GridClassManager', () => {
             expect(result.length).toBe(3);
         });
     });
+
+    describe('getChildCount()', () => {
+
+        test('uses childOrder as single source of truth', () => {
+            // children и childOrder рассинхронизированы - children больше
+            const block = {
+                children: ['c1', 'c2', 'c3', 'c4'],
+                data: {
+                    childOrder: ['c1', 'c2']
+                }
+            };
+
+            // После фикса должен использовать только childOrder
+            const { GridClassManager } = require('../../painter/gridClassManager');
+            expect(GridClassManager.getChildCount(block)).toBe(2);
+        });
+
+        test('uses childOrder when children is empty', () => {
+            const block = {
+                children: [],
+                data: {
+                    childOrder: ['c1', 'c2', 'c3']
+                }
+            };
+
+            const { GridClassManager } = require('../../painter/gridClassManager');
+            expect(GridClassManager.getChildCount(block)).toBe(3);
+        });
+
+        test('returns 0 for missing childOrder', () => {
+            const block = {
+                children: ['c1', 'c2'],
+                data: {}
+            };
+
+            const { GridClassManager } = require('../../painter/gridClassManager');
+            expect(GridClassManager.getChildCount(block)).toBe(0);
+        });
+
+        test('returns 0 for undefined data', () => {
+            const block = {
+                children: ['c1', 'c2']
+            };
+
+            const { GridClassManager } = require('../../painter/gridClassManager');
+            expect(GridClassManager.getChildCount(block)).toBe(0);
+        });
+
+        test('returns 0 for null childOrder', () => {
+            const block = {
+                children: ['c1', 'c2'],
+                data: {
+                    childOrder: null
+                }
+            };
+
+            const { GridClassManager } = require('../../painter/gridClassManager');
+            expect(GridClassManager.getChildCount(block)).toBe(0);
+        });
+    });
 });

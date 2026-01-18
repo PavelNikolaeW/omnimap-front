@@ -24,11 +24,10 @@ class GridClassManager {
      * @returns {number} Количество детей
      */
     static getChildCount(block) {
-        // childOrder - источник истины для рендеринга (определяет порядок)
-        const childOrderLen = block.data?.childOrder?.length || 0;
-        const childrenLen = block.children?.length || 0;
-        // Используем меньшее значение для безопасности (если рассинхронизированы)
-        return Math.min(childOrderLen, childrenLen);
+        // childOrder - единственный источник истины для рендеринга
+        // children используется только для валидации/проверки на сервере
+        // При расчёте grid всегда используем childOrder
+        return block.data?.childOrder?.length || 0;
     }
 
     manager(block, parentBlock) {
@@ -530,7 +529,9 @@ class GridClassManager {
         const [size, form] = layout.split('-')
         const style = styleConfig[size][form ?? 'table']
         const padding = parentBlock.id === 'rootContainer' ? 0 : style.padding
-        let gap = (!block.data?.customGrid?.grid) ? this._calculateGap(parentBlock.children.length, style.gap, 2,) : 0
+        // Используем childOrder как источник истины для расчёта gap
+        const parentChildCount = GridClassManager.getChildCount(parentBlock);
+        let gap = (!block.data?.customGrid?.grid) ? this._calculateGap(parentChildCount, style.gap, 2) : 0
         if (parentBlock.data?.groupSizes) {
             let acc = 0
             for (let i = 0; i < parentBlock.data.groupSizes.length; i++) {
@@ -571,4 +572,5 @@ class GridClassManager {
 
 const gridClassManager = new GridClassManager()
 
+export { GridClassManager }
 export default gridClassManager
