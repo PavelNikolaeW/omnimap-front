@@ -107,6 +107,7 @@
 .block-link--source-deleted {
     display: flex;
     flex-direction: column;
+    border: 2px dashed #fbbf24 !important;
 }
 
 .block-link-deleted-banner {
@@ -117,6 +118,7 @@
     background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
     border-bottom: 1px solid #f59e0b;
     flex-shrink: 0;
+    user-select: none;
 }
 
 .deleted-banner__icon {

@@ -190,7 +190,7 @@ class BlockCreator {
         // Обработка удалённого источника ссылки
         if (block.data.source_deleted) {
             element.setAttribute('data-source-deleted', 'true')
-            this._applyStyles(element, ['block-link', 'block-link--source-deleted', ...blockPosition])
+            this._applyStyles(element, ['block-link', 'block-link--source-deleted', ...grid, ...blockPosition])
 
             // Создаём баннер об удалённом источнике
             const banner = this._createSourceDeletedBanner(block)
@@ -198,8 +198,7 @@ class BlockCreator {
 
             // Используем childOrder от сервера (содержит перенесённых потомков)
             // Не добавляем source в childOrder - он удалён
-            const childOrder = block.data.childOrder || []
-            block.data.childOrder = childOrder
+            block.data.childOrder = block.data.childOrder || []
             block.childrenPositions = {}
             block.grid = grid
             block.contentEl = null
@@ -250,7 +249,7 @@ class BlockCreator {
         banner.className = 'block-link-deleted-banner'
         banner.setAttribute('data-testid', `deleted-banner-${block.id}`)
 
-        const deletedTitle = block.data.source_deleted_title || 'Неизвестный блок'
+        const deletedTitle = this._sanitizeText(block.data.source_deleted_title) || 'Неизвестный блок'
 
         banner.innerHTML = `
             <div class="deleted-banner__icon">
