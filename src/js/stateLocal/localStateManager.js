@@ -1087,9 +1087,34 @@ export class LocalStateManager {
             }
         }
 
+        // Обновляем permission для существующих блоков из block_uuids
+        // (блоки которые уже есть локально, но их права изменились)
+        let updatedExistingCount = 0;
+        for (const blockId of blockUuids) {
+            // Пропускаем если блок уже обработан в start_block_ids
+            if (newBlocks.some(b => b.id === blockId)) continue;
+
+            const existingBlock = this.blocks.get(blockId);
+            if (existingBlock) {
+                // Определяем новый permission
+                let newPermission = permission;
+                if (permission === 'grant') {
+                    newPermission = null; // grant без уровня = полный доступ
+                }
+
+                // Обновляем только если permission изменился
+                if (existingBlock.permission !== newPermission || existingBlock.forbidden) {
+                    existingBlock.permission = newPermission;
+                    existingBlock.forbidden = false; // Убираем forbidden при grant
+                    await this.saveBlock(existingBlock);
+                    updatedExistingCount++;
+                }
+            }
+        }
+
         // Принудительно перерисовываем экран
-        if (newBlocks.length > 0) {
-            console.log(`✅ Access granted for ${newBlocks.length} blocks, refreshing screen`);
+        if (newBlocks.length > 0 || updatedExistingCount > 0) {
+            console.log(`✅ Access granted for ${newBlocks.length} new blocks, updated ${updatedExistingCount} existing blocks`);
             this.showBlocks();
         }
     }
