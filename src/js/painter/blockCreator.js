@@ -624,6 +624,8 @@ class BlockCreator {
         }
 
         // Проверяем версию childOrder — если изменилась, пересчитываем grid
+        // NOTE: _lastRenderedVersion хранится только в памяти (не в IndexedDB).
+        // При перезагрузке страницы grid пересчитывается заново, что приемлемо.
         if (block._childOrderVersion && block._childOrderVersion !== block._lastRenderedVersion) {
             delete block.childrenPositions;
             delete block.grid;

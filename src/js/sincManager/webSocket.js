@@ -456,6 +456,7 @@ export class UpdateServiceWebSocket {
                     this._refreshTokenAndReconnect(interval);
                 } else {
                     console.log(`WebSocket: reconnecting in ${interval}ms (attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+                    dispatch('WebSocketReconnecting', { attempt: this.reconnectAttempts });
                     setTimeout(() => {
                         this.connect();
                     }, interval);
