@@ -1332,8 +1332,11 @@ export class LocalStateManager {
                     }
 
                     // ВАЖНО: children должен совпадать с childOrder для консистентности
-                    // childOrder - источник истины, children синхронизируем с ним
-                    // Фильтруем только существующие локально блоки
+                    // childOrder - источник истины для рендеринга, children синхронизируем с ним
+                    //
+                    // Примечание: в loadTree() используется обратная логика (childOrder фильтруется по children),
+                    // потому что там сервер авторитетен по структуре дерева (children).
+                    // Здесь же childOrder авторитетен, т.к. он уже смёрджен с учётом pending операций.
                     const syncedChildren = mergedData.childOrder.filter(id => this.blocks.has(id));
 
                     await this.saveBlock({

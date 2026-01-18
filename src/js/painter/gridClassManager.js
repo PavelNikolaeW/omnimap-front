@@ -572,4 +572,5 @@ class GridClassManager {
 
 const gridClassManager = new GridClassManager()
 
+export { GridClassManager }
 export default gridClassManager
