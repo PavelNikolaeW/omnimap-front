@@ -18,7 +18,7 @@ export const submenuConfig = {
             'diagramGridColPlus', 'diagramGridColMinus',
             'diagramGridRowPlus', 'diagramGridRowMinus',
             'diagramSizeXs', 'diagramSizeS', 'diagramSizeM', 'diagramSizeL',
-            'diagramAddBlock', 'diagramDeleteBlock',
+            'diagramAddBlock',
             'diagramBlockStyle', 'submenu-connections',
             'diagramReset'
         ]

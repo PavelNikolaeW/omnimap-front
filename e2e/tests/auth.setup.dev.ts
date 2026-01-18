@@ -12,7 +12,7 @@ import path from 'path';
  * - password: TestPassword123! (или задайте через E2E_DEV_PASSWORD)
  */
 
-const authFile = path.join(__dirname, '../.auth/user.dev.json');
+const authFile = path.join(__dirname, '../.auth/cloud-user.json');
 
 const TEST_USER = {
   username: process.env.E2E_DEV_USERNAME || 'e2e_test_dev',

@@ -10,7 +10,6 @@ export class DiagramUtils {
         // Старые элементы (для обратной совместимости)
         this.inputs = document.getElementById('diagram-inputs')
         this.connections = this.inputs?.querySelector('#CerateConnections')
-        this.addButton = this.inputs?.querySelector('#addDiagram')
         this.sizeSelector = this.inputs?.querySelector('#sizeSelector')
         this.resetBtn = this.inputs?.querySelector('#reset')
         this.openStylePanelBtn = document.getElementById('openStylePanel')
@@ -43,7 +42,8 @@ export class DiagramUtils {
     }
 
     bindEvents() {
-        this.addButton?.addEventListener('click', (e) => this.addBtnHandler(e))
+        // Примечание: обработчик для добавления блока теперь в командной системе (diagramAddBlock)
+        // Старый #addDiagram больше не используется
         this.sizeSelector?.addEventListener('change', (e) => this.selectSizeHandler(e))
         this.resetBtn?.addEventListener('click', () => this.resetHandler())
 
@@ -372,11 +372,10 @@ export class DiagramUtils {
                 }
                 break;
             case 'right':
-                if (colEnd <= columns) {
-                    if (newColEnd + 1 <= columns + 1) {
-                        newColStart++;
-                        newColEnd++;
-                    }
+                // Можно двигать вправо если правый край не достиг границы сетки
+                if (colEnd < columns + 1) {
+                    newColStart++;
+                    newColEnd++;
                 }
                 break;
             case 'up':
@@ -386,11 +385,10 @@ export class DiagramUtils {
                 }
                 break;
             case 'down':
-                if (rowEnd <= rows) {
-                    if (newRowEnd + 1 <= rows + 1) {
-                        newRowStart++;
-                        newRowEnd++;
-                    }
+                // Можно двигать вниз если нижний край не достиг границы сетки
+                if (rowEnd < rows + 2) {
+                    newRowStart++;
+                    newRowEnd++;
                 }
                 break;
         }

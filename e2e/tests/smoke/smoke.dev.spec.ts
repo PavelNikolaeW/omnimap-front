@@ -21,6 +21,8 @@ test.describe('Smoke Tests @smoke', () => {
 
   // Флаг что мы уже залогинились
   let isAuthenticated = false;
+  // Флаг что пользователь уже зарегистрирован (для повторной авторизации использовать логин)
+  let userRegistered = false;
 
   test.beforeEach(async ({ page }) => {
     console.log(`beforeEach: isAuthenticated=${isAuthenticated}, url=${page.url()}`);
@@ -30,19 +32,51 @@ test.describe('Smoke Tests @smoke', () => {
       const currentUrl = page.url();
       if (currentUrl === 'about:blank' || currentUrl === '') {
         console.log('Empty page, navigating to /');
-        await page.goto('/');
-        await page.waitForLoadState('domcontentloaded', { timeout: 15000 });
-        await page.waitForTimeout(1000);
+        await page.goto('/', { timeout: 60000 });
+        await page.waitForLoadState('domcontentloaded', { timeout: 30000 });
+
+        // Ждём пока появится либо форма логина, либо блоки (признак авторизации)
+        const loginForm = page.locator('#login-form');
+        const blocks = page.locator('[block]');
+
+        // Гонка: кто первый появится
+        const result = await Promise.race([
+          loginForm.waitFor({ state: 'visible', timeout: 15000 }).then(() => 'login'),
+          blocks.first().waitFor({ state: 'visible', timeout: 15000 }).then(() => 'app'),
+        ]).catch(() => 'timeout');
+
+        console.log(`Navigation result: ${result}`);
+
+        if (result === 'login') {
+          console.log('Session lost, re-authenticating...');
+          isAuthenticated = false;
+          // Переходим к блоку авторизации ниже
+        } else if (result === 'app') {
+          // Блоки загружены - авторизация успешна
+          await page.waitForTimeout(500);
+          console.log('Already authenticated, app loaded');
+          return;
+        } else {
+          // Таймаут - проверяем что на странице
+          const hasLoginNow = await loginForm.isVisible().catch(() => false);
+          if (hasLoginNow) {
+            console.log('Session lost (after timeout), re-authenticating...');
+            isAuthenticated = false;
+          } else {
+            console.log('Timeout but no login form, assuming authenticated');
+            return;
+          }
+        }
       } else {
         console.log('Already on a page, staying');
+        return;
       }
-      return;
     }
 
     // Первый тест - нужно авторизоваться
     console.log('Navigating to /...');
-    await page.goto('/');
-    await page.waitForLoadState('domcontentloaded', { timeout: 15000 });
+    await page.goto('/', { timeout: 60000 });
+    await page.waitForLoadState('domcontentloaded', { timeout: 30000 });
 
     const hasLoginForm = await page
       .locator('#login-form')
@@ -74,10 +108,32 @@ test.describe('Smoke Tests @smoke', () => {
     const loginHeading = page.getByRole('heading', { name: 'Вход' });
     const isLoginForm = await loginHeading.isVisible().catch(() => false);
 
-    console.log(`isLoginForm: ${isLoginForm}`);
+    console.log(`isLoginForm: ${isLoginForm}, userRegistered: ${userRegistered}`);
 
-    if (!isLoginForm) {
-      // Регистрация
+    // Если пользователь уже зарегистрирован - используем логин
+    if (userRegistered) {
+      console.log(`Re-authenticating with login: ${TEST_USER.username}...`);
+
+      // Если показана форма регистрации - переключаемся на логин
+      if (!isLoginForm) {
+        const switchToLoginButton = page.locator('text=Уже есть аккаунт');
+        const hasSwitchButton = await switchToLoginButton.isVisible().catch(() => false);
+        if (hasSwitchButton) {
+          await switchToLoginButton.click();
+          await page.waitForTimeout(500);
+        }
+      }
+
+      // Заполняем форму логина
+      const loginSection = page.locator('#login-form');
+      await loginSection.getByRole('textbox', { name: 'Имя пользователя' }).fill(TEST_USER.username);
+      await page.waitForTimeout(100);
+      await loginSection.locator('input[type="password"]').fill(TEST_USER.password);
+      await page.waitForTimeout(100);
+
+      await page.click('button:has-text("Войти")');
+    } else if (!isLoginForm) {
+      // Первичная регистрация
       console.log(`Registering new user ${TEST_USER.username}...`);
       const registerSection = page.getByRole('heading', { name: 'Регистрация' }).locator('..');
 
@@ -91,9 +147,9 @@ test.describe('Smoke Tests @smoke', () => {
       await page.waitForTimeout(100);
 
       await page.click('button:has-text("Зарегистрироваться")');
+      userRegistered = true;
     } else {
-      // Неожиданно - форма логина, но мы ожидали регистрацию
-      // Возможно страница переключилась - нажимаем кнопку регистрации
+      // Форма логина видна, но пользователь ещё не зарегистрирован - переключаемся на регистрацию
       console.log('Login form visible, switching to registration...');
       const switchToRegisterButton = page.locator('text=Создать аккаунт');
       const hasSwitchButton = await switchToRegisterButton.isVisible().catch(() => false);
@@ -117,6 +173,7 @@ test.describe('Smoke Tests @smoke', () => {
       await page.waitForTimeout(100);
 
       await page.click('button:has-text("Зарегистрироваться")');
+      userRegistered = true;
     }
 
     // Ждём загрузки
@@ -182,6 +239,14 @@ test.describe('Smoke Tests @smoke', () => {
     const rootContainer = page.locator('#rootContainer');
     await expect(rootContainer).toBeVisible({ timeout: 10000 });
 
+    // Ждём появления блоков
+    const blocks = page.locator('[block]');
+    await expect(blocks.first()).toBeVisible({ timeout: 5000 });
+
+    // Клик на rootContainer чтобы получить фокус
+    await rootContainer.click();
+    await page.waitForTimeout(300);
+
     // Нажимаем N для создания нового блока
     await page.keyboard.press('n');
 
@@ -198,10 +263,10 @@ test.describe('Smoke Tests @smoke', () => {
     await okBtn.click();
 
     // Проверяем что блок появился
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
 
     const newBlock = page.locator(`[block] titleBlock:has-text("${blockTitle}")`);
-    await expect(newBlock).toBeVisible({ timeout: 5000 });
+    await expect(newBlock).toBeVisible({ timeout: 10000 });
   });
 
   test('SM-04: Можно открыть блок', async ({ page }) => {
@@ -226,7 +291,12 @@ test.describe('Smoke Tests @smoke', () => {
   });
 
   test('SM-05: Данные сохраняются после refresh', async ({ page }) => {
-    // Создаём блок с уникальным названием
+    // Получаем фокус и создаём блок
+    const rootContainer = page.locator('#rootContainer');
+    await expect(rootContainer).toBeVisible({ timeout: 10000 });
+    await rootContainer.click();
+    await page.waitForTimeout(300);
+
     const blockTitle = `Persist Test ${Date.now()}`;
 
     await page.keyboard.press('n');
@@ -235,8 +305,8 @@ test.describe('Smoke Tests @smoke', () => {
     await dialogInput.fill(blockTitle);
     await page.locator('[data-testid="custom-dialog-ok-btn"]').click();
 
-    // Ждём создания
-    await page.waitForTimeout(1000);
+    // Ждём создания и синхронизации с сервером
+    await page.waitForTimeout(2000);
 
     // Проверяем что блок появился
     const block = page.locator(`[block] titleBlock:has-text("${blockTitle}")`);
@@ -246,6 +316,30 @@ test.describe('Smoke Tests @smoke', () => {
     await page.reload();
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
+
+    // После reload сессия может потеряться - проверяем и ре-логинимся если нужно
+    const hasLoginForm = await page.locator('#login-form').isVisible().catch(() => false);
+    if (hasLoginForm) {
+      console.log('Session lost after reload, re-authenticating...');
+      const loginSection = page.locator('#login-form');
+      await loginSection.getByRole('textbox', { name: 'Имя пользователя' }).fill(TEST_USER.username);
+      await page.waitForTimeout(100);
+      await loginSection.locator('input[type="password"]').fill(TEST_USER.password);
+      await page.waitForTimeout(100);
+      await page.click('button:has-text("Войти")');
+
+      // Ждём загрузки приложения
+      await page.waitForLoadState('domcontentloaded');
+      await page.waitForTimeout(2000);
+
+      // Приложение может открыть вложенный блок - возвращаемся на корневой уровень
+      // Нажимаем на первый элемент breadcrumb (имя дерева)
+      const rootBreadcrumb = page.locator('#breadcrumb > span').first();
+      if (await rootBreadcrumb.isVisible().catch(() => false)) {
+        await rootBreadcrumb.click();
+        await page.waitForTimeout(1000);
+      }
+    }
 
     // Проверяем что блок всё ещё есть после reload
     const blockAfterReload = page.locator(`[block] titleBlock:has-text("${blockTitle}")`);

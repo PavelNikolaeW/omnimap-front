@@ -2831,9 +2831,18 @@ export class LocalStateManager {
                                  sourceAnchor,
                                  targetAnchor
                              }) {
-        const sourceBlock = this.blocks.get(sourceId);
+        // Извлечь чистые ID блоков (DOM ID может содержать префикс родителя в формате parentId*childId)
+        const cleanSourceId = sourceId?.includes('*') ? sourceId.split('*').pop() : sourceId;
+        const cleanTargetId = targetId?.includes('*') ? targetId.split('*').pop() : targetId;
+
+        if (!cleanSourceId) {
+            console.error('Source ID is required for addConnectionBlock');
+            return;
+        }
+
+        const sourceBlock = this.blocks.get(cleanSourceId);
         if (!sourceBlock) {
-            console.error('Source block not found:', sourceId);
+            console.error('Source block not found:', sourceId, '(clean:', cleanSourceId, ')');
             return;
         }
 
@@ -2855,8 +2864,8 @@ export class LocalStateManager {
 
         const connectionData = {
             id: connectionId,
-            sourceId,
-            targetId,
+            sourceId: cleanSourceId,  // Используем чистый ID для хранения
+            targetId: cleanTargetId,  // Используем чистый ID для хранения
             connector,
             paintStyle,
             overlays,
@@ -2871,8 +2880,8 @@ export class LocalStateManager {
         // Это позволяет создавать несколько соединений между одной парой блоков
         // если они подключены к разным anchor points
         const existingConnection = sourceBlock.data.connections.find(
-            connection => connection.sourceId === sourceId &&
-                         connection.targetId === targetId &&
+            connection => connection.sourceId === cleanSourceId &&
+                         connection.targetId === cleanTargetId &&
                          connection.sourceAnchor === sourceAnchor &&
                          connection.targetAnchor === targetAnchor
         );
@@ -2892,10 +2901,10 @@ export class LocalStateManager {
         // Офлайн режим: добавляем в очередь
         if (!offlineQueue.isNetworkOnline()) {
             await offlineQueue.enqueue({
-                id: `add_connection_${sourceId}_${targetId}_${Date.now()}`,
+                id: `add_connection_${cleanSourceId}_${cleanTargetId}_${Date.now()}`,
                 type: 'updateBlock',
                 data: {
-                    id: sourceId,
+                    id: cleanSourceId,
                     blockData: {data: sourceBlock.data}
                 }
             });
@@ -2903,17 +2912,17 @@ export class LocalStateManager {
         }
 
         try {
-            const response = await api.updateBlock(sourceId, {data: sourceBlock.data});
+            const response = await api.updateBlock(cleanSourceId, {data: sourceBlock.data});
             if (response.status === 200 && response.data?.id) {
                 await this.saveBlock(response.data);
             }
         } catch (err) {
             if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
                 await offlineQueue.enqueue({
-                    id: `add_connection_${sourceId}_${targetId}_${Date.now()}`,
+                    id: `add_connection_${cleanSourceId}_${cleanTargetId}_${Date.now()}`,
                     type: 'updateBlock',
                     data: {
-                        id: sourceId,
+                        id: cleanSourceId,
                         blockData: {data: sourceBlock.data}
                     }
                 });
@@ -2924,9 +2933,18 @@ export class LocalStateManager {
     }
 
     async removeConnectionBlock({connectionId, sourceId, targetId, sourceAnchor, targetAnchor}) {
-        const sourceBlock = this.blocks.get(sourceId);
+        // Извлечь чистые ID блоков (DOM ID может содержать префикс родителя)
+        const cleanSourceId = sourceId?.includes('*') ? sourceId.split('*').pop() : sourceId;
+        const cleanTargetId = targetId?.includes('*') ? targetId.split('*').pop() : targetId;
+
+        if (!cleanSourceId) {
+            console.error('Source ID is required for removeConnectionBlock');
+            return;
+        }
+
+        const sourceBlock = this.blocks.get(cleanSourceId);
         if (!sourceBlock || !sourceBlock.data?.connections) {
-            console.error('Source block or connections not found:', sourceId);
+            console.error('Source block or connections not found:', sourceId, '(clean:', cleanSourceId, ')');
             return;
         }
 
@@ -2946,14 +2964,14 @@ export class LocalStateManager {
         else if (sourceAnchor !== undefined && sourceAnchor !== null &&
                  targetAnchor !== undefined && targetAnchor !== null) {
             sourceBlock.data.connections = sourceBlock.data.connections.filter(
-                (el) => !(el.targetId === targetId &&
+                (el) => !(el.targetId === cleanTargetId &&
                          el.sourceAnchor === sourceAnchor &&
                          el.targetAnchor === targetAnchor)
             );
         }
         // Приоритет 3: Удаление всех соединений к target (обратная совместимость)
         else {
-            sourceBlock.data.connections = sourceBlock.data.connections.filter((el) => el.targetId !== targetId);
+            sourceBlock.data.connections = sourceBlock.data.connections.filter((el) => el.targetId !== cleanTargetId);
         }
         sourceBlock.updated_at = new Date().toISOString();
         await this.saveBlock(sourceBlock);
@@ -2961,88 +2979,7 @@ export class LocalStateManager {
         // Офлайн режим: добавляем в очередь
         if (!offlineQueue.isNetworkOnline()) {
             await offlineQueue.enqueue({
-                id: `remove_connection_${sourceId}_${targetId}_${Date.now()}`,
-                type: 'updateBlock',
-                data: {
-                    id: sourceId,
-                    blockData: {data: sourceBlock.data}
-                }
-            });
-            return;
-        }
-
-        try {
-            const response = await api.updateBlock(sourceId, {data: sourceBlock.data});
-            if (response.status === 200 && response.data?.id) {
-                await this.saveBlock(response.data);
-            }
-        } catch (err) {
-            if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
-                await offlineQueue.enqueue({
-                    id: `remove_connection_${sourceId}_${targetId}_${Date.now()}`,
-                    type: 'updateBlock',
-                    data: {
-                        id: sourceId,
-                        blockData: {data: sourceBlock.data}
-                    }
-                });
-            } else {
-                console.error(err);
-            }
-        }
-    }
-
-    /**
-     * Обновляет существующее соединение между блоками
-     * @param {Object} connectionData - Данные соединения
-     */
-    async updateConnectionBlock({sourceId, targetId, connector, paintStyle, overlays, anchors, ...rest}) {
-        // Извлекаем чистый ID блока (без префиксов)
-        const cleanSourceId = sourceId?.split('*').pop() || sourceId;
-
-        const sourceBlock = this.blocks.get(cleanSourceId);
-        if (!sourceBlock || !sourceBlock.data?.connections) {
-            console.error('Source block or connections not found:', cleanSourceId);
-            return;
-        }
-
-        // Проверка прав на редактирование
-        if (!canEdit(sourceBlock)) {
-            dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
-            return;
-        }
-
-        // Находим существующее соединение
-        const connIndex = sourceBlock.data.connections.findIndex(
-            c => c.sourceId === sourceId && c.targetId === targetId
-        );
-
-        if (connIndex === -1) {
-            console.warn('Connection not found for update:', sourceId, '->', targetId);
-            return;
-        }
-
-        // Обновляем данные соединения
-        sourceBlock.data.connections[connIndex] = {
-            sourceId,
-            targetId,
-            connector,
-            paintStyle,
-            overlays,
-            anchors,
-            ...rest
-        };
-
-        sourceBlock.updated_at = new Date().toISOString();
-        await this.saveBlock(sourceBlock);
-
-        // Примечание: не добавляем в undo stack, т.к. стили соединений
-        // не поддерживают формат операций для undo/redo
-
-        // Офлайн режим: добавляем в очередь
-        if (!offlineQueue.isNetworkOnline()) {
-            await offlineQueue.enqueue({
-                id: `update_connection_${cleanSourceId}_${targetId}_${Date.now()}`,
+                id: `remove_connection_${cleanSourceId}_${cleanTargetId}_${Date.now()}`,
                 type: 'updateBlock',
                 data: {
                     id: cleanSourceId,
@@ -3060,7 +2997,89 @@ export class LocalStateManager {
         } catch (err) {
             if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
                 await offlineQueue.enqueue({
-                    id: `update_connection_${cleanSourceId}_${targetId}_${Date.now()}`,
+                    id: `remove_connection_${cleanSourceId}_${cleanTargetId}_${Date.now()}`,
+                    type: 'updateBlock',
+                    data: {
+                        id: cleanSourceId,
+                        blockData: {data: sourceBlock.data}
+                    }
+                });
+            } else {
+                console.error(err);
+            }
+        }
+    }
+
+    /**
+     * Обновляет существующее соединение между блоками
+     * @param {Object} connectionData - Данные соединения
+     */
+    async updateConnectionBlock({sourceId, targetId, connector, paintStyle, overlays, anchors, ...rest}) {
+        // Извлекаем чистые ID блоков (без префиксов)
+        const cleanSourceId = sourceId?.includes('*') ? sourceId.split('*').pop() : sourceId;
+        const cleanTargetId = targetId?.includes('*') ? targetId.split('*').pop() : targetId;
+
+        const sourceBlock = this.blocks.get(cleanSourceId);
+        if (!sourceBlock || !sourceBlock.data?.connections) {
+            console.error('Source block or connections not found:', cleanSourceId);
+            return;
+        }
+
+        // Проверка прав на редактирование
+        if (!canEdit(sourceBlock)) {
+            dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
+            return;
+        }
+
+        // Находим существующее соединение (используем чистые ID)
+        const connIndex = sourceBlock.data.connections.findIndex(
+            c => c.sourceId === cleanSourceId && c.targetId === cleanTargetId
+        );
+
+        if (connIndex === -1) {
+            console.warn('Connection not found for update:', cleanSourceId, '->', cleanTargetId);
+            return;
+        }
+
+        // Обновляем данные соединения (сохраняем чистые ID)
+        sourceBlock.data.connections[connIndex] = {
+            sourceId: cleanSourceId,
+            targetId: cleanTargetId,
+            connector,
+            paintStyle,
+            overlays,
+            anchors,
+            ...rest
+        };
+
+        sourceBlock.updated_at = new Date().toISOString();
+        await this.saveBlock(sourceBlock);
+
+        // Примечание: не добавляем в undo stack, т.к. стили соединений
+        // не поддерживают формат операций для undo/redo
+
+        // Офлайн режим: добавляем в очередь
+        if (!offlineQueue.isNetworkOnline()) {
+            await offlineQueue.enqueue({
+                id: `update_connection_${cleanSourceId}_${cleanTargetId}_${Date.now()}`,
+                type: 'updateBlock',
+                data: {
+                    id: cleanSourceId,
+                    blockData: {data: sourceBlock.data}
+                }
+            });
+            return;
+        }
+
+        try {
+            const response = await api.updateBlock(cleanSourceId, {data: sourceBlock.data});
+            if (response.status === 200 && response.data?.id) {
+                await this.saveBlock(response.data);
+            }
+        } catch (err) {
+            if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
+                await offlineQueue.enqueue({
+                    id: `update_connection_${cleanSourceId}_${cleanTargetId}_${Date.now()}`,
                     type: 'updateBlock',
                     data: {
                         id: cleanSourceId,

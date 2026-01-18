@@ -1097,27 +1097,40 @@ export class DiagramEditor {
         if (!pos) return;
 
         const { cols, rows } = this.parseGridSize();
+        const blockWidth = pos.colEnd - pos.colStart;
+        const blockHeight = pos.rowEnd - pos.rowStart;
 
-        // Вычислить новую позицию с границами
-        let newColStart = Math.max(1, pos.colStart + deltaCol);
+        // Вычислить новую позицию
+        let newColStart = pos.colStart + deltaCol;
         let newColEnd = pos.colEnd + deltaCol;
-        let newRowStart = Math.max(2, pos.rowStart + deltaRow);
+        let newRowStart = pos.rowStart + deltaRow;
         let newRowEnd = pos.rowEnd + deltaRow;
 
-        // Ограничить по границам сетки
-        if (newColEnd > cols + 1) {
-            const overflow = newColEnd - (cols + 1);
-            newColStart -= overflow;
-            newColEnd -= overflow;
+        // Ограничить по левому/верхнему краю (сохраняя размер блока)
+        if (newColStart < 1) {
+            newColStart = 1;
+            newColEnd = 1 + blockWidth;
         }
-        if (newRowEnd > rows + 2) {
-            const overflow = newRowEnd - (rows + 2);
-            newRowStart -= overflow;
-            newRowEnd -= overflow;
+        if (newRowStart < 2) {
+            newRowStart = 2;
+            newRowEnd = 2 + blockHeight;
         }
 
+        // Ограничить по правому/нижнему краю (сохраняя размер блока)
+        if (newColEnd > cols + 1) {
+            newColEnd = cols + 1;
+            newColStart = cols + 1 - blockWidth;
+        }
+        if (newRowEnd > rows + 2) {
+            newRowEnd = rows + 2;
+            newRowStart = rows + 2 - blockHeight;
+        }
+
+        // Финальная проверка границ
         newColStart = Math.max(1, newColStart);
         newRowStart = Math.max(2, newRowStart);
+        newColEnd = Math.min(cols + 1, newColEnd);
+        newRowEnd = Math.min(rows + 2, newRowEnd);
 
         // Обновить customGrid
         this.customGrid.childrenPositions[cleanBlockId] = [
