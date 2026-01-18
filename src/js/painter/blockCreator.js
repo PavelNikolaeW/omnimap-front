@@ -143,6 +143,17 @@ class BlockCreator {
         const element = document.createElement('div');
         const grid = ["grid-template-columns_1fr", "grid-template-rows_1fr"]
         const sourceId = block.data.source
+
+        // DEBUG: отладка проблемы с deleted shared блоком
+        console.log('🔗 createLink:', {
+            blockId: block.id,
+            sourceId,
+            pending: block.data.pending,
+            rejected: block.data.rejected,
+            hasChildrenPositions: !!parentBlock.childrenPositions?.[block.id],
+            blockData: JSON.stringify(block.data)
+        });
+
         gridClassManager.calcBlockSize(block, parentBlock)
 
         element.id = block.id
@@ -150,11 +161,14 @@ class BlockCreator {
         element.setAttribute('blockLink', block.data.source)
         element.setAttribute('layout', block.size.layout)
 
+        // Позиция блока в родителе (с защитой от undefined)
+        const blockPosition = parentBlock.childrenPositions?.[block.id] || []
+
         // Обработка pending ссылки (ожидание доступа)
         if (block.data.pending) {
             element.setAttribute('data-pending', 'true')
             element.setAttribute('data-request-id', block.data.request_id || '')
-            this._applyStyles(element, ['block-link', 'block-link--pending', ...grid, ...(parentBlock.childrenPositions[block.id])])
+            this._applyStyles(element, ['block-link', 'block-link--pending', ...grid, ...blockPosition])
 
             // Создаём заглушку вместо контента
             const placeholder = this._createPendingPlaceholder(block)
@@ -169,7 +183,7 @@ class BlockCreator {
             return element
         }
 
-        this._applyStyles(element, ['block-link', ...grid, ...(parentBlock.childrenPositions[block.id])])
+        this._applyStyles(element, ['block-link', ...grid, ...blockPosition])
 
         block.data.childOrder = [sourceId]
         block.childrenPositions = {[sourceId]: ['grid-column_1', 'grid-row_1']}

@@ -1084,6 +1084,14 @@ export class LocalStateManager {
     async webSocUpdateBlock(newBlocks) {
         if (!Array.isArray(newBlocks) || newBlocks.length === 0) return;
 
+        // DEBUG: отладка проблемы с deleted shared блоком
+        console.log('📥 webSocUpdateBlock received:', newBlocks.map(b => ({
+            id: b.id,
+            deleted: b.deleted,
+            view: b.data?.view || this._safeJsonParse(b.data, {})?.view,
+            title: b.title?.substring(0, 30)
+        })));
+
         const processedBlocks = [];
 
         for (const block of newBlocks) {
