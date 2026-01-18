@@ -1,14 +1,18 @@
 import { runHealthChecks } from './healthCheck';
+import { dispatch } from '../utils/utils';
 
 /**
  * Компонент статус-индикаторов систем
  * Отображает состояние IndexedDB, Backend API, WebSocket, LLM Gateway как цветные диоды
+ * Также показывает кнопку переподключения и статус синхронизации
  */
 class StatusIndicators {
     constructor() {
         this.element = null;
         this.indicators = {};
         this.checkInterval = null;
+        this.reconnectButton = null;
+        this.syncStatusElement = null;
     }
 
     /**
@@ -38,6 +42,8 @@ class StatusIndicators {
         this.element = document.createElement('div');
         this.element.className = 'status-indicators';
         this.element.innerHTML = `
+            <span class="sync-status" style="display: none;"></span>
+            <button class="reconnect-button" style="display: none;">Переподключиться</button>
             <span class="status-led" data-system="db" title="DB — проверка..."></span>
             <span class="status-led" data-system="api" title="API — проверка..."></span>
             <span class="status-led" data-system="ws" title="Sync — проверка..."></span>
@@ -52,6 +58,16 @@ class StatusIndicators {
             llm: this.element.querySelector('[data-system="llm"]')
         };
 
+        // Сохраняем ссылки на дополнительные элементы
+        this.reconnectButton = this.element.querySelector('.reconnect-button');
+        this.syncStatusElement = this.element.querySelector('.sync-status');
+
+        // Обработчик клика на кнопку переподключения
+        this.reconnectButton.addEventListener('click', () => {
+            this.hideReconnectButton();
+            dispatch('ForceReconnect');
+        });
+
         // Начальное состояние - серый (проверка)
         Object.values(this.indicators).forEach(led => {
             led.classList.add('checking');
@@ -65,14 +81,43 @@ class StatusIndicators {
         // Слушаем события синхронизации
         window.addEventListener('WebSocketConnected', () => {
             this.setStatus('ws', 'ok');
+            this.hideReconnectButton();
         });
 
-        window.addEventListener('WebSocketDisconnected', () => {
+        window.addEventListener('WebSocketDisconnected', (e) => {
             this.setStatus('ws', 'error');
+            // Показываем кнопку переподключения если можно повторить
+            if (e.detail?.canRetry) {
+                this.showReconnectButton();
+            }
         });
 
         window.addEventListener('WebSocketReconnecting', () => {
             this.setStatus('ws', 'warning');
+            this.hideReconnectButton();
+        });
+
+        // Слушаем события синхронизации для отображения фазы
+        window.addEventListener('SyncStarted', (e) => {
+            this.showSyncStatus(e.detail?.phase, e.detail?.message);
+        });
+
+        window.addEventListener('SyncCompleted', (e) => {
+            this.hideSyncStatus();
+            // Если была ошибка, показываем её кратко
+            if (e.detail?.error) {
+                this.showSyncStatus('error', e.detail.error);
+                setTimeout(() => this.hideSyncStatus(), 5000);
+            }
+        });
+
+        window.addEventListener('SyncProgress', (e) => {
+            const { completed, total, stage, message } = e.detail || {};
+            if (message) {
+                this.showSyncStatus(stage, message);
+            } else if (total) {
+                this.showSyncStatus(stage, `${completed}/${total}`);
+            }
         });
 
         // Слушаем статус сети
@@ -138,6 +183,54 @@ class StatusIndicators {
 
         // Убираем класс моргания
         led.classList.remove('syncing');
+    }
+
+    /**
+     * Показывает кнопку переподключения
+     */
+    showReconnectButton() {
+        if (this.reconnectButton) {
+            this.reconnectButton.style.display = 'inline-block';
+        }
+    }
+
+    /**
+     * Скрывает кнопку переподключения
+     */
+    hideReconnectButton() {
+        if (this.reconnectButton) {
+            this.reconnectButton.style.display = 'none';
+        }
+    }
+
+    /**
+     * Показывает статус синхронизации
+     * @param {string} phase - Фаза ('pull', 'push', 'importing', 'error')
+     * @param {string} message - Сообщение для отображения
+     */
+    showSyncStatus(phase, message) {
+        if (!this.syncStatusElement) return;
+
+        const phaseIcons = {
+            pull: '↓',
+            push: '↑',
+            importing: '⟳',
+            error: '⚠'
+        };
+
+        const icon = phaseIcons[phase] || '⟳';
+        this.syncStatusElement.textContent = `${icon} ${message || ''}`;
+        this.syncStatusElement.style.display = 'inline-block';
+        this.syncStatusElement.className = `sync-status ${phase || ''}`;
+    }
+
+    /**
+     * Скрывает статус синхронизации
+     */
+    hideSyncStatus() {
+        if (this.syncStatusElement) {
+            this.syncStatusElement.style.display = 'none';
+        }
     }
 
     /**

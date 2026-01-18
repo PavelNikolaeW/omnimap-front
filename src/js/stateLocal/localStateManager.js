@@ -52,7 +52,9 @@ class BlockRepository {
             permission: block.permission || null,
             // Sandbox поля
             creator_id: block.creator_id || null,
-            sandbox_mode: block.sandbox_mode || null
+            sandbox_mode: block.sandbox_mode || null,
+            // Версия childOrder для отслеживания изменений grid при рендеринге
+            _childOrderVersion: block._childOrderVersion || null
         };
         await localforage.setItem(key, blockData);
     }
@@ -1316,6 +1318,7 @@ export class LocalStateManager {
                     }
 
                     const localData = localBlock?.data || {};
+                    const localChildOrder = localData.childOrder || [];
 
                     // Мёржим data: сервер имеет приоритет
                     // childOrder: используем серверный если он определён (даже пустой []), иначе локальный
@@ -1326,6 +1329,10 @@ export class LocalStateManager {
                             ? serverData.childOrder
                             : (localData.childOrder || [])
                     };
+
+                    // Проверяем, изменился ли childOrder (для инвалидации grid кэша)
+                    const childOrderChanged = JSON.stringify(localChildOrder) !==
+                                              JSON.stringify(mergedData.childOrder);
 
                     // Синхронизируем childOrder с serverChildren
                     // Учитываем:
@@ -1379,6 +1386,19 @@ export class LocalStateManager {
                     // Здесь же childOrder авторитетен, т.к. он уже смёрджен с учётом pending операций.
                     const syncedChildren = mergedData.childOrder.filter(id => this.blocks.has(id));
 
+                    // Инвалидируем кэш позиций если childOrder изменился
+                    // Это заставит grid пересчитаться при следующем рендере
+                    let childOrderVersion = localBlock?._childOrderVersion;
+                    if (childOrderChanged) {
+                        const cachedBlock = this.blocks.get(block.id);
+                        if (cachedBlock) {
+                            delete cachedBlock.childrenPositions;
+                            delete cachedBlock.grid;
+                        }
+                        // Обновляем версию childOrder для отслеживания изменений при рендеринге
+                        childOrderVersion = Date.now();
+                    }
+
                     // Определяем creator_id и sandbox_mode: сервер > кэш
                     const blockCreatorId = block.creator_id !== undefined
                         ? block.creator_id
@@ -1396,7 +1416,8 @@ export class LocalStateManager {
                         parent_id: normalizeParentId(block.parent_id),
                         permission: blockPermission,
                         creator_id: blockCreatorId,
-                        sandbox_mode: blockSandboxMode
+                        sandbox_mode: blockSandboxMode,
+                        _childOrderVersion: childOrderVersion  // Для отслеживания изменений grid
                     });
                 }
                 processedBlocks.push(block);

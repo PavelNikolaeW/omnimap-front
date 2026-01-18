@@ -1290,3 +1290,279 @@ describe('Batch Import Logic', () => {
         });
     });
 });
+
+describe('Adaptive Debounce', () => {
+    let AdaptiveDebounceManager;
+    let mockBlocks;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+
+        // Mock blocks Map для имитации localStateManager.blocks
+        mockBlocks = new Map();
+
+        // Класс с реализацией адаптивного debounce
+        AdaptiveDebounceManager = class {
+            constructor() {
+                this.DEBOUNCE_CONFIG = {
+                    createBlock: 500,
+                    updateBlock: 1500,
+                    moveBlock: 0,
+                    deleteBlock: 0,
+                    createTree: 500,
+                    default: 1000
+                };
+                this.SHARED_DEBOUNCE_MS = 300;
+                this._localStateManager = { blocks: mockBlocks };
+            }
+
+            async _getLocalStateManager() {
+                return this._localStateManager;
+            }
+
+            async _getDebounceForOperation(operation, options) {
+                // Если явно указан immediate — 0
+                if (options.immediate) return 0;
+
+                const blockId = operation.data?.blockId;
+                const parentId = operation.data?.parentId;
+
+                try {
+                    const localStateManager = await this._getLocalStateManager();
+
+                    const block = blockId ? localStateManager.blocks.get(blockId) : null;
+                    const parentBlock = parentId ? localStateManager.blocks.get(parentId) : null;
+
+                    // Блок считается расшаренным если у него или родителя есть permission
+                    const isShared = (block?.permission !== null && block?.permission !== undefined) ||
+                                     (parentBlock?.permission !== null && parentBlock?.permission !== undefined);
+
+                    if (isShared) {
+                        return this.SHARED_DEBOUNCE_MS;
+                    }
+                } catch (error) {
+                    // При ошибке используем стандартный debounce
+                }
+
+                // Используем debounce по типу операции (используем ?? чтобы 0 не считался falsy)
+                return this.DEBOUNCE_CONFIG[operation.type] ?? this.DEBOUNCE_CONFIG.default;
+            }
+        };
+    });
+
+    describe('_getDebounceForOperation', () => {
+        test('returns 0 for immediate option', async () => {
+            const manager = new AdaptiveDebounceManager();
+
+            const debounce = await manager._getDebounceForOperation(
+                { type: 'updateBlock', data: { blockId: 'test-1' } },
+                { immediate: true }
+            );
+
+            expect(debounce).toBe(0);
+        });
+
+        test('shared blocks use shorter debounce (SHARED_DEBOUNCE_MS)', async () => {
+            // Setup shared block
+            mockBlocks.set('shared-1', {
+                id: 'shared-1',
+                permission: 'edit'
+            });
+
+            const manager = new AdaptiveDebounceManager();
+
+            const debounce = await manager._getDebounceForOperation(
+                { type: 'updateBlock', data: { blockId: 'shared-1' } },
+                {}
+            );
+
+            expect(debounce).toBe(300); // SHARED_DEBOUNCE_MS
+        });
+
+        test('blocks with view permission use shared debounce', async () => {
+            mockBlocks.set('view-block', {
+                id: 'view-block',
+                permission: 'view'
+            });
+
+            const manager = new AdaptiveDebounceManager();
+
+            const debounce = await manager._getDebounceForOperation(
+                { type: 'updateBlock', data: { blockId: 'view-block' } },
+                {}
+            );
+
+            expect(debounce).toBe(300);
+        });
+
+        test('block in shared parent uses shared debounce', async () => {
+            // Parent is shared, block is not
+            mockBlocks.set('shared-parent', {
+                id: 'shared-parent',
+                permission: 'edit'
+            });
+            mockBlocks.set('child-block', {
+                id: 'child-block',
+                permission: null
+            });
+
+            const manager = new AdaptiveDebounceManager();
+
+            const debounce = await manager._getDebounceForOperation(
+                { type: 'createBlock', data: { blockId: 'child-block', parentId: 'shared-parent' } },
+                {}
+            );
+
+            expect(debounce).toBe(300); // Uses shared debounce because parent is shared
+        });
+
+        test('own blocks use operation-specific debounce for createBlock', async () => {
+            mockBlocks.set('own-1', {
+                id: 'own-1',
+                permission: null
+            });
+
+            const manager = new AdaptiveDebounceManager();
+
+            const debounce = await manager._getDebounceForOperation(
+                { type: 'createBlock', data: { blockId: 'own-1' } },
+                {}
+            );
+
+            expect(debounce).toBe(500); // createBlock debounce
+        });
+
+        test('own blocks use operation-specific debounce for updateBlock', async () => {
+            mockBlocks.set('own-1', {
+                id: 'own-1',
+                permission: null
+            });
+
+            const manager = new AdaptiveDebounceManager();
+
+            const debounce = await manager._getDebounceForOperation(
+                { type: 'updateBlock', data: { blockId: 'own-1' } },
+                {}
+            );
+
+            expect(debounce).toBe(1500); // updateBlock debounce
+        });
+
+        test('moveBlock returns 0 (immediate)', async () => {
+            mockBlocks.set('own-1', {
+                id: 'own-1',
+                permission: null
+            });
+
+            const manager = new AdaptiveDebounceManager();
+
+            const debounce = await manager._getDebounceForOperation(
+                { type: 'moveBlock', data: { blockId: 'own-1' } },
+                {}
+            );
+
+            expect(debounce).toBe(0); // moveBlock is immediate
+        });
+
+        test('deleteBlock returns 0 (immediate)', async () => {
+            mockBlocks.set('own-1', {
+                id: 'own-1',
+                permission: null
+            });
+
+            const manager = new AdaptiveDebounceManager();
+
+            const debounce = await manager._getDebounceForOperation(
+                { type: 'deleteBlock', data: { blockId: 'own-1' } },
+                {}
+            );
+
+            expect(debounce).toBe(0); // deleteBlock is immediate
+        });
+
+        test('createTree uses 500ms debounce', async () => {
+            const manager = new AdaptiveDebounceManager();
+
+            const debounce = await manager._getDebounceForOperation(
+                { type: 'createTree', data: { blockId: 'new-tree' } },
+                {}
+            );
+
+            expect(debounce).toBe(500);
+        });
+
+        test('unknown operation type uses default debounce', async () => {
+            const manager = new AdaptiveDebounceManager();
+
+            const debounce = await manager._getDebounceForOperation(
+                { type: 'unknownOperation', data: { blockId: 'test' } },
+                {}
+            );
+
+            expect(debounce).toBe(1000); // default
+        });
+
+        test('block not in cache uses operation-specific debounce', async () => {
+            // Block is not in mockBlocks
+            const manager = new AdaptiveDebounceManager();
+
+            const debounce = await manager._getDebounceForOperation(
+                { type: 'updateBlock', data: { blockId: 'not-cached' } },
+                {}
+            );
+
+            expect(debounce).toBe(1500); // updateBlock debounce (not shared, no block found)
+        });
+
+        test('permission: null is not considered shared', async () => {
+            mockBlocks.set('null-perm', {
+                id: 'null-perm',
+                permission: null
+            });
+
+            const manager = new AdaptiveDebounceManager();
+
+            const debounce = await manager._getDebounceForOperation(
+                { type: 'updateBlock', data: { blockId: 'null-perm' } },
+                {}
+            );
+
+            expect(debounce).toBe(1500); // Not shared, uses updateBlock debounce
+        });
+
+        test('permission: undefined is not considered shared', async () => {
+            mockBlocks.set('undefined-perm', {
+                id: 'undefined-perm'
+                // permission is undefined
+            });
+
+            const manager = new AdaptiveDebounceManager();
+
+            const debounce = await manager._getDebounceForOperation(
+                { type: 'updateBlock', data: { blockId: 'undefined-perm' } },
+                {}
+            );
+
+            expect(debounce).toBe(1500); // Not shared
+        });
+    });
+
+    describe('DEBOUNCE_CONFIG values', () => {
+        test('has correct configuration values', () => {
+            const manager = new AdaptiveDebounceManager();
+
+            expect(manager.DEBOUNCE_CONFIG.createBlock).toBe(500);
+            expect(manager.DEBOUNCE_CONFIG.updateBlock).toBe(1500);
+            expect(manager.DEBOUNCE_CONFIG.moveBlock).toBe(0);
+            expect(manager.DEBOUNCE_CONFIG.deleteBlock).toBe(0);
+            expect(manager.DEBOUNCE_CONFIG.createTree).toBe(500);
+            expect(manager.DEBOUNCE_CONFIG.default).toBe(1000);
+        });
+
+        test('SHARED_DEBOUNCE_MS is 300', () => {
+            const manager = new AdaptiveDebounceManager();
+
+            expect(manager.SHARED_DEBOUNCE_MS).toBe(300);
+        });
+    });
+});
