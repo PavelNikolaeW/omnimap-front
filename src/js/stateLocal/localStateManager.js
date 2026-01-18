@@ -2824,8 +2824,13 @@ export class LocalStateManager {
                                  targetAnchor
                              }) {
         // Извлечь чистые ID блоков (DOM ID может содержать префикс родителя в формате parentId*childId)
-        const cleanSourceId = sourceId.includes('*') ? sourceId.split('*').pop() : sourceId;
-        const cleanTargetId = targetId.includes('*') ? targetId.split('*').pop() : targetId;
+        const cleanSourceId = sourceId?.includes('*') ? sourceId.split('*').pop() : sourceId;
+        const cleanTargetId = targetId?.includes('*') ? targetId.split('*').pop() : targetId;
+
+        if (!cleanSourceId) {
+            console.error('Source ID is required for addConnectionBlock');
+            return;
+        }
 
         const sourceBlock = this.blocks.get(cleanSourceId);
         if (!sourceBlock) {
@@ -2921,8 +2926,13 @@ export class LocalStateManager {
 
     async removeConnectionBlock({connectionId, sourceId, targetId, sourceAnchor, targetAnchor}) {
         // Извлечь чистые ID блоков (DOM ID может содержать префикс родителя)
-        const cleanSourceId = sourceId.includes('*') ? sourceId.split('*').pop() : sourceId;
-        const cleanTargetId = targetId.includes('*') ? targetId.split('*').pop() : targetId;
+        const cleanSourceId = sourceId?.includes('*') ? sourceId.split('*').pop() : sourceId;
+        const cleanTargetId = targetId?.includes('*') ? targetId.split('*').pop() : targetId;
+
+        if (!cleanSourceId) {
+            console.error('Source ID is required for removeConnectionBlock');
+            return;
+        }
 
         const sourceBlock = this.blocks.get(cleanSourceId);
         if (!sourceBlock || !sourceBlock.data?.connections) {

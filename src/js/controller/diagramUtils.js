@@ -10,7 +10,6 @@ export class DiagramUtils {
         // Старые элементы (для обратной совместимости)
         this.inputs = document.getElementById('diagram-inputs')
         this.connections = this.inputs?.querySelector('#CerateConnections')
-        this.addButton = this.inputs?.querySelector('#addDiagram')
         this.sizeSelector = this.inputs?.querySelector('#sizeSelector')
         this.resetBtn = this.inputs?.querySelector('#reset')
         this.openStylePanelBtn = document.getElementById('openStylePanel')
