@@ -1243,7 +1243,9 @@ export class LocalStateManager {
                                 data: serverData,
                                 children: serverChildren,
                                 parent_id: normalizeParentId(block.parent_id),
-                                permission: blockPermission
+                                permission: blockPermission,
+                                creator_id: block.creator_id ?? localBlock?.creator_id ?? null,
+                                sandbox_mode: block.sandbox_mode ?? localBlock?.sandbox_mode ?? null
                             });
 
                             console.log(`⏭️ Own update confirmed, skipping render: ${block.id}`);
@@ -1352,6 +1354,14 @@ export class LocalStateManager {
                     // Здесь же childOrder авторитетен, т.к. он уже смёрджен с учётом pending операций.
                     const syncedChildren = mergedData.childOrder.filter(id => this.blocks.has(id));
 
+                    // Определяем creator_id и sandbox_mode: сервер > кэш
+                    const blockCreatorId = block.creator_id !== undefined
+                        ? block.creator_id
+                        : localBlock?.creator_id || null;
+                    const blockSandboxMode = block.sandbox_mode !== undefined
+                        ? block.sandbox_mode
+                        : localBlock?.sandbox_mode || null;
+
                     await this.saveBlock({
                         id: block.id,
                         updated_at: new Date(block.updated_at * 1000).toISOString(),
@@ -1359,7 +1369,9 @@ export class LocalStateManager {
                         data: mergedData,
                         children: syncedChildren,
                         parent_id: normalizeParentId(block.parent_id),
-                        permission: blockPermission
+                        permission: blockPermission,
+                        creator_id: blockCreatorId,
+                        sandbox_mode: blockSandboxMode
                     });
                 }
                 processedBlocks.push(block);

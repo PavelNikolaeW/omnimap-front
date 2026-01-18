@@ -117,6 +117,12 @@ class BlockCreator {
 
             block.color = this.colorist.calculateColor(element, block, [...(parentBlock.color || [])])
             this._applyStyles(block.contentEl, block.contentPosition)
+
+            // Пробрасываем sandbox_mode от родителя для детей на любой глубине
+            // Если у блока нет собственного sandbox_mode, наследуем от родителя
+            if (!block.sandbox_mode && parentBlock.sandbox_mode) {
+                block.sandbox_mode = parentBlock.sandbox_mode
+            }
         } catch (e) {
             console.log(block)
             console.error(`Не получилось создать блок ${e} ${block.id} \n${e.stack}`)
@@ -213,6 +219,11 @@ class BlockCreator {
         block.grid = grid
         block.contentEl = null
         block.color = [...(parentBlock.color || [])]
+
+        // Пробрасываем sandbox_mode от родителя к ссылке,
+        // чтобы source-блок внутри мог проверить sandbox-контекст
+        block.sandbox_mode = parentBlock.sandbox_mode || null
+
         return element
     }
 
