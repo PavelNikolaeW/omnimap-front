@@ -29,8 +29,23 @@ class OfflineQueueManager {
         this.cachedQueueLength = 0; // Для синхронной проверки в beforeunload
         this.pullCompleted = false; // Флаг завершения pull фазы
         this.syncDebounceTimer = null; // Таймер для debounce синхронизации
-        this.SYNC_DEBOUNCE_MS = 3000; // Задержка перед началом синхронизации (3 сек)
         this.lastPullTimestamp = 0; // Время последнего pull
+
+        // Адаптивные debounce интервалы по типу операции
+        this.DEBOUNCE_CONFIG = {
+            createBlock: 500,      // Создание — быстро показать коллаборатору
+            updateBlock: 1500,     // Редактирование текста — дать допечатать
+            moveBlock: 0,          // Перемещение — сразу (immediate)
+            deleteBlock: 0,        // Удаление — сразу
+            createTree: 500,       // Создание дерева
+            default: 1000          // Fallback
+        };
+
+        // Debounce для расшаренных блоков (минимальная задержка для батчинга)
+        this.SHARED_DEBOUNCE_MS = 300;
+
+        // Lazy-loaded reference для localStateManager (избежание circular dependency)
+        this._localStateManager = null;
         this.PULL_COOLDOWN_MS = 30000; // Минимальный интервал между pull (30 сек)
 
         // Retry механизм для обработки ненадёжного navigator.onLine
@@ -71,6 +86,54 @@ class OfflineQueueManager {
      */
     generateBlockId() {
         return uuidV4();
+    }
+
+    /**
+     * Lazy-загрузка localStateManager для избежания circular dependency
+     * @returns {Promise<Object>} localStateManager instance
+     */
+    async _getLocalStateManager() {
+        if (!this._localStateManager) {
+            const { localStateManager } = await import('../stateLocal/localStateManager.js');
+            this._localStateManager = localStateManager;
+        }
+        return this._localStateManager;
+    }
+
+    /**
+     * Определяет debounce интервал для операции
+     * Учитывает тип операции и shared статус блока
+     * @param {Object} operation - Операция
+     * @param {Object} options - Дополнительные опции
+     * @returns {Promise<number>} Debounce в мс
+     */
+    async _getDebounceForOperation(operation, options) {
+        // Если явно указан immediate — 0
+        if (options.immediate) return 0;
+
+        const blockId = operation.data?.blockId;
+        const parentId = operation.data?.parentId;
+
+        try {
+            const localStateManager = await this._getLocalStateManager();
+
+            const block = blockId ? localStateManager.blocks.get(blockId) : null;
+            const parentBlock = parentId ? localStateManager.blocks.get(parentId) : null;
+
+            // Блок считается расшаренным если у него или родителя есть permission
+            const isShared = (block?.permission !== null && block?.permission !== undefined) ||
+                             (parentBlock?.permission !== null && parentBlock?.permission !== undefined);
+
+            if (isShared) {
+                return this.SHARED_DEBOUNCE_MS;
+            }
+        } catch (error) {
+            console.warn('Failed to check shared status:', error);
+            // При ошибке используем стандартный debounce
+        }
+
+        // Используем debounce по типу операции (используем ?? чтобы 0 не считался falsy)
+        return this.DEBOUNCE_CONFIG[operation.type] ?? this.DEBOUNCE_CONFIG.default;
     }
 
     /**
@@ -752,7 +815,10 @@ class OfflineQueueManager {
 
         // Если онлайн, запускаем синхронизацию
         if (this.isOnline && !this.isSyncing && !this.isPulling) {
-            if (options.immediate) {
+            // Определяем debounce на основе типа операции и shared статуса
+            const debounceMs = await this._getDebounceForOperation(operation, options);
+
+            if (debounceMs === 0 || options.immediate) {
                 // Немедленная синхронизация без debounce
                 // Отменяем существующий таймер
                 if (this.syncDebounceTimer) {
@@ -761,8 +827,8 @@ class OfflineQueueManager {
                 }
                 this.startPullPhase();
             } else {
-                // Синхронизация с debounce
-                this.scheduleSyncWithDebounce();
+                // Синхронизация с адаптивным debounce
+                this.scheduleSyncWithDebounce(debounceMs);
             }
         } else if (!this.isOnline) {
             // Если offline, регистрируем Background Sync
@@ -773,8 +839,12 @@ class OfflineQueueManager {
     /**
      * Запускает синхронизацию с задержкой (debounce)
      * Позволяет накопить несколько операций перед отправкой
+     * @param {number} debounceMs - Задержка в мс (если не указан, используется default)
      */
-    scheduleSyncWithDebounce() {
+    scheduleSyncWithDebounce(debounceMs = null) {
+        // Используем переданный debounce или default
+        const delay = debounceMs ?? this.DEBOUNCE_CONFIG.default;
+
         // Отменяем предыдущий таймер если есть
         if (this.syncDebounceTimer) {
             clearTimeout(this.syncDebounceTimer);
@@ -786,7 +856,7 @@ class OfflineQueueManager {
             if (this.isOnline && !this.isSyncing && !this.isPulling) {
                 this.startPullPhase();
             }
-        }, this.SYNC_DEBOUNCE_MS);
+        }, delay);
     }
 
     /**

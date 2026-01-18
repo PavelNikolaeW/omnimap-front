@@ -31,7 +31,7 @@ const BLOCK_UPDATE_DEBOUNCE_MS = 50;
 /**
  * Таймаут ожидания pong после ping при проверке соединения (мс)
  */
-const CONNECTION_CHECK_TIMEOUT = 5000;
+const CONNECTION_CHECK_TIMEOUT = 2000;
 
 export class UpdateServiceWebSocket {
     /**
@@ -61,6 +61,7 @@ export class UpdateServiceWebSocket {
         this._handleLogout = this._handleLogout.bind(this);
         this._handleVisibilityChange = this._handleVisibilityChange.bind(this);
         this._handleOnline = this._handleOnline.bind(this);
+        this._handleForceReconnect = this._handleForceReconnect.bind(this);
 
         // Таймер для проверки соединения после visibility change
         this._connectionCheckTimer = null;
@@ -71,6 +72,7 @@ export class UpdateServiceWebSocket {
         window.addEventListener('Logout', this._handleLogout);
         document.addEventListener('visibilitychange', this._handleVisibilityChange);
         window.addEventListener('online', this._handleOnline);
+        window.addEventListener('ForceReconnect', this._handleForceReconnect);
     }
 
     /**
@@ -155,11 +157,19 @@ export class UpdateServiceWebSocket {
     _handleOnline() {
         console.log('WebSocket: network online, checking connection...');
 
+        // Сбрасываем счётчик при возврате online — даём шанс переподключиться
+        this.reconnectAttempts = 0;
+        this.shouldReconnect = true;
+
         // Если соединение уже закрыто, просто переподключаемся
         if (!this.ws || this.ws.readyState === WebSocket.CLOSED) {
-            this.shouldReconnect = true;
-            this.reconnectAttempts = 0;
             this.connect();
+            return;
+        }
+
+        // Если соединение в процессе установки, ждём завершения
+        if (this.ws.readyState === WebSocket.CONNECTING) {
+            console.log('WebSocket: connection in progress, waiting...');
             return;
         }
 
@@ -167,6 +177,21 @@ export class UpdateServiceWebSocket {
         if (this.ws.readyState === WebSocket.OPEN && this.isConnected) {
             this._checkConnectionHealth();
         }
+    }
+
+    /**
+     * Обработчик события ForceReconnect - ручное переподключение из UI
+     * Используется когда пользователь нажимает кнопку "Переподключиться"
+     */
+    _handleForceReconnect() {
+        console.log('WebSocket: force reconnect requested');
+        this.reconnectAttempts = 0;
+        this.shouldReconnect = true;
+        this._stopHeartbeat();
+        if (this.ws) {
+            this.ws.close();
+        }
+        this.connect();
     }
 
     /**
@@ -414,7 +439,10 @@ export class UpdateServiceWebSocket {
             if (this.shouldReconnect) {
                 if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
                     console.error('WebSocket: max reconnect attempts reached');
-                    dispatch('WebSocketDisconnected', { reason: 'max_attempts' });
+                    dispatch('WebSocketDisconnected', {
+                        reason: 'max_attempts',
+                        canRetry: true  // UI может показать кнопку переподключения
+                    });
                     return;
                 }
 
@@ -428,6 +456,7 @@ export class UpdateServiceWebSocket {
                     this._refreshTokenAndReconnect(interval);
                 } else {
                     console.log(`WebSocket: reconnecting in ${interval}ms (attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+                    dispatch('WebSocketReconnecting', { attempt: this.reconnectAttempts });
                     setTimeout(() => {
                         this.connect();
                     }, interval);
@@ -518,6 +547,7 @@ export class UpdateServiceWebSocket {
         window.removeEventListener('Logout', this._handleLogout);
         document.removeEventListener('visibilitychange', this._handleVisibilityChange);
         window.removeEventListener('online', this._handleOnline);
+        window.removeEventListener('ForceReconnect', this._handleForceReconnect);
         this.eventListeners = { open: [], message: [], error: [], close: [] };
     }
 }

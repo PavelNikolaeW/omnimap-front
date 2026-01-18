@@ -361,6 +361,57 @@
     }
 }
 
+/* Кнопка переподключения */
+.reconnect-button {
+    background-color: #f44336;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    margin-right: 8px;
+}
+
+.reconnect-button:hover {
+    background-color: #d32f2f;
+}
+
+.reconnect-button:active {
+    background-color: #b71c1c;
+}
+
+/* Статус синхронизации */
+.sync-status {
+    font-size: 11px;
+    color: #888;
+    margin-right: 8px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.sync-status.pull {
+    color: #2196f3;
+    background-color: rgba(33, 150, 243, 0.1);
+}
+
+.sync-status.push {
+    color: #4caf50;
+    background-color: rgba(76, 175, 80, 0.1);
+}
+
+.sync-status.importing {
+    color: #ff9800;
+    background-color: rgba(255, 152, 0, 0.1);
+}
+
+.sync-status.error {
+    color: #f44336;
+    background-color: rgba(244, 67, 54, 0.1);
+}
+
 /* Адаптивные стили для мобильных */
 @media (max-width: 600px) {
     .status-indicators {

@@ -612,6 +612,26 @@ class BlockCreator {
     }
 
     _setBlockGrid(block, parentBlock) {
+        // Проверяем актуальность кэша childrenPositions
+        // Если количество позиций не совпадает с childOrder — кэш устарел
+        const expectedChildCount = block.data?.childOrder?.length || 0;
+        const cachedPositionsCount = Object.keys(block.childrenPositions || {}).length;
+
+        if (cachedPositionsCount !== expectedChildCount) {
+            // Кэш устарел — пересчитываем
+            delete block.childrenPositions;
+            delete block.grid;
+        }
+
+        // Проверяем версию childOrder — если изменилась, пересчитываем grid
+        // NOTE: _lastRenderedVersion хранится только в памяти (не в IndexedDB).
+        // При перезагрузке страницы grid пересчитывается заново, что приемлемо.
+        if (block._childOrderVersion && block._childOrderVersion !== block._lastRenderedVersion) {
+            delete block.childrenPositions;
+            delete block.grid;
+            block._lastRenderedVersion = block._childOrderVersion;
+        }
+
         if (block.data?.customGrid?.grid) {
             const customGrid = block.data.customGrid
 

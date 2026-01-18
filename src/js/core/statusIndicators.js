@@ -1,14 +1,106 @@
 import { runHealthChecks } from './healthCheck';
+import { dispatch } from '../utils/utils';
 
 /**
  * Компонент статус-индикаторов систем
  * Отображает состояние IndexedDB, Backend API, WebSocket, LLM Gateway как цветные диоды
+ * Также показывает кнопку переподключения и статус синхронизации
  */
 class StatusIndicators {
     constructor() {
         this.element = null;
         this.indicators = {};
         this.checkInterval = null;
+        this.reconnectButton = null;
+        this.syncStatusElement = null;
+
+        // Bound event handlers для корректного удаления в destroy()
+        this._handleWsConnected = this._onWsConnected.bind(this);
+        this._handleWsDisconnected = this._onWsDisconnected.bind(this);
+        this._handleWsReconnecting = this._onWsReconnecting.bind(this);
+        this._handleSyncStarted = this._onSyncStarted.bind(this);
+        this._handleSyncCompleted = this._onSyncCompleted.bind(this);
+        this._handleSyncProgress = this._onSyncProgress.bind(this);
+        this._handleNetworkStatus = this._onNetworkStatus.bind(this);
+        this._handleLlmConnected = this._onLlmConnected.bind(this);
+        this._handleLlmError = this._onLlmError.bind(this);
+        this._handleLogin = this._onLogin.bind(this);
+        this._handleApiError = this._onApiError.bind(this);
+        this._handleApiSyncStarted = this._onApiSyncStarted.bind(this);
+        this._handleApiSyncFinished = this._onApiSyncFinished.bind(this);
+    }
+
+    // Event handlers
+    _onWsConnected() {
+        this.setStatus('ws', 'ok');
+        this.hideReconnectButton();
+    }
+
+    _onWsDisconnected(e) {
+        this.setStatus('ws', 'error');
+        if (e.detail?.canRetry) {
+            this.showReconnectButton();
+        }
+    }
+
+    _onWsReconnecting() {
+        this.setStatus('ws', 'warning');
+        this.hideReconnectButton();
+    }
+
+    _onSyncStarted(e) {
+        this.showSyncStatus(e.detail?.phase, e.detail?.message);
+    }
+
+    _onSyncCompleted(e) {
+        this.hideSyncStatus();
+        if (e.detail?.error) {
+            this.showSyncStatus('error', e.detail.error);
+            setTimeout(() => this.hideSyncStatus(), 5000);
+        }
+    }
+
+    _onSyncProgress(e) {
+        const { completed, total, stage, message } = e.detail || {};
+        if (message) {
+            this.showSyncStatus(stage, message);
+        } else if (total) {
+            this.showSyncStatus(stage, `${completed}/${total}`);
+        }
+    }
+
+    _onNetworkStatus(e) {
+        if (!e.detail.online) {
+            this.setStatus('api', 'error');
+            this.setStatus('ws', 'error');
+            this.setStatus('llm', 'error');
+        } else {
+            this._runInitialChecks();
+        }
+    }
+
+    _onLlmConnected() {
+        this.setStatus('llm', 'ok');
+    }
+
+    _onLlmError() {
+        this.setStatus('llm', 'warning');
+    }
+
+    _onLogin() {
+        this.setStatus('api', 'ok');
+    }
+
+    _onApiError() {
+        this.setStatus('api', 'warning');
+    }
+
+    _onApiSyncStarted() {
+        this.startSyncBlink('api');
+    }
+
+    _onApiSyncFinished() {
+        this.stopSyncBlink('api');
     }
 
     /**
@@ -38,6 +130,8 @@ class StatusIndicators {
         this.element = document.createElement('div');
         this.element.className = 'status-indicators';
         this.element.innerHTML = `
+            <span class="sync-status" style="display: none;"></span>
+            <button class="reconnect-button" style="display: none;">Переподключиться</button>
             <span class="status-led" data-system="db" title="DB — проверка..."></span>
             <span class="status-led" data-system="api" title="API — проверка..."></span>
             <span class="status-led" data-system="ws" title="Sync — проверка..."></span>
@@ -52,6 +146,16 @@ class StatusIndicators {
             llm: this.element.querySelector('[data-system="llm"]')
         };
 
+        // Сохраняем ссылки на дополнительные элементы
+        this.reconnectButton = this.element.querySelector('.reconnect-button');
+        this.syncStatusElement = this.element.querySelector('.sync-status');
+
+        // Обработчик клика на кнопку переподключения
+        this.reconnectButton.addEventListener('click', () => {
+            this.hideReconnectButton();
+            dispatch('ForceReconnect');
+        });
+
         // Начальное состояние - серый (проверка)
         Object.values(this.indicators).forEach(led => {
             led.classList.add('checking');
@@ -62,58 +166,38 @@ class StatusIndicators {
      * Добавляет обработчики событий для обновления статусов
      */
     _addEventListeners() {
-        // Слушаем события синхронизации
-        window.addEventListener('WebSocketConnected', () => {
-            this.setStatus('ws', 'ok');
-        });
+        window.addEventListener('WebSocketConnected', this._handleWsConnected);
+        window.addEventListener('WebSocketDisconnected', this._handleWsDisconnected);
+        window.addEventListener('WebSocketReconnecting', this._handleWsReconnecting);
+        window.addEventListener('SyncStarted', this._handleSyncStarted);
+        window.addEventListener('SyncCompleted', this._handleSyncCompleted);
+        window.addEventListener('SyncProgress', this._handleSyncProgress);
+        window.addEventListener('NetworkStatusChange', this._handleNetworkStatus);
+        window.addEventListener('LLMGatewayConnected', this._handleLlmConnected);
+        window.addEventListener('LLMGatewayError', this._handleLlmError);
+        window.addEventListener('Login', this._handleLogin);
+        window.addEventListener('ApiError', this._handleApiError);
+        window.addEventListener('ApiSyncStarted', this._handleApiSyncStarted);
+        window.addEventListener('ApiSyncFinished', this._handleApiSyncFinished);
+    }
 
-        window.addEventListener('WebSocketDisconnected', () => {
-            this.setStatus('ws', 'error');
-        });
-
-        window.addEventListener('WebSocketReconnecting', () => {
-            this.setStatus('ws', 'warning');
-        });
-
-        // Слушаем статус сети
-        window.addEventListener('NetworkStatusChange', (e) => {
-            if (!e.detail.online) {
-                this.setStatus('api', 'error');
-                this.setStatus('ws', 'error');
-                this.setStatus('llm', 'error');
-            } else {
-                // При восстановлении сети перепроверяем статусы
-                this._runInitialChecks();
-            }
-        });
-
-        // Слушаем события LLM Gateway
-        window.addEventListener('LLMGatewayConnected', () => {
-            this.setStatus('llm', 'ok');
-        });
-
-        window.addEventListener('LLMGatewayError', () => {
-            this.setStatus('llm', 'warning');
-        });
-
-        // Слушаем успешную авторизацию как признак работающего API
-        window.addEventListener('Login', () => {
-            this.setStatus('api', 'ok');
-        });
-
-        // При ошибках API
-        window.addEventListener('ApiError', () => {
-            this.setStatus('api', 'warning');
-        });
-
-        // Синхронизация: моргание API индикатора
-        window.addEventListener('ApiSyncStarted', () => {
-            this.startSyncBlink('api');
-        });
-
-        window.addEventListener('ApiSyncFinished', () => {
-            this.stopSyncBlink('api');
-        });
+    /**
+     * Удаляет обработчики событий
+     */
+    _removeEventListeners() {
+        window.removeEventListener('WebSocketConnected', this._handleWsConnected);
+        window.removeEventListener('WebSocketDisconnected', this._handleWsDisconnected);
+        window.removeEventListener('WebSocketReconnecting', this._handleWsReconnecting);
+        window.removeEventListener('SyncStarted', this._handleSyncStarted);
+        window.removeEventListener('SyncCompleted', this._handleSyncCompleted);
+        window.removeEventListener('SyncProgress', this._handleSyncProgress);
+        window.removeEventListener('NetworkStatusChange', this._handleNetworkStatus);
+        window.removeEventListener('LLMGatewayConnected', this._handleLlmConnected);
+        window.removeEventListener('LLMGatewayError', this._handleLlmError);
+        window.removeEventListener('Login', this._handleLogin);
+        window.removeEventListener('ApiError', this._handleApiError);
+        window.removeEventListener('ApiSyncStarted', this._handleApiSyncStarted);
+        window.removeEventListener('ApiSyncFinished', this._handleApiSyncFinished);
     }
 
     /**
@@ -138,6 +222,54 @@ class StatusIndicators {
 
         // Убираем класс моргания
         led.classList.remove('syncing');
+    }
+
+    /**
+     * Показывает кнопку переподключения
+     */
+    showReconnectButton() {
+        if (this.reconnectButton) {
+            this.reconnectButton.style.display = 'inline-block';
+        }
+    }
+
+    /**
+     * Скрывает кнопку переподключения
+     */
+    hideReconnectButton() {
+        if (this.reconnectButton) {
+            this.reconnectButton.style.display = 'none';
+        }
+    }
+
+    /**
+     * Показывает статус синхронизации
+     * @param {string} phase - Фаза ('pull', 'push', 'importing', 'error')
+     * @param {string} message - Сообщение для отображения
+     */
+    showSyncStatus(phase, message) {
+        if (!this.syncStatusElement) return;
+
+        const phaseIcons = {
+            pull: '↓',
+            push: '↑',
+            importing: '⟳',
+            error: '⚠'
+        };
+
+        const icon = phaseIcons[phase] || '⟳';
+        this.syncStatusElement.textContent = `${icon} ${message || ''}`;
+        this.syncStatusElement.style.display = 'inline-block';
+        this.syncStatusElement.className = `sync-status ${phase || ''}`;
+    }
+
+    /**
+     * Скрывает статус синхронизации
+     */
+    hideSyncStatus() {
+        if (this.syncStatusElement) {
+            this.syncStatusElement.style.display = 'none';
+        }
     }
 
     /**
@@ -200,6 +332,9 @@ class StatusIndicators {
      * Уничтожает компонент
      */
     destroy() {
+        // Удаляем все event listeners для предотвращения memory leak
+        this._removeEventListeners();
+
         if (this.checkInterval) {
             clearInterval(this.checkInterval);
         }
@@ -208,6 +343,8 @@ class StatusIndicators {
         }
         this.element = null;
         this.indicators = {};
+        this.reconnectButton = null;
+        this.syncStatusElement = null;
     }
 }
 
