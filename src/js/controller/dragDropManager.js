@@ -313,7 +313,21 @@ export class DragDropManager {
         // Проверяем, является ли target диаграммой
         const targetIsDiagram = this._isDiagramParent(targetId);
 
-        // Определяем тип drop зоны
+        // Если target - диаграмма, ВСЕГДА вставляем внутрь с вычислением позиции в grid
+        // (игнорируем threshold'ы для краёв - они только для sibling операций)
+        if (targetIsDiagram) {
+            if (!this.canDropInto(targetElement)) return null;
+
+            return {
+                parentId: targetId,
+                beforeBlockId: null,
+                type: 'child',
+                dropToDiagram: true,
+                diagramPosition: this._calculateDiagramPosition(e, targetElement, targetId)
+            };
+        }
+
+        // Определяем тип drop зоны для обычных блоков
         if (relativeY < this.DROP_ZONE_THRESHOLD) {
             // Верхняя часть - вставить ДО этого блока (как sibling)
             const parentElement = targetElement.parentElement?.closest('[block]');
@@ -348,19 +362,8 @@ export class DragDropManager {
                 diagramPosition: parentIsDiagram ? this._calculateDiagramPosition(e, parentElement, parentId) : null
             };
         } else {
-            // Центр - вставить ВНУТРЬ как child
+            // Центр - вставить ВНУТРЬ как child (обычный блок, не диаграмма)
             if (!this.canDropInto(targetElement)) return null;
-
-            // Если target - диаграмма, вычисляем позицию в grid
-            if (targetIsDiagram) {
-                return {
-                    parentId: targetId,
-                    beforeBlockId: null,
-                    type: 'child',
-                    dropToDiagram: true,
-                    diagramPosition: this._calculateDiagramPosition(e, targetElement, targetId)
-                };
-            }
 
             return {
                 parentId: targetId,
@@ -401,7 +404,7 @@ export class DragDropManager {
         const cellHeight = (rect.height - contentHeight) / rows;
 
         const col = Math.max(1, Math.min(cols, Math.floor(relX / cellWidth) + 1));
-        const row = Math.max(2, Math.min(rows + 2, Math.floor(relY / cellHeight) + 2));
+        const row = Math.max(2, Math.min(rows + 1, Math.floor(relY / cellHeight) + 2));
 
         return { col, row, cols, rows };
     }
