@@ -14,6 +14,7 @@ import {canEdit, canDelete, canCreateInSandbox, canDeleteInSandbox, canEditInSan
 import {undoManager} from "../controller/undoManager";
 import {checkAndInitializeOnboarding} from "../services/homePageInitializer";
 import {focusManager} from "../services/focusManager";
+import {blockOperationLock} from "../utils/operationLock";
 
 /**
  * Экранирует специальные символы RegExp в строке
@@ -54,9 +55,31 @@ class BlockRepository {
             creator_id: block.creator_id || null,
             sandbox_mode: block.sandbox_mode || null,
             // Версия childOrder для отслеживания изменений grid при рендеринге
-            _childOrderVersion: block._childOrderVersion || null
+            _childOrderVersion: block._childOrderVersion || null,
+            // Версия последнего рендера (для корректной инвалидации кэша после reload)
+            _lastRenderedVersion: block._lastRenderedVersion || null
         };
         await localforage.setItem(key, blockData);
+    }
+
+    /**
+     * Обновляет отдельное поле блока в IndexedDB
+     * @param {string} blockId - ID блока
+     * @param {string} field - Имя поля
+     * @param {any} value - Новое значение
+     * @param {boolean} [deepMerge=false] - Deep merge для объектов (используется для data)
+     */
+    async updateBlockField(blockId, field, value, deepMerge = false) {
+        const key = this.getKey(blockId);
+        const blockData = await localforage.getItem(key);
+        if (blockData) {
+            if (deepMerge && typeof blockData[field] === 'object' && typeof value === 'object') {
+                blockData[field] = { ...(blockData[field] || {}), ...(value || {}) };
+            } else {
+                blockData[field] = value;
+            }
+            await localforage.setItem(key, blockData);
+        }
     }
 
     async loadBlock(blockId) {
@@ -81,7 +104,7 @@ export class LocalStateManager {
         this.jsPlumbInstance = jsPlumbInstance;
         this.painter = new Painter();
         this.blockRepository = null;
-        this.debounceTimer = undefined
+        this.debounceTimer = undefined;
         // Инициализация слушателей событий
         this.registerEventHandlers();
     }
@@ -173,6 +196,25 @@ export class LocalStateManager {
 
         window.addEventListener('UpdateBlockStyles', (e) => {
             this.updateBlockStyles(e.detail);
+        });
+
+        // Обработчик для сохранения отдельного поля блока (используется blockCreator для _lastRenderedVersion)
+        window.addEventListener('SaveBlockField', (e) => {
+            const { blockId, field, value } = e.detail;
+            if (this.blockRepository && blockId && field) {
+                // Обновляем in-memory блок
+                const block = this.blocks.get(blockId);
+                if (block) {
+                    // Deep merge для data чтобы не потерять изменения от других операций
+                    if (field === 'data') {
+                        block[field] = { ...(block[field] || {}), ...(value || {}) };
+                    } else {
+                        block[field] = value;
+                    }
+                }
+                // Сохраняем в IndexedDB асинхронно (updateBlockField уже мёржит data)
+                this.blockRepository.updateBlockField(blockId, field, value, field === 'data');
+            }
         });
 
         window.addEventListener('CreateBlock', (e) => {
@@ -1386,16 +1428,9 @@ export class LocalStateManager {
                     // Здесь же childOrder авторитетен, т.к. он уже смёрджен с учётом pending операций.
                     const syncedChildren = mergedData.childOrder.filter(id => this.blocks.has(id));
 
-                    // Инвалидируем кэш позиций если childOrder изменился
-                    // Это заставит grid пересчитаться при следующем рендере
+                    // Обновляем версию childOrder для отслеживания изменений при рендеринге
                     let childOrderVersion = localBlock?._childOrderVersion;
                     if (childOrderChanged) {
-                        const cachedBlock = this.blocks.get(block.id);
-                        if (cachedBlock) {
-                            delete cachedBlock.childrenPositions;
-                            delete cachedBlock.grid;
-                        }
-                        // Обновляем версию childOrder для отслеживания изменений при рендеринге
                         childOrderVersion = Date.now();
                     }
 
@@ -1419,6 +1454,16 @@ export class LocalStateManager {
                         sandbox_mode: blockSandboxMode,
                         _childOrderVersion: childOrderVersion  // Для отслеживания изменений grid
                     });
+
+                    // Инвалидируем кэш позиций ПОСЛЕ saveBlock для предотвращения race conditions
+                    // Это заставит grid пересчитаться при следующем рендере
+                    if (childOrderChanged) {
+                        const savedBlock = this.blocks.get(block.id);
+                        if (savedBlock) {
+                            delete savedBlock.childrenPositions;
+                            delete savedBlock.grid;
+                        }
+                    }
                 }
                 processedBlocks.push(block);
             } catch (error) {
@@ -1608,138 +1653,152 @@ export class LocalStateManager {
     }
 
     async moveBlock({block_id, old_parent_id, new_parent_id, before, fromDiagram, toDiagram, diagramPosition}) {
-        if (block_id === new_parent_id) return
-        const newParent = this.blocks.get(new_parent_id)
+        if (block_id === new_parent_id) return;
 
-        function reorderList(ids, id, idBefore) {
-            const filteredIds = ids.filter(item => item !== id);
-            const index = filteredIds.indexOf(idBefore);
-            if (index !== -1) {
-                filteredIds.splice(index, 0, id);
-            } else {
-                filteredIds.push(id);
-            }
-            return filteredIds;
-        }
-
-        if (!newParent) {
-            console.error('New parent not found:', new_parent_id);
-            return;
-        }
-
-        // Проверка прав на редактирование нового родителя
-        if (!canEdit(newParent)) {
-            dispatch('ShowError', { message: 'Нет прав на перемещение в этот раздел' });
-            return;
-        }
-
-        if (!newParent.data) newParent.data = {};
-        const newOrder = reorderList(newParent.data.childOrder || [], block_id, before);
-
-        // Optimistic UI: сначала перемещаем локально
-        const block = this.blocks.get(block_id);
-        const oldParent = this.blocks.get(old_parent_id);
-
-        if (!block) {
-            console.error('Block not found:', block_id);
-            return;
-        }
-
-        // Проверка прав на редактирование блока
-        if (!canEdit(block)) {
-            dispatch('ShowError', { message: 'Нет прав на перемещение этого блока' });
-            return;
-        }
-
-        // Проверка прав на редактирование старого родителя
-        if (oldParent && !canEdit(oldParent)) {
-            dispatch('ShowError', { message: 'Нет прав на перемещение из этого раздела' });
-            return;
-        }
-
-        // Сохраняем backup для rollback (deep clone чтобы избежать shared references)
-        const blockBackup = JSON.parse(JSON.stringify(block));
-        const oldParentBackup = oldParent ? JSON.parse(JSON.stringify(oldParent)) : null;
-        const newParentBackup = JSON.parse(JSON.stringify(newParent));
-
-        // Обновляем parent_id блока
-        block.parent_id = new_parent_id;
-        block.updated_at = new Date().toISOString();
-
-        // Удаляем из старого родителя
-        if (oldParent && oldParent.children) {
-            oldParent.children = oldParent.children.filter(id => id !== block_id);
-            if (oldParent.data?.childOrder) {
-                oldParent.data.childOrder = oldParent.data.childOrder.filter(id => id !== block_id);
-            }
-
-            // Если старый родитель - диаграмма, удаляем позицию из customGrid
-            if (fromDiagram && oldParent.data?.customGrid?.childrenPositions) {
-                delete oldParent.data.customGrid.childrenPositions[block_id];
-            }
-
-            await this.saveBlock(oldParent);
-        }
-
-        // Добавляем в нового родителя и синхронизируем children с childOrder
-        if (!newParent.children) newParent.children = [];
-        if (!newParent.children.includes(block_id)) {
-            newParent.children.push(block_id);
-        }
-        newParent.data.childOrder = newOrder;
-        // Синхронизируем children с childOrder для правильного порядка
-        newParent.children = newOrder.filter(id => newParent.children.includes(id));
-        newParent.updated_at = new Date().toISOString();
-
-        // Если новый родитель - диаграмма, добавляем позицию в customGrid
-        if (toDiagram && newParent.data?.customGrid) {
-            if (!newParent.data.customGrid.childrenPositions) {
-                newParent.data.customGrid.childrenPositions = {};
-            }
-
-            // Вычисляем позицию для нового блока
-            const position = this._calculateBlockPositionInDiagram(
-                newParent.data.customGrid,
-                block_id,
-                diagramPosition
-            );
-
-            newParent.data.customGrid.childrenPositions[block_id] = position;
-        }
-
-        await this.saveBlock(block);
-        await this.saveBlock(newParent);
-        dispatch('ShowBlocks');
-
-        // Для same-parent reorder сохраняем состояние родителя ПОСЛЕ перемещения (deep clone)
-        const oldParentAfter = old_parent_id === new_parent_id
-            ? JSON.parse(JSON.stringify(newParent))
+        // Захватываем блокировки для обоих родителей (предотвращает race conditions)
+        const releaseOld = old_parent_id ? await blockOperationLock.acquire(`parent:${old_parent_id}`) : null;
+        // Блокируем нового родителя только если он отличается от старого
+        const releaseNew = (new_parent_id && new_parent_id !== old_parent_id)
+            ? await blockOperationLock.acquire(`parent:${new_parent_id}`)
             : null;
 
-        // Записываем в undo stack
-        undoManager.recordMove(
-            block_id,
-            old_parent_id,
-            new_parent_id,
-            blockBackup,
-            block,
-            oldParentBackup,
-            newParentBackup,
-            oldParentAfter
-        );
-
-        // Синхронизируем через batch import (отправит 3 блока: old parent, new parent, moved block)
-        // Используем immediate:true для немедленной синхронизации
         try {
-            await offlineQueue.enqueue({
-                id: `move_${block_id}_${Date.now()}`,
-                type: 'moveBlock',
-                data: { blockId: block_id, oldParentId: old_parent_id, newParentId: new_parent_id, childOrder: newOrder }
-            }, { immediate: true });
-        } catch (err) {
-            // Rollback при ошибке очереди (например, IndexedDB quota exceeded)
-            console.error('Failed to queue move operation:', err);
-            await this.rollbackMoveBlock(blockBackup, oldParentBackup, newParentBackup);
+            const newParent = this.blocks.get(new_parent_id);
+
+            function reorderList(ids, id, idBefore) {
+                const filteredIds = ids.filter(item => item !== id);
+                const index = filteredIds.indexOf(idBefore);
+                if (index !== -1) {
+                    filteredIds.splice(index, 0, id);
+                } else {
+                    filteredIds.push(id);
+                }
+                return filteredIds;
+            }
+
+            if (!newParent) {
+                console.error('New parent not found:', new_parent_id);
+                return;
+            }
+
+            // Проверка прав на редактирование нового родителя
+            if (!canEdit(newParent)) {
+                dispatch('ShowError', { message: 'Нет прав на перемещение в этот раздел' });
+                return;
+            }
+
+            if (!newParent.data) newParent.data = {};
+            const newOrder = reorderList(newParent.data.childOrder || [], block_id, before);
+
+            // Optimistic UI: сначала перемещаем локально
+            const block = this.blocks.get(block_id);
+            const oldParent = this.blocks.get(old_parent_id);
+
+            if (!block) {
+                console.error('Block not found:', block_id);
+                return;
+            }
+
+            // Проверка прав на редактирование блока
+            if (!canEdit(block)) {
+                dispatch('ShowError', { message: 'Нет прав на перемещение этого блока' });
+                return;
+            }
+
+            // Проверка прав на редактирование старого родителя
+            if (oldParent && !canEdit(oldParent)) {
+                dispatch('ShowError', { message: 'Нет прав на перемещение из этого раздела' });
+                return;
+            }
+
+            // Сохраняем backup для rollback (deep clone чтобы избежать shared references)
+            const blockBackup = JSON.parse(JSON.stringify(block));
+            const oldParentBackup = oldParent ? JSON.parse(JSON.stringify(oldParent)) : null;
+            const newParentBackup = JSON.parse(JSON.stringify(newParent));
+
+            // Обновляем parent_id блока
+            block.parent_id = new_parent_id;
+            block.updated_at = new Date().toISOString();
+
+            // Удаляем из старого родителя
+            if (oldParent && oldParent.children) {
+                oldParent.children = oldParent.children.filter(id => id !== block_id);
+                if (oldParent.data?.childOrder) {
+                    oldParent.data.childOrder = oldParent.data.childOrder.filter(id => id !== block_id);
+                }
+
+                // Если старый родитель - диаграмма, удаляем позицию из customGrid
+                if (fromDiagram && oldParent.data?.customGrid?.childrenPositions) {
+                    delete oldParent.data.customGrid.childrenPositions[block_id];
+                }
+
+                await this.saveBlock(oldParent);
+            }
+
+            // Добавляем в нового родителя и синхронизируем children с childOrder
+            if (!newParent.children) newParent.children = [];
+            if (!newParent.children.includes(block_id)) {
+                newParent.children.push(block_id);
+            }
+            newParent.data.childOrder = newOrder;
+            // Синхронизируем children с childOrder для правильного порядка
+            newParent.children = newOrder.filter(id => newParent.children.includes(id));
+            newParent.updated_at = new Date().toISOString();
+
+            // Если новый родитель - диаграмма, добавляем позицию в customGrid
+            if (toDiagram && newParent.data?.customGrid) {
+                if (!newParent.data.customGrid.childrenPositions) {
+                    newParent.data.customGrid.childrenPositions = {};
+                }
+
+                // Вычисляем позицию для нового блока
+                const position = this._calculateBlockPositionInDiagram(
+                    newParent.data.customGrid,
+                    block_id,
+                    diagramPosition
+                );
+
+                newParent.data.customGrid.childrenPositions[block_id] = position;
+            }
+
+            await this.saveBlock(block);
+            await this.saveBlock(newParent);
+            dispatch('ShowBlocks');
+
+            // Для same-parent reorder сохраняем состояние родителя ПОСЛЕ перемещения (deep clone)
+            const oldParentAfter = old_parent_id === new_parent_id
+                ? JSON.parse(JSON.stringify(newParent))
+                : null;
+
+            // Записываем в undo stack
+            undoManager.recordMove(
+                block_id,
+                old_parent_id,
+                new_parent_id,
+                blockBackup,
+                block,
+                oldParentBackup,
+                newParentBackup,
+                oldParentAfter
+            );
+
+            // Синхронизируем через batch import (отправит 3 блока: old parent, new parent, moved block)
+            // Используем immediate:true для немедленной синхронизации
+            try {
+                await offlineQueue.enqueue({
+                    id: `move_${block_id}_${Date.now()}`,
+                    type: 'moveBlock',
+                    data: { blockId: block_id, oldParentId: old_parent_id, newParentId: new_parent_id, childOrder: newOrder }
+                }, { immediate: true });
+            } catch (err) {
+                // Rollback при ошибке очереди (например, IndexedDB quota exceeded)
+                console.error('Failed to queue move operation:', err);
+                await this.rollbackMoveBlock(blockBackup, oldParentBackup, newParentBackup);
+            }
+        } finally {
+            // Освобождаем блокировки в обратном порядке
+            if (releaseNew) releaseNew();
+            if (releaseOld) releaseOld();
         }
     }
 
@@ -1922,6 +1981,12 @@ export class LocalStateManager {
     }
 
 
+    /**
+     * Атомарно сохраняет блок в memory и IndexedDB.
+     * Мёржит с существующим блоком, чтобы сохранить runtime поля.
+     * @param {Object} block - Блок для сохранения (может быть частичным)
+     * @returns {Object|undefined} Сохранённый блок или undefined при ошибке
+     */
     async saveBlock(block) {
         if (!block) {
             console.error('Save block undefined');
@@ -1933,12 +1998,28 @@ export class LocalStateManager {
             console.trace('saveBlock called without id');
             return;
         }
-        this.blocks.set(block.id, block);
+
+        // Атомарно обновляем in-memory и IndexedDB
+        const existingBlock = this.blocks.get(block.id);
+
+        // Мёржим с существующим блоком (сохраняем runtime поля)
+        // Deep merge для data чтобы не потерять вложенные поля
+        const mergedBlock = existingBlock
+            ? {
+                ...existingBlock,
+                ...block,
+                data: { ...(existingBlock.data || {}), ...(block.data || {}) }
+            }
+            : block;
+
+        this.blocks.set(block.id, mergedBlock);
         if (this.blockRepository) {
-            await this.blockRepository.saveBlock(block);
+            await this.blockRepository.saveBlock(mergedBlock);
         } else {
             console.warn('BlockRepository not initialized, block saved only in memory:', block.id);
         }
+
+        return mergedBlock;
     }
 
     async removeOneBlock(blockId) {
@@ -2400,91 +2481,105 @@ export class LocalStateManager {
     }
 
     async createBlock({parentId, title}) {
-        // Генерируем реальный UUID сразу (не временный)
-        const blockId = offlineQueue.generateBlockId();
+        // Получаем блокировку для предотвращения race conditions
+        // при одновременном создании блоков в одном родителе
+        const releaseLock = await blockOperationLock.acquire(`parent:${parentId}`);
 
-        const parentBlock = this.blocks.get(parentId);
-        if (!parentBlock) {
-            console.error('Parent block not found:', parentId);
-            return;
-        }
+        try {
+            // Генерируем реальный UUID сразу (не временный)
+            const blockId = offlineQueue.generateBlockId();
 
-        // Проверка прав на создание в родителе (с учётом sandbox режима)
-        if (!canCreateInSandbox(parentBlock)) {
-            dispatch('ShowError', { message: 'Нет прав на создание блока в этом разделе' });
-            return;
-        }
-
-        // Проверяем, является ли родитель диаграммой (имеет customGrid)
-        // Если да — синхронизируем сразу без debounce
-        const isDiagram = !!parentBlock.data?.customGrid?.grid;
-
-        // Проверяем layoutCells - если есть, нужно найти свободное место
-        const hasLayoutCells = parentBlock.data?.layout === 'cells' && parentBlock.data?.layoutCells;
-        let newCellPosition = null;
-
-        if (hasLayoutCells) {
-            newCellPosition = this._findFreePositionInLayoutCells(parentBlock.data.layoutCells);
-            // Если сетка была расширена - увеличиваем gridSize
-            if (newCellPosition.gridExpanded) {
-                parentBlock.data.layoutCells.gridSize.rows = newCellPosition.row;
-                console.log('Grid expanded to', newCellPosition.row, 'rows for new block');
+            const parentBlock = this.blocks.get(parentId);
+            if (!parentBlock) {
+                console.error('Parent block not found:', parentId);
+                return;
             }
-        }
 
-        // Регистрируем блок как pending (ожидающий синхронизации)
-        offlineQueue.registerPendingBlock(blockId);
+            // Проверка прав на создание в родителе (с учётом sandbox режима)
+            if (!canCreateInSandbox(parentBlock)) {
+                dispatch('ShowError', { message: 'Нет прав на создание блока в этом разделе' });
+                return;
+            }
 
-        // Создаём блок с реальным ID
-        const newBlock = {
-            id: blockId,
-            title: title || '',
-            parent_id: parentId,
-            children: [],
-            data: { childOrder: [] },
-            updated_at: new Date().toISOString(),
-            // Устанавливаем creator_id для sandbox режима
-            creator_id: this.currentUser || null
-        };
+            // Проверяем, является ли родитель диаграммой (имеет customGrid)
+            // Если да — синхронизируем сразу без debounce
+            const isDiagram = !!parentBlock.data?.customGrid?.grid;
 
-        // Обновляем родительский блок
-        if (!parentBlock.children) parentBlock.children = [];
-        if (!parentBlock.data) parentBlock.data = {};
-        if (!parentBlock.data.childOrder) parentBlock.data.childOrder = [];
+            // Проверяем layoutCells - если есть, нужно найти свободное место
+            const hasLayoutCells = parentBlock.data?.layout === 'cells' && parentBlock.data?.layoutCells;
+            let newCellPosition = null;
 
-        // ВАЖНО: добавляем blockId в оба массива синхронно
-        parentBlock.children.push(blockId);
-        parentBlock.data.childOrder.push(blockId);
+            if (hasLayoutCells) {
+                newCellPosition = this._findFreePositionInLayoutCells(parentBlock.data.layoutCells);
+                // Если сетка была расширена - увеличиваем gridSize
+                if (newCellPosition.gridExpanded) {
+                    parentBlock.data.layoutCells.gridSize.rows = newCellPosition.row;
+                    console.log('Grid expanded to', newCellPosition.row, 'rows for new block');
+                }
+            }
 
-        // Если есть layoutCells - добавляем позицию для нового блока
-        if (hasLayoutCells && newCellPosition) {
-            parentBlock.data.layoutCells.cells[blockId] = {
-                row: newCellPosition.row,
-                col: newCellPosition.col,
-                rowSpan: 1,
-                colSpan: 1
+            // Регистрируем блок как pending (ожидающий синхронизации)
+            offlineQueue.registerPendingBlock(blockId);
+
+            // Создаём блок с реальным ID
+            const newBlock = {
+                id: blockId,
+                title: title || '',
+                parent_id: parentId,
+                children: [],
+                data: { childOrder: [] },
+                updated_at: new Date().toISOString(),
+                // Устанавливаем creator_id для sandbox режима
+                creator_id: this.currentUser || null
             };
+
+            // Обновляем родительский блок
+            if (!parentBlock.children) parentBlock.children = [];
+            if (!parentBlock.data) parentBlock.data = {};
+            if (!parentBlock.data.childOrder) parentBlock.data.childOrder = [];
+
+            // ВАЖНО: добавляем blockId в оба массива синхронно
+            // с проверкой на дубликаты для предотвращения race conditions
+            if (!parentBlock.children.includes(blockId)) {
+                parentBlock.children.push(blockId);
+            }
+            if (!parentBlock.data.childOrder.includes(blockId)) {
+                parentBlock.data.childOrder.push(blockId);
+            }
+
+            // Если есть layoutCells - добавляем позицию для нового блока
+            if (hasLayoutCells && newCellPosition) {
+                parentBlock.data.layoutCells.cells[blockId] = {
+                    row: newCellPosition.row,
+                    col: newCellPosition.col,
+                    rowSpan: 1,
+                    colSpan: 1
+                };
+            }
+
+            // Обновляем timestamp родителя
+            parentBlock.updated_at = new Date().toISOString();
+
+            // Сохраняем локально и показываем сразу (мгновенный отклик)
+            await this.saveBlock(newBlock);
+            await this.saveBlock(parentBlock);
+            dispatch('ShowBlocks');
+
+            // Записываем в undo stack
+            undoManager.recordCreate(blockId, parentId, newBlock);
+
+            // Добавляем в очередь синхронизации (отправится через batch import)
+            // Для диаграммы отправляем сразу без debounce
+            await offlineQueue.enqueue({
+                type: 'createBlock',
+                data: { blockId, parentId }
+            }, { immediate: isDiagram });
+
+            console.log('Block created:', blockId, offlineQueue.isNetworkOnline() ? '(syncing)' : '(offline)');
+        } finally {
+            // Освобождаем блокировку в любом случае
+            releaseLock();
         }
-
-        // Обновляем timestamp родителя
-        parentBlock.updated_at = new Date().toISOString();
-
-        // Сохраняем локально и показываем сразу (мгновенный отклик)
-        await this.saveBlock(newBlock);
-        await this.saveBlock(parentBlock);
-        dispatch('ShowBlocks');
-
-        // Записываем в undo stack
-        undoManager.recordCreate(blockId, parentId, newBlock);
-
-        // Добавляем в очередь синхронизации (отправится через batch import)
-        // Для диаграммы отправляем сразу без debounce
-        await offlineQueue.enqueue({
-            type: 'createBlock',
-            data: { blockId, parentId }
-        }, { immediate: isDiagram });
-
-        console.log('Block created:', blockId, offlineQueue.isNetworkOnline() ? '(syncing)' : '(offline)');
     }
 
     /**
@@ -2556,13 +2651,18 @@ export class LocalStateManager {
         };
 
         // Обновляем родительский блок
+        // с проверкой на дубликаты для предотвращения race conditions
         if (!parentBlock.children) parentBlock.children = [];
-        parentBlock.children.push(blockId);
+        if (!parentBlock.children.includes(blockId)) {
+            parentBlock.children.push(blockId);
+        }
 
         // Синхронизируем childOrder с children
         if (!parentBlock.data) parentBlock.data = {};
         if (!parentBlock.data.childOrder) parentBlock.data.childOrder = [];
-        parentBlock.data.childOrder.push(blockId);
+        if (!parentBlock.data.childOrder.includes(blockId)) {
+            parentBlock.data.childOrder.push(blockId);
+        }
 
         // Если есть layoutCells - добавляем позицию для нового блока
         if (hasLayoutCells && newCellPosition) {
