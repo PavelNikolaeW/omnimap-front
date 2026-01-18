@@ -401,7 +401,7 @@ export class DragDropManager {
         const cellHeight = (rect.height - contentHeight) / rows;
 
         const col = Math.max(1, Math.min(cols, Math.floor(relX / cellWidth) + 1));
-        const row = Math.max(2, Math.min(rows + 1, Math.floor(relY / cellHeight) + 2));
+        const row = Math.max(2, Math.min(rows + 2, Math.floor(relY / cellHeight) + 2));
 
         return { col, row, cols, rows };
     }
