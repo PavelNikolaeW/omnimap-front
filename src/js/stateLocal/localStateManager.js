@@ -1331,18 +1331,17 @@ export class LocalStateManager {
                         }
                     }
 
-                    // Итоговый children = serverChildren (существующие локально) + локальные дети для сохранения
-                    const filteredChildren = [
-                        ...serverChildren.filter(id => this.blocks.has(id)),
-                        ...localChildrenToKeep
-                    ];
+                    // ВАЖНО: children должен совпадать с childOrder для консистентности
+                    // childOrder - источник истины, children синхронизируем с ним
+                    // Фильтруем только существующие локально блоки
+                    const syncedChildren = mergedData.childOrder.filter(id => this.blocks.has(id));
 
                     await this.saveBlock({
                         id: block.id,
                         updated_at: new Date(block.updated_at * 1000).toISOString(),
                         title: block.title,
                         data: mergedData,
-                        children: filteredChildren,
+                        children: syncedChildren,
                         parent_id: normalizeParentId(block.parent_id),
                         permission: blockPermission
                     });
