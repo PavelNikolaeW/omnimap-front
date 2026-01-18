@@ -7,6 +7,8 @@ import {styleConfig} from "./styles";
 import {offlineQueue} from "../sincManager/offlineQueue";
 import {isForbidden, isViewOnly, getPermissionDataAttribute, isInSandbox, isBlockOwner, getSandboxPermissionAttribute} from "../utils/permissionUtils";
 import {authStateManager} from "../auth/authStateManager";
+import {dispatch} from "../utils/utils";
+import {deduplicateChildOrder} from "../utils/childOrderUtils";
 
 
 const viewRenderers = {
@@ -612,6 +614,15 @@ class BlockCreator {
     }
 
     _setBlockGrid(block, parentBlock) {
+        // Defensive: валидация childOrder перед расчётом grid
+        if (block.data?.childOrder) {
+            const uniqueChildOrder = deduplicateChildOrder(block.data.childOrder);
+            if (uniqueChildOrder.length !== block.data.childOrder.length) {
+                console.warn(`⚠️ Duplicate IDs in childOrder for block ${block.id}, fixing...`);
+                block.data.childOrder = uniqueChildOrder;
+            }
+        }
+
         // Проверяем актуальность кэша childrenPositions
         // Если количество позиций не совпадает с childOrder — кэш устарел
         const expectedChildCount = block.data?.childOrder?.length || 0;
@@ -624,12 +635,18 @@ class BlockCreator {
         }
 
         // Проверяем версию childOrder — если изменилась, пересчитываем grid
-        // NOTE: _lastRenderedVersion хранится только в памяти (не в IndexedDB).
-        // При перезагрузке страницы grid пересчитывается заново, что приемлемо.
         if (block._childOrderVersion && block._childOrderVersion !== block._lastRenderedVersion) {
             delete block.childrenPositions;
             delete block.grid;
             block._lastRenderedVersion = block._childOrderVersion;
+
+            // Сохраняем _lastRenderedVersion в IndexedDB асинхронно
+            // чтобы не потерять при перезагрузке страницы
+            dispatch('SaveBlockField', {
+                blockId: block.id,
+                field: '_lastRenderedVersion',
+                value: block._lastRenderedVersion
+            });
         }
 
         if (block.data?.customGrid?.grid) {
