@@ -282,7 +282,7 @@ export const popupsCommands = [
             label: 'Настроить управление',
             classes: ['sidebar-button', 'fas', 'fa-gear', 'fas-lg'],
         },
-        defaultHotkey: 'shift+m',
+        defaultHotkey: 'shift+h',
         description: 'Открыть окно настройки колрячих клавиш',
         async execute(ctx) {
 
@@ -609,7 +609,7 @@ export const popupsCommands = [
             label: 'Запросы на доступ',
             classes: ['sidebar-button', 'fas', 'fa-user-check', 'fas-lg']
         },
-        defaultHotkey: 'shift+r',
+        defaultHotkey: 'shift+o',
         description: 'Открыть запросы на доступ к блокам',
         execute(ctx) {
             ctx.mode = 'accessRequests';

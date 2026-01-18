@@ -286,7 +286,7 @@ export const commands = [
             label: 'Чаты',
             classes: ['sidebar-button', 'fas', 'fa-comments', 'fas-lg']
         },
-        defaultHotkey: 'shift+m',
+        defaultHotkey: 'm',
         description: 'Открыть чаты (личные, группы, AI)',
         execute(ctx) {
             openUnifiedChat();
@@ -550,7 +550,7 @@ export const commands = [
             label: 'Вставить блок как ссылку',
             classes: ['sidebar-button', 'fas', 'fa-link', 'fas-lg']
         },
-        defaultHotkey: 'shift+l',
+        defaultHotkey: 'shift+g',
         description: 'Если скопирован id, вставляет блок как ссылку',
         async execute(ctx) {
             const destId = extractBlockId(ctx.blockElement)
@@ -793,7 +793,7 @@ export const commands = [
             label: 'Пунктирное соединение',
             classes: ['sidebar-button', 'fas', 'fa-ellipsis', 'fas-lg'],
         },
-        defaultHotkey: '',
+        defaultHotkey: 'a+d',
         description: 'Создать пунктирное соединение между блоками',
         execute(ctx) {
             // Шаг 1: Выбор источника (блок уже выбран)
@@ -880,7 +880,7 @@ export const commands = [
             label: 'Двустороннее соединение',
             classes: ['sidebar-button', 'fas', 'fa-arrows-left-right', 'fas-lg'],
         },
-        defaultHotkey: '',
+        defaultHotkey: 'a+b',
         description: 'Создать двустороннее соединение между блоками',
         execute(ctx) {
             // Шаг 1: Выбор источника (блок уже выбран)
@@ -967,7 +967,7 @@ export const commands = [
             label: 'Изогнутое соединение',
             classes: ['sidebar-button', 'fas', 'fa-bezier-curve', 'fas-lg'],
         },
-        defaultHotkey: '',
+        defaultHotkey: 'a+c',
         description: 'Создать изогнутое (Bezier) соединение между блоками',
         execute(ctx) {
             // Шаг 1: Выбор источника (блок уже выбран)
@@ -1054,7 +1054,7 @@ export const commands = [
             label: 'Прямое соединение',
             classes: ['sidebar-button', 'fas', 'fa-ruler', 'fas-lg'],
         },
-        defaultHotkey: '',
+        defaultHotkey: 'a+s',
         description: 'Создать прямое соединение между блоками',
         execute(ctx) {
             // Шаг 1: Выбор источника (блок уже выбран)
@@ -1141,7 +1141,7 @@ export const commands = [
             label: 'Ортогональное соединение',
             classes: ['sidebar-button', 'fas', 'fa-right-left', 'fas-lg'],
         },
-        defaultHotkey: '',
+        defaultHotkey: 'a+o',
         regLink: false,
         description: 'Создать ортогональное соединение между блоками',
         execute(ctx) {
@@ -1229,7 +1229,7 @@ export const commands = [
             label: 'Петля (self-loop)',
             classes: ['sidebar-button', 'fas', 'fa-rotate', 'fas-lg'],
         },
-        defaultHotkey: 'shift+l',
+        defaultHotkey: 'a+l',
         regLink: false,
         description: 'Создать соединение блока с самим собой',
         execute(ctx) {
@@ -1262,7 +1262,7 @@ export const commands = [
             label: 'Очистить локальный кеш блоков',
             classes: ['sidebar-button', 'fas', 'fa-sync', 'fas-lg'],
         },
-        defaultHotkey: 'shift+r',
+        defaultHotkey: 'shift+q',
         description:
             'Очистить локальный кеш блоков',
         execute(ctx) {
@@ -1276,11 +1276,19 @@ export const commands = [
     {
         id: "validateTree",
         mode: ['normal'],
-        defaultHotkey: 'shift+v',
+        btn: {
+            containerId: 'control-panel',
+            label: 'Проверить целостность дерева',
+            classes: ['sidebar-button', 'fas', 'fa-check-circle', 'fas-lg'],
+        },
+        defaultHotkey: 'shift+b',
         description: 'Проверить целостность дерева блоков',
         execute(ctx) {
             dispatch('ValidateTree')
             setCmdOpenBlock(ctx)
+        },
+        btnExec(ctx) {
+            this.execute(ctx)
         }
     },
     {

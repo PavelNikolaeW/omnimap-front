@@ -8,7 +8,43 @@ import { dispatch } from "../../utils/utils";
  * @type {Object.<string, {id: string, label: string, icon: string, items: string[], requiresDiagramMode?: boolean}>}
  */
 export const submenuConfig = {
-    // Подменю "Диаграмма" - редактирование диаграмм и стрелок
+    // Подменю "Соединения" - вынесено на верхний уровень
+    connections: {
+        id: 'submenu-connections',
+        label: 'Соединения',
+        icon: 'fa-bezier-curve',
+        items: [
+            'connectBlock',        // Стандартное (a)
+            'connectDashed',       // Пунктирное (a+d)
+            'connectDouble',       // Двустороннее (a+b)
+            'connectCurved',       // Изогнутое (a+c)
+            'connectStraight',     // Прямое (a+s)
+            'connectOrthogonal',   // Ортогональное (a+o)
+            'connectSelfLoop',     // Петля (a+l)
+            'deleteConnectBlock'   // Удалить (shift+a)
+        ]
+    },
+    // Подменю "Дополнительно" - расширено новыми командами
+    extra: {
+        id: 'submenu-extra',
+        label: 'Дополнительно',
+        icon: 'fa-bars',
+        items: [
+            'createUrl',            // Создать URL (shift+u)
+            'editBlock',            // Редактировать блок (shift+e)
+            'editAccessBlock',      // Права на блок (shift+p)
+            'repairTree',           // Восстановить дерево (shift+f)
+            'openLayoutEditor',     // Редактор раскладки (l+e)
+            'deleteLocalCache',     // Сброс кеша (shift+q)
+            'editHotkeys',          // Настройка управления (shift+h)
+            'addToFocus',           // Добавить в фокус (shift+k)
+            'markAsFocusContainer', // Контейнер фокуса (shift+ctrl+k)
+            'validateTree',         // Проверка дерева (shift+b)
+            'importBlocks',         // Импорт блоков (shift+i)
+            'submenu-notifications' // Подменю уведомлений
+        ]
+    },
+    // Подменю "Диаграмма" - редактирование диаграмм (без соединений)
     diagram: {
         id: 'submenu-diagram',
         label: 'Диаграмма',
@@ -19,23 +55,12 @@ export const submenuConfig = {
             'diagramGridRowPlus', 'diagramGridRowMinus',
             'diagramSizeXs', 'diagramSizeS', 'diagramSizeM', 'diagramSizeL',
             'diagramAddBlock',
-            'diagramBlockStyle', 'submenu-connections',
-            'diagramReset'
+            'diagramBlockStyle',
+            'diagramConnectionSettings',
+            'diagramReset',
+            'diagramDeleteBlock',
+            'diagramResetBlockStyle'
         ]
-    },
-    // Подменю "Соединения" - вложено в "Диаграмма"
-    connections: {
-        id: 'submenu-connections',
-        label: 'Соединения',
-        icon: 'fa-bezier-curve',
-        items: ['connectBlock', 'connectDashed', 'connectDouble', 'connectCurved', 'connectStraight', 'deleteConnectBlock']
-    },
-    // Подменю "Дополнительно" - редактирование, ссылки, права, уведомления
-    extra: {
-        id: 'submenu-extra',
-        label: 'Дополнительно',
-        icon: 'fa-bars',
-        items: ['createUrl', 'editBlock', 'editAccessBlock', 'repairTree', 'submenu-notifications']
     },
     // Подменю "Уведомления" - вложено в "Дополнительно"
     notifications: {
@@ -53,12 +78,20 @@ const hiddenInSubmenu = new Set([
     'diagramSizeXs', 'diagramSizeS', 'diagramSizeM', 'diagramSizeL',
     'diagramAddBlock', 'diagramDeleteBlock', 'diagramBlockStyle', 'diagramResetBlockStyle',
     'diagramConnectionSettings', 'diagramReset',
-    // Connections команды (теперь в подменю diagram)
-    'connectBlock', 'deleteConnectBlock', 'connectDashed', 'connectDouble', 'connectCurved', 'connectStraight',
-    // Extra команды
+    // Connections команды (теперь в подменю "Соединения" на верхнем уровне)
+    'connectBlock', 'deleteConnectBlock', 'connectDashed', 'connectDouble',
+    'connectCurved', 'connectStraight', 'connectOrthogonal', 'connectSelfLoop',
+    // Extra команды (расширенный список)
     'createUrl', 'editBlock', 'editAccessBlock',
     'notificationSettings', 'setReminder', 'watchBlock',
-    'repairTree', // Перенесено в подменю "Дополнительно"
+    'repairTree',           // Восстановить дерево
+    'openLayoutEditor',     // Редактор раскладки
+    'deleteLocalCache',     // Сброс кеша
+    'editHotkeys',          // Настройка управления
+    'addToFocus',           // Добавить в фокус
+    'markAsFocusContainer', // Контейнер фокуса
+    'validateTree',         // Проверка дерева
+    'importBlocks',         // Импорт блоков
     'options' // Заменяем старую кнопку options на submenu-extra
 ]);
 
@@ -209,8 +242,7 @@ export class UIManager {
 
     /**
      * Рендерит кнопки подменю в панель управления
-     * Подменю вставляются после основных кнопок работы с блоками для лучшего UX
-     * Fallback: если кнопок недостаточно, подменю добавляются в конец панели
+     * Порядок: основные кнопки → Соединения → accessRequests → Дополнительно → Диаграмма → Exit
      */
     renderSubmenuButtons() {
         const container = this.elements['control-panel']
@@ -219,27 +251,39 @@ export class UIManager {
             return
         }
 
-        // Находим позицию после основных кнопок работы с блоками
-        // Вставляем подменю после 5-й кнопки (newBlock, editBlockTitle, editBlockText, cutBlock, copyBlock)
-        const existingButtons = container.querySelectorAll('.sidebar-button')
-        // Fallback: если кнопок меньше 5, вставляем в конец
-        const insertPosition = existingButtons.length > 5 ? existingButtons[5] : null
+        // Находим кнопки для определения позиций вставки
+        const uploadBlockImageBtn = container.querySelector('#uploadBlockImage')
+        const accessRequestsBtn = container.querySelector('#accessRequests')
+        const exitBtn = container.querySelector('#Exit')
 
-        // Кнопка подменю "Диаграмма"
-        const diagramBtn = this.createSubmenuButton(submenuConfig.diagram)
-        if (insertPosition) {
-            container.insertBefore(diagramBtn, insertPosition)
+        // 1. Кнопка подменю "Соединения" - после uploadBlockImage
+        const connectionsBtn = this.createSubmenuButton(submenuConfig.connections)
+        if (uploadBlockImageBtn && uploadBlockImageBtn.nextSibling) {
+            container.insertBefore(connectionsBtn, uploadBlockImageBtn.nextSibling)
+        } else if (accessRequestsBtn) {
+            container.insertBefore(connectionsBtn, accessRequestsBtn)
         } else {
-            container.appendChild(diagramBtn)
+            container.appendChild(connectionsBtn)
         }
 
-        // Кнопка подменю "Дополнительно" (заменяет старую options)
+        // 2. Кнопка подменю "Дополнительно" - после accessRequests
         const extraBtn = this.createSubmenuButton(submenuConfig.extra)
-        // Вставляем после кнопки диаграммы
-        if (diagramBtn.nextSibling) {
-            container.insertBefore(extraBtn, diagramBtn.nextSibling)
+        if (accessRequestsBtn && accessRequestsBtn.nextSibling) {
+            container.insertBefore(extraBtn, accessRequestsBtn.nextSibling)
+        } else if (exitBtn) {
+            container.insertBefore(extraBtn, exitBtn)
         } else {
             container.appendChild(extraBtn)
+        }
+
+        // 3. Кнопка подменю "Диаграмма" - после Дополнительно
+        const diagramBtn = this.createSubmenuButton(submenuConfig.diagram)
+        if (extraBtn.nextSibling) {
+            container.insertBefore(diagramBtn, extraBtn.nextSibling)
+        } else if (exitBtn) {
+            container.insertBefore(diagramBtn, exitBtn)
+        } else {
+            container.appendChild(diagramBtn)
         }
     }
 
