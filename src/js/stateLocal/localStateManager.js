@@ -2941,15 +2941,27 @@ export class LocalStateManager {
             targetAnchor
         };
 
-        // Проверяем уникальность по source + target + anchors
-        // Это позволяет создавать несколько соединений между одной парой блоков
-        // если они подключены к разным anchor points
-        const existingConnection = sourceBlock.data.connections.find(
-            connection => connection.sourceId === cleanSourceId &&
-                         connection.targetId === cleanTargetId &&
-                         connection.sourceAnchor === sourceAnchor &&
-                         connection.targetAnchor === targetAnchor
-        );
+        // Проверяем уникальность соединения:
+        // 1. Сначала по connectionId (приоритет - это уникальный идентификатор)
+        // 2. Затем по source + target + anchors (позволяет несколько соединений между парой блоков)
+        let existingConnection = null;
+
+        // Поиск по ID соединения (если передан)
+        if (connectionId) {
+            existingConnection = sourceBlock.data.connections.find(
+                connection => connection.id === connectionId
+            );
+        }
+
+        // Если не найдено по ID, ищем по source/target/anchors
+        if (!existingConnection) {
+            existingConnection = sourceBlock.data.connections.find(
+                connection => connection.sourceId === cleanSourceId &&
+                             connection.targetId === cleanTargetId &&
+                             connection.sourceAnchor === sourceAnchor &&
+                             connection.targetAnchor === targetAnchor
+            );
+        }
 
         if (existingConnection) {
             // Сохраняем оригинальный ID при обновлении
@@ -3079,7 +3091,7 @@ export class LocalStateManager {
      * Обновляет существующее соединение между блоками
      * @param {Object} connectionData - Данные соединения
      */
-    async updateConnectionBlock({sourceId, targetId, connector, paintStyle, overlays, anchors, ...rest}) {
+    async updateConnectionBlock({id, sourceId, targetId, sourceAnchor, targetAnchor, connector, paintStyle, overlays, anchors, ...rest}) {
         // Извлекаем чистые ID блоков (без префиксов)
         const cleanSourceId = sourceId?.includes('*') ? sourceId.split('*').pop() : sourceId;
         const cleanTargetId = targetId?.includes('*') ? targetId.split('*').pop() : targetId;
@@ -3096,24 +3108,48 @@ export class LocalStateManager {
             return;
         }
 
-        // Находим существующее соединение (используем чистые ID)
-        const connIndex = sourceBlock.data.connections.findIndex(
-            c => c.sourceId === cleanSourceId && c.targetId === cleanTargetId
-        );
+        // Находим существующее соединение:
+        // 1. По connectionId (приоритет)
+        // 2. По source/target/anchors (для обратной совместимости)
+        let connIndex = -1;
+
+        if (id) {
+            connIndex = sourceBlock.data.connections.findIndex(c => c.id === id);
+        }
+
+        if (connIndex === -1) {
+            connIndex = sourceBlock.data.connections.findIndex(
+                c => c.sourceId === cleanSourceId &&
+                     c.targetId === cleanTargetId &&
+                     c.sourceAnchor === sourceAnchor &&
+                     c.targetAnchor === targetAnchor
+            );
+        }
+
+        // Fallback: поиск только по source/target (старое поведение)
+        if (connIndex === -1) {
+            connIndex = sourceBlock.data.connections.findIndex(
+                c => c.sourceId === cleanSourceId && c.targetId === cleanTargetId
+            );
+        }
 
         if (connIndex === -1) {
             console.warn('Connection not found for update:', cleanSourceId, '->', cleanTargetId);
             return;
         }
 
-        // Обновляем данные соединения (сохраняем чистые ID)
+        // Мёржим данные соединения (сохраняем существующие поля, обновляем переданные)
+        const existingConnection = sourceBlock.data.connections[connIndex];
         sourceBlock.data.connections[connIndex] = {
+            ...existingConnection,
             sourceId: cleanSourceId,
             targetId: cleanTargetId,
-            connector,
-            paintStyle,
-            overlays,
-            anchors,
+            ...(connector !== undefined && { connector }),
+            ...(paintStyle !== undefined && { paintStyle }),
+            ...(overlays !== undefined && { overlays }),
+            ...(anchors !== undefined && { anchors }),
+            ...(sourceAnchor !== undefined && { sourceAnchor }),
+            ...(targetAnchor !== undefined && { targetAnchor }),
             ...rest
         };
 
