@@ -3,6 +3,7 @@ import blockCreator from "./blockCreator";
 import cssConverter from "./cssConverter";
 import {dispatch, getElementSizeClass, measurePerformance, printTimer, resetTimer} from "../utils/utils"
 import {log} from "@jsplumb/browser-ui";
+import {filterChildrenForPrivateSandbox} from "../utils/permissionUtils";
 
 Map.prototype.appendInParent = function () {
     const elementsToDelete = [];
@@ -31,7 +32,7 @@ export class Painter {
         this.counter = 0
     }
 
-    render(blocks, {color = [], blockId}) {
+    render(blocks, {color = [], blockId}, currentUserId = null) {
         const block = blocks.get(blockId)
         if (block === undefined && this.counter === 0) {
             dispatch('LoadTrees')
@@ -69,7 +70,7 @@ export class Painter {
 
         this.rootContainer.textContent = ''
         this.removeIframePositions()
-        this._render(queue, blocks, this.config);
+        this._render(queue, blocks, this.config, currentUserId);
         // this.printRealSize()
         this.setIframePositions()
         if (blockCreator.emptyBlocks.size) {
@@ -81,7 +82,7 @@ export class Painter {
         }
     }
 
-    _render(queue, blocks, {maxDepth}) {
+    _render(queue, blocks, {maxDepth}, currentUserId = null) {
         const fragments = new Map();
         let render_fragment = null
         let step = 0
@@ -107,7 +108,16 @@ export class Painter {
             const element = blockCreator.createElement(block, parentBlock, screen, depth);
             render_fragment.appendChild(element);
             if (element) {
-                block.data.childOrder?.forEach(childId => {
+                // Фильтруем детей для private sandbox
+                const childOrder = block.data.childOrder || [];
+                const visibleChildren = filterChildrenForPrivateSandbox(
+                    childOrder,
+                    blocks,
+                    block,
+                    currentUserId
+                );
+
+                visibleChildren.forEach(childId => {
                     queue.enqueue({
                         block: blocks.getBlockOrEmpty(childId),
                         depth: depth + 1,

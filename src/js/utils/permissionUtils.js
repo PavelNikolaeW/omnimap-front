@@ -241,3 +241,59 @@ export function getSandboxPermissionAttribute(block, parentBlock, currentUserId)
 
     return null;
 }
+
+/**
+ * Проверяет, виден ли блок в private sandbox режиме
+ * В private sandbox пользователь видит только:
+ * - Свои созданные блоки (creator_id === currentUserId)
+ * - Если он владелец контейнера - все блоки
+ *
+ * @param {Object} block - блок для проверки
+ * @param {Object} parentBlock - родительский контейнер (sandbox)
+ * @param {number|string} currentUserId - ID текущего пользователя
+ * @returns {boolean} true если блок виден пользователю
+ */
+export function canViewInPrivateSandbox(block, parentBlock, currentUserId) {
+    if (!block) return false;
+
+    // Если не в sandbox или это open sandbox - видны все блоки
+    if (!parentBlock || parentBlock.sandbox_mode !== SANDBOX_MODES.PRIVATE) {
+        return true;
+    }
+
+    // Владелец контейнера видит все блоки
+    if (isContainerOwner(parentBlock)) {
+        return true;
+    }
+
+    // В private sandbox: видны только свои блоки
+    return isBlockOwner(block, currentUserId);
+}
+
+/**
+ * Фильтрует список ID детей для отображения в private sandbox
+ * @param {Array<string>} childIds - список ID детей
+ * @param {Map} blocks - Map всех блоков
+ * @param {Object} parentBlock - родительский контейнер (sandbox)
+ * @param {number|string} currentUserId - ID текущего пользователя
+ * @returns {Array<string>} отфильтрованный список ID
+ */
+export function filterChildrenForPrivateSandbox(childIds, blocks, parentBlock, currentUserId) {
+    if (!childIds || !Array.isArray(childIds)) return [];
+
+    // Если не private sandbox - возвращаем всех детей
+    if (!parentBlock || parentBlock.sandbox_mode !== SANDBOX_MODES.PRIVATE) {
+        return childIds;
+    }
+
+    // Владелец контейнера видит все блоки
+    if (isContainerOwner(parentBlock)) {
+        return childIds;
+    }
+
+    // Фильтруем только видимые блоки для private sandbox
+    return childIds.filter(childId => {
+        const childBlock = blocks.get(childId);
+        return canViewInPrivateSandbox(childBlock, parentBlock, currentUserId);
+    });
+}

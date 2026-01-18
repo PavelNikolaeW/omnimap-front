@@ -13,7 +13,9 @@ import {
     canCreateInSandbox,
     canEditInSandbox,
     canDeleteInSandbox,
-    getSandboxPermissionAttribute
+    getSandboxPermissionAttribute,
+    canViewInPrivateSandbox,
+    filterChildrenForPrivateSandbox
 } from '../../utils/permissionUtils';
 
 describe('permissionUtils', () => {
@@ -531,6 +533,146 @@ describe('permissionUtils', () => {
             const block = { id: 'block-1', creator_id: 456 };
             const parentBlock = { id: 'parent-1', permission: 'edit' };
             expect(getSandboxPermissionAttribute(block, parentBlock, currentUserId)).toBe(null);
+        });
+    });
+
+    // ==========================================
+    // Private Sandbox Visibility Tests
+    // ==========================================
+
+    describe('canViewInPrivateSandbox', () => {
+        const currentUserId = 123;
+
+        test('returns false for null block', () => {
+            const parentBlock = { id: 'parent-1', sandbox_mode: 'private' };
+            expect(canViewInPrivateSandbox(null, parentBlock, currentUserId)).toBe(false);
+        });
+
+        test('returns true for non-sandbox parent (no filtering)', () => {
+            const block = { id: 'block-1', creator_id: 456 };
+            const parentBlock = { id: 'parent-1' };
+            expect(canViewInPrivateSandbox(block, parentBlock, currentUserId)).toBe(true);
+        });
+
+        test('returns true for open sandbox (all visible)', () => {
+            const block = { id: 'block-1', creator_id: 456 };
+            const parentBlock = { id: 'parent-1', sandbox_mode: 'open', permission: 'sandbox' };
+            expect(canViewInPrivateSandbox(block, parentBlock, currentUserId)).toBe(true);
+        });
+
+        test('returns true for own block in private sandbox', () => {
+            const block = { id: 'block-1', creator_id: currentUserId };
+            const parentBlock = { id: 'parent-1', sandbox_mode: 'private', permission: 'sandbox' };
+            expect(canViewInPrivateSandbox(block, parentBlock, currentUserId)).toBe(true);
+        });
+
+        test('returns false for other user block in private sandbox', () => {
+            const block = { id: 'block-1', creator_id: 456 };
+            const parentBlock = { id: 'parent-1', sandbox_mode: 'private', permission: 'sandbox' };
+            expect(canViewInPrivateSandbox(block, parentBlock, currentUserId)).toBe(false);
+        });
+
+        test('returns true for container owner in private sandbox (sees all)', () => {
+            const block = { id: 'block-1', creator_id: 456 };
+            const parentBlock = { id: 'parent-1', sandbox_mode: 'private', permission: 'delete' };
+            expect(canViewInPrivateSandbox(block, parentBlock, currentUserId)).toBe(true);
+        });
+
+        test('returns true for own sandbox container (sees all)', () => {
+            const block = { id: 'block-1', creator_id: 456 };
+            const parentBlock = { id: 'parent-1', sandbox_mode: 'private', permission: null };
+            expect(canViewInPrivateSandbox(block, parentBlock, currentUserId)).toBe(true);
+        });
+
+        test('returns true when parentBlock is null', () => {
+            const block = { id: 'block-1', creator_id: 456 };
+            expect(canViewInPrivateSandbox(block, null, currentUserId)).toBe(true);
+        });
+    });
+
+    describe('filterChildrenForPrivateSandbox', () => {
+        const currentUserId = 123;
+
+        // Создаём Map блоков для тестирования
+        const createBlocksMap = () => {
+            const blocks = new Map();
+            blocks.set('child-1', { id: 'child-1', creator_id: 123 }); // Свой блок
+            blocks.set('child-2', { id: 'child-2', creator_id: 456 }); // Чужой блок
+            blocks.set('child-3', { id: 'child-3', creator_id: 123 }); // Свой блок
+            blocks.set('child-4', { id: 'child-4', creator_id: 789 }); // Чужой блок
+            return blocks;
+        };
+
+        test('returns empty array for null childIds', () => {
+            const blocks = createBlocksMap();
+            const parentBlock = { id: 'parent-1', sandbox_mode: 'private' };
+            expect(filterChildrenForPrivateSandbox(null, blocks, parentBlock, currentUserId)).toEqual([]);
+        });
+
+        test('returns empty array for non-array childIds', () => {
+            const blocks = createBlocksMap();
+            const parentBlock = { id: 'parent-1', sandbox_mode: 'private' };
+            expect(filterChildrenForPrivateSandbox('invalid', blocks, parentBlock, currentUserId)).toEqual([]);
+        });
+
+        test('returns all children for non-sandbox parent', () => {
+            const blocks = createBlocksMap();
+            const parentBlock = { id: 'parent-1' };
+            const childIds = ['child-1', 'child-2', 'child-3', 'child-4'];
+            expect(filterChildrenForPrivateSandbox(childIds, blocks, parentBlock, currentUserId))
+                .toEqual(['child-1', 'child-2', 'child-3', 'child-4']);
+        });
+
+        test('returns all children for open sandbox', () => {
+            const blocks = createBlocksMap();
+            const parentBlock = { id: 'parent-1', sandbox_mode: 'open', permission: 'sandbox' };
+            const childIds = ['child-1', 'child-2', 'child-3', 'child-4'];
+            expect(filterChildrenForPrivateSandbox(childIds, blocks, parentBlock, currentUserId))
+                .toEqual(['child-1', 'child-2', 'child-3', 'child-4']);
+        });
+
+        test('filters to only own blocks in private sandbox', () => {
+            const blocks = createBlocksMap();
+            const parentBlock = { id: 'parent-1', sandbox_mode: 'private', permission: 'sandbox' };
+            const childIds = ['child-1', 'child-2', 'child-3', 'child-4'];
+            expect(filterChildrenForPrivateSandbox(childIds, blocks, parentBlock, currentUserId))
+                .toEqual(['child-1', 'child-3']);
+        });
+
+        test('returns all children for container owner in private sandbox', () => {
+            const blocks = createBlocksMap();
+            const parentBlock = { id: 'parent-1', sandbox_mode: 'private', permission: 'delete' };
+            const childIds = ['child-1', 'child-2', 'child-3', 'child-4'];
+            expect(filterChildrenForPrivateSandbox(childIds, blocks, parentBlock, currentUserId))
+                .toEqual(['child-1', 'child-2', 'child-3', 'child-4']);
+        });
+
+        test('returns all children for own sandbox in private mode', () => {
+            const blocks = createBlocksMap();
+            const parentBlock = { id: 'parent-1', sandbox_mode: 'private', permission: null };
+            const childIds = ['child-1', 'child-2', 'child-3', 'child-4'];
+            expect(filterChildrenForPrivateSandbox(childIds, blocks, parentBlock, currentUserId))
+                .toEqual(['child-1', 'child-2', 'child-3', 'child-4']);
+        });
+
+        test('handles missing blocks in Map', () => {
+            const blocks = createBlocksMap();
+            const parentBlock = { id: 'parent-1', sandbox_mode: 'private', permission: 'sandbox' };
+            const childIds = ['child-1', 'missing-id', 'child-3'];
+            // missing-id вернёт undefined из Map, canViewInPrivateSandbox вернёт false для null/undefined
+            expect(filterChildrenForPrivateSandbox(childIds, blocks, parentBlock, currentUserId))
+                .toEqual(['child-1', 'child-3']);
+        });
+
+        test('returns empty array when no own blocks in private sandbox', () => {
+            const blocks = new Map();
+            blocks.set('child-1', { id: 'child-1', creator_id: 456 });
+            blocks.set('child-2', { id: 'child-2', creator_id: 789 });
+
+            const parentBlock = { id: 'parent-1', sandbox_mode: 'private', permission: 'sandbox' };
+            const childIds = ['child-1', 'child-2'];
+            expect(filterChildrenForPrivateSandbox(childIds, blocks, parentBlock, currentUserId))
+                .toEqual([]);
         });
     });
 });

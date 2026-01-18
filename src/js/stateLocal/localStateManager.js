@@ -2188,7 +2188,7 @@ export class LocalStateManager {
             }
         }
 
-        this.painter.render(this.blocks, screenObj);
+        this.painter.render(this.blocks, screenObj, this.currentUser);
         dispatch('ShowedBlocks', {path: this.path, activeId: undefined});
     }
 
@@ -2327,7 +2327,7 @@ export class LocalStateManager {
         }
 
         if (!isIframe) {
-            this.painter.render(this.blocks, this.path.at(-1));
+            this.painter.render(this.blocks, this.path.at(-1), this.currentUser);
         }
 
         // Сохраняем path в IndexedDB для персистентности
@@ -3273,7 +3273,7 @@ export class LocalStateManager {
 
         if (path?.length) {
             this.jsPlumbInstance.repaintEverything();
-            this.painter.render(this.blocks, path.at(-1));
+            this.painter.render(this.blocks, path.at(-1), this.currentUser);
         }
         this._pendingResize = false;
     }
