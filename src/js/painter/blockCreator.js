@@ -620,6 +620,12 @@ class BlockCreator {
             if (uniqueChildOrder.length !== block.data.childOrder.length) {
                 console.warn(`⚠️ Duplicate IDs in childOrder for block ${block.id}, fixing...`);
                 block.data.childOrder = uniqueChildOrder;
+                // Персистим исправленный childOrder в IndexedDB
+                dispatch('SaveBlockField', {
+                    blockId: block.id,
+                    field: 'data',
+                    value: block.data
+                });
             }
         }
 

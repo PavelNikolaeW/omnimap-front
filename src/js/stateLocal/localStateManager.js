@@ -100,35 +100,8 @@ export class LocalStateManager {
         this.painter = new Painter();
         this.blockRepository = null;
         this.debounceTimer = undefined;
-        // Mutex для предотвращения race conditions при создании блоков
-        // Ключ: parentId, значение: Promise который резолвится когда операция завершена
-        this._parentLocks = new Map();
         // Инициализация слушателей событий
         this.registerEventHandlers();
-    }
-
-    /**
-     * Получает блокировку для операций с родительским блоком.
-     * Предотвращает race conditions при одновременном создании блоков.
-     * @param {string} parentId - ID родительского блока
-     * @returns {Promise<Function>} Функция для освобождения блокировки
-     */
-    async _acquireParentLock(parentId) {
-        // Ждём завершения предыдущей операции для этого родителя
-        while (this._parentLocks.has(parentId)) {
-            await this._parentLocks.get(parentId);
-        }
-
-        // Создаём новую блокировку
-        let releaseLock;
-        const lockPromise = new Promise(resolve => { releaseLock = resolve; });
-        this._parentLocks.set(parentId, lockPromise);
-
-        // Возвращаем функцию для освобождения блокировки
-        return () => {
-            this._parentLocks.delete(parentId);
-            releaseLock();
-        };
     }
 
     registerEventHandlers() {
@@ -2020,8 +1993,13 @@ export class LocalStateManager {
         const existingBlock = this.blocks.get(block.id);
 
         // Мёржим с существующим блоком (сохраняем runtime поля)
+        // Deep merge для data чтобы не потерять вложенные поля
         const mergedBlock = existingBlock
-            ? { ...existingBlock, ...block }
+            ? {
+                ...existingBlock,
+                ...block,
+                data: { ...(existingBlock.data || {}), ...(block.data || {}) }
+            }
             : block;
 
         this.blocks.set(block.id, mergedBlock);
@@ -2495,7 +2473,7 @@ export class LocalStateManager {
     async createBlock({parentId, title}) {
         // Получаем блокировку для предотвращения race conditions
         // при одновременном создании блоков в одном родителе
-        const releaseLock = await this._acquireParentLock(parentId);
+        const releaseLock = await blockOperationLock.acquire(`parent:${parentId}`);
 
         try {
             // Генерируем реальный UUID сразу (не временный)
