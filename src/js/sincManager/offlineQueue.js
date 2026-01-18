@@ -46,10 +46,14 @@ class OfflineQueueManager {
         // Константы для таймаутов
         this.MAX_RETRY_INTERVAL_MS = 60000; // Максимум 1 минута между retry
         this.NETWORK_CHECK_TIMEOUT_MS = 5000; // Таймаут проверки сети
+        this.SYNC_STUCK_TIMEOUT_MS = 5 * 60 * 1000; // 5 минут - время после которого считаем синхронизацию зависшей
+        this.syncStartTimestamp = 0; // Время начала текущей синхронизации
 
         // Блоки, ожидающие синхронизации с сервером (созданы локально, но ещё не на сервере)
         // Map<blockId, Promise<void>> - промис резолвится когда блок синхронизирован
         this.pendingBlocks = new Map();
+        // Map<blockId, {resolve: Function, reject: Function}> - функции для завершения Promise
+        this.pendingBlocksResolvers = new Map();
 
         // Сохраняем ссылки на handlers для возможности удаления listeners
         this._handleOnline = this.handleOnline.bind(this);
@@ -82,12 +86,18 @@ class OfflineQueueManager {
      * Ожидает синхронизации блока с сервером
      * Если блок не pending - резолвится сразу
      * @param {string} blockId - ID блока
+     * @param {number} timeout - Таймаут ожидания в мс (по умолчанию 60 сек)
      * @returns {Promise<void>}
      */
-    async waitForBlock(blockId) {
+    async waitForBlock(blockId, timeout = 60000) {
         const pending = this.pendingBlocks.get(blockId);
         if (pending) {
-            await pending;
+            await Promise.race([
+                pending,
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error(`Block sync timeout: ${blockId}`)), timeout)
+                )
+            ]);
         }
     }
 
@@ -103,6 +113,7 @@ class OfflineQueueManager {
             reject = rej;
         });
         this.pendingBlocks.set(blockId, promise);
+        this.pendingBlocksResolvers.set(blockId, { resolve, reject });
         return { resolve, reject };
     }
 
@@ -111,16 +122,28 @@ class OfflineQueueManager {
      * @param {string} blockId - ID блока
      */
     resolvePendingBlock(blockId) {
+        const resolvers = this.pendingBlocksResolvers.get(blockId);
+        if (resolvers) {
+            resolvers.resolve();
+            this.pendingBlocksResolvers.delete(blockId);
+        }
         this.pendingBlocks.delete(blockId);
     }
 
     /**
      * Отменяет ожидание всех pending блоков из списка
+     * Резолвит Promise чтобы ожидающие await не зависли
      * Используется когда блоки были удалены до синхронизации
      * @param {Set<string>} blockIds - ID блоков для отмены
      */
     cancelPendingBlocks(blockIds) {
         for (const blockId of blockIds) {
+            const resolvers = this.pendingBlocksResolvers.get(blockId);
+            if (resolvers) {
+                // Резолвим даже при отмене, чтобы await не зависал
+                resolvers.resolve();
+                this.pendingBlocksResolvers.delete(blockId);
+            }
             this.pendingBlocks.delete(blockId);
         }
     }
@@ -140,6 +163,35 @@ class OfflineQueueManager {
         this.lastPullTimestamp = Date.now();
         this.pullCompleted = true;
         console.log('📥 Pull completed externally, timestamp updated');
+    }
+
+    /**
+     * Возвращает текущее состояние синхронизации для диагностики
+     * @returns {Object} Объект с флагами состояния
+     */
+    getSyncState() {
+        const now = Date.now();
+        return {
+            isOnline: this.isOnline,
+            isSyncing: this.isSyncing,
+            isPulling: this.isPulling,
+            pullCompleted: this.pullCompleted,
+            retryAttempts: this.retryAttempts,
+            hasRetryTimer: this.retryTimer !== null,
+            pendingBlocksCount: this.pendingBlocks.size,
+            lastPullTimestamp: this.lastPullTimestamp,
+            syncStartTimestamp: this.syncStartTimestamp,
+            syncDurationMs: this.syncStartTimestamp > 0 ? now - this.syncStartTimestamp : 0
+        };
+    }
+
+    /**
+     * Логирует текущее состояние синхронизации (для отладки)
+     */
+    logSyncState() {
+        const state = this.getSyncState();
+        console.log('🔍 Sync State:', state);
+        return state;
     }
 
     async init() {
@@ -234,14 +286,38 @@ class OfflineQueueManager {
     /**
      * Обработчик visibilitychange - проверяет очередь при возврате к вкладке
      * Если есть несинхронизированные операции и сеть доступна - запускает синхронизацию
+     * Также восстанавливает застрявшую синхронизацию
      */
     async handleVisibilityChange() {
         if (document.visibilityState !== 'visible') {
             return;
         }
 
-        // Если уже идёт синхронизация или retry, не вмешиваемся
-        if (this.isSyncing || this.isPulling || this.retryTimer) {
+        // Проверяем не застряла ли синхронизация
+        if ((this.isSyncing || this.isPulling) && this.syncStartTimestamp > 0) {
+            const syncDuration = Date.now() - this.syncStartTimestamp;
+            if (syncDuration > this.SYNC_STUCK_TIMEOUT_MS) {
+                console.warn(`⚠️ Sync appears stuck (running for ${Math.round(syncDuration / 1000)}s), resetting state...`);
+                this.isSyncing = false;
+                this.isPulling = false;
+                this.syncStartTimestamp = 0;
+                dispatch('ApiSyncFinished');
+                dispatch('SyncCompleted', {
+                    successCount: 0,
+                    failedCount: 0,
+                    remainingCount: 0,
+                    error: 'Синхронизация была прервана из-за таймаута'
+                });
+                // Продолжаем проверку очереди ниже
+            } else {
+                // Синхронизация идёт, но ещё не застряла
+                console.log(`📱 Tab visible, sync in progress (${Math.round(syncDuration / 1000)}s)`);
+                return;
+            }
+        }
+
+        // Если уже идёт retry, не вмешиваемся
+        if (this.retryTimer) {
             return;
         }
 
@@ -379,6 +455,7 @@ class OfflineQueueManager {
         }
 
         this.isPulling = true;
+        this.syncStartTimestamp = Date.now();
         console.log('🔄 Starting pull phase before push...');
 
         dispatch('SyncStarted', {
@@ -511,31 +588,35 @@ class OfflineQueueManager {
         console.log(`🔄 Scheduling retry #${this.retryAttempts} in ${actualInterval / 1000}s`);
 
         this.retryTimer = setTimeout(async () => {
-            // Не сбрасываем retryTimer до завершения всех async операций
-            // чтобы handleOnline() мог корректно его очистить
+            try {
+                // Проверяем очередь перед retry
+                const queue = await this.getQueue();
+                if (queue.length === 0) {
+                    console.log('✅ Queue empty, no retry needed');
+                    this.retryTimer = null;
+                    this.retryAttempts = 0;
+                    return;
+                }
 
-            // Проверяем очередь перед retry
-            const queue = await this.getQueue();
-            if (queue.length === 0) {
-                console.log('✅ Queue empty, no retry needed');
-                this.retryTimer = null;
-                this.retryAttempts = 0;
-                return;
-            }
+                // Пытаемся сделать реальную проверку сети (fetch на известный URL)
+                const isReallyOnline = await this.checkRealNetworkStatus();
 
-            // Пытаемся сделать реальную проверку сети (fetch на известный URL)
-            const isReallyOnline = await this.checkRealNetworkStatus();
-
-            if (isReallyOnline) {
-                console.log('✅ Network is back, starting sync...');
+                if (isReallyOnline) {
+                    console.log('✅ Network is back, starting sync...');
+                    this.retryTimer = null;
+                    this.retryAttempts = 0; // Сбрасываем счётчик при успешном обнаружении сети
+                    this.isOnline = true;
+                    dispatch('NetworkStatusChange', { online: true });
+                    await this.startPullPhase();
+                } else {
+                    console.log('❌ Network still unavailable');
+                    this.retryTimer = null;
+                    this.scheduleRetry();
+                }
+            } catch (error) {
+                console.error('❌ Error in retry callback:', error);
                 this.retryTimer = null;
-                this.retryAttempts = 0; // Сбрасываем счётчик при успешном обнаружении сети
-                this.isOnline = true;
-                dispatch('NetworkStatusChange', { online: true });
-                await this.startPullPhase();
-            } else {
-                console.log('❌ Network still unavailable');
-                this.retryTimer = null;
+                // При ошибке планируем следующую попытку
                 this.scheduleRetry();
             }
         }, actualInterval);
@@ -828,6 +909,7 @@ class OfflineQueueManager {
             // Очищаем очередь
             await this.saveQueue([]);
             this.isSyncing = false;
+            this.syncStartTimestamp = 0;
 
             // Сбрасываем retry счётчик при успешной синхронизации
             this.retryAttempts = 0;
@@ -844,6 +926,7 @@ class OfflineQueueManager {
         } catch (error) {
             console.error('Batch import failed:', error);
             this.isSyncing = false;
+            this.syncStartTimestamp = 0;
 
             // Сигнализируем об окончании синхронизации (даже при ошибке)
             dispatch('ApiSyncFinished');
