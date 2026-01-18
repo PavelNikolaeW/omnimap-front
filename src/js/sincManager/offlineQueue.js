@@ -56,6 +56,7 @@ class OfflineQueueManager {
         this._handleOffline = this.handleOffline.bind(this);
         this._handleBeforeUnload = this.handleBeforeUnload.bind(this);
         this._handleSWMessage = this.handleSWMessage.bind(this);
+        this._handleVisibilityChange = this.handleVisibilityChange.bind(this);
 
         this.init();
     }
@@ -149,6 +150,9 @@ class OfflineQueueManager {
         // Предупреждение при закрытии страницы с несохранёнными изменениями
         window.addEventListener('beforeunload', this._handleBeforeUnload);
 
+        // Проверка очереди при возврате к вкладке
+        document.addEventListener('visibilitychange', this._handleVisibilityChange);
+
         // Проверяем поддержку Background Sync
         this.backgroundSyncSupported = await this.checkBackgroundSyncSupport();
         if (this.backgroundSyncSupported) {
@@ -228,6 +232,39 @@ class OfflineQueueManager {
     }
 
     /**
+     * Обработчик visibilitychange - проверяет очередь при возврате к вкладке
+     * Если есть несинхронизированные операции и сеть доступна - запускает синхронизацию
+     */
+    async handleVisibilityChange() {
+        if (document.visibilityState !== 'visible') {
+            return;
+        }
+
+        // Если уже идёт синхронизация или retry, не вмешиваемся
+        if (this.isSyncing || this.isPulling || this.retryTimer) {
+            return;
+        }
+
+        // Проверяем есть ли операции в очереди
+        const queue = await this.getQueue();
+        if (queue.length === 0) {
+            return;
+        }
+
+        // Проверяем реальное состояние сети
+        const isReallyOnline = await this.checkRealNetworkStatus();
+        if (!isReallyOnline) {
+            console.log('📱 Tab visible, queue has items, but network unavailable');
+            return;
+        }
+
+        console.log(`📱 Tab visible, found ${queue.length} pending operations, starting sync...`);
+        this.isOnline = true;
+        this.retryAttempts = 0;
+        this.startPullPhase();
+    }
+
+    /**
      * Проверяет поддержку Background Sync API
      */
     async checkBackgroundSyncSupport() {
@@ -276,7 +313,7 @@ class OfflineQueueManager {
     }
 
     handleOnline() {
-        console.log('Network: online');
+        console.log('🌐 Network: online event received');
         this.isOnline = true;
         this.pullCompleted = false;
 
@@ -285,12 +322,17 @@ class OfflineQueueManager {
         if (this.retryTimer) {
             clearTimeout(this.retryTimer);
             this.retryTimer = null;
+            console.log('🌐 Cleared pending retry timer');
         }
 
         dispatch('NetworkStatusChange', { online: true });
-        // Не вызываем processQueue сразу - ждём завершения pull фазы
-        // Pull будет инициирован через WebSocket (SincManager.online)
-        // После получения обновлений вызовется processSyncQueue
+
+        // Логируем состояние очереди
+        this.getQueue().then(queue => {
+            console.log(`🌐 Queue status: ${queue.length} pending operations`);
+        });
+
+        // Запускаем pull-before-push синхронизацию
         this.startPullPhase();
     }
 
@@ -391,7 +433,7 @@ class OfflineQueueManager {
     }
 
     /**
-     * Проверяет, является ли ошибка сетевой
+     * Проверяет, является ли ошибка сетевой или транзиентной (требующей retry)
      * @param {Error} error - Ошибка
      * @returns {boolean}
      */
@@ -401,16 +443,45 @@ class OfflineQueueManager {
         const message = error.message?.toLowerCase() || '';
         const code = error.code || '';
 
+        // Axios: если нет response, это сетевая ошибка (запрос не дошёл до сервера)
+        // Типичные случаи: DNS failure, connection refused, network unreachable
+        if (error.request && !error.response) {
+            return true;
+        }
+
+        // HTTP статус коды (для ошибок от fetch/axios)
+        const status = error.status || error.response?.status;
+        if (status) {
+            // 5xx - серверные ошибки, требуют retry
+            // 408 - Request Timeout
+            // 429 - Too Many Requests
+            // 0 - сетевая ошибка (браузер не смог выполнить запрос)
+            if (status >= 500 || status === 408 || status === 429 || status === 0) {
+                return true;
+            }
+        }
+
         return (
             code === 'ERR_NETWORK' ||
+            code === 'ERR_CANCELED' ||
+            code === 'ECONNABORTED' ||
             code === 'ECONNREFUSED' ||
             code === 'ENOTFOUND' ||
+            code === 'ETIMEDOUT' ||
+            code === 'ECONNRESET' ||
             message.includes('network error') ||
             message.includes('failed to fetch') ||
             message.includes('timed out') ||
             message.includes('timeout') ||
             message.includes('net::') ||
-            message.includes('connection refused')
+            message.includes('connection refused') ||
+            message.includes('502') ||
+            message.includes('503') ||
+            message.includes('504') ||
+            message.includes('bad gateway') ||
+            message.includes('service unavailable') ||
+            message.includes('gateway timeout') ||
+            message.includes('aborted')
         );
     }
 
@@ -795,7 +866,7 @@ class OfflineQueueManager {
 
                 this.scheduleRetry();
             } else {
-                // Не сетевая ошибка - уведомляем и регистрируем Background Sync
+                // Не сетевая ошибка - уведомляем и пробуем Background Sync или fallback retry
                 dispatch('SyncCompleted', {
                     successCount: 0,
                     failedCount: queue.length,
@@ -803,8 +874,13 @@ class OfflineQueueManager {
                     error: error.message
                 });
 
-                // Регистрируем Background Sync для повторной попытки
-                await this.registerBackgroundSync();
+                // Пробуем Background Sync, если не поддерживается - fallback на retry
+                const registered = await this.registerBackgroundSync();
+                if (!registered) {
+                    // Background Sync не поддерживается - используем fallback retry
+                    console.log('⚠️ Background Sync not available, using fallback retry...');
+                    this.scheduleRetry();
+                }
             }
         }
     }
@@ -1044,6 +1120,7 @@ class OfflineQueueManager {
         window.removeEventListener('online', this._handleOnline);
         window.removeEventListener('offline', this._handleOffline);
         window.removeEventListener('beforeunload', this._handleBeforeUnload);
+        document.removeEventListener('visibilitychange', this._handleVisibilityChange);
 
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.removeEventListener('message', this._handleSWMessage);
