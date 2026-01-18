@@ -13,6 +13,7 @@ class WelcomeBanner {
         this._element = null;
         this._isVisible = false;
         this._boundShow = null;
+        this._treeBlocks = null; // Кэш данных о деревьях
     }
 
     /**
@@ -39,11 +40,11 @@ class WelcomeBanner {
     /**
      * Показать баннер
      */
-    show() {
+    async show() {
         if (this._isVisible) return;
         this._isVisible = true;
 
-        this._element = this._createElement();
+        this._element = await this._createElement();
         document.body.appendChild(this._element);
 
         // Добавляем обработчики
@@ -68,11 +69,83 @@ class WelcomeBanner {
     }
 
     /**
-     * Создаёт DOM-элемент баннера
-     * @returns {HTMLElement}
+     * Строит HTML для секции деревьев с правильными хоткеями
+     * @returns {Promise<string>}
      * @private
      */
-    _createElement() {
+    async _buildTreesShortcutsHtml() {
+        try {
+            this._treeBlocks = await treeService.loadTreeBlocks();
+            if (!this._treeBlocks || this._treeBlocks.length === 0) {
+                return '';
+            }
+
+            // Space+1 = первое дерево, Space+2 = второе и т.д.
+            // Показываем максимум первые 9 деревьев (Space+1..9)
+            return this._treeBlocks
+                .slice(0, 9)
+                .map((item, index) => {
+                    const title = item.block?.title || 'Без названия';
+                    const hotkey = `Space+${index + 1}`;
+                    const isTutorial = item.block?.data?.isTutorial;
+                    const label = isTutorial ? `${this._escapeHtml(title)} (обучение)` : this._escapeHtml(title);
+                    return `
+                        <div class="onboarding-welcome__shortcut">
+                            <span>${label}</span>
+                            <kbd>${hotkey}</kbd>
+                        </div>
+                    `;
+                })
+                .join('');
+        } catch (error) {
+            console.warn('[WelcomeBanner] Failed to load trees:', error);
+            return '';
+        }
+    }
+
+    /**
+     * Находит индекс туториального дерева (1-based для хоткея)
+     * @returns {number|null}
+     * @private
+     */
+    _findTutorialTreeIndex() {
+        if (!this._treeBlocks) return null;
+        const index = this._treeBlocks.findIndex(item => item.block?.data?.isTutorial);
+        return index >= 0 ? index + 1 : null; // +1 потому что Space+1 = первый элемент
+    }
+
+    /**
+     * Находит индекс первого не-туториального дерева (1-based для хоткея)
+     * @returns {number|null}
+     * @private
+     */
+    _findMainTreeIndex() {
+        if (!this._treeBlocks) return null;
+        const index = this._treeBlocks.findIndex(item => !item.block?.data?.isTutorial);
+        return index >= 0 ? index + 1 : null;
+    }
+
+    /**
+     * Экранирует HTML-символы в строке
+     * @param {string} text
+     * @returns {string}
+     * @private
+     */
+    _escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    /**
+     * Создаёт DOM-элемент баннера
+     * @returns {Promise<HTMLElement>}
+     * @private
+     */
+    async _createElement() {
+        // Получаем список деревьев для динамической генерации хоткеев
+        const treesHtml = await this._buildTreesShortcutsHtml();
+
         const banner = document.createElement('div');
         banner.className = 'onboarding-welcome';
         banner.innerHTML = `
@@ -103,14 +176,7 @@ class WelcomeBanner {
             </div>
             <div class="onboarding-welcome__shortcuts" style="margin-top: 8px; background: #ecfdf5;">
                 <div class="onboarding-welcome__shortcuts-title">Ваши деревья</div>
-                <div class="onboarding-welcome__shortcut">
-                    <span>Мои заметки</span>
-                    <kbd>Space+0</kbd>
-                </div>
-                <div class="onboarding-welcome__shortcut">
-                    <span>Обучение</span>
-                    <kbd>Space+1</kbd>
-                </div>
+                ${treesHtml}
             </div>
             <div class="onboarding-welcome__actions">
                 <button class="onboarding-welcome__btn onboarding-welcome__btn--primary" data-action="start">
@@ -182,14 +248,28 @@ class WelcomeBanner {
      */
     _handleStart() {
         this.hide();
-        // Переключаемся на туториальное дерево (index 2 = второе дерево)
-        // Для нового пользователя: [userRoot, tutorialRoot], поэтому туториал — index 2 (1-based)
-        treeService.switchTreeByIndex(2);
-        // Показываем подсказку
-        onboardingManager.showHint(
-            'Это обучающее дерево. Изучите разделы и вернитесь в "Мои заметки" (Space+0)',
-            5000
-        );
+
+        // Находим туториальное дерево по флагу isTutorial
+        const tutorialIndex = this._findTutorialTreeIndex();
+        const mainIndex = this._findMainTreeIndex();
+
+        if (tutorialIndex) {
+            // Переключаемся на туториальное дерево
+            treeService.switchTreeByIndex(tutorialIndex);
+
+            // Формируем подсказку с правильным хоткеем для возврата
+            const mainHotkey = mainIndex ? `Space+${mainIndex}` : 'Space+1';
+            onboardingManager.showHint(
+                `Это обучающее дерево. Изучите разделы и вернитесь назад (${mainHotkey})`,
+                5000
+            );
+        } else {
+            // Туториал не найден - просто показываем подсказку
+            onboardingManager.showHint(
+                'Изучите структуру вашего дерева. Используйте N для создания блоков.',
+                5000
+            );
+        }
     }
 
     /**

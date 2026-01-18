@@ -734,7 +734,7 @@ export function getTutorialBlocks() {
 
     const tutorialRootId = generateTreeBlocks(tutorialBlocksWithFlag, blocks);
 
-    // Возвращаем: сначала пользовательское дерево (Space+0), потом туториал (Space+1)
+    // Возвращаем: сначала пользовательское дерево (Space+1), потом туториал (Space+2)
     return {
         treeIds: [userRootId, tutorialRootId],
         blocks
