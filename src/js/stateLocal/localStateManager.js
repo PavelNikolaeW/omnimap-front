@@ -369,6 +369,8 @@ export class LocalStateManager {
     async handleAccessRequestApproved({blockId, permission}) {
         if (!blockId) return;
 
+        const blocksToLoad = [];
+
         // Ищем блок-ссылку с pending статусом на этот блок
         for (const [id, block] of this.blocks) {
             if (block.data?.view === 'link' && block.data?.pending && block.data?.source === blockId) {
@@ -377,11 +379,25 @@ export class LocalStateManager {
                 delete block.data.request_id;
                 await this.saveBlock(block);
                 console.log(`[AccessRequest] Block ${id} approved with permission: ${permission}`);
+
+                // Добавляем source блок в список для загрузки
+                if (!this.blocks.has(blockId)) {
+                    blocksToLoad.push(blockId);
+                }
+            }
+        }
+
+        // Загружаем source блок с сервера если его нет локально
+        if (blocksToLoad.length > 0) {
+            try {
+                await this.loadEmptyBlocks({ emptyBlocks: blocksToLoad });
+            } catch (err) {
+                console.error('[AccessRequest] Failed to load source block:', err);
             }
         }
 
         // Перезагружаем данные с сервера
-        this.showBlocks();
+        dispatch('ShowBlocks');
     }
 
     /**
@@ -2532,22 +2548,61 @@ export class LocalStateManager {
         try {
             const response = await api.pasteLinkBlock(data);
             if (response.status === 201) {
-                const newBlocks = response.data;
-                for (const block of newBlocks) {
-                    // Защита: пропускаем блоки без id
-                    if (!block?.id) {
-                        console.warn('⚠️ pasteLinkBlock: skipping block without id:', block);
-                        continue;
+                const responseData = response.data;
+
+                // Проверяем, это pending запрос на доступ или массив блоков
+                if (responseData && responseData.pending === true) {
+                    // Запрос на доступ отправлен владельцу блока
+                    // Сохраняем parent и link блоки если они есть
+                    if (responseData.parent?.id) {
+                        await this.saveBlock(responseData.parent);
                     }
-                    await this.saveBlock(block);
+                    if (responseData.link?.id) {
+                        await this.saveBlock(responseData.link);
+                    }
+                    dispatch('ShowBlocks');
+                    dispatch('ShowToast', {
+                        message: 'Запрос на доступ отправлен владельцу блока',
+                        type: 'info',
+                        duration: 4000
+                    });
+                    dispatch('PasteBlockLink');
+                } else if (Array.isArray(responseData)) {
+                    // Обычный случай: массив блоков
+                    for (const block of responseData) {
+                        // Защита: пропускаем блоки без id
+                        if (!block?.id) {
+                            console.warn('⚠️ pasteLinkBlock: skipping block without id:', block);
+                            continue;
+                        }
+                        await this.saveBlock(block);
+                    }
+                    dispatch('ShowBlocks');
+                    dispatch('PasteBlockLink');
+                } else {
+                    console.warn('⚠️ pasteLinkBlock: unexpected response format:', responseData);
                 }
-                dispatch('ShowBlocks');
             }
         } catch (err) {
             if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
                 dispatch('ShowError', { message: 'Создание ссылок доступно только в онлайн режиме' });
+            } else if (err.response?.status === 409) {
+                // Повторный запрос при pending
+                dispatch('ShowToast', {
+                    message: 'Запрос на доступ уже отправлен и ожидает ответа',
+                    type: 'warning',
+                    duration: 3000
+                });
+            } else if (err.response?.status === 403) {
+                // Запрос отклонён ранее
+                dispatch('ShowError', {
+                    message: err.response?.data?.detail || 'Доступ к блоку запрещён'
+                });
             } else {
                 console.error(err);
+                dispatch('ShowError', {
+                    message: err.response?.data?.detail || 'Ошибка при создании ссылки'
+                });
             }
         }
     }

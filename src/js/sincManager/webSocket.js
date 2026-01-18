@@ -376,8 +376,10 @@ export class UpdateServiceWebSocket {
                 dispatch('WebSocUpdateBlockAccess', message);
             } else if (message.action === 'access_request') {
                 // Обработка событий запросов на доступ
+                console.log('[WebSocket] Access request event:', message);
                 if (message.type === 'new_request') {
                     // Новый запрос на доступ (для владельца блока)
+                    console.log('[WebSocket] Dispatching AccessRequestNew');
                     dispatch('AccessRequestNew', {
                         requestId: message.request_id,
                         requester: message.requester,
@@ -386,6 +388,7 @@ export class UpdateServiceWebSocket {
                     });
                 } else if (message.type === 'response') {
                     // Ответ на запрос (для запрашивающего)
+                    console.log('[WebSocket] Dispatching AccessRequestResponse, approved:', message.approved);
                     dispatch('AccessRequestResponse', {
                         requestId: message.request_id,
                         approved: message.approved,

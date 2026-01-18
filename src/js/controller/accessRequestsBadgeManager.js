@@ -78,9 +78,11 @@ class AccessRequestsBadgeManager {
      */
     _handleNewRequest(e) {
         const { requester, block } = e.detail;
+        console.log('[AccessRequestsBadgeManager] New request received:', { requester, block });
 
         // Увеличиваем счётчик
         this.requestsCount++;
+        console.log('[AccessRequestsBadgeManager] Count incremented to:', this.requestsCount);
         this.updateBadgeDisplay();
 
         // Показываем toast уведомление
@@ -169,9 +171,12 @@ class AccessRequestsBadgeManager {
      */
     async loadInitialCount() {
         try {
+            console.log('[AccessRequestsBadgeManager] Loading initial count...');
             const response = await api.getAccessRequestsCount();
+            console.log('[AccessRequestsBadgeManager] API response:', response?.data);
             if (response?.data) {
                 this.requestsCount = response.data.count || 0;
+                console.log('[AccessRequestsBadgeManager] Initial count:', this.requestsCount);
                 this.updateBadgeDisplay();
             }
         } catch (error) {
