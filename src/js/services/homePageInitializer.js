@@ -126,14 +126,14 @@ export async function initializeTutorialTree() {
         // Обновляем корневой блок с данными туториала
         const rootData = idMap['__root_data__'];
         if (rootData) {
+            // Используем childOrder из оригинальной структуры, а не пересчитываем
+            // Это сохраняет правильный порядок блоков как в TUTORIAL_STRUCTURE
             dispatch('UpdateDataBlock', {
                 blockId: tutorialRootId,
                 data: {
                     text: rootData.data.text,
                     color: rootData.data.color,
-                    childOrder: blocksForImport
-                        .filter(b => b.parent_id === tutorialRootId)
-                        .map(b => b.id)
+                    childOrder: rootData.data.childOrder || []
                 }
             });
         }
