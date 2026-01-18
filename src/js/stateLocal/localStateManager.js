@@ -2813,8 +2813,11 @@ export class LocalStateManager {
         const block = this.blocks.get(blockId);
         if (!block) return;
 
-        // Проверка прав на редактирование
-        if (!canEdit(block)) {
+        // Получаем родительский блок для проверки sandbox режима
+        const parentBlock = block.parent_id ? this.blocks.get(block.parent_id) : null;
+
+        // Проверка прав на редактирование (с учётом sandbox режима)
+        if (!canEditInSandbox(block, parentBlock, this.currentUser)) {
             dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
             return;
         }
@@ -2846,8 +2849,11 @@ export class LocalStateManager {
         const block = this.blocks.get(blockId);
         if (!block) return;
 
-        // Проверка прав на редактирование
-        if (!canEdit(block)) {
+        // Получаем родительский блок для проверки sandbox режима
+        const parentBlock = block.parent_id ? this.blocks.get(block.parent_id) : null;
+
+        // Проверка прав на редактирование (с учётом sandbox режима)
+        if (!canEditInSandbox(block, parentBlock, this.currentUser)) {
             dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
             return;
         }
@@ -2879,8 +2885,11 @@ export class LocalStateManager {
         const block = this.blocks.get(blockId);
         if (!block) return;
 
-        // Проверка прав на редактирование
-        if (!canEdit(block)) {
+        // Получаем родительский блок для проверки sandbox режима
+        const parentBlock = block.parent_id ? this.blocks.get(block.parent_id) : null;
+
+        // Проверка прав на редактирование (с учётом sandbox режима)
+        if (!canEditInSandbox(block, parentBlock, this.currentUser)) {
             dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
             return;
         }
@@ -2936,8 +2945,11 @@ export class LocalStateManager {
             return;
         }
 
-        // Проверка прав на редактирование
-        if (!canEdit(sourceBlock)) {
+        // Получаем родительский блок для проверки sandbox режима
+        const parentBlock = sourceBlock.parent_id ? this.blocks.get(sourceBlock.parent_id) : null;
+
+        // Проверка прав на редактирование (с учётом sandbox режима)
+        if (!canEditInSandbox(sourceBlock, parentBlock, this.currentUser)) {
             dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
             return;
         }
@@ -3050,8 +3062,11 @@ export class LocalStateManager {
             return;
         }
 
-        // Проверка прав на редактирование
-        if (!canEdit(sourceBlock)) {
+        // Получаем родительский блок для проверки sandbox режима
+        const parentBlock = sourceBlock.parent_id ? this.blocks.get(sourceBlock.parent_id) : null;
+
+        // Проверка прав на редактирование (с учётом sandbox режима)
+        if (!canEditInSandbox(sourceBlock, parentBlock, this.currentUser)) {
             dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
             return;
         }
@@ -3127,8 +3142,11 @@ export class LocalStateManager {
             return;
         }
 
-        // Проверка прав на редактирование
-        if (!canEdit(sourceBlock)) {
+        // Получаем родительский блок для проверки sandbox режима
+        const parentBlock = sourceBlock.parent_id ? this.blocks.get(sourceBlock.parent_id) : null;
+
+        // Проверка прав на редактирование (с учётом sandbox режима)
+        if (!canEditInSandbox(sourceBlock, parentBlock, this.currentUser)) {
             dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
             return;
         }
