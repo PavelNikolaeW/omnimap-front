@@ -15,6 +15,7 @@ import {undoManager} from "../controller/undoManager";
 import {checkAndInitializeOnboarding} from "../services/homePageInitializer";
 import {focusManager} from "../services/focusManager";
 import {blockOperationLock} from "../utils/operationLock";
+import {deduplicateChildOrder} from "../utils/childOrderUtils";
 
 /**
  * Экранирует специальные символы RegExp в строке
@@ -1364,12 +1365,15 @@ export class LocalStateManager {
 
                     // Мёржим data: сервер имеет приоритет
                     // childOrder: используем серверный если он определён (даже пустой []), иначе локальный
+                    // ВАЖНО: дедуплицируем сразу, т.к. сервер может прислать дубликаты
                     const mergedData = {
                         ...localData,
                         ...serverData,
-                        childOrder: Array.isArray(serverData.childOrder)
-                            ? serverData.childOrder
-                            : (localData.childOrder || [])
+                        childOrder: deduplicateChildOrder(
+                            Array.isArray(serverData.childOrder)
+                                ? serverData.childOrder
+                                : (localData.childOrder || [])
+                        )
                     };
 
                     // Проверяем, изменился ли childOrder (для инвалидации grid кэша)
@@ -2011,6 +2015,16 @@ export class LocalStateManager {
                 data: { ...(existingBlock.data || {}), ...(block.data || {}) }
             }
             : block;
+
+        // ВАЖНО: финальная дедупликация childOrder перед сохранением
+        // Это защита от любых источников дубликатов (сервер, баги, race conditions)
+        if (mergedBlock.data?.childOrder?.length > 0) {
+            const uniqueChildOrder = deduplicateChildOrder(mergedBlock.data.childOrder);
+            if (uniqueChildOrder.length !== mergedBlock.data.childOrder.length) {
+                console.warn(`⚠️ Removing ${mergedBlock.data.childOrder.length - uniqueChildOrder.length} duplicate(s) in childOrder for block ${block.id}`);
+                mergedBlock.data.childOrder = uniqueChildOrder;
+            }
+        }
 
         this.blocks.set(block.id, mergedBlock);
         if (this.blockRepository) {
