@@ -724,8 +724,21 @@ export class LocalStateManager {
                 // Обновляем родительский блок данными с сервера
                 if (res.data.parent?.id) {
                     await this.saveBlock(res.data.parent)
-                    dispatch('ShowBlocks');
                 }
+
+                // Восстанавливаем перенесённые блоки - они получат обновление через WebSocket
+                // с новым parent_id (указывающим на блок-ссылку)
+                if (res.data.moved?.length > 0) {
+                    console.log('🔄 Restoring moved blocks:', res.data.moved);
+                    for (const movedId of res.data.moved) {
+                        const movedBlock = deletedBlocks.get(movedId);
+                        if (movedBlock) {
+                            await this.saveBlock(movedBlock);
+                        }
+                    }
+                }
+
+                dispatch('ShowBlocks');
             }
         } catch (error) {
             if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {

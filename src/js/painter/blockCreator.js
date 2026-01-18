@@ -152,6 +152,8 @@ class BlockCreator {
             sourceId,
             pending: block.data.pending,
             rejected: block.data.rejected,
+            source_deleted: block.data.source_deleted,
+            source_deleted_title: block.data.source_deleted_title,
             hasChildrenPositions: !!parentBlock.childrenPositions?.[block.id],
             blockData: JSON.stringify(block.data)
         });
@@ -178,6 +180,25 @@ class BlockCreator {
 
             // Не добавляем source в childOrder - его нельзя отрендерить
             block.data.childOrder = []
+            block.childrenPositions = {}
+            block.grid = grid
+            block.contentEl = null
+            block.color = [...(parentBlock.color || [])]
+            return element
+        }
+
+        // Обработка удалённого источника ссылки
+        if (block.data.source_deleted) {
+            element.setAttribute('data-source-deleted', 'true')
+            this._applyStyles(element, ['block-link', 'block-link--source-deleted', ...grid, ...blockPosition])
+
+            // Создаём баннер об удалённом источнике
+            const banner = this._createSourceDeletedBanner(block)
+            element.appendChild(banner)
+
+            // Используем childOrder от сервера (содержит перенесённых потомков)
+            // Не добавляем source в childOrder - он удалён
+            block.data.childOrder = block.data.childOrder || []
             block.childrenPositions = {}
             block.grid = grid
             block.contentEl = null
@@ -216,6 +237,31 @@ class BlockCreator {
         `
 
         return placeholder
+    }
+
+    /**
+     * Создаёт баннер для ссылки с удалённым источником
+     * @param {Object} block - блок-ссылка с source_deleted статусом
+     * @returns {HTMLElement} - DOM элемент баннера
+     */
+    _createSourceDeletedBanner(block) {
+        const banner = document.createElement('div')
+        banner.className = 'block-link-deleted-banner'
+        banner.setAttribute('data-testid', `deleted-banner-${block.id}`)
+
+        const deletedTitle = this._sanitizeText(block.data.source_deleted_title) || 'Неизвестный блок'
+
+        banner.innerHTML = `
+            <div class="deleted-banner__icon">
+                <i class="fas fa-unlink"></i>
+            </div>
+            <div class="deleted-banner__text">
+                <div class="deleted-banner__title">Ссылка удалена</div>
+                <div class="deleted-banner__description">Блок «${deletedTitle}» был удалён владельцем</div>
+            </div>
+        `
+
+        return banner
     }
 
     createIframe(block, parentBlock) {
