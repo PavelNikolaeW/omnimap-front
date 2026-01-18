@@ -12,11 +12,21 @@ export class TreeNavigation {
         this.element = document.getElementById('tree-navigation');
         this.currentTree = null;
 
+        // Drag and drop state
+        this.isDragging = false;
+        this.draggedButton = null;
+        this.draggedTreeId = null;
+        this.dropIndicator = null;
+
         // Bound handlers for proper cleanup
         this._handleShowedBlocks = this._handleShowedBlocks.bind(this);
         this._handleTreeClick = this._handleTreeClick.bind(this);
         this._handleWebSocketUpdate = this._handleWebSocketUpdate.bind(this);
         this._handleUpdateNavigation = this._handleUpdateNavigation.bind(this);
+        this._handleDragStart = this._handleDragStart.bind(this);
+        this._handleDragOver = this._handleDragOver.bind(this);
+        this._handleDragEnd = this._handleDragEnd.bind(this);
+        this._handleDrop = this._handleDrop.bind(this);
 
         this._init();
     }
@@ -33,6 +43,12 @@ export class TreeNavigation {
 
         // Click handler on container (event delegation)
         this.element.addEventListener('click', this._handleTreeClick);
+
+        // Drag and drop handlers
+        this.element.addEventListener('dragstart', this._handleDragStart);
+        this.element.addEventListener('dragover', this._handleDragOver);
+        this.element.addEventListener('dragend', this._handleDragEnd);
+        this.element.addEventListener('drop', this._handleDrop);
     }
 
     /**
@@ -44,6 +60,14 @@ export class TreeNavigation {
         window.removeEventListener('UpdateTreeNavigation', this._handleUpdateNavigation);
         window.removeEventListener('Login', this._handleUpdateNavigation);
         this.element.removeEventListener('click', this._handleTreeClick);
+
+        // Drag and drop handlers
+        this.element.removeEventListener('dragstart', this._handleDragStart);
+        this.element.removeEventListener('dragover', this._handleDragOver);
+        this.element.removeEventListener('dragend', this._handleDragEnd);
+        this.element.removeEventListener('drop', this._handleDrop);
+
+        this._cleanupDrag();
     }
 
     /**
@@ -135,6 +159,7 @@ export class TreeNavigation {
         button.setAttribute('blockId', treeId);
         button.setAttribute('data-testid', `tree-button-${treeId}`);
         button.id = `treeBtn_${treeId}`;
+        button.draggable = true;
 
         const title = block?.title || 'Без имени';
         button.textContent = truncate(title, 15);
@@ -158,5 +183,148 @@ export class TreeNavigation {
         button.setAttribute('aria-label', 'Создать новое дерево');
         button.setAttribute('data-testid', 'tree-add-button');
         return button;
+    }
+
+    // ==================== Drag and Drop ====================
+
+    /**
+     * Обработчик начала перетаскивания
+     */
+    _handleDragStart(e) {
+        const button = e.target.closest('.tree-button');
+        if (!button) return;
+
+        this.isDragging = true;
+        this.draggedButton = button;
+        this.draggedTreeId = button.dataset.treeId;
+
+        button.classList.add('tree-button-dragging');
+
+        // Установить данные для drag
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', this.draggedTreeId);
+    }
+
+    /**
+     * Обработчик dragover - показывает индикатор drop позиции
+     */
+    _handleDragOver(e) {
+        if (!this.isDragging) return;
+
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+
+        const target = e.target.closest('.tree-button');
+        if (!target || target === this.draggedButton) {
+            this._removeDropIndicator();
+            return;
+        }
+
+        // Определяем позицию вставки (до или после target)
+        const rect = target.getBoundingClientRect();
+        const midPoint = rect.left + rect.width / 2;
+        const insertBefore = e.clientX < midPoint;
+
+        this._showDropIndicator(target, insertBefore);
+    }
+
+    /**
+     * Обработчик drop - выполняет перемещение
+     */
+    async _handleDrop(e) {
+        if (!this.isDragging || !this.draggedTreeId) return;
+
+        e.preventDefault();
+        this._removeDropIndicator();
+
+        const target = e.target.closest('.tree-button');
+        if (!target || target === this.draggedButton) {
+            this._cleanupDrag();
+            return;
+        }
+
+        const targetTreeId = target.dataset.treeId;
+        const treeIds = treeService.treeIds;
+        const targetIndex = treeIds.indexOf(targetTreeId);
+
+        if (targetIndex === -1) {
+            this._cleanupDrag();
+            return;
+        }
+
+        // Определяем позицию вставки
+        const rect = target.getBoundingClientRect();
+        const midPoint = rect.left + rect.width / 2;
+        const insertBefore = e.clientX < midPoint;
+
+        // Вычисляем новый индекс
+        const currentIndex = treeIds.indexOf(this.draggedTreeId);
+        let newIndex = insertBefore ? targetIndex : targetIndex + 1;
+
+        // Корректируем индекс если перемещаем вправо
+        if (currentIndex < newIndex) {
+            newIndex--;
+        }
+
+        // Выполняем перемещение
+        await treeService.moveTree(this.draggedTreeId, newIndex);
+
+        this._cleanupDrag();
+    }
+
+    /**
+     * Обработчик окончания drag
+     */
+    _handleDragEnd() {
+        this._cleanupDrag();
+    }
+
+    /**
+     * Показать индикатор позиции drop
+     */
+    _showDropIndicator(target, insertBefore) {
+        this._removeDropIndicator();
+
+        const indicator = document.createElement('div');
+        indicator.className = 'tree-drop-indicator';
+        this.dropIndicator = indicator;
+
+        const rect = target.getBoundingClientRect();
+        const containerRect = this.element.getBoundingClientRect();
+
+        // Позиционируем индикатор
+        const left = insertBefore
+            ? rect.left - containerRect.left - 2
+            : rect.right - containerRect.left + 2;
+
+        indicator.style.left = `${left}px`;
+        indicator.style.top = `${rect.top - containerRect.top}px`;
+
+        this.element.style.position = 'relative';
+        this.element.appendChild(indicator);
+    }
+
+    /**
+     * Удалить индикатор позиции drop
+     */
+    _removeDropIndicator() {
+        if (this.dropIndicator) {
+            this.dropIndicator.remove();
+            this.dropIndicator = null;
+        }
+    }
+
+    /**
+     * Очистка состояния drag
+     */
+    _cleanupDrag() {
+        if (this.draggedButton) {
+            this.draggedButton.classList.remove('tree-button-dragging');
+        }
+
+        this.isDragging = false;
+        this.draggedButton = null;
+        this.draggedTreeId = null;
+        this._removeDropIndicator();
     }
 }

@@ -138,6 +138,10 @@ button:focus {
     transform: scale(1.3);
 }
 
+.tree-button {
+    cursor: grab;
+}
+
 .tree-button:hover {
     background-color: #0056b3;
     transform: scale(1.1);
@@ -145,6 +149,23 @@ button:focus {
 
 .tree-button:active {
     background-color: #004494;
+    cursor: grabbing;
+}
+
+/* Drag and drop styles */
+.tree-button-dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+}
+
+.tree-drop-indicator {
+    position: absolute;
+    width: 4px;
+    height: 30px;
+    background: linear-gradient(180deg, #3b82f6, #8b5cf6);
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 1000;
 }
 
 .tree-button.selected {

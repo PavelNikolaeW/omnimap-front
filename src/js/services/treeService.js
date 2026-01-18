@@ -278,6 +278,54 @@ class TreeService {
     }
 
     /**
+     * Переупорядочить деревья
+     * @param {Array<string>} newOrder - новый порядок ID деревьев
+     * @returns {Object} - результат операции
+     */
+    async reorderTrees(newOrder) {
+        // Валидация: все ID должны существовать и количество совпадать
+        const currentSet = new Set(this._treeIds);
+        const newSet = new Set(newOrder);
+        if (newOrder.length !== currentSet.size || newSet.size !== newOrder.length) {
+            return { success: false, error: new Error('Invalid tree order') };
+        }
+        for (const id of newOrder) {
+            if (!currentSet.has(id)) {
+                return { success: false, error: new Error(`Invalid tree ID: ${id}`) };
+            }
+        }
+
+        this._treeIds = [...newOrder];
+        await localforage.setItem(`treeIds${this._currentUser}`, this._treeIds);
+        dispatch('UpdateTreeNavigation');
+        return { success: true };
+    }
+
+    /**
+     * Переместить дерево на новую позицию
+     * @param {string} treeId - ID дерева для перемещения
+     * @param {number} newIndex - новый индекс (0-based)
+     * @returns {Object} - результат операции
+     */
+    async moveTree(treeId, newIndex) {
+        const currentIndex = this._treeIds.indexOf(treeId);
+        if (currentIndex === -1) {
+            return { success: false, error: new Error('Tree not found') };
+        }
+        if (newIndex < 0 || newIndex >= this._treeIds.length) {
+            return { success: false, error: new Error('Invalid index') };
+        }
+        if (currentIndex === newIndex) {
+            return { success: true };
+        }
+
+        const newOrder = [...this._treeIds];
+        newOrder.splice(currentIndex, 1);
+        newOrder.splice(newIndex, 0, treeId);
+        return this.reorderTrees(newOrder);
+    }
+
+    /**
      * Загрузить данные блоков для всех деревьев
      * @returns {Promise<Array<{treeId, block}>>}
      */
