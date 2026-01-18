@@ -67,12 +67,17 @@ class BlockRepository {
      * @param {string} blockId - ID блока
      * @param {string} field - Имя поля
      * @param {any} value - Новое значение
+     * @param {boolean} [deepMerge=false] - Deep merge для объектов (используется для data)
      */
-    async updateBlockField(blockId, field, value) {
+    async updateBlockField(blockId, field, value, deepMerge = false) {
         const key = this.getKey(blockId);
         const blockData = await localforage.getItem(key);
         if (blockData) {
-            blockData[field] = value;
+            if (deepMerge && typeof blockData[field] === 'object' && typeof value === 'object') {
+                blockData[field] = { ...(blockData[field] || {}), ...(value || {}) };
+            } else {
+                blockData[field] = value;
+            }
             await localforage.setItem(key, blockData);
         }
     }
@@ -200,10 +205,15 @@ export class LocalStateManager {
                 // Обновляем in-memory блок
                 const block = this.blocks.get(blockId);
                 if (block) {
-                    block[field] = value;
+                    // Deep merge для data чтобы не потерять изменения от других операций
+                    if (field === 'data') {
+                        block[field] = { ...(block[field] || {}), ...(value || {}) };
+                    } else {
+                        block[field] = value;
+                    }
                 }
-                // Сохраняем в IndexedDB асинхронно
-                this.blockRepository.updateBlockField(blockId, field, value);
+                // Сохраняем в IndexedDB асинхронно (updateBlockField уже мёржит data)
+                this.blockRepository.updateBlockField(blockId, field, value, field === 'data');
             }
         });
 
