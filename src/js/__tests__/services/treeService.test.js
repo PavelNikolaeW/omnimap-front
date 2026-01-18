@@ -351,4 +351,95 @@ describe('TreeService', () => {
             expect(treeService._initialized).toBe(false);
         });
     });
+
+    describe('reorderTrees', () => {
+        beforeEach(async () => {
+            mockStorage['currentUser'] = 'user1';
+            mockStorage['treeIdsuser1'] = ['tree1', 'tree2', 'tree3'];
+            mockStorage['currentTree'] = 'tree1';
+            await treeService.initialize();
+        });
+
+        it('should successfully reorder trees', async () => {
+            const result = await treeService.reorderTrees(['tree3', 'tree1', 'tree2']);
+
+            expect(result.success).toBe(true);
+            expect(treeService.treeIds).toEqual(['tree3', 'tree1', 'tree2']);
+            expect(localforage.setItem).toHaveBeenCalledWith('treeIdsuser1', ['tree3', 'tree1', 'tree2']);
+            expect(dispatch).toHaveBeenCalledWith('UpdateTreeNavigation');
+        });
+
+        it('should fail when count does not match', async () => {
+            const result = await treeService.reorderTrees(['tree1', 'tree2']);
+
+            expect(result.success).toBe(false);
+            expect(result.error.message).toBe('Invalid tree order');
+        });
+
+        it('should fail when invalid tree ID provided', async () => {
+            const result = await treeService.reorderTrees(['tree1', 'tree2', 'invalid']);
+
+            expect(result.success).toBe(false);
+            expect(result.error.message).toBe('Invalid tree ID: invalid');
+        });
+
+        it('should fail with duplicate IDs', async () => {
+            const result = await treeService.reorderTrees(['tree1', 'tree1', 'tree2']);
+
+            expect(result.success).toBe(false);
+            expect(result.error.message).toBe('Invalid tree order');
+        });
+    });
+
+    describe('moveTree', () => {
+        beforeEach(async () => {
+            mockStorage['currentUser'] = 'user1';
+            mockStorage['treeIdsuser1'] = ['tree1', 'tree2', 'tree3'];
+            mockStorage['currentTree'] = 'tree1';
+            await treeService.initialize();
+        });
+
+        it('should move tree forward', async () => {
+            const result = await treeService.moveTree('tree1', 2);
+
+            expect(result.success).toBe(true);
+            expect(treeService.treeIds).toEqual(['tree2', 'tree3', 'tree1']);
+        });
+
+        it('should move tree backward', async () => {
+            const result = await treeService.moveTree('tree3', 0);
+
+            expect(result.success).toBe(true);
+            expect(treeService.treeIds).toEqual(['tree3', 'tree1', 'tree2']);
+        });
+
+        it('should do nothing when position unchanged', async () => {
+            const result = await treeService.moveTree('tree2', 1);
+
+            expect(result.success).toBe(true);
+            expect(treeService.treeIds).toEqual(['tree1', 'tree2', 'tree3']);
+            expect(dispatch).not.toHaveBeenCalled();
+        });
+
+        it('should fail for non-existent tree', async () => {
+            const result = await treeService.moveTree('nonexistent', 0);
+
+            expect(result.success).toBe(false);
+            expect(result.error.message).toBe('Tree not found');
+        });
+
+        it('should fail for negative index', async () => {
+            const result = await treeService.moveTree('tree1', -1);
+
+            expect(result.success).toBe(false);
+            expect(result.error.message).toBe('Invalid index');
+        });
+
+        it('should fail for out of range index', async () => {
+            const result = await treeService.moveTree('tree1', 10);
+
+            expect(result.success).toBe(false);
+            expect(result.error.message).toBe('Invalid index');
+        });
+    });
 });
