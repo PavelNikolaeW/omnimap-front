@@ -1167,14 +1167,6 @@ export class LocalStateManager {
     async webSocUpdateBlock(newBlocks) {
         if (!Array.isArray(newBlocks) || newBlocks.length === 0) return;
 
-        // DEBUG: отладка проблемы с deleted shared блоком
-        console.log('📥 webSocUpdateBlock received:', newBlocks.map(b => ({
-            id: b.id,
-            deleted: b.deleted,
-            view: b.data?.view || this._safeJsonParse(b.data, {})?.view,
-            title: b.title?.substring(0, 30)
-        })));
-
         const processedBlocks = [];
 
         for (const block of newBlocks) {
@@ -1278,20 +1270,6 @@ export class LocalStateManager {
                     const serverData = this._safeJsonParse(block.data, {});
                     const serverChildren = this._safeJsonParse(block.children, []);
 
-                    // DEBUG: логируем данные WebSocket обновления для sandbox
-                    if (block.sandbox_mode || localBlock?.sandbox_mode) {
-                        console.log('🔄 webSocUpdateBlock sandbox block:', {
-                            id: block.id,
-                            title: block.title?.substring(0, 20),
-                            'server.permission': block.permission,
-                            'server.sandbox_mode': block.sandbox_mode,
-                            'server.creator_id': block.creator_id,
-                            'local.permission': localBlock?.permission,
-                            'local.sandbox_mode': localBlock?.sandbox_mode,
-                            'serverChildren': serverChildren
-                        });
-                    }
-
                     // Определяем permission: явный с сервера (кроме null) > кэш > наследование от родителя
                     // ВАЖНО: WebSocket может присылать permission: null даже для не-владельцев,
                     // поэтому null не должен перезаписывать существующий permission из кэша
@@ -1306,11 +1284,6 @@ export class LocalStateManager {
                         // Новый блок без permission — наследуем от родителя
                         const parentBlock = this.blocks.get(normalizeParentId(block.parent_id));
                         blockPermission = parentBlock?.permission || null;
-                    }
-
-                    // DEBUG: итоговый permission
-                    if (block.sandbox_mode || localBlock?.sandbox_mode) {
-                        console.log('🔄 webSocUpdateBlock result permission:', blockPermission);
                     }
 
                     // Если блок pending — проверяем, наше ли это изменение или чужое
@@ -2245,14 +2218,6 @@ export class LocalStateManager {
 
             if (res.status === 200 && res.data) {
                 const blocks = Object.values(res.data)
-                // DEBUG: логируем что пришло с сервера по ссылке
-                console.log('🔗 initShowLink blocks from server:', blocks.map(b => ({
-                    id: b.id,
-                    title: b.title?.substring(0, 20),
-                    permission: b.permission,
-                    sandbox_mode: b.sandbox_mode,
-                    creator_id: b.creator_id
-                })));
                 const block = blocks[0]
                 const color = block.data?.color && block.data.color !== 'default_color' ? block.data.color : [];
                 await localforage.setItem(`linkSlugTreeId${user}:${linkSlug}`, block.id)

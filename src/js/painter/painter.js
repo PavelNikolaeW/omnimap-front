@@ -105,18 +105,22 @@ export class Painter {
                 fragments.set(parentElement, render_fragment);
             }
 
-            const element = blockCreator.createElement(block, parentBlock, screen, depth);
+            // Фильтруем детей ДО создания элемента, чтобы grid рассчитывался только для видимых
+            const childOrder = block.data.childOrder || [];
+            const visibleChildren = filterChildrenForPrivateSandbox(
+                childOrder,
+                blocks,
+                block,
+                currentUserId
+            );
+
+            const element = blockCreator.createElement(block, parentBlock, screen, depth, {
+                currentUserId,
+                blocks,
+                visibleChildren
+            });
             render_fragment.appendChild(element);
             if (element) {
-                // Фильтруем детей для private sandbox
-                const childOrder = block.data.childOrder || [];
-                const visibleChildren = filterChildrenForPrivateSandbox(
-                    childOrder,
-                    blocks,
-                    block,
-                    currentUserId
-                );
-
                 visibleChildren.forEach(childId => {
                     queue.enqueue({
                         block: blocks.getBlockOrEmpty(childId),

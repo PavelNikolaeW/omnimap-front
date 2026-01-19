@@ -41,8 +41,23 @@ class BlockCreator {
         return this._cachedToday
     }
 
-    createElement(block, parentBlock, screen, depth) {
+    createElement(block, parentBlock, screen, depth, renderContext = {}) {
+        // Сохраняем контекст рендера для использования в _setBlockGrid
+        // visibleChildren - отфильтрованный список детей для private sandbox
+        if (renderContext.visibleChildren) {
+            block._renderVisibleChildren = renderContext.visibleChildren;
+        }
+
         const element = this._createElement(block, parentBlock, screen, depth)
+
+        // Восстанавливаем оригинальный childOrder после рендера (если был подменён)
+        if (block._originalChildOrder !== undefined) {
+            block.data.childOrder = block._originalChildOrder;
+            delete block._originalChildOrder;
+        }
+
+        // Очищаем временные данные рендера
+        delete block._renderVisibleChildren;
 
         if (block.data?.connections) this.arrows.add({connections: block.data?.connections, layout: block.size.layout})
         return element
@@ -153,18 +168,6 @@ class BlockCreator {
         const element = document.createElement('div');
         const grid = ["grid-template-columns_1fr", "grid-template-rows_1fr"]
         const sourceId = block.data.source
-
-        // DEBUG: отладка проблемы с deleted shared блоком
-        console.log('🔗 createLink:', {
-            blockId: block.id,
-            sourceId,
-            pending: block.data.pending,
-            rejected: block.data.rejected,
-            source_deleted: block.data.source_deleted,
-            source_deleted_title: block.data.source_deleted_title,
-            hasChildrenPositions: !!parentBlock.childrenPositions?.[block.id],
-            blockData: JSON.stringify(block.data)
-        });
 
         gridClassManager.calcBlockSize(block, parentBlock)
 
@@ -629,6 +632,21 @@ class BlockCreator {
             }
         }
 
+        // Для private sandbox используем отфильтрованный список детей
+        // _renderVisibleChildren устанавливается в createElement() и содержит только видимых детей
+        const isPrivateSandbox = block.sandbox_mode === 'private';
+        const visibleChildren = block._renderVisibleChildren;
+
+        // Если это private sandbox и есть отфильтрованный список - используем его для grid
+        if (isPrivateSandbox && visibleChildren) {
+            // Сохраняем оригинальный childOrder для восстановления в createElement
+            block._originalChildOrder = block.data?.childOrder;
+            block.data.childOrder = visibleChildren;
+            // Для private sandbox отключаем кэш grid (разные пользователи видят разное)
+            delete block.childrenPositions;
+            delete block.grid;
+        }
+
         // Проверяем актуальность кэша childrenPositions
         // Если количество позиций не совпадает с childOrder — кэш устарел
         const expectedChildCount = block.data?.childOrder?.length || 0;
@@ -669,6 +687,7 @@ class BlockCreator {
             block.childrenPositions = childrenPositions
             block.contentPosition = contentPosition
         }
+        // Восстановление childOrder происходит в createElement после завершения рендера
     }
 }
 
