@@ -108,28 +108,32 @@ export class TreeValidator {
         const children = block.children || [];
         const childOrder = block.data?.childOrder || [];
 
-        // childOrder содержит блоки, которых нет в children
-        const extraInOrder = childOrder.filter(id => !children.includes(id));
-        if (extraInOrder.length > 0) {
-            this.issues.push({
-                type: 'CHILDORDER_EXTRA',
-                severity: 'error',
-                blockId: block.id,
-                extraIds: extraInOrder,
-                message: `В childOrder блока ${block.id} есть блоки, отсутствующие в children: ${extraInOrder.join(', ')}`
-            });
-        }
+        // Пропускаем проверку синхронизации для блоков-ссылок: их childOrder содержит sourceId,
+        // который НЕ входит в children (source - не child, а ссылка на внешний блок)
+        if (block.data?.view !== 'link') {
+            // childOrder содержит блоки, которых нет в children
+            const extraInOrder = childOrder.filter(id => !children.includes(id));
+            if (extraInOrder.length > 0) {
+                this.issues.push({
+                    type: 'CHILDORDER_EXTRA',
+                    severity: 'error',
+                    blockId: block.id,
+                    extraIds: extraInOrder,
+                    message: `В childOrder блока ${block.id} есть блоки, отсутствующие в children: ${extraInOrder.join(', ')}`
+                });
+            }
 
-        // children содержит блоки, которых нет в childOrder
-        const missingInOrder = children.filter(id => !childOrder.includes(id));
-        if (missingInOrder.length > 0) {
-            this.issues.push({
-                type: 'CHILDORDER_MISSING',
-                severity: 'warning',
-                blockId: block.id,
-                missingIds: missingInOrder,
-                message: `В children блока ${block.id} есть блоки, отсутствующие в childOrder: ${missingInOrder.join(', ')}`
-            });
+            // children содержит блоки, которых нет в childOrder
+            const missingInOrder = children.filter(id => !childOrder.includes(id));
+            if (missingInOrder.length > 0) {
+                this.issues.push({
+                    type: 'CHILDORDER_MISSING',
+                    severity: 'warning',
+                    blockId: block.id,
+                    missingIds: missingInOrder,
+                    message: `В children блока ${block.id} есть блоки, отсутствующие в childOrder: ${missingInOrder.join(', ')}`
+                });
+            }
         }
 
         // 4. Проверка на дубликаты

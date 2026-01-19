@@ -513,7 +513,9 @@ export class LocalStateManager {
                     };
 
                     // Синхронизируем childOrder с children
-                    if (mergedBlock.children && mergedBlock.data.childOrder) {
+                    // НЕ применяем для блоков-ссылок: их childOrder содержит sourceId,
+                    // который НЕ входит в children (source - не child, а ссылка)
+                    if (mergedBlock.children && mergedBlock.data.childOrder && mergedBlock.data?.view !== 'link') {
                         // childOrder должен содержать только те ID, которые есть в children
                         mergedBlock.data.childOrder = mergedBlock.data.childOrder
                             .filter(id => mergedBlock.children.includes(id));
@@ -2015,6 +2017,16 @@ export class LocalStateManager {
                 data: { ...(existingBlock.data || {}), ...(block.data || {}) }
             }
             : block;
+
+        // Для блоков-ссылок: childOrder должен содержать sourceId
+        // Сервер может не присылать childOrder, но для рендеринга он необходим
+        if (mergedBlock.data?.view === 'link' && mergedBlock.data?.source) {
+            const sourceId = mergedBlock.data.source;
+            // Не pending и не удалённый источник - устанавливаем childOrder = [sourceId]
+            if (!mergedBlock.data.pending && !mergedBlock.data.source_deleted) {
+                mergedBlock.data.childOrder = [sourceId];
+            }
+        }
 
         // ВАЖНО: финальная дедупликация childOrder перед сохранением
         // Это защита от любых источников дубликатов (сервер, баги, race conditions)
