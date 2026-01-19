@@ -121,7 +121,13 @@ export class Painter {
             });
             render_fragment.appendChild(element);
             if (element) {
-                visibleChildren.forEach(childId => {
+                // Для link blocks childOrder устанавливается внутри createLink(),
+                // поэтому нужно использовать обновлённый childOrder после создания элемента
+                const childrenToRender = block.data?.view === 'link'
+                    ? filterChildrenForPrivateSandbox(block.data.childOrder || [], blocks, block, currentUserId)
+                    : visibleChildren;
+
+                childrenToRender.forEach(childId => {
                     queue.enqueue({
                         block: blocks.getBlockOrEmpty(childId),
                         depth: depth + 1,
