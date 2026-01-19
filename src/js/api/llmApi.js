@@ -138,7 +138,29 @@ class LlmApi {
      * @returns {Promise<Object>} - Финальный результат { content, promptTokens, completionTokens }
      */
     async sendMessageStream(dialogId, content, onChunk, signal) {
+        return this.sendMessageStreamWithContext(dialogId, content, null, false, onChunk, signal);
+    }
+
+    /**
+     * Отправить сообщение с контекстом графа и получить ответ через SSE streaming
+     * @param {string} dialogId - ID диалога
+     * @param {string} content - Текст сообщения
+     * @param {Object|null} graphContext - Контекст графа (snapshot v2)
+     * @param {boolean} requestGraphPatch - Запросить патч графа в ответе
+     * @param {Function} onChunk - Callback для каждого чанка ответа
+     * @param {AbortSignal} signal - Signal для отмены запроса
+     * @returns {Promise<Object>} - Финальный результат { content, promptTokens, completionTokens, graphPatch }
+     */
+    async sendMessageStreamWithContext(dialogId, content, graphContext, requestGraphPatch, onChunk, signal) {
         const url = `${this.baseUrl}/api/v1/dialogs/${dialogId}/messages`;
+
+        const body = { content };
+        if (graphContext) {
+            body.graph_context = graphContext;
+        }
+        if (requestGraphPatch) {
+            body.request_graph_patch = true;
+        }
 
         const response = await fetch(url, {
             method: 'POST',
@@ -147,7 +169,7 @@ class LlmApi {
                 'Accept': 'text/event-stream',
                 'Authorization': `Bearer ${this.getAuthToken()}`
             },
-            body: JSON.stringify({ content }),
+            body: JSON.stringify(body),
             signal
         });
 
@@ -162,6 +184,7 @@ class LlmApi {
         let buffer = '';
         let promptTokens = 0;
         let completionTokens = 0;
+        let graphPatch = null;
 
         while (true) {
             const { done, value } = await reader.read();
@@ -188,6 +211,10 @@ class LlmApi {
                         if (parsed.done) {
                             promptTokens = parsed.prompt_tokens || 0;
                             completionTokens = parsed.completion_tokens || 0;
+                            // Извлекаем патч если он есть в финальном чанке
+                            if (parsed.graph_patch) {
+                                graphPatch = parsed.graph_patch;
+                            }
                         }
                     } catch {
                         // Skip non-JSON lines
@@ -196,11 +223,70 @@ class LlmApi {
             }
         }
 
+        // Попытка извлечь патч из текста ответа если не пришёл в метаданных
+        if (!graphPatch && requestGraphPatch) {
+            graphPatch = this.extractPatchFromContent(accumulatedContent);
+        }
+
         return {
             content: accumulatedContent,
             promptTokens,
-            completionTokens
+            completionTokens,
+            graphPatch
         };
+    }
+
+    /**
+     * Извлечь патч графа из текста ответа LLM
+     * Ищет JSON блок с маркером "v": 2 (patch version)
+     * @param {string} content - Текст ответа
+     * @returns {Object|null} - Патч или null
+     */
+    extractPatchFromContent(content) {
+        if (!content) return null;
+
+        // Ищем JSON блоки в коде (```json ... ```)
+        const jsonBlockRegex = /```(?:json)?\s*(\{[\s\S]*?"v"\s*:\s*2[\s\S]*?\})\s*```/g;
+        let match;
+
+        while ((match = jsonBlockRegex.exec(content)) !== null) {
+            try {
+                const parsed = JSON.parse(match[1]);
+                // Проверяем что это валидный патч (v: 2 и хотя бы одна операция)
+                if (parsed.v === 2 && (
+                    parsed.create?.length ||
+                    parsed.edit?.length ||
+                    parsed.move?.length ||
+                    parsed.link_add?.length ||
+                    parsed.link_del?.length
+                )) {
+                    return parsed;
+                }
+            } catch {
+                // Не удалось распарсить, продолжаем поиск
+            }
+        }
+
+        // Fallback: ищем JSON без markdown блоков
+        const plainJsonRegex = /\{[\s\S]*?"v"\s*:\s*2[\s\S]*?\}/g;
+        while ((match = plainJsonRegex.exec(content)) !== null) {
+            try {
+                const parsed = JSON.parse(match[0]);
+                if (parsed.v === 2 && (
+                    parsed.create?.length ||
+                    parsed.edit?.length ||
+                    parsed.move?.length ||
+                    parsed.link_add?.length ||
+                    parsed.link_del?.length
+                )) {
+                    return parsed;
+                }
+            } catch {
+                // Не удалось распарсить
+            }
+        }
+
+        return null;
     }
 
     // =====================================================
