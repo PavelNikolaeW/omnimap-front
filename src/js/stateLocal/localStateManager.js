@@ -2224,6 +2224,14 @@ export class LocalStateManager {
 
             if (res.status === 200 && res.data) {
                 const blocks = Object.values(res.data)
+                // DEBUG: логируем что пришло с сервера по ссылке
+                console.log('🔗 initShowLink blocks from server:', blocks.map(b => ({
+                    id: b.id,
+                    title: b.title?.substring(0, 20),
+                    permission: b.permission,
+                    sandbox_mode: b.sandbox_mode,
+                    creator_id: b.creator_id
+                })));
                 const block = blocks[0]
                 const color = block.data?.color && block.data.color !== 'default_color' ? block.data.color : [];
                 await localforage.setItem(`linkSlugTreeId${user}:${linkSlug}`, block.id)
