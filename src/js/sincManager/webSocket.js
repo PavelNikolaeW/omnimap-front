@@ -377,13 +377,11 @@ export class UpdateServiceWebSocket {
 
             if (message.type === 'block_updates') {
                 // Ответ на get_updates запрос: { type: 'block_updates', updates: [...] }
-                console.log(`[WS] block_updates received: ${message.updates?.length} blocks`);
                 if (Array.isArray(message.updates)) {
                     dispatch('WebSocUpdateBlock', message.updates);
                 }
             } else if (message.type === 'block_updates_batch') {
                 // Батч обновлений от сервера: { type: 'block_updates_batch', updates: [{type: 'block_update', data: ...}, ...] }
-                console.log(`[WS] block_updates_batch received: ${message.updates?.length} updates`);
                 if (Array.isArray(message.updates)) {
                     const blocks = message.updates
                         .filter(u => u.data && typeof u.data === 'object')
@@ -395,7 +393,6 @@ export class UpdateServiceWebSocket {
             } else if (message.type === 'block_update') {
                 // Одиночное обновление: { type: 'block_update', data: {...} }
                 // Используем debounce для накопления нескольких одиночных обновлений
-                console.log(`[WS] block_update received: ${message.data?.id}`);
                 if (message.data && typeof message.data === 'object') {
                     this._queueBlockUpdates([message.data]);
                 }
