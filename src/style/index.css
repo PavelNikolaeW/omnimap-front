@@ -861,8 +861,9 @@ button:focus {
     position: relative;
 }
 
-/* Open sandbox - users icon (top-right) */
-[data-sandbox-mode="open"]::before {
+/* Open sandbox - users icon (top-right)
+   Показывается только на корневом блоке sandbox, видят все участники */
+[data-sandbox-mode="open"][data-sandbox-root="true"]::before {
     content: '';
     position: absolute;
     top: 4px;
@@ -877,8 +878,9 @@ button:focus {
     opacity: 0.7;
 }
 
-/* Private sandbox - lock icon (top-right) */
-[data-sandbox-mode="private"]::before {
+/* Private sandbox - lock icon (top-right)
+   Показывается только на корневом блоке sandbox, видит только владелец */
+[data-sandbox-mode="private"][data-sandbox-root="true"]::before {
     content: '';
     position: absolute;
     top: 4px;
@@ -893,22 +895,22 @@ button:focus {
     opacity: 0.7;
 }
 
-/* Смещаем ::after индикаторы когда есть sandbox-mode (чтобы не накладывались) */
-[data-sandbox-mode][data-permission="forbidden"]::after,
-[data-sandbox-mode][data-permission="view-only"]::after,
-[data-sandbox-mode][data-permission="sandbox-readonly"]::after {
+/* Смещаем ::after индикаторы когда есть видимая иконка sandbox (чтобы не накладывались) */
+[data-sandbox-root="true"][data-permission="forbidden"]::after,
+[data-sandbox-root="true"][data-permission="view-only"]::after,
+[data-sandbox-root="true"][data-permission="sandbox-readonly"]::after {
     top: 26px;
 }
 
-/* Смещаем layout-indicator когда есть sandbox-mode */
-[data-sandbox-mode] .layout-indicator {
+/* Смещаем layout-indicator когда есть видимая иконка sandbox */
+[data-sandbox-root="true"] .layout-indicator {
     top: 26px;
 }
 
-/* Смещаем layout-indicator ещё ниже когда есть и sandbox-mode и permission */
-[data-sandbox-mode][data-permission="forbidden"] .layout-indicator,
-[data-sandbox-mode][data-permission="view-only"] .layout-indicator,
-[data-sandbox-mode][data-permission="sandbox-readonly"] .layout-indicator {
+/* Смещаем layout-indicator ещё ниже когда есть и sandbox иконка и permission */
+[data-sandbox-root="true"][data-permission="forbidden"] .layout-indicator,
+[data-sandbox-root="true"][data-permission="view-only"] .layout-indicator,
+[data-sandbox-root="true"][data-permission="sandbox-readonly"] .layout-indicator {
     top: 48px;
 }
 

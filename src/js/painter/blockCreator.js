@@ -5,7 +5,7 @@ import {auth} from './views/auth'
 import {registration} from './views/registration'
 import {styleConfig} from "./styles";
 import {offlineQueue} from "../sincManager/offlineQueue";
-import {isForbidden, isViewOnly, getPermissionDataAttribute, isInSandbox, isBlockOwner, getSandboxPermissionAttribute} from "../utils/permissionUtils";
+import {isForbidden, isViewOnly, getPermissionDataAttribute, isInSandbox, isBlockOwner, getSandboxPermissionAttribute, isContainerOwner} from "../utils/permissionUtils";
 import {authStateManager} from "../auth/authStateManager";
 import {dispatch} from "../utils/utils";
 import {deduplicateChildOrder} from "../utils/childOrderUtils";
@@ -123,7 +123,7 @@ class BlockCreator {
             this._applyPermissionIndicator(element, block, parentBlock)
 
             // Применить индикатор sandbox режима для контейнера
-            this._applySandboxContainerIndicator(element, block)
+            this._applySandboxContainerIndicator(element, block, parentBlock)
 
             // Делаем блок draggable для HTML5 drag-and-drop
             // Исключаем только layoutCells (календарь, kanban) - там свой механизм
@@ -520,16 +520,41 @@ class BlockCreator {
 
     /**
      * Применяет индикатор sandbox режима для контейнера
+     * Иконка sandbox показывается только на верхнем уровне (корневом блоке sandbox):
+     * - Open sandbox: иконку видят все участники
+     * - Private sandbox: иконку видит только владелец контейнера
      * @param {HTMLElement} element - DOM элемент блока
      * @param {Object} block - данные блока
+     * @param {Object} parentBlock - родительский блок
      */
-    _applySandboxContainerIndicator(element, block) {
+    _applySandboxContainerIndicator(element, block, parentBlock) {
         if (!element || !block) return
 
         if (block.sandbox_mode) {
             element.setAttribute('data-sandbox-mode', block.sandbox_mode);
+
+            // Блок является корневым sandbox если у него есть sandbox_mode,
+            // а у родителя нет (иначе sandbox_mode был бы унаследован)
+            const isRootSandbox = !parentBlock?.sandbox_mode
+
+            if (isRootSandbox) {
+                // Для private sandbox показываем иконку только владельцу
+                if (block.sandbox_mode === 'private') {
+                    if (isContainerOwner(block)) {
+                        element.setAttribute('data-sandbox-root', 'true');
+                    } else {
+                        element.removeAttribute('data-sandbox-root');
+                    }
+                } else {
+                    // Для open sandbox показываем иконку всем
+                    element.setAttribute('data-sandbox-root', 'true');
+                }
+            } else {
+                element.removeAttribute('data-sandbox-root');
+            }
         } else {
             element.removeAttribute('data-sandbox-mode');
+            element.removeAttribute('data-sandbox-root');
         }
     }
 
