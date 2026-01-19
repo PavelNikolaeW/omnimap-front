@@ -1278,6 +1278,20 @@ export class LocalStateManager {
                     const serverData = this._safeJsonParse(block.data, {});
                     const serverChildren = this._safeJsonParse(block.children, []);
 
+                    // DEBUG: логируем данные WebSocket обновления для sandbox
+                    if (block.sandbox_mode || localBlock?.sandbox_mode) {
+                        console.log('🔄 webSocUpdateBlock sandbox block:', {
+                            id: block.id,
+                            title: block.title?.substring(0, 20),
+                            'server.permission': block.permission,
+                            'server.sandbox_mode': block.sandbox_mode,
+                            'server.creator_id': block.creator_id,
+                            'local.permission': localBlock?.permission,
+                            'local.sandbox_mode': localBlock?.sandbox_mode,
+                            'serverChildren': serverChildren
+                        });
+                    }
+
                     // Определяем permission: явный с сервера > кэш > наследование от родителя
                     let blockPermission;
                     if (block.permission !== undefined) {
@@ -1290,6 +1304,11 @@ export class LocalStateManager {
                         // Новый блок без permission — наследуем от родителя
                         const parentBlock = this.blocks.get(normalizeParentId(block.parent_id));
                         blockPermission = parentBlock?.permission || null;
+                    }
+
+                    // DEBUG: итоговый permission
+                    if (block.sandbox_mode || localBlock?.sandbox_mode) {
+                        console.log('🔄 webSocUpdateBlock result permission:', blockPermission);
                     }
 
                     // Если блок pending — проверяем, наше ли это изменение или чужое
