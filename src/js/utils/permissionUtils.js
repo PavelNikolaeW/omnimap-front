@@ -286,14 +286,33 @@ export function filterChildrenForPrivateSandbox(childIds, blocks, parentBlock, c
         return childIds;
     }
 
+    // DEBUG: логируем данные для отладки private sandbox
+    console.log('🔒 filterChildrenForPrivateSandbox:', {
+        parentId: parentBlock.id,
+        sandbox_mode: parentBlock.sandbox_mode,
+        parentPermission: parentBlock.permission,
+        currentUserId,
+        childIds,
+        isContainerOwner: isContainerOwner(parentBlock)
+    });
+
     // Владелец контейнера видит все блоки
     if (isContainerOwner(parentBlock)) {
         return childIds;
     }
 
     // Фильтруем только видимые блоки для private sandbox
-    return childIds.filter(childId => {
+    const result = childIds.filter(childId => {
         const childBlock = blocks.get(childId);
-        return canViewInPrivateSandbox(childBlock, parentBlock, currentUserId);
+        const canView = canViewInPrivateSandbox(childBlock, parentBlock, currentUserId);
+        console.log('🔒 child filter:', {
+            childId,
+            creator_id: childBlock?.creator_id,
+            canView
+        });
+        return canView;
     });
+
+    console.log('🔒 filtered result:', result);
+    return result;
 }
