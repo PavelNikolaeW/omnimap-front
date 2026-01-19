@@ -365,7 +365,8 @@ export class UnifiedChatPanel {
         this.graphContextSizeEl = this.container.querySelector('#graph-context-size');
         this.graphContextSelector = this.container.querySelector('#graph-context-selector');
 
-        this.graphContextEnabledCheckbox.addEventListener('change', (e) => {
+        // Store handlers for cleanup
+        this._graphContextEnabledHandler = (e) => {
             this.graphContextEnabled = e.target.checked;
             this.graphContextScopeSelect.disabled = !e.target.checked;
             this.graphPatchEnabledCheckbox.disabled = !e.target.checked;
@@ -374,16 +375,19 @@ export class UnifiedChatPanel {
             } else {
                 this.graphContextSizeEl.textContent = '~0 токенов';
             }
-        });
+        };
+        this.graphContextEnabledCheckbox.addEventListener('change', this._graphContextEnabledHandler);
 
-        this.graphContextScopeSelect.addEventListener('change', (e) => {
+        this._graphContextScopeHandler = (e) => {
             this.graphContextScope = e.target.value;
             this.updateGraphContextSize();
-        });
+        };
+        this.graphContextScopeSelect.addEventListener('change', this._graphContextScopeHandler);
 
-        this.graphPatchEnabledCheckbox.addEventListener('change', (e) => {
+        this._graphPatchEnabledHandler = (e) => {
             this.requestGraphPatch = e.target.checked;
-        });
+        };
+        this.graphPatchEnabledCheckbox.addEventListener('change', this._graphPatchEnabledHandler);
 
         // Patch preview controls
         this.container.querySelector('#patch-apply-btn').addEventListener('click', () => this.applyPendingPatch());
@@ -466,6 +470,17 @@ export class UnifiedChatPanel {
         }
         if (this.messageInput && this.inputFocusHandler) {
             this.messageInput.removeEventListener('focus', this.inputFocusHandler);
+        }
+
+        // Graph context cleanup
+        if (this.graphContextEnabledCheckbox && this._graphContextEnabledHandler) {
+            this.graphContextEnabledCheckbox.removeEventListener('change', this._graphContextEnabledHandler);
+        }
+        if (this.graphContextScopeSelect && this._graphContextScopeHandler) {
+            this.graphContextScopeSelect.removeEventListener('change', this._graphContextScopeHandler);
+        }
+        if (this.graphPatchEnabledCheckbox && this._graphPatchEnabledHandler) {
+            this.graphPatchEnabledCheckbox.removeEventListener('change', this._graphPatchEnabledHandler);
         }
     }
 
@@ -2186,9 +2201,9 @@ export class UnifiedChatPanel {
 
         // Initialize patch applier lazily
         if (!this.graphPatchApplier) {
-            // Try to get localStateManager from window
-            const lsm = window.localStateManager;
-            const undoManager = window.undoManager;
+            // Use stored references (set in openUnifiedChat) or fallback to window
+            const lsm = this._localStateManager || window.localStateManager;
+            const undoManager = this._undoManager || window.undoManager;
             if (lsm) {
                 this.graphPatchApplier = getGraphPatchApplier(lsm, undoManager);
             }
@@ -2345,6 +2360,18 @@ export function openUnifiedChat() {
         unifiedChatInstance = null;
     }
     unifiedChatInstance = new UnifiedChatPanel();
+
+    // Initialize graph context with current state
+    const lsm = window.localStateManager;
+    if (lsm && lsm.blocks) {
+        const focusBlockId = window.contextManager?.currentBlockId || null;
+        unifiedChatInstance.initGraphContext(lsm.blocks, focusBlockId);
+
+        // Store references for patch applier
+        unifiedChatInstance._localStateManager = lsm;
+        unifiedChatInstance._undoManager = window.undoManager;
+    }
+
     return unifiedChatInstance;
 }
 

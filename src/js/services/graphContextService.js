@@ -67,6 +67,50 @@ export class GraphContextService {
     }
 
     /**
+     * Подписаться на события изменения блоков для автоматической инвалидации кэша
+     * Вызывать один раз при инициализации приложения
+     */
+    subscribeToBlockChanges() {
+        if (this._subscribed) return;
+        this._subscribed = true;
+
+        // События которые инвалидируют кэш контекста
+        const events = [
+            'UpdateBlocks',
+            'WebSocUpdateBlock',
+            'CreateBlock',
+            'MoveBlock',
+            'DeleteBlock'
+        ];
+
+        this._eventHandler = () => this._invalidateCache();
+        events.forEach(event => {
+            window.addEventListener(event, this._eventHandler);
+        });
+    }
+
+    /**
+     * Отписаться от событий
+     */
+    unsubscribeFromBlockChanges() {
+        if (!this._subscribed) return;
+        this._subscribed = false;
+
+        const events = [
+            'UpdateBlocks',
+            'WebSocUpdateBlock',
+            'CreateBlock',
+            'MoveBlock',
+            'DeleteBlock'
+        ];
+
+        events.forEach(event => {
+            window.removeEventListener(event, this._eventHandler);
+        });
+        this._eventHandler = null;
+    }
+
+    /**
      * Инвалидировать кэш
      */
     _invalidateCache() {
@@ -540,6 +584,8 @@ let _instance = null;
 export function getGraphContextService(blocks) {
     if (!_instance) {
         _instance = new GraphContextService(blocks || new Map());
+        // Автоматически подписываемся на события изменения блоков
+        _instance.subscribeToBlockChanges();
     } else if (blocks) {
         _instance.setBlocks(blocks);
     }
