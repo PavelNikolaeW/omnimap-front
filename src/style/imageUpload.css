@@ -447,3 +447,323 @@
         flex: 1;
     }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   IMAGE DISPLAY SETTINGS - Настройки отображения картинок
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Settings Section in Popup
+   ───────────────────────────────────────────────────────────────────────────── */
+.image-settings-section {
+    border-top: 1px solid var(--popup-border);
+    padding-top: var(--popup-spacing-md);
+    margin-top: var(--popup-spacing-sm);
+}
+
+.image-settings-title {
+    font-size: var(--popup-font-size-base);
+    font-weight: 600;
+    color: var(--popup-fg);
+    margin-bottom: var(--popup-spacing-md);
+    padding-bottom: var(--popup-spacing-xs);
+    border-bottom: 1px solid var(--popup-border);
+}
+
+.image-setting-group {
+    margin-bottom: var(--popup-spacing-md);
+}
+
+.image-setting-group:last-child {
+    margin-bottom: 0;
+}
+
+.image-setting-label {
+    display: block;
+    font-size: var(--popup-font-size-sm);
+    font-weight: 500;
+    color: var(--popup-fg);
+    margin-bottom: var(--popup-spacing-xs);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Fit Mode Presets
+   ───────────────────────────────────────────────────────────────────────────── */
+.image-fit-presets {
+    display: flex;
+    gap: var(--popup-spacing-xs);
+}
+
+.image-fit-preset {
+    width: 40px;
+    height: 40px;
+    border: 2px solid var(--popup-border);
+    border-radius: var(--popup-radius-md);
+    background: var(--popup-bg);
+    cursor: pointer;
+    transition: all var(--popup-transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--popup-muted);
+    font-size: 14px;
+}
+
+.image-fit-preset:hover {
+    border-color: var(--popup-primary);
+    color: var(--popup-primary);
+}
+
+.image-fit-preset.active {
+    border-color: var(--popup-primary);
+    background: var(--popup-primary);
+    color: white;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Position Grid (9 позиций)
+   ───────────────────────────────────────────────────────────────────────────── */
+.image-position-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    width: 96px;
+}
+
+.image-position-btn {
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--popup-border);
+    border-radius: 4px;
+    background: var(--popup-bg);
+    cursor: pointer;
+    transition: all var(--popup-transition);
+    position: relative;
+}
+
+.image-position-btn::after {
+    content: '';
+    width: 8px;
+    height: 8px;
+    background: var(--popup-muted);
+    border-radius: 50%;
+    position: absolute;
+}
+
+.image-position-btn:hover {
+    border-color: var(--popup-primary);
+}
+
+.image-position-btn:hover::after {
+    background: var(--popup-primary);
+}
+
+.image-position-btn.active {
+    border-color: var(--popup-primary);
+    background: #f0f7ff;
+}
+
+.image-position-btn.active::after {
+    background: var(--popup-primary);
+}
+
+/* Position dot positions */
+.image-position-btn[data-position="top-left"]::after { top: 4px; left: 4px; }
+.image-position-btn[data-position="top-center"]::after { top: 4px; left: 50%; transform: translateX(-50%); }
+.image-position-btn[data-position="top-right"]::after { top: 4px; right: 4px; }
+.image-position-btn[data-position="center-left"]::after { top: 50%; left: 4px; transform: translateY(-50%); }
+.image-position-btn[data-position="center"]::after { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+.image-position-btn[data-position="center-right"]::after { top: 50%; right: 4px; transform: translateY(-50%); }
+.image-position-btn[data-position="bottom-left"]::after { bottom: 4px; left: 4px; }
+.image-position-btn[data-position="bottom-center"]::after { bottom: 4px; left: 50%; transform: translateX(-50%); }
+.image-position-btn[data-position="bottom-right"]::after { bottom: 4px; right: 4px; }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Background Settings
+   ───────────────────────────────────────────────────────────────────────────── */
+.image-setting-checkbox {
+    display: flex;
+    align-items: center;
+    gap: var(--popup-spacing-sm);
+    cursor: pointer;
+    font-size: var(--popup-font-size-base);
+    color: var(--popup-fg);
+}
+
+.image-setting-checkbox input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: var(--popup-primary);
+}
+
+.image-background-settings {
+    margin-top: var(--popup-spacing-sm);
+    padding: var(--popup-spacing-sm);
+    background: #f9fafb;
+    border-radius: var(--popup-radius-md);
+    border: 1px solid var(--popup-border);
+}
+
+.image-setting-row {
+    display: flex;
+    align-items: center;
+    gap: var(--popup-spacing-sm);
+    margin-bottom: var(--popup-spacing-sm);
+}
+
+.image-setting-row:last-child {
+    margin-bottom: 0;
+}
+
+.image-setting-row label {
+    flex: 0 0 90px;
+    font-size: var(--popup-font-size-sm);
+    color: var(--popup-fg);
+}
+
+.image-setting-row input[type="range"] {
+    flex: 1;
+    height: 6px;
+    cursor: pointer;
+    accent-color: var(--popup-primary);
+}
+
+.image-setting-row input[type="color"] {
+    width: 32px;
+    height: 28px;
+    border: 1px solid var(--popup-border);
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 2px;
+}
+
+.image-setting-value {
+    min-width: 45px;
+    text-align: right;
+    font-size: var(--popup-font-size-sm);
+    color: var(--popup-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Live Preview
+   ───────────────────────────────────────────────────────────────────────────── */
+.image-live-preview {
+    margin-bottom: var(--popup-spacing-md);
+    padding: var(--popup-spacing-sm);
+    background: #e5e7eb;
+    border-radius: var(--popup-radius-md);
+}
+
+.image-live-preview__block {
+    width: 100%;
+    height: 120px;
+    margin: 0 auto;
+    border: 1px solid var(--popup-border);
+    border-radius: var(--popup-radius-sm);
+    background: white;
+    position: relative;
+    overflow: hidden;
+}
+
+.image-live-preview__img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    transition: all 0.15s ease;
+    object-fit: contain;
+    object-position: center;
+}
+
+.image-live-preview__overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    transition: all 0.15s ease;
+    display: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BLOCK IMAGE FIT MODES - CSS для режимов отображения в блоках
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Fit Modes через data-атрибуты */
+.block-image-container[data-fit="cover"] .block-image {
+    object-fit: cover;
+}
+
+.block-image-container[data-fit="contain"] .block-image {
+    object-fit: contain;
+}
+
+.block-image-container[data-fit="fill"] .block-image {
+    object-fit: fill;
+}
+
+.block-image-container[data-fit="original"] .block-image {
+    object-fit: none;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
+}
+
+/* Position через data-атрибуты */
+.block-image-container[data-position="top-left"] .block-image { object-position: top left; }
+.block-image-container[data-position="top-center"] .block-image { object-position: top center; }
+.block-image-container[data-position="top-right"] .block-image { object-position: top right; }
+.block-image-container[data-position="center-left"] .block-image { object-position: center left; }
+.block-image-container[data-position="center"] .block-image { object-position: center center; }
+.block-image-container[data-position="center-right"] .block-image { object-position: center right; }
+.block-image-container[data-position="bottom-left"] .block-image { object-position: bottom left; }
+.block-image-container[data-position="bottom-center"] .block-image { object-position: bottom center; }
+.block-image-container[data-position="bottom-right"] .block-image { object-position: bottom right; }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Background Mode - картинка как фон блока
+   ───────────────────────────────────────────────────────────────────────────── */
+.block-image-container[data-background="true"] {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+}
+
+.block-image-container[data-background="true"] .block-image {
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+}
+
+/* Overlay для background режима */
+.block-image-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    border-radius: inherit;
+}
+
+/* Контент над background картинкой */
+[data-image-background="true"] titleBlock,
+[data-image-background="true"] .blockTextEditor,
+[data-image-background="true"] contentBlock {
+    position: relative;
+    z-index: 2;
+}
+
+/* Блок с background должен иметь relative позиционирование */
+[data-image-background="true"] {
+    position: relative;
+}
+
+/* Переопределяем flex для блоков с background чтобы контент был поверх */
+[data-image-background="true"].defaultContent {
+    position: relative;
+}
+
+/* Убираем стандартный flex для image container в background режиме */
+[data-image-background="true"] .block-image-container {
+    flex: none;
+}

@@ -358,8 +358,18 @@ class BlockCreator {
         // Санитизация filename для предотвращения XSS
         const safeFilename = this._sanitizeText(image.filename || 'Block image')
 
+        // Получаем настройки или дефолты
+        const settings = image.settings || {}
+        const fitMode = settings.fitMode || 'auto'
+        const position = settings.position || 'center'
+        const bgSettings = settings.background || {}
+
         // Атрибут для индикации наличия картинки (для маленьких блоков где картинка скрыта)
         contentElement.setAttribute('data-has-image', 'true')
+
+        // Data-атрибуты для CSS
+        contentElement.setAttribute('data-image-fit', fitMode)
+        contentElement.setAttribute('data-image-position', position)
 
         // Определяем режим image-only: есть картинка, но нет заголовка и текста
         const hasTitle = block.data.titleIsVisible !== false && block.title
@@ -368,8 +378,57 @@ class BlockCreator {
             contentElement.classList.add('block-image-only')
         }
 
-        return `<div class="block-image-container" data-testid="block-image-${block.id}" data-fullsize-url="${imageUrl}">
-            <img src="${thumbnailUrl}" alt="${safeFilename}" class="block-image" data-testid="block-image-tag-${block.id}" loading="lazy" />
+        // Background режим
+        if (bgSettings.enabled) {
+            contentElement.setAttribute('data-image-background', 'true')
+        }
+
+        // Определяем auto режим на основе пропорций изображения
+        let effectiveFitMode = fitMode
+        if (fitMode === 'auto' && image.width && image.height) {
+            const imageRatio = image.width / image.height
+            // Квадратные картинки (0.8-1.2) → cover, иначе contain
+            effectiveFitMode = (imageRatio > 0.8 && imageRatio < 1.2) ? 'cover' : 'contain'
+        }
+
+        // Inline стили для изображения
+        const imgStyles = []
+        const containerAttrs = []
+
+        // Fit mode
+        if (effectiveFitMode !== 'auto') {
+            containerAttrs.push(`data-fit="${effectiveFitMode}"`)
+        }
+
+        // Position
+        containerAttrs.push(`data-position="${position}"`)
+
+        // Background режим - добавляем стили
+        if (bgSettings.enabled) {
+            containerAttrs.push('data-background="true"')
+            const opacity = (bgSettings.opacity ?? 100) / 100
+            const blur = bgSettings.blur ?? 0
+
+            if (opacity < 1) {
+                imgStyles.push(`opacity: ${opacity}`)
+            }
+            if (blur > 0) {
+                imgStyles.push(`filter: blur(${blur}px)`)
+            }
+        }
+
+        const imgStyleAttr = imgStyles.length > 0 ? ` style="${imgStyles.join('; ')}"` : ''
+
+        // Overlay для background режима
+        let overlayHtml = ''
+        if (bgSettings.enabled && bgSettings.overlayColor && bgSettings.overlayOpacity > 0) {
+            const overlayOpacity = bgSettings.overlayOpacity / 100
+            overlayHtml = `<div class="block-image-overlay" style="background-color: ${bgSettings.overlayColor}; opacity: ${overlayOpacity};"></div>`
+        }
+
+        return `<div class="block-image-container" data-testid="block-image-${block.id}" data-fullsize-url="${imageUrl}" ${containerAttrs.join(' ')}>
+            <img src="${thumbnailUrl}" alt="${safeFilename}" class="block-image" data-testid="block-image-tag-${block.id}" loading="lazy"${imgStyleAttr} />
+            ${overlayHtml}
         </div>`
     }
 

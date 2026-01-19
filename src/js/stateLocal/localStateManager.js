@@ -568,7 +568,19 @@ export class LocalStateManager {
                     filename: imageData.filename,
                     width: imageData.width,
                     height: imageData.height,
-                    size: imageData.size
+                    size: imageData.size,
+                    // Настройки отображения картинки
+                    settings: imageData.settings || {
+                        fitMode: 'auto',
+                        position: 'center',
+                        background: {
+                            enabled: false,
+                            opacity: 100,
+                            blur: 0,
+                            overlayColor: null,
+                            overlayOpacity: 0
+                        }
+                    }
                 };
             } else {
                 // Удаляем информацию об изображении
