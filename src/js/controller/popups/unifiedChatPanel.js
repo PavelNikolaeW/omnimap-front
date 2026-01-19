@@ -11,12 +11,23 @@ import { dispatch } from '../../utils/utils.js';
 import chatApi from '../../api/chatApi.js';
 import llmApi from '../../api/llmApi.js';
 import localforage from 'localforage';
+import { getGraphContextService } from '../../services/graphContextService.js';
+import { getGraphPatchApplier } from '../../services/graphPatchApplier.js';
 
 // Типы чатов
 const CHAT_TYPES = {
     AI: 'ai',
     DM: 'dm',
     GROUP: 'group'
+};
+
+// Scope контекста графа для LLM
+const GRAPH_CONTEXT_SCOPES = {
+    NONE: 'none',
+    CURRENT: 'current',
+    BRANCH: 'branch',
+    ANCESTORS: 'ancestors',
+    FULL: 'full'
 };
 
 // Дефолтные настройки AI
@@ -52,6 +63,16 @@ export class UnifiedChatPanel {
         this.availableModels = [];
         this.tokenBalance = null;
         this.aiSettings = { ...DEFAULT_AI_SETTINGS };
+
+        // Graph context для LLM (интеграция с графом блоков)
+        this.graphContextScope = GRAPH_CONTEXT_SCOPES.BRANCH; // default scope
+        this.graphContextEnabled = false; // контекст включён
+        this.requestGraphPatch = false; // запрашивать патч в ответе
+        this.currentFocusBlockId = null; // ID текущего блока в фокусе
+        this.pendingPatch = null; // патч ожидающий применения
+        this.patchReverseMap = null; // маппинг id → uuid для текущего патча
+        this.graphContextService = null; // lazy init
+        this.graphPatchApplier = null; // lazy init
 
         // P2P specific
         this.currentUserId = null;
@@ -198,7 +219,39 @@ export class UnifiedChatPanel {
                         <span id="typing-text">печатает...</span>
                     </div>
 
+                    <!-- Graph Patch Preview Panel -->
+                    <div class="llm-graph-patch-preview" id="patch-preview" style="display: none;">
+                        <div class="llm-graph-patch-header">
+                            <span class="llm-graph-patch-title">Предложенные изменения</span>
+                            <button class="llm-graph-patch-close" id="patch-close-btn" title="Закрыть">✕</button>
+                        </div>
+                        <div class="llm-graph-patch-changes" id="patch-changes-list"></div>
+                        <div class="llm-graph-patch-actions">
+                            <button class="llm-graph-patch-apply" id="patch-apply-btn">✓ Применить</button>
+                            <button class="llm-graph-patch-discard" id="patch-discard-btn">✕ Отменить</button>
+                        </div>
+                    </div>
+
                     <div class="llm-chat-input-area" id="input-area">
+                        <!-- Graph Context Selector (only for AI chats) -->
+                        <div class="llm-graph-context-selector" id="graph-context-selector" style="display: none;">
+                            <label class="llm-graph-context-toggle">
+                                <input type="checkbox" id="graph-context-enabled" />
+                                <span>Контекст графа</span>
+                            </label>
+                            <select id="graph-context-scope" disabled>
+                                <option value="current">Текущий блок</option>
+                                <option value="branch" selected>Ветка</option>
+                                <option value="ancestors">Путь к корню</option>
+                                <option value="full">Весь граф</option>
+                            </select>
+                            <span class="llm-graph-context-size" id="graph-context-size" title="Размер контекста">~0 токенов</span>
+                            <label class="llm-graph-patch-toggle" title="Запросить редактирование графа">
+                                <input type="checkbox" id="graph-patch-enabled" disabled />
+                                <span>Патч</span>
+                            </label>
+                        </div>
+
                         <div class="chat-drop-zone" id="drop-zone" style="display: none;">
                             <span class="chat-drop-zone-text">Перетащите изображения сюда</span>
                         </div>
@@ -304,6 +357,38 @@ export class UnifiedChatPanel {
 
         // Send button
         this.container.querySelector('#send-btn').addEventListener('click', () => this.sendMessage());
+
+        // Graph context controls (AI only)
+        this.graphContextEnabledCheckbox = this.container.querySelector('#graph-context-enabled');
+        this.graphContextScopeSelect = this.container.querySelector('#graph-context-scope');
+        this.graphPatchEnabledCheckbox = this.container.querySelector('#graph-patch-enabled');
+        this.graphContextSizeEl = this.container.querySelector('#graph-context-size');
+        this.graphContextSelector = this.container.querySelector('#graph-context-selector');
+
+        this.graphContextEnabledCheckbox.addEventListener('change', (e) => {
+            this.graphContextEnabled = e.target.checked;
+            this.graphContextScopeSelect.disabled = !e.target.checked;
+            this.graphPatchEnabledCheckbox.disabled = !e.target.checked;
+            if (e.target.checked) {
+                this.updateGraphContextSize();
+            } else {
+                this.graphContextSizeEl.textContent = '~0 токенов';
+            }
+        });
+
+        this.graphContextScopeSelect.addEventListener('change', (e) => {
+            this.graphContextScope = e.target.value;
+            this.updateGraphContextSize();
+        });
+
+        this.graphPatchEnabledCheckbox.addEventListener('change', (e) => {
+            this.requestGraphPatch = e.target.checked;
+        });
+
+        // Patch preview controls
+        this.container.querySelector('#patch-apply-btn').addEventListener('click', () => this.applyPendingPatch());
+        this.container.querySelector('#patch-discard-btn').addEventListener('click', () => this.discardPendingPatch());
+        this.container.querySelector('#patch-close-btn').addEventListener('click', () => this.discardPendingPatch());
 
         // File attachment (only for P2P chats)
         this.attachBtn = this.container.querySelector('#attach-btn');
@@ -1123,9 +1208,23 @@ export class UnifiedChatPanel {
         this.abortController = new AbortController();
 
         try {
-            const result = await llmApi.sendMessageStream(
+            // Prepare graph context if enabled
+            let graphContext = null;
+            let reverseMap = null;
+
+            if (this.graphContextEnabled && this.currentFocusBlockId) {
+                const contextResult = this.getGraphContext();
+                if (contextResult) {
+                    graphContext = contextResult.snapshot;
+                    reverseMap = contextResult.reverseMap;
+                }
+            }
+
+            const result = await llmApi.sendMessageStreamWithContext(
                 this.activeChat.id,
                 content,
+                graphContext,
+                this.requestGraphPatch && this.graphContextEnabled,
                 (chunk, accumulated) => {
                     // Update assistant message content
                     assistantMessage.content = accumulated;
@@ -1147,6 +1246,11 @@ export class UnifiedChatPanel {
             if (this.tokenBalance && (result.promptTokens || result.completionTokens)) {
                 this.tokenBalance.balance -= (result.promptTokens + result.completionTokens);
                 this.updateTokenBalance();
+            }
+
+            // Handle graph patch if present
+            if (result.graphPatch && reverseMap) {
+                this.showPatchPreview(result.graphPatch, reverseMap);
             }
 
             this.renderMessages();
@@ -2005,6 +2109,200 @@ export class UnifiedChatPanel {
         }
         if (this.fileInput) {
             this.fileInput.value = '';
+        }
+    }
+
+    // =====================================================
+    // GRAPH CONTEXT METHODS
+    // =====================================================
+
+    /**
+     * Initialize graph context service with current blocks
+     * Called when localStateManager is available
+     * @param {Map} blocks - Map of blocks from localStateManager
+     * @param {string} focusBlockId - Currently focused block ID
+     */
+    initGraphContext(blocks, focusBlockId) {
+        this.currentFocusBlockId = focusBlockId;
+        this.graphContextService = getGraphContextService(blocks);
+        this.updateGraphContextSize();
+        this.updateGraphContextSelectorVisibility();
+    }
+
+    /**
+     * Get current graph context based on settings
+     * @returns {{ snapshot: Object, idMap: Object, reverseMap: Object }|null}
+     */
+    getGraphContext() {
+        if (!this.graphContextService || !this.currentFocusBlockId) {
+            return null;
+        }
+        return this.graphContextService.extractContext(
+            this.graphContextScope,
+            this.currentFocusBlockId
+        );
+    }
+
+    /**
+     * Update graph context size display
+     */
+    updateGraphContextSize() {
+        if (!this.graphContextService || !this.currentFocusBlockId || !this.graphContextEnabled) {
+            if (this.graphContextSizeEl) {
+                this.graphContextSizeEl.textContent = '~0 токенов';
+            }
+            return;
+        }
+
+        const hint = this.graphContextService.getContextSizeHint(
+            this.graphContextScope,
+            this.currentFocusBlockId
+        );
+
+        if (this.graphContextSizeEl) {
+            this.graphContextSizeEl.textContent = `~${hint.tokens} токенов`;
+            this.graphContextSizeEl.title = `${hint.nodes} блоков • ${hint.description}`;
+        }
+    }
+
+    /**
+     * Show/hide graph context selector based on tab
+     */
+    updateGraphContextSelectorVisibility() {
+        if (this.graphContextSelector) {
+            const showSelector = this.activeTab === CHAT_TYPES.AI && this.currentFocusBlockId;
+            this.graphContextSelector.style.display = showSelector ? '' : 'none';
+        }
+    }
+
+    /**
+     * Show patch preview panel
+     * @param {Object} patch - Patch from LLM
+     * @param {Object} reverseMap - ID mapping
+     */
+    showPatchPreview(patch, reverseMap) {
+        this.pendingPatch = patch;
+        this.patchReverseMap = reverseMap;
+
+        // Initialize patch applier lazily
+        if (!this.graphPatchApplier) {
+            // Try to get localStateManager from window
+            const lsm = window.localStateManager;
+            const undoManager = window.undoManager;
+            if (lsm) {
+                this.graphPatchApplier = getGraphPatchApplier(lsm, undoManager);
+            }
+        }
+
+        // Validate patch
+        if (this.graphPatchApplier) {
+            const validation = this.graphPatchApplier.validatePatch(patch, reverseMap);
+            if (!validation.valid) {
+                console.warn('Invalid patch:', validation.errors);
+                this.showPatchError(validation.errors);
+                return;
+            }
+
+            // Generate preview
+            const changes = this.graphPatchApplier.previewChanges(patch, reverseMap);
+            this.renderPatchPreview(changes);
+        }
+
+        // Show preview panel
+        const panel = this.container.querySelector('#patch-preview');
+        if (panel) {
+            panel.style.display = '';
+        }
+    }
+
+    /**
+     * Render patch changes list
+     * @param {Array} changes - Array of change objects
+     */
+    renderPatchPreview(changes) {
+        const list = this.container.querySelector('#patch-changes-list');
+        if (!list) return;
+
+        if (changes.length === 0) {
+            list.innerHTML = '<div class="llm-graph-patch-empty">Нет изменений</div>';
+            return;
+        }
+
+        list.innerHTML = changes.map(change => `
+            <div class="llm-graph-patch-item" data-type="${change.type}">
+                <span class="llm-graph-patch-icon">${change.icon}</span>
+                <span class="llm-graph-patch-desc">${this.escapeHtml(change.description)}</span>
+            </div>
+        `).join('');
+    }
+
+    /**
+     * Show patch error
+     * @param {Array} errors - Error messages
+     */
+    showPatchError(errors) {
+        const list = this.container.querySelector('#patch-changes-list');
+        if (!list) return;
+
+        list.innerHTML = `
+            <div class="llm-graph-patch-error">
+                <strong>Ошибка валидации патча:</strong>
+                <ul>${errors.map(e => `<li>${this.escapeHtml(e)}</li>`).join('')}</ul>
+            </div>
+        `;
+
+        const panel = this.container.querySelector('#patch-preview');
+        if (panel) {
+            panel.style.display = '';
+        }
+    }
+
+    /**
+     * Apply pending patch
+     */
+    async applyPendingPatch() {
+        if (!this.pendingPatch || !this.patchReverseMap || !this.graphPatchApplier) {
+            this.discardPendingPatch();
+            return;
+        }
+
+        try {
+            const result = await this.graphPatchApplier.applyPatchWithUndo(
+                this.pendingPatch,
+                this.patchReverseMap
+            );
+
+            if (result.success) {
+                console.log('Patch applied:', result.createdIds);
+                // Close the chat panel to show updated graph
+                // this.close();
+            } else {
+                console.error('Patch apply failed:', result.error);
+                alert(`Ошибка применения патча: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('Patch apply error:', error);
+            alert(`Ошибка: ${error.message}`);
+        } finally {
+            this.discardPendingPatch();
+        }
+    }
+
+    /**
+     * Discard pending patch
+     */
+    discardPendingPatch() {
+        this.pendingPatch = null;
+        this.patchReverseMap = null;
+
+        const panel = this.container.querySelector('#patch-preview');
+        if (panel) {
+            panel.style.display = 'none';
+        }
+
+        const list = this.container.querySelector('#patch-changes-list');
+        if (list) {
+            list.innerHTML = '';
         }
     }
 

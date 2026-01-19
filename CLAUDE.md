@@ -29,6 +29,7 @@ npm run test:e2e   # E2E tests
 | [Onboarding](docs/modules/ONBOARDING.md) | Tutorial, hints, welcome flow |
 | [Home Page](docs/modules/HOME_PAGE.md) | Initial structure for new users |
 | [Layout Editor](docs/LAYOUT_EDITOR.md) | Visual grid editor |
+| [LLM Graph](docs/LLM_GRAPH_INTEGRATION.md) | AI-assisted graph editing |
 
 ## Git Workflow
 
