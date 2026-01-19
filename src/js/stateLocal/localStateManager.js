@@ -1724,6 +1724,12 @@ export class LocalStateManager {
             block.parent_id = new_parent_id;
             block.updated_at = new Date().toISOString();
 
+            // Очищаем унаследованный sandbox_mode при перемещении из sandbox в обычное место
+            // Это исправляет баг с "застрявшим" замочком после перемещения блока
+            if (!isInSandbox(newParent) && block.sandbox_mode) {
+                block.sandbox_mode = null;
+            }
+
             // Удаляем из старого родителя
             if (oldParent && oldParent.children) {
                 oldParent.children = oldParent.children.filter(id => id !== block_id);
