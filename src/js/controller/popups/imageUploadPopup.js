@@ -1,6 +1,6 @@
 import { Popup } from "./popup";
 import api from "../../api/api";
-import { getDefaultImageSettings } from "../../utils/imageSettingsDefaults";
+import { getDefaultImageSettings, getSafeColor } from "../../utils/imageSettingsDefaults";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 const MAX_DIMENSION = 4096;
@@ -380,7 +380,8 @@ export class ImageUploadPopup extends Popup {
             previewImg.style.filter = `blur(${this.currentSettings.background.blur}px)`;
 
             if (overlay) {
-                overlay.style.backgroundColor = this.currentSettings.background.overlayColor;
+                // Валидация цвета для защиты от CSS injection
+                overlay.style.backgroundColor = getSafeColor(this.currentSettings.background.overlayColor, '#000000');
                 overlay.style.opacity = this.currentSettings.background.overlayOpacity / 100;
                 overlay.style.display = 'block';
             }
