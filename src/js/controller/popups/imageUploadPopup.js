@@ -1,5 +1,6 @@
 import { Popup } from "./popup";
 import api from "../../api/api";
+import { getDefaultImageSettings } from "../../utils/imageSettingsDefaults";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 const MAX_DIMENSION = 4096;
@@ -70,23 +71,42 @@ export class ImageUploadPopup extends Popup {
 
         // Настройки отображения картинки
         this.currentSettings = this.currentImage?.settings || this.getDefaultSettings();
+
+        // AbortController для очистки event listeners
+        this.settingsAbortController = null;
+
+        // Debounced версия applySettings для слайдеров
+        this.debouncedApplySettings = this._debounce(() => this.applySettings(), 100);
     }
 
     /**
      * Дефолтные настройки отображения картинки
      */
     getDefaultSettings() {
-        return {
-            fitMode: 'auto',
-            position: 'center',
-            background: {
-                enabled: false,
-                opacity: 100,
-                blur: 0,
-                overlayColor: '#000000',
-                overlayOpacity: 0
-            }
+        return getDefaultImageSettings();
+    }
+
+    /**
+     * Debounce функция для предотвращения частых вызовов
+     * @param {Function} fn - функция для debounce
+     * @param {number} delay - задержка в мс
+     */
+    _debounce(fn, delay) {
+        let timeoutId;
+        return (...args) => {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => fn.apply(this, args), delay);
         };
+    }
+
+    /**
+     * Очистка event listeners настроек
+     */
+    cleanupSettingsListeners() {
+        if (this.settingsAbortController) {
+            this.settingsAbortController.abort();
+            this.settingsAbortController = null;
+        }
     }
 
     /**
@@ -219,44 +239,49 @@ export class ImageUploadPopup extends Popup {
     setupSettingsListeners() {
         if (!this.settingsSection) return;
 
+        // Очищаем старые listeners
+        this.cleanupSettingsListeners();
+        this.settingsAbortController = new AbortController();
+        const { signal } = this.settingsAbortController;
+
         // Fit mode presets
         this.settingsSection.querySelectorAll('.image-fit-preset').forEach(btn => {
             btn.addEventListener('click', () => {
                 this.setFitMode(btn.dataset.fit);
-            });
+            }, { signal });
         });
 
         // Position grid
         this.settingsSection.querySelectorAll('.image-position-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 this.setPosition(btn.dataset.position);
-            });
+            }, { signal });
         });
 
         // Background mode toggle
         const bgToggle = this.settingsSection.querySelector('#imageBackgroundMode');
         bgToggle?.addEventListener('change', (e) => {
             this.toggleBackgroundSettings(e.target.checked);
-        });
+        }, { signal });
 
-        // Range sliders
+        // Range sliders - используем debounce для applySettings
         ['imageOpacity', 'imageBlur', 'imageOverlayOpacity'].forEach(id => {
             const input = this.settingsSection.querySelector(`#${id}`);
             input?.addEventListener('input', (e) => {
                 this.updateSliderValue(id, e.target.value);
                 this.updateCurrentSettings();
                 this.updateLivePreview();
-                this.applySettings();
-            });
+                this.debouncedApplySettings(); // debounced версия
+            }, { signal });
         });
 
-        // Overlay color
+        // Overlay color - также используем debounce
         const colorInput = this.settingsSection.querySelector('#imageOverlayColor');
         colorInput?.addEventListener('input', () => {
             this.updateCurrentSettings();
             this.updateLivePreview();
-            this.applySettings();
-        });
+            this.debouncedApplySettings(); // debounced версия
+        }, { signal });
     }
 
     /**
@@ -786,5 +811,13 @@ export class ImageUploadPopup extends Popup {
             this.options.onCancel();
         }
         this.close();
+    }
+
+    /**
+     * Закрытие popup с очисткой listeners
+     */
+    close() {
+        this.cleanupSettingsListeners();
+        super.close();
     }
 }

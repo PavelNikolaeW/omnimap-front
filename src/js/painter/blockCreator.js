@@ -9,6 +9,7 @@ import {isForbidden, isViewOnly, getPermissionDataAttribute, isInSandbox, isBloc
 import {authStateManager} from "../auth/authStateManager";
 import {dispatch} from "../utils/utils";
 import {deduplicateChildOrder} from "../utils/childOrderUtils";
+import {getSafeColor, clamp} from "../utils/imageSettingsDefaults";
 
 
 const viewRenderers = {
@@ -403,11 +404,12 @@ class BlockCreator {
         // Position
         containerAttrs.push(`data-position="${position}"`)
 
-        // Background режим - добавляем стили
+        // Background режим - добавляем стили с валидацией
         if (bgSettings.enabled) {
             containerAttrs.push('data-background="true"')
-            const opacity = (bgSettings.opacity ?? 100) / 100
-            const blur = bgSettings.blur ?? 0
+            // Ограничиваем значения в допустимых диапазонах
+            const opacity = clamp(bgSettings.opacity ?? 100, 0, 100) / 100
+            const blur = clamp(bgSettings.blur ?? 0, 0, 20)
 
             if (opacity < 1) {
                 imgStyles.push(`opacity: ${opacity}`)
@@ -419,11 +421,12 @@ class BlockCreator {
 
         const imgStyleAttr = imgStyles.length > 0 ? ` style="${imgStyles.join('; ')}"` : ''
 
-        // Overlay для background режима
+        // Overlay для background режима с валидацией цвета (защита от XSS)
         let overlayHtml = ''
         if (bgSettings.enabled && bgSettings.overlayColor && bgSettings.overlayOpacity > 0) {
-            const overlayOpacity = bgSettings.overlayOpacity / 100
-            overlayHtml = `<div class="block-image-overlay" style="background-color: ${bgSettings.overlayColor}; opacity: ${overlayOpacity};"></div>`
+            const safeOverlayColor = getSafeColor(bgSettings.overlayColor, '#000000')
+            const overlayOpacity = clamp(bgSettings.overlayOpacity, 0, 100) / 100
+            overlayHtml = `<div class="block-image-overlay" style="background-color: ${safeOverlayColor}; opacity: ${overlayOpacity};"></div>`
         }
 
         return `<div class="block-image-container" data-testid="block-image-${block.id}" data-fullsize-url="${imageUrl}" ${containerAttrs.join(' ')}>

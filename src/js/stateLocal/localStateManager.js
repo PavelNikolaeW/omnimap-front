@@ -16,6 +16,7 @@ import {checkAndInitializeOnboarding} from "../services/homePageInitializer";
 import {focusManager} from "../services/focusManager";
 import {blockOperationLock} from "../utils/operationLock";
 import {deduplicateChildOrder} from "../utils/childOrderUtils";
+import {getDefaultImageSettings} from "../utils/imageSettingsDefaults";
 
 /**
  * Экранирует специальные символы RegExp в строке
@@ -569,18 +570,8 @@ export class LocalStateManager {
                     width: imageData.width,
                     height: imageData.height,
                     size: imageData.size,
-                    // Настройки отображения картинки
-                    settings: imageData.settings || {
-                        fitMode: 'auto',
-                        position: 'center',
-                        background: {
-                            enabled: false,
-                            opacity: 100,
-                            blur: 0,
-                            overlayColor: null,
-                            overlayOpacity: 0
-                        }
-                    }
+                    // Настройки отображения картинки (используем централизованные дефолты)
+                    settings: imageData.settings || getDefaultImageSettings()
                 };
             } else {
                 // Удаляем информацию об изображении
