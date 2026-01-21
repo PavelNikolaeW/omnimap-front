@@ -1275,15 +1275,15 @@ export class LocalStateManager {
                     const serverData = this._safeJsonParse(block.data, {});
                     const serverChildren = this._safeJsonParse(block.children, []);
 
-                    // Определяем permission: явный с сервера (кроме null) > кэш > наследование от родителя
-                    // ВАЖНО: WebSocket может присылать permission: null даже для не-владельцев,
-                    // поэтому null не должен перезаписывать существующий permission из кэша
+                    // Определяем permission: явный с сервера > кэш > наследование от родителя
+                    // Если сервер явно прислал permission (даже null) - используем его
+                    // null означает "полный доступ" (собственный блок или права удалены)
                     let blockPermission;
-                    if (block.permission !== undefined && block.permission !== null) {
-                        // Явно указан permission с сервера (не null)
+                    if (block.permission !== undefined) {
+                        // Сервер явно указал permission (включая null для полного доступа)
                         blockPermission = block.permission;
                     } else if (localBlock?.permission !== undefined) {
-                        // Блок уже в кэше — сохраняем существующий permission
+                        // Блок уже в кэше, permission не прислан — сохраняем существующий
                         blockPermission = localBlock.permission;
                     } else {
                         // Новый блок без permission — наследуем от родителя
