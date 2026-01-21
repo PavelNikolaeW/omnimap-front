@@ -475,12 +475,11 @@ export class ImageUploadPopup extends Popup {
         this.previewSection.setAttribute('data-testid', 'image-upload-preview');
         container.appendChild(this.previewSection);
 
-        // Секция настроек отображения
+        // Секция настроек отображения (HTML создаётся в renderCurrentImage после инициализации)
         this.settingsSection = document.createElement("div");
         this.settingsSection.className = "image-settings-section";
         this.settingsSection.style.display = 'none';
         this.settingsSection.setAttribute('data-testid', 'image-settings');
-        this.settingsSection.innerHTML = this.createSettingsHtml();
         container.appendChild(this.settingsSection);
 
         // Drop zone
