@@ -573,6 +573,8 @@ export class LocalStateManager {
                     width: imageData.width,
                     height: imageData.height,
                     size: imageData.size,
+                    // Варианты изображений разного размера (от бека)
+                    variants: imageData.variants || null,
                     // Настройки отображения картинки (используем централизованные дефолты)
                     settings: imageData.settings || getDefaultImageSettings()
                 };

@@ -398,10 +398,11 @@ export class ImageUploadPopup extends Popup {
         const previewImg = this.settingsSection?.querySelector('.image-live-preview__img');
         const overlay = this.settingsSection?.querySelector('.image-live-preview__overlay');
 
-        if (!previewImg || !this.currentImage || !this.currentSettings) return;
+        const previewUrl = this.getPreviewUrl();
+        if (!previewImg || !this.currentImage || !this.currentSettings || !previewUrl) return;
 
         // Установить картинку
-        previewImg.src = this.currentImage.thumbnail_url || this.currentImage.url;
+        previewImg.src = previewUrl;
 
         // Применить fit mode
         previewImg.style.objectFit = this.getFitModeCSS(this.currentSettings.fitMode);
@@ -687,10 +688,33 @@ export class ImageUploadPopup extends Popup {
         }
     }
 
+    /**
+     * Получить URL превью изображения (поддержка старого и нового формата)
+     */
+    getPreviewUrl() {
+        if (!this.currentImage) return null;
+        return this.currentImage.thumbnail_url ||
+               this.currentImage.variants?.thumb?.url ||
+               this.currentImage.url ||
+               this.currentImage.variants?.original?.url;
+    }
+
+    /**
+     * Получить URL оригинала (поддержка старого и нового формата)
+     */
+    getOriginalUrl() {
+        if (!this.currentImage) return null;
+        return this.currentImage.url ||
+               this.currentImage.variants?.original?.url ||
+               this.getPreviewUrl();
+    }
+
     renderCurrentImage() {
         this.previewSection.innerHTML = '';
 
-        if (!this.currentImage) {
+        // Проверяем наличие изображения (поддержка старого и нового формата)
+        const previewUrl = this.getPreviewUrl();
+        if (!this.currentImage || !previewUrl) {
             this.previewSection.style.display = 'none';
             this.settingsSection.style.display = 'none';
             return;
@@ -703,8 +727,8 @@ export class ImageUploadPopup extends Popup {
 
         // Thumbnail
         const thumbnail = document.createElement('img');
-        thumbnail.src = this.currentImage.thumbnail_url || this.currentImage.url;
-        thumbnail.alt = this.currentImage.filename;
+        thumbnail.src = previewUrl;
+        thumbnail.alt = this.currentImage.filename || 'Image';
         thumbnail.className = 'image-upload-thumbnail';
         thumbnail.addEventListener('click', () => this.openFullsize());
         previewContainer.appendChild(thumbnail);
@@ -754,7 +778,8 @@ export class ImageUploadPopup extends Popup {
     }
 
     openFullsize() {
-        if (!this.currentImage || !this.currentImage.url) return;
+        const originalUrl = this.getOriginalUrl();
+        if (!this.currentImage || !originalUrl) return;
 
         // Создаём overlay для полноразмерного просмотра
         const overlay = document.createElement('div');
@@ -778,7 +803,7 @@ export class ImageUploadPopup extends Popup {
         document.addEventListener('keydown', handleKeydown);
 
         const img = document.createElement('img');
-        img.src = this.currentImage.url;
+        img.src = originalUrl;
         img.className = 'image-fullsize-img';
         img.alt = this.currentImage.filename || 'Изображение блока';
         img.addEventListener('click', (e) => e.stopPropagation());

@@ -173,10 +173,16 @@ export class CommandManager {
                 window.open(target.href, '_blank')
             }
         } else if (target.classList.contains('block-image') || target.closest('.block-image-container')) {
-            // Клик на изображение - открываем полноразмерный просмотр
+            const container = target.closest('.block-image-container') || target.parentElement;
+            // НЕ открываем fullsize для фоновых изображений - они просто декорация
+            const isBackground = container?.getAttribute('data-background') === 'true';
+            if (isBackground) {
+                // Для фоновых картинок пропускаем обработку, пусть клик идёт на блок
+                return;
+            }
+            // Клик на обычное изображение - открываем полноразмерный просмотр
             event.preventDefault();
             event.stopPropagation();
-            const container = target.closest('.block-image-container') || target.parentElement;
             const fullsizeUrl = container?.getAttribute('data-fullsize-url');
             if (fullsizeUrl) {
                 this.openFullsizeImage(fullsizeUrl);

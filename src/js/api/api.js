@@ -445,7 +445,15 @@ class Api {
      * @returns {Promise}
      */
     updateBlockImageSettings(blockId, settings) {
-        return this.api.patch(`blocks/${blockId}/file/`, { settings });
+        // Бекенд файловый эндпоинт ожидает multipart/form-data
+        const formData = new FormData();
+        formData.append('settings', JSON.stringify(settings));
+
+        return this.api.patch(`blocks/${blockId}/file/`, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        });
     }
 
     /**
