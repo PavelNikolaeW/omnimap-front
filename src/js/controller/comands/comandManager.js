@@ -172,17 +172,15 @@ export class CommandManager {
             } else if (target.href.startsWith('http')) {
                 window.open(target.href, '_blank')
             }
-        } else if (target.classList.contains('block-image') || target.closest('.block-image-container')) {
-            const container = target.closest('.block-image-container') || target.parentElement;
-            // НЕ открываем fullsize для фоновых изображений - они просто декорация
-            const isBackground = container?.getAttribute('data-background') === 'true';
-            if (isBackground) {
-                // Для фоновых картинок пропускаем обработку, пусть клик идёт на блок
-                return;
-            }
+        } else if (
+            (target.classList.contains('block-image') || target.closest('.block-image-container')) &&
+            // Исключаем фоновые изображения - клик на них должен открывать блок
+            !target.closest('.block-image-container[data-background="true"]')
+        ) {
             // Клик на обычное изображение - открываем полноразмерный просмотр
             event.preventDefault();
             event.stopPropagation();
+            const container = target.closest('.block-image-container') || target.parentElement;
             const fullsizeUrl = container?.getAttribute('data-fullsize-url');
             if (fullsizeUrl) {
                 this.openFullsizeImage(fullsizeUrl);

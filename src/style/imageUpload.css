@@ -726,23 +726,30 @@
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* Блок с background image должен иметь relative позиционирование */
-[data-has-background-image="true"] {
-    position: relative;
+.block[data-has-background-image="true"],
+[block][data-has-background-image="true"] {
+    position: relative !important;
+    overflow: hidden !important; /* Вместо scroll чтобы фон не скроллился */
 }
 
 /* Background image container заполняет весь блок */
 .block-image-container[data-background="true"] {
     position: absolute;
-    inset: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     z-index: 0;
     border-radius: inherit;
     overflow: hidden;
+    pointer-events: none; /* Клики проходят сквозь к блоку */
 }
 
 .block-image-container[data-background="true"] .block-image {
     width: 100%;
     height: 100%;
     border-radius: inherit;
+    object-fit: cover; /* По умолчанию заполняем весь блок */
 }
 
 /* Overlay для background режима */
@@ -755,9 +762,13 @@
 }
 
 /* Контент (.defaultContent) поверх background image */
-[data-has-background-image="true"] > .defaultContent {
+.block[data-has-background-image="true"] > .defaultContent,
+[block][data-has-background-image="true"] > .defaultContent {
     position: relative;
     z-index: 2;
+    /* Контент занимает всё пространство блока */
+    width: 100%;
+    height: 100%;
 }
 
 /* Контент внутри defaultContent тоже должен быть над фоном */
