@@ -394,13 +394,19 @@ export const popupsCommands = [
             ctx.closePopups();
             setCmdOpenBlock(ctx);
 
-            // Сначала проверяем локальный state
+            // Сначала проверяем локальный state (для недавно загруженных картинок)
             const block = localStateManager.blocks.get(blockId);
             let currentImage = block?.data?.image || null;
 
-            // Если локально нет данных, но блок мог быть создан на сервере с изображением -
-            // загружаем с сервера только если локально точно нет данных
-            // (API запрос не нужен если изображения нет - 404 ожидаем)
+            // Если локально нет данных, запрашиваем с сервера
+            // (getBlockImage возвращает null при 404, не бросает ошибку)
+            if (!currentImage) {
+                currentImage = await api.getBlockImage(blockId);
+                // Сохраняем в локальный state для следующих открытий
+                if (currentImage && block) {
+                    block.data.image = currentImage;
+                }
+            }
 
             ctx.popup = new ImageUploadPopup({
                 blockId: blockId,
