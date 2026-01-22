@@ -439,6 +439,16 @@ class Api {
     }
 
     /**
+     * Обновление настроек отображения изображения блока
+     * @param {string} blockId - ID блока
+     * @param {Object} settings - Настройки отображения (fitMode, position, background)
+     * @returns {Promise}
+     */
+    updateBlockImageSettings(blockId, settings) {
+        return this.api.patch(`blocks/${blockId}/file/`, { settings });
+    }
+
+    /**
      * Импорт блоков (асинхронная задача)
      * @param {Array} payload - Массив блоков для импорта
      * @param {Object} options - Опции запроса

@@ -433,7 +433,13 @@ export class ImageUploadPopup extends Popup {
         // Обновляем настройки в currentImage
         this.currentImage.settings = { ...this.currentSettings };
 
-        // Отправляем изменения
+        // Сохраняем settings на сервер
+        api.updateBlockImageSettings(this.blockId, this.currentSettings)
+            .catch(err => {
+                console.error('Failed to save image settings:', err);
+            });
+
+        // Отправляем изменения локально
         if (this.onImageChange) {
             this.onImageChange(this.currentImage);
         }
