@@ -176,7 +176,7 @@ export class EditBlockPopup extends Popup {
 
   /**
    * Подготавливает блок для редактирования
-   * Возвращает только редактируемые поля (title, data)
+   * Возвращает только редактируемые поля (title, data без childOrder)
    */
   _prepareBlockForEdit() {
     const fullBlock = this.options.fullBlock;
@@ -188,7 +188,14 @@ export class EditBlockPopup extends Popup {
     // Только редактируемые поля
     const result = {};
     if (fullBlock.title !== undefined) result.title = fullBlock.title;
-    if (fullBlock.data !== undefined) result.data = fullBlock.data;
+
+    // data без защищённых полей (childOrder)
+    if (fullBlock.data !== undefined) {
+      const { childOrder, ...editableData } = fullBlock.data;
+      result.data = editableData;
+      // Сохраняем оригинальный childOrder для восстановления при сохранении
+      this._originalChildOrder = childOrder;
+    }
 
     return result;
   }
@@ -209,6 +216,12 @@ export class EditBlockPopup extends Popup {
     const value = this.editor.getValue();
     try {
       const parsed = JSON.parse(value);
+
+      // Восстанавливаем защищённые поля в data
+      if (parsed.data && this._originalChildOrder !== undefined) {
+        parsed.data.childOrder = this._originalChildOrder;
+      }
+
       if (typeof this.options.onSubmit === "function") {
         this.options.onSubmit(parsed);
       }
