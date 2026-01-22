@@ -399,12 +399,17 @@ export const popupsCommands = [
             let currentImage = block?.data?.image || null;
 
             // Если локально нет данных, запрашиваем с сервера
-            // (getBlockImage возвращает null при 404, не бросает ошибку)
             if (!currentImage) {
-                currentImage = await api.getBlockImage(blockId);
-                // Сохраняем в локальный state для следующих открытий
-                if (currentImage && block) {
-                    block.data.image = currentImage;
+                try {
+                    currentImage = await api.getBlockImage(blockId);
+                    // Сохраняем в локальный state для следующих открытий
+                    if (currentImage && block) {
+                        block.data.image = currentImage;
+                    }
+                } catch (err) {
+                    // Игнорируем ошибки - просто откроем попап без картинки
+                    console.debug('getBlockImage error:', err);
+                    currentImage = null;
                 }
             }
 

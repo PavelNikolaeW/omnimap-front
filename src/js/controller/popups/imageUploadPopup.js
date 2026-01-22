@@ -69,8 +69,8 @@ export class ImageUploadPopup extends Popup {
         this.selectedFile = null;
         this.isUploading = false;
 
-        // Настройки отображения картинки
-        this.currentSettings = this.currentImage?.settings || this.getDefaultSettings();
+        // Настройки отображения картинки (всегда используем дефолты, настройки инициализируются в renderCurrentImage)
+        this.currentSettings = this.getDefaultSettings();
 
         // AbortController для очистки event listeners
         this.settingsAbortController = null;
@@ -365,7 +365,7 @@ export class ImageUploadPopup extends Popup {
         const previewImg = this.settingsSection?.querySelector('.image-live-preview__img');
         const overlay = this.settingsSection?.querySelector('.image-live-preview__overlay');
 
-        if (!previewImg || !this.currentImage) return;
+        if (!previewImg || !this.currentImage || !this.currentSettings) return;
 
         // Установить картинку
         previewImg.src = this.currentImage.thumbnail_url || this.currentImage.url;
@@ -375,7 +375,7 @@ export class ImageUploadPopup extends Popup {
         previewImg.style.objectPosition = this.getPositionCSS(this.currentSettings.position);
 
         // Background режим
-        if (this.currentSettings.background.enabled) {
+        if (this.currentSettings.background?.enabled) {
             previewImg.style.opacity = this.currentSettings.background.opacity / 100;
             previewImg.style.filter = `blur(${this.currentSettings.background.blur}px)`;
 
@@ -685,7 +685,17 @@ export class ImageUploadPopup extends Popup {
 
         // Показать секцию настроек и инициализировать
         this.settingsSection.style.display = 'block';
-        this.currentSettings = this.currentImage.settings || this.getDefaultSettings();
+        // Мержим настройки с дефолтами для защиты от неполных данных
+        const defaults = this.getDefaultSettings();
+        const savedSettings = this.currentImage.settings || {};
+        this.currentSettings = {
+            fitMode: savedSettings.fitMode || defaults.fitMode,
+            position: savedSettings.position || defaults.position,
+            background: {
+                ...defaults.background,
+                ...(savedSettings.background || {})
+            }
+        };
         this.settingsSection.innerHTML = this.createSettingsHtml();
         this.setupSettingsListeners();
         this.updateLivePreview();
