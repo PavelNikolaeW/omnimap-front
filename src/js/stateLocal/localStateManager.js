@@ -1370,15 +1370,30 @@ export class LocalStateManager {
                     // Мёржим data: сервер имеет приоритет
                     // childOrder: используем серверный если он определён (даже пустой []), иначе локальный
                     // ВАЖНО: дедуплицируем сразу, т.к. сервер может прислать дубликаты
-                    // ВАЖНО: сохраняем локальные image данные если сервер не прислал image
-                    // (сервер не присылает image при обычных обновлениях блока)
+                    // ВАЖНО: мёржим image данные чтобы сохранить локальные settings
+                    // (сервер не присылает settings при обычных обновлениях блока)
+
+                    // Мёржим image: сохраняем локальные settings если сервер их не прислал
+                    let mergedImage = localData.image;
+                    if ('image' in serverData) {
+                        if (serverData.image === null) {
+                            // Сервер явно удалил image
+                            mergedImage = null;
+                        } else if (serverData.image) {
+                            // Мёржим серверный image с локальными settings
+                            mergedImage = {
+                                ...localData.image,
+                                ...serverData.image,
+                                // Сохраняем локальные settings если сервер не прислал
+                                settings: serverData.image.settings || localData.image?.settings
+                            };
+                        }
+                    }
+
                     const mergedData = {
                         ...localData,
                         ...serverData,
-                        // Сохраняем image из локальных данных если сервер не прислал валидный image
-                        // Сервер может удалить image только явно отправив image: null
-                        // Если serverData не содержит ключ 'image' - сохраняем локальный
-                        image: ('image' in serverData) ? serverData.image : localData.image,
+                        image: mergedImage,
                         childOrder: deduplicateChildOrder(
                             Array.isArray(serverData.childOrder)
                                 ? serverData.childOrder
