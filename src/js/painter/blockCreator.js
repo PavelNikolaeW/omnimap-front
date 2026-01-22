@@ -175,14 +175,18 @@ class BlockCreator {
             if (block.size.width <= 40) {
                 block.contentEl = null
                 delete block._backgroundImageHtml
+                console.log('create: block too small, skipping background', block.id, 'width:', block.size.width);
             } else if (block.contentEl) {
                 // Background image добавляется первым (под контентом)
                 if (block._backgroundImageHtml) {
+                    console.log('create: inserting background image for', block.id);
                     element.insertAdjacentHTML('beforeend', block._backgroundImageHtml)
                     element.setAttribute('data-has-background-image', 'true')
                     delete block._backgroundImageHtml
                 }
                 element.appendChild(block.contentEl)
+            } else {
+                console.log('create: no contentEl for block', block.id, 'parentLayout:', parentBlock.size?.layout);
             }
             // element.setAttribute('width', `${Math.floor(block.size.width)}`)
             // element.setAttribute('height', `${Math.floor(block.size.height)}`)
@@ -411,6 +415,11 @@ class BlockCreator {
         contentElement.setAttribute('data-testid', `block-content-${block.id}`)
         const content = block.data.text ? `<contentBlock>${block.data?.text}</contentBlock>` : '<contentBlock></contentBlock>'
 
+        // DEBUG: проверяем image данные при рендере
+        if (block.data?.image) {
+            console.log('createContent: block has image', block.id, block.data.image);
+        }
+
         // Проверяем режим background для изображения
         const bgSettings = block.data?.image?.settings?.background
         const isBackgroundMode = bgSettings?.enabled
@@ -422,6 +431,7 @@ class BlockCreator {
         if (isBackgroundMode) {
             // В background режиме картинка будет добавлена непосредственно в блок (в методе create)
             block._backgroundImageHtml = imageResult
+            console.log('createContent: setting background image for', block.id, '_backgroundImageHtml length:', imageResult?.length);
         } else {
             // Обычный режим: картинка внутри content
             imageHtml = imageResult

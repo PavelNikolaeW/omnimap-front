@@ -2573,6 +2573,9 @@ export class LocalStateManager {
                 creator_id: this.currentUser || null
             };
 
+            // DEBUG: проверяем image до модификации
+            console.log('createBlock: parent image BEFORE:', parentBlock.data?.image ? 'exists' : 'missing', parentBlock.data?.image);
+
             // Обновляем родительский блок
             if (!parentBlock.children) parentBlock.children = [];
             if (!parentBlock.data) parentBlock.data = {};
@@ -2603,6 +2606,11 @@ export class LocalStateManager {
             // Сохраняем локально и показываем сразу (мгновенный отклик)
             await this.saveBlock(newBlock);
             await this.saveBlock(parentBlock);
+
+            // DEBUG: проверяем image после сохранения
+            const savedParent = this.blocks.get(parentId);
+            console.log('createBlock: parent image AFTER save:', savedParent?.data?.image ? 'exists' : 'missing', savedParent?.data?.image);
+
             dispatch('ShowBlocks');
 
             // Записываем в undo stack
