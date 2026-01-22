@@ -10,6 +10,9 @@ export const DEFAULT_IMAGE_SETTINGS = {
         enabled: false,
         opacity: 100,
         blur: 0,
+        brightness: 100,    // 0-200, 100 = нормально
+        contrast: 100,      // 0-200, 100 = нормально
+        saturation: 100,    // 0-200, 100 = нормально
         overlayColor: '#000000',
         overlayOpacity: 0
     }

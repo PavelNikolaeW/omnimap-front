@@ -12,6 +12,79 @@ import {deduplicateChildOrder} from "../utils/childOrderUtils";
 import {getSafeColor, clamp} from "../utils/imageSettingsDefaults";
 
 
+/**
+ * Маппинг размеров блока на варианты изображения
+ * Ключ - префикс layout размера блока, значение - название варианта
+ */
+const LAYOUT_TO_VARIANT = {
+    'xxxs': 'thumb',   // < 150px
+    'xxs': 'thumb',    // ~150px
+    'xs': 'small',     // ~200-400px
+    's': 'small',      // ~400px
+    'm': 'medium',     // ~500-800px
+    'l': 'large',      // ~900-1200px
+    'xl': 'xlarge',    // ~1300-1600px
+    'xxl': 'original', // > 1700px
+};
+
+/**
+ * Выбирает подходящий вариант изображения на основе размера блока
+ * @param {Object} image - объект изображения с variants
+ * @param {string} layout - layout размер блока (например 'm-table')
+ * @returns {Object} - объект с url и размерами выбранного варианта
+ */
+function selectImageVariant(image, layout) {
+    // Fallback на старый формат если variants нет
+    if (!image?.variants) {
+        return {
+            url: image?.url || image?.thumbnail_url,
+            thumbnailUrl: image?.thumbnail_url,
+            width: image?.width,
+            height: image?.height
+        };
+    }
+
+    const variants = image.variants;
+    const layoutSize = layout?.split('-')[0] || 'm';
+    const variantKey = LAYOUT_TO_VARIANT[layoutSize] || 'medium';
+
+    // Пробуем получить запрошенный вариант, иначе fallback
+    const variant = variants[variantKey] ||
+                    variants.medium ||
+                    variants.original ||
+                    { url: image.url };
+
+    return {
+        url: variant.url,
+        thumbnailUrl: variants.thumb?.url || image.thumbnail_url,
+        width: variant.width || image.width,
+        height: variant.height || image.height,
+        // Все варианты для srcset
+        variants
+    };
+}
+
+/**
+ * Генерирует srcset атрибут для адаптивной загрузки изображений
+ * @param {Object} variants - объект вариантов изображения
+ * @returns {string} - srcset строка
+ */
+function generateSrcset(variants) {
+    if (!variants) return '';
+
+    const srcsetParts = [];
+    const variantOrder = ['thumb', 'small', 'medium', 'large', 'xlarge', 'original'];
+
+    for (const key of variantOrder) {
+        const variant = variants[key];
+        if (variant?.url && variant?.width) {
+            srcsetParts.push(`${variant.url} ${variant.width}w`);
+        }
+    }
+
+    return srcsetParts.join(', ');
+}
+
 const viewRenderers = {
     'auth': auth,
     'registration': registration,
@@ -101,7 +174,14 @@ class BlockCreator {
 
             if (block.size.width <= 40) {
                 block.contentEl = null
+                delete block._backgroundImageHtml
             } else if (block.contentEl) {
+                // Background image добавляется первым (под контентом)
+                if (block._backgroundImageHtml) {
+                    element.insertAdjacentHTML('beforeend', block._backgroundImageHtml)
+                    element.setAttribute('data-has-background-image', 'true')
+                    delete block._backgroundImageHtml
+                }
                 element.appendChild(block.contentEl)
             }
             // element.setAttribute('width', `${Math.floor(block.size.width)}`)
@@ -331,8 +411,21 @@ class BlockCreator {
         contentElement.setAttribute('data-testid', `block-content-${block.id}`)
         const content = block.data.text ? `<contentBlock>${block.data?.text}</contentBlock>` : '<contentBlock></contentBlock>'
 
-        // Добавляем изображение если есть
-        const imageHtml = this._createImageHtml(block, contentElement)
+        // Проверяем режим background для изображения
+        const bgSettings = block.data?.image?.settings?.background
+        const isBackgroundMode = bgSettings?.enabled
+
+        // Добавляем изображение: для background режима - сохраняем отдельно для добавления в блок
+        const imageResult = this._createImageHtml(block, contentElement)
+        let imageHtml = ''
+
+        if (isBackgroundMode) {
+            // В background режиме картинка будет добавлена непосредственно в блок (в методе create)
+            block._backgroundImageHtml = imageResult
+        } else {
+            // Обычный режим: картинка внутри content
+            imageHtml = imageResult
+        }
 
         contentElement.innerHTML = title + imageHtml + content
 
@@ -350,12 +443,20 @@ class BlockCreator {
      */
     _createImageHtml(block, contentElement) {
         const image = block.data?.image
-        if (!image?.thumbnail_url) {
+        // Проверяем наличие изображения (поддержка старого и нового формата)
+        if (!image?.thumbnail_url && !image?.variants?.thumb?.url) {
             return ''
         }
 
-        const imageUrl = image.url || image.thumbnail_url
-        const thumbnailUrl = image.thumbnail_url
+        // Выбираем подходящий вариант изображения на основе размера блока
+        const layout = block.size?.layout || 'm-table'
+        const selectedVariant = selectImageVariant(image, layout)
+
+        // URL для отображения (подобран под размер блока)
+        const displayUrl = selectedVariant.url
+        // URL оригинала для fullscreen/download
+        const originalUrl = image.variants?.original?.url || image.url || displayUrl
+
         // Санитизация filename для предотвращения XSS
         const safeFilename = this._sanitizeText(image.filename || 'Block image')
 
@@ -385,9 +486,11 @@ class BlockCreator {
         }
 
         // Определяем auto режим на основе пропорций изображения
+        const imgWidth = selectedVariant.width || image.width
+        const imgHeight = selectedVariant.height || image.height
         let effectiveFitMode = fitMode
-        if (fitMode === 'auto' && image.width && image.height) {
-            const imageRatio = image.width / image.height
+        if (fitMode === 'auto' && imgWidth && imgHeight) {
+            const imageRatio = imgWidth / imgHeight
             // Квадратные картинки (0.8-1.2) → cover, иначе contain
             effectiveFitMode = (imageRatio > 0.8 && imageRatio < 1.2) ? 'cover' : 'contain'
         }
@@ -410,12 +513,23 @@ class BlockCreator {
             // Ограничиваем значения в допустимых диапазонах
             const opacity = clamp(bgSettings.opacity ?? 100, 0, 100) / 100
             const blur = clamp(bgSettings.blur ?? 0, 0, 20)
+            const brightness = clamp(bgSettings.brightness ?? 100, 0, 200) / 100
+            const contrast = clamp(bgSettings.contrast ?? 100, 0, 200) / 100
+            const saturation = clamp(bgSettings.saturation ?? 100, 0, 200) / 100
 
             if (opacity < 1) {
                 imgStyles.push(`opacity: ${opacity}`)
             }
-            if (blur > 0) {
-                imgStyles.push(`filter: blur(${blur}px)`)
+
+            // Собираем CSS filter из нескольких значений
+            const filters = []
+            if (blur > 0) filters.push(`blur(${blur}px)`)
+            if (brightness !== 1) filters.push(`brightness(${brightness})`)
+            if (contrast !== 1) filters.push(`contrast(${contrast})`)
+            if (saturation !== 1) filters.push(`saturate(${saturation})`)
+
+            if (filters.length > 0) {
+                imgStyles.push(`filter: ${filters.join(' ')}`)
             }
         }
 
@@ -429,8 +543,14 @@ class BlockCreator {
             overlayHtml = `<div class="block-image-overlay" style="background-color: ${safeOverlayColor}; opacity: ${overlayOpacity};"></div>`
         }
 
-        return `<div class="block-image-container" data-testid="block-image-${block.id}" data-fullsize-url="${imageUrl}" ${containerAttrs.join(' ')}>
-            <img src="${thumbnailUrl}" alt="${safeFilename}" class="block-image" data-testid="block-image-tag-${block.id}" loading="lazy"${imgStyleAttr} />
+        // Генерируем srcset для адаптивной загрузки
+        const srcset = generateSrcset(selectedVariant.variants)
+        const srcsetAttr = srcset ? ` srcset="${srcset}"` : ''
+        // sizes атрибут для подсказки браузеру какой размер использовать
+        const sizesAttr = srcset ? ' sizes="(max-width: 400px) 150px, (max-width: 800px) 400px, (max-width: 1200px) 800px, 1200px"' : ''
+
+        return `<div class="block-image-container" data-testid="block-image-${block.id}" data-fullsize-url="${originalUrl}" ${containerAttrs.join(' ')}>
+            <img src="${displayUrl}" alt="${safeFilename}" class="block-image" data-testid="block-image-tag-${block.id}" loading="lazy"${srcsetAttr}${sizesAttr}${imgStyleAttr} />
             ${overlayHtml}
         </div>`
     }

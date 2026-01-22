@@ -722,12 +722,21 @@
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Background Mode - картинка как фон блока
+   Структура: .block > .block-image-container[data-background] + .defaultContent
    ───────────────────────────────────────────────────────────────────────────── */
+
+/* Блок с background image должен иметь relative позиционирование */
+[data-has-background-image="true"] {
+    position: relative;
+}
+
+/* Background image container заполняет весь блок */
 .block-image-container[data-background="true"] {
     position: absolute;
     inset: 0;
     z-index: 0;
     border-radius: inherit;
+    overflow: hidden;
 }
 
 .block-image-container[data-background="true"] .block-image {
@@ -745,25 +754,29 @@
     border-radius: inherit;
 }
 
-/* Контент над background картинкой */
-[data-image-background="true"] titleBlock,
-[data-image-background="true"] .blockTextEditor,
-[data-image-background="true"] contentBlock {
+/* Контент (.defaultContent) поверх background image */
+[data-has-background-image="true"] > .defaultContent {
     position: relative;
     z-index: 2;
 }
 
-/* Блок с background должен иметь relative позиционирование */
+/* Контент внутри defaultContent тоже должен быть над фоном */
+[data-has-background-image="true"] titleBlock,
+[data-has-background-image="true"] .blockTextEditor,
+[data-has-background-image="true"] contentBlock {
+    position: relative;
+    z-index: 2;
+}
+
+/* Legacy: поддержка старой структуры (картинка внутри defaultContent) */
 [data-image-background="true"] {
     position: relative;
 }
 
-/* Переопределяем flex для блоков с background чтобы контент был поверх */
 [data-image-background="true"].defaultContent {
     position: relative;
 }
 
-/* Убираем стандартный flex для image container в background режиме */
 [data-image-background="true"] .block-image-container {
     flex: none;
 }

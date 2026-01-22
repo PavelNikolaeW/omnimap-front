@@ -198,6 +198,33 @@ export class ImageUploadPopup extends Popup {
                         <span class="image-setting-value" data-for="imageBlur">${this.currentSettings.background.blur}px</span>
                     </div>
                     <div class="image-setting-row">
+                        <label>Яркость</label>
+                        <input type="range"
+                            id="imageBrightness"
+                            min="0" max="200"
+                            value="${this.currentSettings.background.brightness ?? 100}"
+                            data-testid="brightness-slider">
+                        <span class="image-setting-value" data-for="imageBrightness">${this.currentSettings.background.brightness ?? 100}%</span>
+                    </div>
+                    <div class="image-setting-row">
+                        <label>Контрастность</label>
+                        <input type="range"
+                            id="imageContrast"
+                            min="0" max="200"
+                            value="${this.currentSettings.background.contrast ?? 100}"
+                            data-testid="contrast-slider">
+                        <span class="image-setting-value" data-for="imageContrast">${this.currentSettings.background.contrast ?? 100}%</span>
+                    </div>
+                    <div class="image-setting-row">
+                        <label>Насыщенность</label>
+                        <input type="range"
+                            id="imageSaturation"
+                            min="0" max="200"
+                            value="${this.currentSettings.background.saturation ?? 100}"
+                            data-testid="saturation-slider">
+                        <span class="image-setting-value" data-for="imageSaturation">${this.currentSettings.background.saturation ?? 100}%</span>
+                    </div>
+                    <div class="image-setting-row">
                         <label>Оверлей</label>
                         <input type="color"
                             id="imageOverlayColor"
@@ -265,7 +292,7 @@ export class ImageUploadPopup extends Popup {
         }, { signal });
 
         // Range sliders - используем debounce для applySettings
-        ['imageOpacity', 'imageBlur', 'imageOverlayOpacity'].forEach(id => {
+        ['imageOpacity', 'imageBlur', 'imageBrightness', 'imageContrast', 'imageSaturation', 'imageOverlayOpacity'].forEach(id => {
             const input = this.settingsSection.querySelector(`#${id}`);
             input?.addEventListener('input', (e) => {
                 this.updateSliderValue(id, e.target.value);
@@ -349,11 +376,17 @@ export class ImageUploadPopup extends Popup {
     updateCurrentSettings() {
         const opacity = this.settingsSection.querySelector('#imageOpacity');
         const blur = this.settingsSection.querySelector('#imageBlur');
+        const brightness = this.settingsSection.querySelector('#imageBrightness');
+        const contrast = this.settingsSection.querySelector('#imageContrast');
+        const saturation = this.settingsSection.querySelector('#imageSaturation');
         const overlayColor = this.settingsSection.querySelector('#imageOverlayColor');
         const overlayOpacity = this.settingsSection.querySelector('#imageOverlayOpacity');
 
         if (opacity) this.currentSettings.background.opacity = parseInt(opacity.value);
         if (blur) this.currentSettings.background.blur = parseInt(blur.value);
+        if (brightness) this.currentSettings.background.brightness = parseInt(brightness.value);
+        if (contrast) this.currentSettings.background.contrast = parseInt(contrast.value);
+        if (saturation) this.currentSettings.background.saturation = parseInt(saturation.value);
         if (overlayColor) this.currentSettings.background.overlayColor = overlayColor.value;
         if (overlayOpacity) this.currentSettings.background.overlayOpacity = parseInt(overlayOpacity.value);
     }
@@ -377,7 +410,20 @@ export class ImageUploadPopup extends Popup {
         // Background режим
         if (this.currentSettings.background?.enabled) {
             previewImg.style.opacity = this.currentSettings.background.opacity / 100;
-            previewImg.style.filter = `blur(${this.currentSettings.background.blur}px)`;
+
+            // Собираем CSS filter из нескольких значений
+            const filters = [];
+            const blur = this.currentSettings.background.blur || 0;
+            const brightness = this.currentSettings.background.brightness ?? 100;
+            const contrast = this.currentSettings.background.contrast ?? 100;
+            const saturation = this.currentSettings.background.saturation ?? 100;
+
+            if (blur > 0) filters.push(`blur(${blur}px)`);
+            if (brightness !== 100) filters.push(`brightness(${brightness / 100})`);
+            if (contrast !== 100) filters.push(`contrast(${contrast / 100})`);
+            if (saturation !== 100) filters.push(`saturate(${saturation / 100})`);
+
+            previewImg.style.filter = filters.length > 0 ? filters.join(' ') : 'none';
 
             if (overlay) {
                 // Валидация цвета для защиты от CSS injection
