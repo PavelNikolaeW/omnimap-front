@@ -566,6 +566,16 @@ export class LocalStateManager {
 
             // Обновляем данные блока с информацией об изображении
             if (imageData) {
+                // Парсим settings если бек вернул их как строку (баг бека)
+                let settings = imageData.settings;
+                if (typeof settings === 'string') {
+                    try {
+                        settings = JSON.parse(settings);
+                    } catch (e) {
+                        console.warn('Failed to parse image settings:', e);
+                        settings = null;
+                    }
+                }
                 block.data.image = {
                     url: imageData.url,
                     thumbnail_url: imageData.thumbnail_url,
@@ -576,7 +586,7 @@ export class LocalStateManager {
                     // Варианты изображений разного размера (от бека)
                     variants: imageData.variants || null,
                     // Настройки отображения картинки (используем централизованные дефолты)
-                    settings: imageData.settings || getDefaultImageSettings()
+                    settings: settings || getDefaultImageSettings()
                 };
             } else {
                 // Удаляем информацию об изображении
@@ -1380,12 +1390,22 @@ export class LocalStateManager {
                             // Сервер явно удалил image
                             mergedImage = null;
                         } else if (serverData.image) {
+                            // Парсим settings если бек вернул их как строку (баг бека)
+                            let serverSettings = serverData.image.settings;
+                            if (typeof serverSettings === 'string') {
+                                try {
+                                    serverSettings = JSON.parse(serverSettings);
+                                } catch (e) {
+                                    console.warn('Failed to parse image settings:', e);
+                                    serverSettings = null;
+                                }
+                            }
                             // Мёржим серверный image с локальными settings
                             mergedImage = {
                                 ...localData.image,
                                 ...serverData.image,
                                 // Сохраняем локальные settings если сервер не прислал
-                                settings: serverData.image.settings || localData.image?.settings
+                                settings: serverSettings || localData.image?.settings
                             };
                         }
                     }

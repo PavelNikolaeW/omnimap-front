@@ -421,7 +421,19 @@ class BlockCreator {
         }
 
         // Проверяем режим background для изображения
-        const bgSettings = block.data?.image?.settings?.background
+        // Парсим settings если бек вернул их как строку (баг бека)
+        let imageSettings = block.data?.image?.settings;
+        if (typeof imageSettings === 'string') {
+            try {
+                imageSettings = JSON.parse(imageSettings);
+                // Обновляем в блоке чтобы не парсить повторно
+                block.data.image.settings = imageSettings;
+            } catch (e) {
+                console.warn('Failed to parse image settings:', e);
+                imageSettings = null;
+            }
+        }
+        const bgSettings = imageSettings?.background
         const isBackgroundMode = bgSettings?.enabled
 
         // Добавляем изображение: для background режима - сохраняем отдельно для добавления в блок
@@ -471,7 +483,16 @@ class BlockCreator {
         const safeFilename = this._sanitizeText(image.filename || 'Block image')
 
         // Получаем настройки или дефолты
-        const settings = image.settings || {}
+        // Парсим settings если бек вернул их как строку (баг бека)
+        let settings = image.settings || {};
+        if (typeof settings === 'string') {
+            try {
+                settings = JSON.parse(settings);
+                image.settings = settings; // Обновляем чтобы не парсить повторно
+            } catch (e) {
+                settings = {};
+            }
+        }
         const fitMode = settings.fitMode || 'auto'
         const position = settings.position || 'center'
         const bgSettings = settings.background || {}
