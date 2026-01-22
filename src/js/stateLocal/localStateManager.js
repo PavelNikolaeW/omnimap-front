@@ -1370,9 +1370,15 @@ export class LocalStateManager {
                     // Мёржим data: сервер имеет приоритет
                     // childOrder: используем серверный если он определён (даже пустой []), иначе локальный
                     // ВАЖНО: дедуплицируем сразу, т.к. сервер может прислать дубликаты
+                    // ВАЖНО: сохраняем локальные image данные если сервер не прислал image
+                    // (сервер не присылает image при обычных обновлениях блока)
                     const mergedData = {
                         ...localData,
                         ...serverData,
+                        // Сохраняем image из локальных данных если сервер не прислал валидный image
+                        // Сервер может удалить image только явно отправив image: null
+                        // Если serverData не содержит ключ 'image' - сохраняем локальный
+                        image: ('image' in serverData) ? serverData.image : localData.image,
                         childOrder: deduplicateChildOrder(
                             Array.isArray(serverData.childOrder)
                                 ? serverData.childOrder

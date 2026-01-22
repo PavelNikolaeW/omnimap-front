@@ -692,11 +692,18 @@ export class ImageUploadPopup extends Popup {
      * Получить URL превью изображения (поддержка старого и нового формата)
      */
     getPreviewUrl() {
-        if (!this.currentImage) return null;
-        return this.currentImage.thumbnail_url ||
+        if (!this.currentImage) {
+            console.debug('ImageUploadPopup: no currentImage');
+            return null;
+        }
+        const url = this.currentImage.thumbnail_url ||
                this.currentImage.variants?.thumb?.url ||
                this.currentImage.url ||
                this.currentImage.variants?.original?.url;
+        if (!url) {
+            console.warn('ImageUploadPopup: currentImage exists but no URL found:', this.currentImage);
+        }
+        return url;
     }
 
     /**

@@ -400,13 +400,23 @@ export const popupsCommands = [
             const block = localStateManager.blocks.get(blockId);
             let currentImage = block?.data?.image || null;
 
+            console.debug('uploadBlockImage: local image data:', currentImage ? 'found' : 'not found', currentImage);
+
             // Если локально нет данных, запрашиваем с сервера
             if (!currentImage) {
                 try {
-                    currentImage = await api.getBlockImage(blockId);
-                    // Сохраняем в локальный state для следующих открытий
-                    if (currentImage && block) {
-                        block.data.image = currentImage;
+                    const apiImage = await api.getBlockImage(blockId);
+                    console.debug('uploadBlockImage: fetched from API:', apiImage);
+                    // Нормализуем данные от API (добавляем settings если нет)
+                    if (apiImage) {
+                        currentImage = {
+                            ...apiImage,
+                            settings: apiImage.settings || null
+                        };
+                        // Сохраняем в локальный state для следующих открытий
+                        if (block) {
+                            block.data.image = currentImage;
+                        }
                     }
                 } catch (err) {
                     // Игнорируем ошибки - просто откроем попап без картинки
