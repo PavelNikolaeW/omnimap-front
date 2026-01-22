@@ -1,19 +1,20 @@
 import { Popup } from "./popup";
 import { JsonTextEditor } from "../JsonTextEditor";
 
-// Поля которые опасно редактировать вручную
-const DANGEROUS_FIELDS = [
-  'id',           // Изменение сломает связи
-  'parent_id',    // Изменение сломает дерево
-  'children',     // Должен совпадать с childOrder
-  'updated_at',   // Системное поле
-  'forbidden',    // Системный флаг доступа
-  'permission',   // Системный уровень прав
+// Системные поля - только для просмотра, нельзя редактировать
+const READONLY_FIELDS = [
+  'id',           // Идентификатор блока
+  'parent_id',    // Родительский блок
+  'children',     // Дочерние блоки
+  'updated_at',   // Время обновления
+  'forbidden',    // Флаг запрета доступа
+  'permission',   // Уровень прав
   'creator_id',   // ID создателя
+  'sandbox_mode', // Режим sandbox
 ];
 
-// Служебные поля которые не нужно показывать
-const INTERNAL_FIELDS = [
+// Служебные поля которые не нужно показывать вообще
+const HIDDEN_FIELDS = [
   '_childOrderVersion',
   '_lastRenderedVersion',
   'childrenPositions',
@@ -48,18 +49,11 @@ export class EditBlockPopup extends Popup {
     container.className = "popup-json-editor";
     this.contentArea.appendChild(container);
 
-    // Предупреждение об опасных полях
-    const warning = document.createElement("div");
-    warning.className = "popup-warning";
-    warning.innerHTML = `
-      <i class="fas fa-exclamation-triangle"></i>
-      <span>
-        <strong>Внимание:</strong> Поля <code>id</code>, <code>parent_id</code>,
-        <code>children</code>, <code>permission</code> — системные.
-        Их изменение может привести к ошибкам.
-      </span>
-    `;
-    container.appendChild(warning);
+    // Системная информация (только для просмотра)
+    const readonlyInfo = this._createReadonlySection();
+    if (readonlyInfo) {
+      container.appendChild(readonlyInfo);
+    }
 
     // Сообщение об ошибке
     this.errorMsgContainer = document.createElement("div");
@@ -70,12 +64,18 @@ export class EditBlockPopup extends Popup {
     this.errorMsgContainer.appendChild(this.errorMsg);
     container.appendChild(this.errorMsgContainer);
 
+    // Заголовок редактируемой секции
+    const editLabel = document.createElement("div");
+    editLabel.className = "popup-section-label";
+    editLabel.textContent = "Редактируемые поля:";
+    container.appendChild(editLabel);
+
     // Монтируем JSON-редактор
     this.editorHost = document.createElement('div');
     this.editorHost.className = 'note-editor-container';
     container.appendChild(this.editorHost);
 
-    // Формируем данные для редактора
+    // Формируем данные для редактора (только редактируемые поля)
     const blockToEdit = this._prepareBlockForEdit();
     const initial = JSON.stringify(blockToEdit, null, 2);
 
@@ -98,8 +98,85 @@ export class EditBlockPopup extends Popup {
   }
 
   /**
+   * Создаёт секцию с readonly системной информацией
+   */
+  _createReadonlySection() {
+    const fullBlock = this.options.fullBlock;
+    if (!fullBlock) return null;
+
+    const section = document.createElement("div");
+    section.className = "popup-readonly-section";
+
+    const label = document.createElement("div");
+    label.className = "popup-section-label";
+    label.innerHTML = '<i class="fas fa-lock"></i> Системные поля (только чтение):';
+    section.appendChild(label);
+
+    const grid = document.createElement("div");
+    grid.className = "popup-readonly-grid";
+
+    // Показываем только существующие поля
+    const fieldsToShow = [
+      { key: 'id', label: 'ID' },
+      { key: 'parent_id', label: 'Родитель' },
+      { key: 'permission', label: 'Права' },
+      { key: 'sandbox_mode', label: 'Sandbox' },
+      { key: 'creator_id', label: 'Создатель' },
+      { key: 'updated_at', label: 'Обновлён' },
+    ];
+
+    for (const { key, label } of fieldsToShow) {
+      const value = fullBlock[key];
+      if (value === undefined || value === null || value === false) continue;
+
+      const item = document.createElement("div");
+      item.className = "popup-readonly-item";
+
+      const labelEl = document.createElement("span");
+      labelEl.className = "popup-readonly-label";
+      labelEl.textContent = label + ':';
+
+      const valueEl = document.createElement("span");
+      valueEl.className = "popup-readonly-value";
+      valueEl.textContent = this._formatValue(key, value);
+      valueEl.title = String(value); // Полное значение в tooltip
+
+      item.appendChild(labelEl);
+      item.appendChild(valueEl);
+      grid.appendChild(item);
+    }
+
+    section.appendChild(grid);
+    return section;
+  }
+
+  /**
+   * Форматирует значение для отображения
+   */
+  _formatValue(key, value) {
+    if (key === 'id' || key === 'parent_id' || key === 'creator_id') {
+      // Сокращаем UUID
+      const str = String(value);
+      return str.length > 12 ? str.slice(0, 8) + '...' : str;
+    }
+    if (key === 'updated_at') {
+      // Форматируем дату
+      try {
+        const date = new Date(value);
+        return date.toLocaleString('ru-RU', {
+          day: '2-digit', month: '2-digit', year: '2-digit',
+          hour: '2-digit', minute: '2-digit'
+        });
+      } catch {
+        return String(value);
+      }
+    }
+    return String(value);
+  }
+
+  /**
    * Подготавливает блок для редактирования
-   * Убирает служебные поля, сортирует для удобства
+   * Возвращает только редактируемые поля (title, data)
    */
   _prepareBlockForEdit() {
     const fullBlock = this.options.fullBlock;
@@ -108,22 +185,10 @@ export class EditBlockPopup extends Popup {
       return this.options.blockData || {};
     }
 
-    // Фильтруем служебные поля
+    // Только редактируемые поля
     const result = {};
-
-    // Сначала безопасные поля
     if (fullBlock.title !== undefined) result.title = fullBlock.title;
     if (fullBlock.data !== undefined) result.data = fullBlock.data;
-    if (fullBlock.sandbox_mode !== undefined) result.sandbox_mode = fullBlock.sandbox_mode;
-
-    // Потом опасные системные поля
-    if (fullBlock.id !== undefined) result.id = fullBlock.id;
-    if (fullBlock.parent_id !== undefined) result.parent_id = fullBlock.parent_id;
-    if (fullBlock.children !== undefined) result.children = fullBlock.children;
-    if (fullBlock.permission !== undefined) result.permission = fullBlock.permission;
-    if (fullBlock.creator_id !== undefined) result.creator_id = fullBlock.creator_id;
-    if (fullBlock.forbidden !== undefined) result.forbidden = fullBlock.forbidden;
-    if (fullBlock.updated_at !== undefined) result.updated_at = fullBlock.updated_at;
 
     return result;
   }

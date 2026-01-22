@@ -2943,11 +2943,12 @@ export class LocalStateManager {
     }
 
     /**
-     * Обновляет блок целиком (для ручного редактирования через Shift+E)
-     * Позволяет менять все поля кроме id
+     * Обновляет блок (для ручного редактирования через Shift+E)
+     * Позволяет менять только title и data
+     * Системные поля (id, parent_id, children, permission и т.д.) защищены
      * @param {Object} param
      * @param {string} param.blockId - ID блока
-     * @param {Object} param.block - Отредактированный блок
+     * @param {Object} param.block - Отредактированный блок (только title и data)
      */
     async updateFullBlock({blockId, block: editedBlock}) {
         const block = this.blocks.get(blockId);
@@ -2968,17 +2969,10 @@ export class LocalStateManager {
         // Сохраняем состояние ДО изменения для undo (deep clone)
         const beforeState = JSON.parse(JSON.stringify(block));
 
-        // Обновляем разрешённые поля (id не меняем!)
+        // Обновляем ТОЛЬКО разрешённые поля: title и data
+        // Системные поля (id, parent_id, children, permission, etc.) защищены
         if (editedBlock.title !== undefined) block.title = editedBlock.title;
         if (editedBlock.data !== undefined) block.data = editedBlock.data;
-        if (editedBlock.sandbox_mode !== undefined) block.sandbox_mode = editedBlock.sandbox_mode;
-
-        // Системные поля - обновляем с осторожностью
-        // parent_id и children НЕ меняем здесь - это может сломать дерево
-        // Используйте MoveBlock для перемещения
-        if (editedBlock.permission !== undefined) block.permission = editedBlock.permission;
-        if (editedBlock.forbidden !== undefined) block.forbidden = editedBlock.forbidden;
-        if (editedBlock.creator_id !== undefined) block.creator_id = editedBlock.creator_id;
 
         block.updated_at = new Date().toISOString();
         await this.saveBlock(block);

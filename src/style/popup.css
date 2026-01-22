@@ -578,6 +578,59 @@
     font-size: 12px;
 }
 
+/* Section label - заголовок секции */
+.popup-section-label {
+    font-size: var(--popup-font-size-sm);
+    font-weight: 500;
+    color: var(--popup-muted);
+    margin-bottom: var(--popup-spacing-sm);
+    display: flex;
+    align-items: center;
+    gap: var(--popup-spacing-xs);
+}
+
+.popup-section-label i {
+    font-size: 11px;
+}
+
+/* Readonly section - системные поля только для чтения */
+.popup-readonly-section {
+    margin-bottom: var(--popup-spacing-md);
+    padding: var(--popup-spacing-md);
+    background: #f8fafc;
+    border: 1px solid var(--popup-border);
+    border-radius: var(--popup-radius-md);
+}
+
+.popup-readonly-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: var(--popup-spacing-sm) var(--popup-spacing-md);
+}
+
+.popup-readonly-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.popup-readonly-label {
+    font-size: 11px;
+    color: var(--popup-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.popup-readonly-value {
+    font-size: var(--popup-font-size-sm);
+    font-family: var(--popup-font-mono);
+    color: var(--popup-fg);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: default;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    List Styles - Стили для списков
    ───────────────────────────────────────────────────────────────────────────── */
