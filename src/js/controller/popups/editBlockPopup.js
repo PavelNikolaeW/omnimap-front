@@ -1,10 +1,33 @@
 import { Popup } from "./popup";
 import { JsonTextEditor } from "../JsonTextEditor";
 
+// Поля которые опасно редактировать вручную
+const DANGEROUS_FIELDS = [
+  'id',           // Изменение сломает связи
+  'parent_id',    // Изменение сломает дерево
+  'children',     // Должен совпадать с childOrder
+  'updated_at',   // Системное поле
+  'forbidden',    // Системный флаг доступа
+  'permission',   // Системный уровень прав
+  'creator_id',   // ID создателя
+];
+
+// Служебные поля которые не нужно показывать
+const INTERNAL_FIELDS = [
+  '_childOrderVersion',
+  '_lastRenderedVersion',
+  'childrenPositions',
+  'grid',
+  'color',
+  'contentEl',
+  'size',
+  'contentPosition',
+];
+
 export class EditBlockPopup extends Popup {
   constructor(options = {}) {
     super({
-      title: options.title || "Редактировать JSON",
+      title: options.title || "Редактировать блок",
       size: 'full',
       modal: true,
       draggable: true,
@@ -12,6 +35,8 @@ export class EditBlockPopup extends Popup {
       onCancel: options.onCancel,
       inputs: [],
       blockData: options.blockData,
+      fullBlock: options.fullBlock,  // Весь блок для редактирования
+      blockId: options.blockId,
     });
   }
 
@@ -23,7 +48,18 @@ export class EditBlockPopup extends Popup {
     container.className = "popup-json-editor";
     this.contentArea.appendChild(container);
 
-    const blockData = this.options.blockData || {};
+    // Предупреждение об опасных полях
+    const warning = document.createElement("div");
+    warning.className = "popup-warning";
+    warning.innerHTML = `
+      <i class="fas fa-exclamation-triangle"></i>
+      <span>
+        <strong>Внимание:</strong> Поля <code>id</code>, <code>parent_id</code>,
+        <code>children</code>, <code>permission</code> — системные.
+        Их изменение может привести к ошибкам.
+      </span>
+    `;
+    container.appendChild(warning);
 
     // Сообщение об ошибке
     this.errorMsgContainer = document.createElement("div");
@@ -39,7 +75,9 @@ export class EditBlockPopup extends Popup {
     this.editorHost.className = 'note-editor-container';
     container.appendChild(this.editorHost);
 
-    const initial = JSON.stringify(blockData, null, 2);
+    // Формируем данные для редактора
+    const blockToEdit = this._prepareBlockForEdit();
+    const initial = JSON.stringify(blockToEdit, null, 2);
 
     this.editor = new JsonTextEditor({
       container: this.editorHost,
@@ -57,6 +95,37 @@ export class EditBlockPopup extends Popup {
 
     // хоткей Ctrl/Cmd+S из редактора — трактуем как "Применить"
     this.editorHost.addEventListener('json-editor-ctrl-s', () => this.handleSubmit());
+  }
+
+  /**
+   * Подготавливает блок для редактирования
+   * Убирает служебные поля, сортирует для удобства
+   */
+  _prepareBlockForEdit() {
+    const fullBlock = this.options.fullBlock;
+    if (!fullBlock) {
+      // Fallback на старое поведение (только data)
+      return this.options.blockData || {};
+    }
+
+    // Фильтруем служебные поля
+    const result = {};
+
+    // Сначала безопасные поля
+    if (fullBlock.title !== undefined) result.title = fullBlock.title;
+    if (fullBlock.data !== undefined) result.data = fullBlock.data;
+    if (fullBlock.sandbox_mode !== undefined) result.sandbox_mode = fullBlock.sandbox_mode;
+
+    // Потом опасные системные поля
+    if (fullBlock.id !== undefined) result.id = fullBlock.id;
+    if (fullBlock.parent_id !== undefined) result.parent_id = fullBlock.parent_id;
+    if (fullBlock.children !== undefined) result.children = fullBlock.children;
+    if (fullBlock.permission !== undefined) result.permission = fullBlock.permission;
+    if (fullBlock.creator_id !== undefined) result.creator_id = fullBlock.creator_id;
+    if (fullBlock.forbidden !== undefined) result.forbidden = fullBlock.forbidden;
+    if (fullBlock.updated_at !== undefined) result.updated_at = fullBlock.updated_at;
+
+    return result;
   }
 
   createButtons() {

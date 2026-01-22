@@ -79,7 +79,7 @@ export const popupsCommands = [
             classes: ['sidebar-button', 'fas', 'fa-wrench', 'fas-lg']
         },
         defaultHotkey: 'shift+e',
-        description: 'Открывает меню редактирования размеров блока',
+        description: 'Открывает редактор всех полей блока',
         execute(ctx) {
             ctx.mode = 'editBlock'
             const id = ctx.blockId || ctx.blockElement?.id.split('*').at(0)
@@ -90,10 +90,12 @@ export const popupsCommands = [
                 localforage.getItem(`Block_${id}_${user}`, (err, block) => {
                     ctx.popup = new EditBlockPopup({
                         title: "Редактирование блока",
-                        blockData: block.data,
-                        forbiddenKeys: ['childOrder', 'connections'],
-                        onSubmit: (data) => {
-                            dispatch('UpdateDataBlock', {blockId: id, data})
+                        fullBlock: block,           // Передаём весь блок
+                        blockData: block.data,      // Для обратной совместимости
+                        blockId: id,
+                        onSubmit: (editedBlock) => {
+                            // Обновляем весь блок
+                            dispatch('UpdateFullBlock', {blockId: id, block: editedBlock})
                             ctx.mode = 'normal'
                         },
                         onCancel: () => {

@@ -549,6 +549,35 @@
     border-radius: var(--popup-radius-md);
 }
 
+/* Warning banner - предупреждение об опасных полях */
+.popup-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--popup-spacing-sm);
+    padding: var(--popup-spacing-md);
+    margin-bottom: var(--popup-spacing-md);
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: var(--popup-radius-md);
+    color: #92400e;
+    font-size: var(--popup-font-size-sm);
+    line-height: 1.5;
+}
+
+.popup-warning i {
+    color: #f59e0b;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.popup-warning code {
+    background: rgba(245, 158, 11, 0.15);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: var(--popup-font-mono);
+    font-size: 12px;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    List Styles - Стили для списков
    ───────────────────────────────────────────────────────────────────────────── */
