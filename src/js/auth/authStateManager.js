@@ -3,14 +3,14 @@ import Cookies from "js-cookie";
 import { dispatch } from "../utils/utils";
 
 /**
- * Интервал проверки токенов в миллисекундах (30 секунд)
- */
-const TOKEN_CHECK_INTERVAL = 30000;
-
-/**
  * Обновлять токен за 5 минут до истечения
  */
 const TOKEN_REFRESH_THRESHOLD = 5 * 60 * 1000;
+
+/**
+ * Минимальная задержка для таймера (1 секунда)
+ */
+const MIN_TIMER_DELAY = 1000;
 
 /**
  * Декодирует payload JWT токена без верификации подписи
@@ -46,9 +46,9 @@ class AuthStateManager {
         this.isAuthenticated = false;
         this.currentUser = null;
         this.isLinkView = false;
-        this.tokenCheckTimer = null;
+        this._refreshTimer = null;
         this._initialized = false;
-        this._isRefreshing = false; // Флаг для предотвращения параллельных refresh
+        this._isRefreshing = false;
 
         // UI элементы
         this.elements = {
@@ -83,8 +83,12 @@ class AuthStateManager {
         // Инициализируем состояние
         await this.checkAuthState();
 
-        // Запускаем периодическую проверку токенов
-        this.startTokenCheck();
+        // Планируем обновление токена
+        this._scheduleTokenRefresh();
+
+        // Проверяем токены при возвращении на вкладку
+        this._boundVisibilityHandler = this._handleVisibilityChange.bind(this);
+        document.addEventListener('visibilitychange', this._boundVisibilityHandler);
     }
 
     cacheElements() {
@@ -125,18 +129,23 @@ class AuthStateManager {
         this.isAuthenticated = true;
         this.currentUser = user;
         this.updateUI();
+        // Планируем обновление нового токена
+        this._scheduleTokenRefresh();
     }
 
     handleLogout() {
         this.isAuthenticated = false;
         this.currentUser = null;
         this.updateUI();
+        // Отменяем запланированный refresh
+        this._clearRefreshTimer();
     }
 
     handleAnonimUser() {
         this.isAuthenticated = false;
         this.currentUser = 'anonim';
         this.updateUI();
+        this._clearRefreshTimer();
     }
 
     handleInitUser(event) {
@@ -144,6 +153,7 @@ class AuthStateManager {
         this.isAuthenticated = true;
         this.currentUser = user;
         this.updateUI();
+        this._scheduleTokenRefresh();
     }
 
     /**
@@ -201,95 +211,90 @@ class AuthStateManager {
     }
 
     /**
-     * Запускает периодическую проверку токенов
-     * Если токены были удалены (например, вручную из DevTools),
-     * автоматически выполняет logout
+     * Планирует обновление токена за 5 минут до истечения
      */
-    startTokenCheck() {
-        this.stopTokenCheck();
+    _scheduleTokenRefresh() {
+        this._clearRefreshTimer();
 
-        this.tokenCheckTimer = setInterval(() => {
-            this.verifyTokens().catch(e => console.error('[AuthStateManager] verifyTokens error:', e));
-        }, TOKEN_CHECK_INTERVAL);
+        if (!this.isAuthenticated) return;
 
-        // Также проверяем при возвращении на вкладку
-        this._boundVisibilityHandler = this._handleVisibilityChange.bind(this);
-        document.addEventListener('visibilitychange', this._boundVisibilityHandler);
+        const accessToken = Cookies.get('access');
+        const hasRefreshToken = Cookies.get('refresh') !== undefined;
+
+        if (!accessToken || !hasRefreshToken) return;
+
+        const payload = decodeJwtPayload(accessToken);
+        if (!payload || !payload.exp) return;
+
+        const expiresAt = payload.exp * 1000;
+        const now = Date.now();
+        const timeUntilRefresh = expiresAt - now - TOKEN_REFRESH_THRESHOLD;
+
+        if (timeUntilRefresh <= 0) {
+            // Токен уже истекает или истёк - обновляем сейчас
+            console.log('[AuthStateManager] Token expiring/expired, refreshing now');
+            this._refreshTokenProactively();
+        } else {
+            // Планируем обновление
+            const delay = Math.max(timeUntilRefresh, MIN_TIMER_DELAY);
+            console.log(`[AuthStateManager] Scheduling token refresh in ${Math.round(delay / 1000 / 60)} min`);
+            this._refreshTimer = setTimeout(() => {
+                this._refreshTokenProactively();
+            }, delay);
+        }
     }
 
     /**
-     * Останавливает периодическую проверку токенов
+     * Отменяет запланированное обновление токена
      */
-    stopTokenCheck() {
-        if (this.tokenCheckTimer) {
-            clearInterval(this.tokenCheckTimer);
-            this.tokenCheckTimer = null;
+    _clearRefreshTimer() {
+        if (this._refreshTimer) {
+            clearTimeout(this._refreshTimer);
+            this._refreshTimer = null;
         }
     }
 
     /**
      * Обработчик изменения видимости страницы
-     * Проверяет токены при возвращении на вкладку
+     * При возвращении на вкладку проверяем, не пропустили ли время refresh
      */
     _handleVisibilityChange() {
-        if (document.visibilityState === 'visible') {
-            this.verifyTokens().catch(e => console.error('[AuthStateManager] verifyTokens error:', e));
+        if (document.visibilityState === 'visible' && this.isAuthenticated) {
+            // Перепланируем refresh - возможно пропустили пока вкладка была в фоне
+            this._scheduleTokenRefresh();
         }
     }
 
     /**
-     * Проверяет наличие токенов и соответствие состоянию авторизации
-     * Если пользователь был авторизован, но токены исчезли - выполняет logout
-     * Также проактивно обновляет токен до его истечения
-     */
-    async verifyTokens() {
-        const accessToken = Cookies.get('access');
-        const hasRefreshToken = Cookies.get('refresh') !== undefined;
-
-        // Если пользователь был авторизован, но токены пропали
-        if (this.isAuthenticated && this.currentUser && this.currentUser !== 'anonim') {
-            if (!accessToken && !hasRefreshToken) {
-                console.warn('[AuthStateManager] tokens missing, logging out');
-                dispatch('Logout');
-                return;
-            }
-
-            // Проактивное обновление токена до истечения
-            if (accessToken && hasRefreshToken && !this._isRefreshing) {
-                const payload = decodeJwtPayload(accessToken);
-                if (payload && payload.exp) {
-                    const expiresAt = payload.exp * 1000; // JWT exp в секундах
-                    const now = Date.now();
-                    const timeUntilExpiry = expiresAt - now;
-
-                    // Обновляем токен за 5 минут до истечения
-                    if (timeUntilExpiry > 0 && timeUntilExpiry < TOKEN_REFRESH_THRESHOLD) {
-                        console.log('[AuthStateManager] Token expiring soon, refreshing proactively');
-                        await this._refreshTokenProactively();
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Проактивно обновляет access token
+     * Проактивно обновляет access token и планирует следующее обновление
      */
     async _refreshTokenProactively() {
         if (this._isRefreshing) return;
         this._isRefreshing = true;
 
         try {
+            // Проверяем наличие токенов перед refresh
+            const hasRefreshToken = Cookies.get('refresh') !== undefined;
+            if (!hasRefreshToken) {
+                console.warn('[AuthStateManager] No refresh token, logging out');
+                dispatch('Logout');
+                return;
+            }
+
             // Динамический импорт для избежания циклических зависимостей
             const { default: api } = await import('../api/api.js');
             const success = await api.refreshToken();
+
             if (success) {
-                console.log('[AuthStateManager] Token refreshed proactively');
+                console.log('[AuthStateManager] Token refreshed successfully');
+                // Планируем следующее обновление с новым токеном
+                this._scheduleTokenRefresh();
             } else {
-                console.warn('[AuthStateManager] Proactive token refresh failed');
+                console.warn('[AuthStateManager] Token refresh failed');
+                // Не делаем logout сразу - axios interceptor попробует при следующем запросе
             }
         } catch (error) {
-            console.error('[AuthStateManager] Error during proactive refresh:', error);
+            console.error('[AuthStateManager] Error during token refresh:', error);
         } finally {
             this._isRefreshing = false;
         }
@@ -299,7 +304,7 @@ class AuthStateManager {
      * Очистка ресурсов
      */
     destroy() {
-        this.stopTokenCheck();
+        this._clearRefreshTimer();
         if (this._boundVisibilityHandler) {
             document.removeEventListener('visibilitychange', this._boundVisibilityHandler);
         }
