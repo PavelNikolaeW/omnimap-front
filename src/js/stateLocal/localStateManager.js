@@ -3592,5 +3592,11 @@ export const localStateManager = {
             _localStateManagerInstance = new LocalStateManager();
         }
         return _localStateManagerInstance;
+    },
+    getPathSync() {
+        if (!_localStateManagerInstance) {
+            _localStateManagerInstance = new LocalStateManager();
+        }
+        return _localStateManagerInstance.getPathSync();
     }
 };
