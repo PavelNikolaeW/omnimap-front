@@ -13,6 +13,16 @@ const TOKEN_REFRESH_THRESHOLD = 5 * 60 * 1000;
 const MIN_TIMER_DELAY = 1000;
 
 /**
+ * Retry при ошибке refresh (5 секунд)
+ */
+const RETRY_DELAY = 5000;
+
+/**
+ * Максимум retry попыток
+ */
+const MAX_RETRY_ATTEMPTS = 3;
+
+/**
  * Декодирует payload JWT токена без верификации подписи
  * @param {string} token - JWT токен
  * @returns {object|null} - payload или null при ошибке
@@ -49,6 +59,8 @@ class AuthStateManager {
         this._refreshTimer = null;
         this._initialized = false;
         this._isRefreshing = false;
+        this._retryCount = 0;
+        this._lastActivityTime = Date.now(); // Для детекции sleep
 
         // UI элементы
         this.elements = {
@@ -86,9 +98,11 @@ class AuthStateManager {
         // Планируем обновление токена
         this._scheduleTokenRefresh();
 
-        // Проверяем токены при возвращении на вкладку
-        this._boundVisibilityHandler = this._handleVisibilityChange.bind(this);
+        // Проверяем токены при возвращении на вкладку / выходе из sleep
+        this._boundVisibilityHandler = this._handleWakeUp.bind(this);
+        this._boundFocusHandler = this._handleWakeUp.bind(this);
         document.addEventListener('visibilitychange', this._boundVisibilityHandler);
+        window.addEventListener('focus', this._boundFocusHandler);
     }
 
     cacheElements() {
@@ -129,7 +143,7 @@ class AuthStateManager {
         this.isAuthenticated = true;
         this.currentUser = user;
         this.updateUI();
-        // Планируем обновление нового токена
+        this._retryCount = 0;
         this._scheduleTokenRefresh();
     }
 
@@ -137,8 +151,8 @@ class AuthStateManager {
         this.isAuthenticated = false;
         this.currentUser = null;
         this.updateUI();
-        // Отменяем запланированный refresh
         this._clearRefreshTimer();
+        this._retryCount = 0;
     }
 
     handleAnonimUser() {
@@ -153,6 +167,7 @@ class AuthStateManager {
         this.isAuthenticated = true;
         this.currentUser = user;
         this.updateUI();
+        this._retryCount = 0;
         this._scheduleTokenRefresh();
     }
 
@@ -215,6 +230,7 @@ class AuthStateManager {
      */
     _scheduleTokenRefresh() {
         this._clearRefreshTimer();
+        this._lastActivityTime = Date.now();
 
         if (!this.isAuthenticated) return;
 
@@ -255,14 +271,28 @@ class AuthStateManager {
     }
 
     /**
-     * Обработчик изменения видимости страницы
-     * При возвращении на вкладку проверяем, не пропустили ли время refresh
+     * Обработчик выхода из sleep или возвращения на вкладку
+     * Проверяет, не пропустили ли мы время refresh
      */
-    _handleVisibilityChange() {
-        if (document.visibilityState === 'visible' && this.isAuthenticated) {
-            // Перепланируем refresh - возможно пропустили пока вкладка была в фоне
+    _handleWakeUp() {
+        // Для visibilitychange проверяем что вкладка стала видимой
+        if (document.visibilityState && document.visibilityState !== 'visible') {
+            return;
+        }
+
+        if (!this.isAuthenticated) return;
+
+        const now = Date.now();
+        const timeSinceLastActivity = now - this._lastActivityTime;
+
+        // Если прошло больше 1 минуты - возможно был sleep, перепланируем
+        if (timeSinceLastActivity > 60000) {
+            console.log(`[AuthStateManager] Detected possible sleep/background (${Math.round(timeSinceLastActivity / 1000)}s), rescheduling`);
+            this._retryCount = 0; // Сбрасываем retry при wake up
             this._scheduleTokenRefresh();
         }
+
+        this._lastActivityTime = now;
     }
 
     /**
@@ -287,16 +317,36 @@ class AuthStateManager {
 
             if (success) {
                 console.log('[AuthStateManager] Token refreshed successfully');
+                this._retryCount = 0;
                 // Планируем следующее обновление с новым токеном
                 this._scheduleTokenRefresh();
             } else {
                 console.warn('[AuthStateManager] Token refresh failed');
-                // Не делаем logout сразу - axios interceptor попробует при следующем запросе
+                this._scheduleRetry();
             }
         } catch (error) {
             console.error('[AuthStateManager] Error during token refresh:', error);
+            this._scheduleRetry();
         } finally {
             this._isRefreshing = false;
+        }
+    }
+
+    /**
+     * Планирует retry при ошибке refresh
+     */
+    _scheduleRetry() {
+        this._retryCount++;
+
+        if (this._retryCount <= MAX_RETRY_ATTEMPTS) {
+            console.log(`[AuthStateManager] Scheduling retry ${this._retryCount}/${MAX_RETRY_ATTEMPTS} in ${RETRY_DELAY / 1000}s`);
+            this._refreshTimer = setTimeout(() => {
+                this._refreshTokenProactively();
+            }, RETRY_DELAY);
+        } else {
+            console.warn('[AuthStateManager] Max retry attempts reached, giving up');
+            // Сбрасываем retry count и ждём следующего visibility/focus или API запроса
+            this._retryCount = 0;
         }
     }
 
@@ -307,6 +357,9 @@ class AuthStateManager {
         this._clearRefreshTimer();
         if (this._boundVisibilityHandler) {
             document.removeEventListener('visibilitychange', this._boundVisibilityHandler);
+        }
+        if (this._boundFocusHandler) {
+            window.removeEventListener('focus', this._boundFocusHandler);
         }
     }
 }
