@@ -179,10 +179,18 @@ module.exports = merge(common, {
             new TerserPlugin({
                 terserOptions: {
                     compress: {
-                        // Временно оставляем console для отладки sync
-                        drop_console: false,
+                        drop_console: true,
+                        drop_debugger: true,
+                        pure_funcs: ['console.log', 'console.info', 'console.debug'],
+                    },
+                    mangle: {
+                        safari10: true,
+                    },
+                    output: {
+                        comments: false,
                     },
                 },
+                extractComments: false,
             }),
             new CssMinimizerPlugin(),
         ],
