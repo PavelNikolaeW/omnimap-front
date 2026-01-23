@@ -63,7 +63,7 @@ module.exports = merge(common, {
             maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
             // Precaching: index.html будет доступен offline
             navigateFallback: '/index.html',
-            navigateFallbackDenylist: [/^\/api\//],
+            navigateFallbackDenylist: [/^\/api\//, /^\/admin\//, /^\/static\//, /^\/media\//],
             // Подключаем кастомный код для Background Sync
             importScripts: ['sw-custom.js'],
             runtimeCaching: [
@@ -167,7 +167,7 @@ module.exports = merge(common, {
         new webpack.DefinePlugin({
             APP_BACKEND_URL: JSON.stringify(process.env.APP_BACKEND_URL || 'https://omnimap.ru'),
             SINC_SERVICE_URL: JSON.stringify(process.env.SINC_SERVICE_URL || 'wss://omnimap.ru/ws'),
-            LLM_GATEWAY_URL: JSON.stringify(process.env.LLM_GATEWAY_URL || 'https://llm.omnimap.ru'),
+            LLM_GATEWAY_URL: JSON.stringify(process.env.LLM_GATEWAY_URL || 'https://omnimap.ru/llm'),
             APP_VERSION: JSON.stringify(process.env.APP_VERSION || 'dev'),
             APP_BUILD_TIME: JSON.stringify(new Date().toISOString())
         })
