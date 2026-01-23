@@ -724,10 +724,14 @@ export class ImageUploadPopup extends Popup {
         if (!this.currentImage || !previewUrl) {
             this.previewSection.style.display = 'none';
             this.settingsSection.style.display = 'none';
+            // Показываем dropzone для загрузки нового изображения
+            this.dropZone.style.display = 'block';
             return;
         }
 
         this.previewSection.style.display = 'block';
+        // Скрываем dropzone когда изображение уже загружено
+        this.dropZone.style.display = 'none';
 
         const previewContainer = document.createElement('div');
         previewContainer.className = 'image-upload-preview';
@@ -757,6 +761,13 @@ export class ImageUploadPopup extends Popup {
         const viewBtn = Popup.createButton('Просмотр', 'secondary', () => this.openFullsize());
         viewBtn.classList.add('popup-btn--sm');
         actions.appendChild(viewBtn);
+
+        const replaceBtn = Popup.createButton('Заменить', 'secondary', () => {
+            // Показать file input для замены изображения
+            this.fileInput.click();
+        });
+        replaceBtn.classList.add('popup-btn--sm');
+        actions.appendChild(replaceBtn);
 
         const deleteBtn = Popup.createButton('Удалить', 'danger', () => this.deleteImage());
         deleteBtn.classList.add('popup-btn--sm');

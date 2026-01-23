@@ -771,6 +771,13 @@
     height: 100%;
 }
 
+/* Дочерние блоки также должны быть поверх background image */
+.block[data-has-background-image="true"] > [block],
+[block][data-has-background-image="true"] > [block] {
+    position: relative;
+    z-index: 2;
+}
+
 /* Контент внутри defaultContent тоже должен быть над фоном */
 [data-has-background-image="true"] titleBlock,
 [data-has-background-image="true"] .blockTextEditor,
