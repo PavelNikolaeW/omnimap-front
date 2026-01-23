@@ -63,7 +63,8 @@ module.exports = merge(common, {
             maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
             // Precaching: index.html будет доступен offline
             navigateFallback: '/index.html',
-            navigateFallbackDenylist: [/^\/api\//, /^\/admin\//, /^\/static\//, /^\/media\//],
+            // Regex должен матчить и /admin и /admin/ (с и без trailing slash)
+            navigateFallbackDenylist: [/^\/api(\/|$)/, /^\/admin(\/|$)/, /^\/static(\/|$)/, /^\/media(\/|$)/],
             // Подключаем кастомный код для Background Sync
             importScripts: ['sw-custom.js'],
             runtimeCaching: [
