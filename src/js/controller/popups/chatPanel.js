@@ -64,6 +64,15 @@ export class ChatPanel extends Popup {
         tabsContainer.appendChild(groupsTab);
         this.contentArea.appendChild(tabsContainer);
 
+        // Info hint about shared blocks requirement
+        const infoHint = document.createElement('div');
+        infoHint.className = 'p2p-chat-info-hint';
+        infoHint.innerHTML = `
+            <span class="p2p-chat-info-icon">ℹ️</span>
+            <span>Чат доступен только с пользователями, у которых есть общие блоки с вами</span>
+        `;
+        this.contentArea.appendChild(infoHint);
+
         // Search
         const searchContainer = document.createElement('div');
         searchContainer.className = 'p2p-chat-search';
@@ -118,7 +127,7 @@ export class ChatPanel extends Popup {
             const emptyEl = document.createElement('div');
             emptyEl.className = 'p2p-chat-empty';
             emptyEl.textContent = this.activeTab === 'dm'
-                ? 'Нет диалогов. Найдите контакт для начала общения.'
+                ? 'Нет диалогов. Поделитесь блоками с другими пользователями, чтобы начать общение.'
                 : 'Нет групп. Создайте группу или присоединитесь к существующей.';
             this.listContainer.appendChild(emptyEl);
             return;
@@ -139,7 +148,22 @@ export class ChatPanel extends Popup {
 
         const avatar = document.createElement('div');
         avatar.className = 'p2p-chat-avatar';
-        avatar.textContent = (conversation.username || 'U').charAt(0).toUpperCase();
+
+        // Show avatar image if available
+        if (conversation.avatar_url) {
+            const img = document.createElement('img');
+            img.className = 'p2p-avatar-img';
+            img.src = conversation.avatar_url;
+            img.alt = '';
+            // Fallback to initials on error
+            img.onerror = () => {
+                img.remove();
+                avatar.textContent = (conversation.username || 'U').charAt(0).toUpperCase();
+            };
+            avatar.appendChild(img);
+        } else {
+            avatar.textContent = (conversation.username || 'U').charAt(0).toUpperCase();
+        }
 
         const content = document.createElement('div');
         content.className = 'p2p-chat-item-content';
@@ -187,7 +211,22 @@ export class ChatPanel extends Popup {
 
         const avatar = document.createElement('div');
         avatar.className = 'p2p-chat-avatar p2p-chat-avatar--group';
-        avatar.textContent = (group.name || 'G').charAt(0).toUpperCase();
+
+        // Show avatar image if available
+        if (group.avatar_url) {
+            const img = document.createElement('img');
+            img.className = 'p2p-avatar-img';
+            img.src = group.avatar_url;
+            img.alt = '';
+            // Fallback to initials on error
+            img.onerror = () => {
+                img.remove();
+                avatar.textContent = (group.name || 'G').charAt(0).toUpperCase();
+            };
+            avatar.appendChild(img);
+        } else {
+            avatar.textContent = (group.name || 'G').charAt(0).toUpperCase();
+        }
 
         const content = document.createElement('div');
         content.className = 'p2p-chat-item-content';

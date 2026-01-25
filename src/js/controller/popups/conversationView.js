@@ -31,6 +31,7 @@ export class ConversationView extends Popup {
 
         this.userId = conversation.user_id;
         this.username = conversation.username || `User ${conversation.user_id}`;
+        this.avatarUrl = conversation.avatar_url || null;
         this.messages = [];
         this.isLoading = false;
         this.hasMore = true;
@@ -39,6 +40,11 @@ export class ConversationView extends Popup {
         this.typingTimeout = null;
         this.isTyping = false;
         this.partnerTyping = false;
+
+        // File attachments
+        this.pendingFiles = [];
+        this.maxFiles = 5;
+        this.maxFileSize = 10 * 1024 * 1024; // 10MB
 
         this.init();
     }
@@ -69,7 +75,22 @@ export class ConversationView extends Popup {
 
         const avatar = document.createElement('div');
         avatar.className = 'p2p-chat-avatar';
-        avatar.textContent = this.username.charAt(0).toUpperCase();
+
+        // Show avatar image if available
+        if (this.avatarUrl) {
+            const img = document.createElement('img');
+            img.className = 'p2p-avatar-img';
+            img.src = this.avatarUrl;
+            img.alt = '';
+            // Fallback to initials on error
+            img.onerror = () => {
+                img.remove();
+                avatar.textContent = this.username.charAt(0).toUpperCase();
+            };
+            avatar.appendChild(img);
+        } else {
+            avatar.textContent = this.username.charAt(0).toUpperCase();
+        }
 
         const nameContainer = document.createElement('div');
         nameContainer.className = 'p2p-conversation-name-container';
@@ -105,9 +126,35 @@ export class ConversationView extends Popup {
 
         this.contentArea.appendChild(messagesContainer);
 
+        // File preview area (above input)
+        const filePreviewArea = document.createElement('div');
+        filePreviewArea.className = 'p2p-file-preview-area';
+        filePreviewArea.id = 'file-preview-area';
+        filePreviewArea.style.display = 'none';
+        this.filePreviewArea = filePreviewArea;
+        this.contentArea.appendChild(filePreviewArea);
+
         // Input area
         const inputArea = document.createElement('div');
         inputArea.className = 'p2p-conversation-input-area';
+
+        // Hidden file input
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.multiple = true;
+        fileInput.className = 'p2p-file-input';
+        fileInput.id = 'file-input';
+        fileInput.accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar';
+        fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
+        this.fileInput = fileInput;
+
+        // Attach button
+        const attachBtn = document.createElement('button');
+        attachBtn.className = 'p2p-attach-btn';
+        attachBtn.innerHTML = '&#128206;'; // Paperclip icon
+        attachBtn.title = 'Прикрепить файл';
+        attachBtn.addEventListener('click', () => this.fileInput.click());
+        this.attachBtn = attachBtn;
 
         const input = document.createElement('textarea');
         input.className = 'p2p-conversation-input';
@@ -123,10 +170,145 @@ export class ConversationView extends Popup {
         sendBtn.addEventListener('click', () => this.sendMessage());
         this.sendBtn = sendBtn;
 
+        inputArea.appendChild(fileInput);
+        inputArea.appendChild(attachBtn);
         inputArea.appendChild(input);
         inputArea.appendChild(sendBtn);
 
         this.contentArea.appendChild(inputArea);
+    }
+
+    /**
+     * Handle file selection from input
+     */
+    handleFileSelect(e) {
+        const files = Array.from(e.target.files);
+        this.addFiles(files);
+        // Reset input so same file can be selected again
+        e.target.value = '';
+    }
+
+    /**
+     * Add files to pending list with validation
+     */
+    addFiles(files) {
+        for (const file of files) {
+            // Check max files limit
+            if (this.pendingFiles.length >= this.maxFiles) {
+                alert(`Максимум ${this.maxFiles} файлов`);
+                break;
+            }
+
+            // Check file size
+            if (file.size > this.maxFileSize) {
+                alert(`Файл "${file.name}" превышает лимит 10MB`);
+                continue;
+            }
+
+            // Check for duplicates
+            if (this.pendingFiles.some(f => f.name === file.name && f.size === file.size)) {
+                continue;
+            }
+
+            this.pendingFiles.push(file);
+        }
+
+        this.renderFilePreview();
+    }
+
+    /**
+     * Remove file from pending list
+     */
+    removeFile(index) {
+        this.pendingFiles.splice(index, 1);
+        this.renderFilePreview();
+    }
+
+    /**
+     * Render file preview area
+     */
+    renderFilePreview() {
+        if (!this.filePreviewArea) return;
+
+        if (this.pendingFiles.length === 0) {
+            this.filePreviewArea.style.display = 'none';
+            this.filePreviewArea.innerHTML = '';
+            return;
+        }
+
+        this.filePreviewArea.style.display = 'flex';
+        this.filePreviewArea.innerHTML = '';
+
+        this.pendingFiles.forEach((file, index) => {
+            const item = document.createElement('div');
+            item.className = 'p2p-file-preview-item';
+
+            // Preview for images
+            if (file.type.startsWith('image/')) {
+                const img = document.createElement('img');
+                img.className = 'p2p-file-preview-img';
+                img.src = URL.createObjectURL(file);
+                img.onload = () => URL.revokeObjectURL(img.src);
+                item.appendChild(img);
+            } else {
+                // Icon for other files
+                const icon = document.createElement('span');
+                icon.className = 'p2p-file-preview-icon';
+                icon.textContent = this.getFileIcon(file.name);
+                item.appendChild(icon);
+            }
+
+            // File info
+            const info = document.createElement('div');
+            info.className = 'p2p-file-preview-info';
+
+            const name = document.createElement('span');
+            name.className = 'p2p-file-preview-name';
+            name.textContent = file.name.length > 15 ? file.name.slice(0, 12) + '...' : file.name;
+            name.title = file.name;
+
+            const size = document.createElement('span');
+            size.className = 'p2p-file-preview-size';
+            size.textContent = this.formatFileSize(file.size);
+
+            info.appendChild(name);
+            info.appendChild(size);
+            item.appendChild(info);
+
+            // Remove button
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'p2p-file-preview-remove';
+            removeBtn.innerHTML = '&times;';
+            removeBtn.addEventListener('click', () => this.removeFile(index));
+            item.appendChild(removeBtn);
+
+            this.filePreviewArea.appendChild(item);
+        });
+    }
+
+    /**
+     * Get icon for file type
+     */
+    getFileIcon(filename) {
+        const ext = filename.split('.').pop().toLowerCase();
+        const icons = {
+            pdf: '📄',
+            doc: '📝', docx: '📝',
+            xls: '📊', xlsx: '📊',
+            txt: '📃',
+            zip: '📦', rar: '📦',
+            default: '📎'
+        };
+        return icons[ext] || icons.default;
+    }
+
+    /**
+     * Format file size for display
+     */
+    formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
     }
 
     renderMessages() {
@@ -173,7 +355,18 @@ export class ConversationView extends Popup {
 
         const bubble = document.createElement('div');
         bubble.className = 'p2p-message-bubble';
-        bubble.textContent = message.content;
+
+        // Add text content if present
+        if (message.content) {
+            const textNode = document.createTextNode(message.content);
+            bubble.appendChild(textNode);
+        }
+
+        // Add attachments if present
+        if (message.files && message.files.length > 0) {
+            const attachments = this.createAttachmentsElement(message.files);
+            bubble.appendChild(attachments);
+        }
 
         const meta = document.createElement('div');
         meta.className = 'p2p-message-meta';
@@ -200,6 +393,105 @@ export class ConversationView extends Popup {
         container.appendChild(bubble);
 
         return container;
+    }
+
+    /**
+     * Create attachments display element
+     */
+    createAttachmentsElement(files) {
+        const container = document.createElement('div');
+        container.className = 'p2p-message-attachments';
+
+        files.forEach(file => {
+            const isImage = file.is_image || (file.content_type && file.content_type.startsWith('image/'));
+
+            if (isImage) {
+                // Image preview
+                const img = document.createElement('img');
+                img.className = 'p2p-attachment-img';
+                img.src = file.url || file.file_url;
+                img.alt = file.name || 'Image';
+                img.loading = 'lazy';
+                img.addEventListener('click', () => this.openLightbox(file.url || file.file_url));
+                container.appendChild(img);
+            } else {
+                // File attachment
+                const attachment = document.createElement('a');
+                attachment.className = 'p2p-attachment';
+                attachment.href = file.url || file.file_url;
+                attachment.target = '_blank';
+                attachment.download = file.name;
+
+                const icon = document.createElement('span');
+                icon.className = 'p2p-attachment-icon';
+                icon.textContent = this.getFileIcon(file.name);
+
+                const info = document.createElement('div');
+                info.className = 'p2p-attachment-info';
+
+                const name = document.createElement('span');
+                name.className = 'p2p-attachment-name';
+                name.textContent = file.name;
+
+                const size = document.createElement('span');
+                size.className = 'p2p-attachment-size';
+                size.textContent = this.formatFileSize(file.size);
+
+                info.appendChild(name);
+                info.appendChild(size);
+
+                const download = document.createElement('span');
+                download.className = 'p2p-attachment-download';
+                download.innerHTML = '&#8681;'; // Download arrow
+
+                attachment.appendChild(icon);
+                attachment.appendChild(info);
+                attachment.appendChild(download);
+                container.appendChild(attachment);
+            }
+        });
+
+        return container;
+    }
+
+    /**
+     * Open image in lightbox
+     */
+    openLightbox(imageUrl) {
+        const lightbox = document.createElement('div');
+        lightbox.className = 'p2p-lightbox';
+
+        const img = document.createElement('img');
+        img.src = imageUrl;
+
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'p2p-lightbox-close';
+        closeBtn.innerHTML = '&times;';
+        closeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            lightbox.remove();
+        });
+
+        lightbox.appendChild(img);
+        lightbox.appendChild(closeBtn);
+
+        // Close on background click
+        lightbox.addEventListener('click', (e) => {
+            if (e.target === lightbox) {
+                lightbox.remove();
+            }
+        });
+
+        // Close on Escape key
+        const escHandler = (e) => {
+            if (e.key === 'Escape') {
+                lightbox.remove();
+                document.removeEventListener('keydown', escHandler);
+            }
+        };
+        document.addEventListener('keydown', escHandler);
+
+        document.body.appendChild(lightbox);
     }
 
     groupMessagesByDate(messages) {
@@ -282,7 +574,10 @@ export class ConversationView extends Popup {
 
     async sendMessage() {
         const content = this.messageInput.value.trim();
-        if (!content) return;
+        const files = this.pendingFiles.length > 0 ? [...this.pendingFiles] : null;
+
+        // Need either content or files
+        if (!content && !files) return;
 
         try {
             // Optimistic update
@@ -291,15 +586,23 @@ export class ConversationView extends Popup {
                 content,
                 sender_id: Number(this.currentUserId),
                 created_at: new Date().toISOString(),
-                read: false
+                read: false,
+                files: files ? files.map(f => ({
+                    name: f.name,
+                    size: f.size,
+                    url: URL.createObjectURL(f),
+                    is_image: f.type.startsWith('image/')
+                })) : null
             };
             this.messages.push(tempMessage);
             this.renderMessages();
             this.messageInput.value = '';
+            this.pendingFiles = [];
+            this.renderFilePreview();
             this.autoResizeInput();
 
             // Send to server
-            const response = await chatApi.sendMessage(this.userId, content);
+            const response = await chatApi.sendMessage(this.userId, content, files);
             const sentMessage = response.data;
 
             // Replace temp message with real one
@@ -321,6 +624,11 @@ export class ConversationView extends Popup {
             this.messages = this.messages.filter(m => !m.id.startsWith('temp-'));
             this.renderMessages();
             this.messageInput.value = content;
+            // Restore files on error
+            if (files) {
+                this.pendingFiles = files;
+                this.renderFilePreview();
+            }
         }
     }
 
