@@ -460,6 +460,9 @@ export class ConversationView extends Popup {
     openLightbox(imageUrl) {
         const lightbox = document.createElement('div');
         lightbox.className = 'p2p-lightbox';
+        lightbox.setAttribute('role', 'dialog');
+        lightbox.setAttribute('aria-modal', 'true');
+        lightbox.setAttribute('aria-label', 'Просмотр изображения');
 
         const img = document.createElement('img');
         img.src = imageUrl;
@@ -467,9 +470,17 @@ export class ConversationView extends Popup {
         const closeBtn = document.createElement('button');
         closeBtn.className = 'p2p-lightbox-close';
         closeBtn.innerHTML = '&times;';
+        closeBtn.setAttribute('aria-label', 'Закрыть');
+
+        // Unified close function to prevent memory leaks
+        const closeLightbox = () => {
+            lightbox.remove();
+            document.removeEventListener('keydown', escHandler);
+        };
+
         closeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            lightbox.remove();
+            closeLightbox();
         });
 
         lightbox.appendChild(img);
@@ -478,15 +489,14 @@ export class ConversationView extends Popup {
         // Close on background click
         lightbox.addEventListener('click', (e) => {
             if (e.target === lightbox) {
-                lightbox.remove();
+                closeLightbox();
             }
         });
 
         // Close on Escape key
         const escHandler = (e) => {
             if (e.key === 'Escape') {
-                lightbox.remove();
-                document.removeEventListener('keydown', escHandler);
+                closeLightbox();
             }
         };
         document.addEventListener('keydown', escHandler);
@@ -620,6 +630,14 @@ export class ConversationView extends Popup {
 
         } catch (error) {
             console.error('Failed to send message:', error);
+            // Revoke temporary Object URLs to prevent memory leak
+            if (tempMessage.files) {
+                tempMessage.files.forEach(f => {
+                    if (f.url && f.url.startsWith('blob:')) {
+                        URL.revokeObjectURL(f.url);
+                    }
+                });
+            }
             // Remove temp message on error
             this.messages = this.messages.filter(m => !m.id.startsWith('temp-'));
             this.renderMessages();

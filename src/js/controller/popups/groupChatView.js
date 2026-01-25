@@ -516,6 +516,9 @@ export class GroupChatView extends Popup {
     openLightbox(imageUrl) {
         const lightbox = document.createElement('div');
         lightbox.className = 'p2p-lightbox';
+        lightbox.setAttribute('role', 'dialog');
+        lightbox.setAttribute('aria-modal', 'true');
+        lightbox.setAttribute('aria-label', 'Просмотр изображения');
 
         const img = document.createElement('img');
         img.src = imageUrl;
@@ -523,9 +526,17 @@ export class GroupChatView extends Popup {
         const closeBtn = document.createElement('button');
         closeBtn.className = 'p2p-lightbox-close';
         closeBtn.innerHTML = '&times;';
+        closeBtn.setAttribute('aria-label', 'Закрыть');
+
+        // Unified close function to prevent memory leaks
+        const closeLightbox = () => {
+            lightbox.remove();
+            document.removeEventListener('keydown', escHandler);
+        };
+
         closeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            lightbox.remove();
+            closeLightbox();
         });
 
         lightbox.appendChild(img);
@@ -534,15 +545,14 @@ export class GroupChatView extends Popup {
         // Close on background click
         lightbox.addEventListener('click', (e) => {
             if (e.target === lightbox) {
-                lightbox.remove();
+                closeLightbox();
             }
         });
 
         // Close on Escape key
         const escHandler = (e) => {
             if (e.key === 'Escape') {
-                lightbox.remove();
-                document.removeEventListener('keydown', escHandler);
+                closeLightbox();
             }
         };
         document.addEventListener('keydown', escHandler);
@@ -576,7 +586,16 @@ export class GroupChatView extends Popup {
 
         // Use avatar_url if available, otherwise show initial
         if (member.avatar_url) {
-            avatar.innerHTML = `<img src="${this.escapeHtml(member.avatar_url)}" alt="" class="p2p-avatar-img" />`;
+            const img = document.createElement('img');
+            img.className = 'p2p-avatar-img';
+            img.src = member.avatar_url;
+            img.alt = '';
+            // Fallback to initials on error
+            img.onerror = () => {
+                img.remove();
+                avatar.textContent = (member.username || 'U').charAt(0).toUpperCase();
+            };
+            avatar.appendChild(img);
         } else {
             avatar.textContent = (member.username || 'U').charAt(0).toUpperCase();
         }
@@ -789,6 +808,14 @@ export class GroupChatView extends Popup {
 
         } catch (error) {
             console.error('Failed to send group message:', error);
+            // Revoke temporary Object URLs to prevent memory leak
+            if (tempMessage.files) {
+                tempMessage.files.forEach(f => {
+                    if (f.url && f.url.startsWith('blob:')) {
+                        URL.revokeObjectURL(f.url);
+                    }
+                });
+            }
             this.messages = this.messages.filter(m => !m.id.startsWith('temp-'));
             this.renderMessages();
             this.messageInput.value = content;

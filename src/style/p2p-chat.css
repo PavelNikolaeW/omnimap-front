@@ -841,6 +841,26 @@
     border-color: var(--accent-color, #3b82f6);
 }
 
+.p2p-attach-btn:focus {
+    outline: 2px solid var(--accent-color, #3b82f6);
+    outline-offset: 2px;
+}
+
+.p2p-conversation-send-btn:focus {
+    outline: 2px solid var(--accent-color, #3b82f6);
+    outline-offset: 2px;
+}
+
+.p2p-file-preview-remove:focus {
+    outline: 2px solid var(--accent-color, #3b82f6);
+    outline-offset: 2px;
+}
+
+.p2p-lightbox-close:focus {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
 /* File preview area */
 .p2p-file-preview-area {
     display: flex;
@@ -1162,11 +1182,13 @@
         padding-right: env(safe-area-inset-right, 0);
     }
 
-    /* Use dvh for proper mobile viewport */
+    /* Use dvh for proper mobile viewport with fallback */
     .p2p-chat-panel,
     .p2p-conversation-view,
     .p2p-group-chat-view {
+        height: 100vh;
         height: 100dvh;
+        max-height: 100vh;
         max-height: 100dvh;
     }
 
