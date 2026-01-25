@@ -30,6 +30,69 @@ export class Painter {
             maxDepth: 40,
         }
         this.counter = 0
+        // Персистентный кэш img элементов (как AllIframes) - не очищается при перерендере
+        this._allImages = new Map()
+    }
+
+    /**
+     * Отсоединяет img элементы от DOM перед очисткой (но не удаляет из кэша)
+     */
+    _detachImages() {
+        const images = this.rootContainer.querySelectorAll('.block-image')
+        images.forEach(img => {
+            const testId = img.getAttribute('data-testid')
+            if (testId) {
+                const blockId = testId.replace('block-image-tag-', '')
+                // Сохраняем в кэш если картинка загружена
+                if (img.complete && img.naturalWidth > 0) {
+                    // Отсоединяем от DOM и сохраняем
+                    img.remove()
+                    this._allImages.set(blockId, img)
+                }
+            }
+        })
+    }
+
+    /**
+     * Восстанавливает закэшированные img элементы в новый DOM
+     */
+    _reattachImages() {
+        if (this._allImages.size === 0) return
+
+        const newImages = this.rootContainer.querySelectorAll('.block-image')
+        newImages.forEach(newImg => {
+            const testId = newImg.getAttribute('data-testid')
+            if (testId) {
+                const blockId = testId.replace('block-image-tag-', '')
+                const cachedImg = this._allImages.get(blockId)
+
+                // Восстанавливаем только если URL совпадает
+                if (cachedImg && cachedImg.src === newImg.src) {
+                    // Копируем новые атрибуты на закэшированный элемент
+                    for (const attr of newImg.attributes) {
+                        if (attr.name !== 'src') {
+                            cachedImg.setAttribute(attr.name, attr.value)
+                        }
+                    }
+                    // Заменяем новый img на закэшированный
+                    newImg.parentNode.replaceChild(cachedImg, newImg)
+                } else if (cachedImg && cachedImg.src !== newImg.src) {
+                    // URL изменился - удаляем из кэша
+                    this._allImages.delete(blockId)
+                }
+            }
+        })
+    }
+
+    /**
+     * Очистка кэша картинок для блоков которых больше нет
+     */
+    _cleanupImageCache(blocks) {
+        for (const blockId of this._allImages.keys()) {
+            if (!blocks.has(blockId)) {
+                this._allImages.delete(blockId)
+            }
+        }
     }
 
     render(blocks, {color = [], blockId}, currentUserId = null) {
@@ -68,9 +131,19 @@ export class Painter {
             console.error(`Create queue ${block} error ${e} ${e.trace} `)
         }
 
+        // Отсоединяем img элементы перед очисткой DOM (как iframes)
+        this._detachImages()
+
         this.rootContainer.textContent = ''
         this.removeIframePositions()
         this._render(queue, blocks, this.config, currentUserId);
+
+        // Восстанавливаем img элементы в новый DOM
+        this._reattachImages()
+
+        // Чистим кэш от удалённых блоков
+        this._cleanupImageCache(blocks)
+
         // this.printRealSize()
         this.setIframePositions()
         if (blockCreator.emptyBlocks.size) {
