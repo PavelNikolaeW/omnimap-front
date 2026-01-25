@@ -45,6 +45,7 @@ import {handleChatDeepLink, initChatEventListeners} from "./controller/chatDeepL
 import {onboardingManager} from "./onboarding";
 import {toastManager} from "./controller/toastManager";
 import {accessRequestsBadgeManager} from "./controller/accessRequestsBadgeManager";
+import {initBlockImageHandlers} from "./utils/imageUtils";
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
     // Храним ссылку на updatefound handler для возможности cleanup
@@ -316,6 +317,9 @@ async function initApp() {
     if (isAuth) {
         dispatch('ShowBlocks')
     }
+
+    // Инициализируем обработчики двойного клика на изображениях в блоках
+    initBlockImageHandlers();
 
     setInterface()
 

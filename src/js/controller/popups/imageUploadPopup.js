@@ -1,6 +1,7 @@
 import { Popup } from "./popup";
 import api from "../../api/api";
 import { getDefaultImageSettings, getSafeColor } from "../../utils/imageSettingsDefaults";
+import { openFullsizeImage } from "../../utils/imageUtils";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 const MAX_DIMENSION = 4096;
@@ -740,12 +741,12 @@ export class ImageUploadPopup extends Popup {
         const previewContainer = document.createElement('div');
         previewContainer.className = 'image-upload-preview';
 
-        // Thumbnail
+        // Thumbnail (только превью, без клика для fullsize)
         const thumbnail = document.createElement('img');
         thumbnail.src = previewUrl;
         thumbnail.alt = this.currentImage.filename || 'Image';
         thumbnail.className = 'image-upload-thumbnail';
-        thumbnail.addEventListener('click', () => this.openFullsize());
+        // Убрали клик - fullsize открывается кнопкой "Просмотр" или двойным кликом на картинку в блоке
         previewContainer.appendChild(thumbnail);
 
         // Info
@@ -803,45 +804,7 @@ export class ImageUploadPopup extends Popup {
         const originalUrl = this.getOriginalUrl();
         if (!this.currentImage || !originalUrl) return;
 
-        // Создаём overlay для полноразмерного просмотра
-        const overlay = document.createElement('div');
-        overlay.className = 'image-fullsize-overlay';
-        overlay.setAttribute('role', 'dialog');
-        overlay.setAttribute('aria-modal', 'true');
-        overlay.setAttribute('aria-label', 'Просмотр изображения');
-
-        const closeOverlay = () => {
-            overlay.remove();
-            document.removeEventListener('keydown', handleKeydown);
-        };
-
-        const handleKeydown = (e) => {
-            if (e.key === 'Escape') {
-                closeOverlay();
-            }
-        };
-
-        overlay.addEventListener('click', closeOverlay);
-        document.addEventListener('keydown', handleKeydown);
-
-        const img = document.createElement('img');
-        img.src = originalUrl;
-        img.className = 'image-fullsize-img';
-        img.alt = this.currentImage.filename || 'Изображение блока';
-        img.addEventListener('click', (e) => e.stopPropagation());
-
-        const closeBtn = document.createElement('button');
-        closeBtn.className = 'image-fullsize-close';
-        closeBtn.innerHTML = '<i class="fas fa-times" aria-hidden="true"></i>';
-        closeBtn.setAttribute('aria-label', 'Закрыть просмотр');
-        closeBtn.addEventListener('click', closeOverlay);
-
-        overlay.appendChild(img);
-        overlay.appendChild(closeBtn);
-        document.body.appendChild(overlay);
-
-        // Focus on close button for keyboard users
-        closeBtn.focus();
+        openFullsizeImage(originalUrl, this.currentImage.filename || 'Изображение блока');
     }
 
     async deleteImage() {
