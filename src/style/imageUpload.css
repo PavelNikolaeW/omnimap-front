@@ -259,9 +259,21 @@
     height: 100%;
     display: block;
     cursor: pointer;
-    transition: transform 0.2s ease;
+    transition: transform 0.2s ease, opacity 0.15s ease-out;
     object-fit: contain;
     object-position: center;
+    /* Предотвращаем моргание при перерендере */
+    animation: imageReveal 0.15s ease-out forwards;
+}
+
+/* Плавное появление картинки при создании DOM */
+@keyframes imageReveal {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
 }
 
 .block-image:hover {
