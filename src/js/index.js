@@ -328,11 +328,29 @@ async function initApp() {
     }
 
     // Инициализируем обработчики двойного клика на изображениях в блоках
-    // (inline вместо импорта чтобы избежать tree-shaking)
+    // Для background-изображений (pointer-events: none) проверяем координаты клика
     const rootContainer = document.getElementById('rootContainer');
     if (rootContainer) {
         rootContainer.addEventListener('dblclick', (e) => {
-            const imageContainer = e.target.closest('.block-image-container');
+            // Сначала пробуем найти обычное изображение (не background)
+            let imageContainer = e.target.closest('.block-image-container');
+
+            // Если не нашли - проверяем, не кликнули ли мы в область background-изображения
+            if (!imageContainer) {
+                const block = e.target.closest('.block, [block]');
+                if (block) {
+                    const bgImage = block.querySelector('.block-image-container[data-background="true"]');
+                    if (bgImage) {
+                        const rect = bgImage.getBoundingClientRect();
+                        // Проверяем, попадает ли клик в область изображения
+                        if (e.clientX >= rect.left && e.clientX <= rect.right &&
+                            e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                            imageContainer = bgImage;
+                        }
+                    }
+                }
+            }
+
             if (!imageContainer) return;
             const fullsizeUrl = imageContainer.getAttribute('data-fullsize-url');
             if (!fullsizeUrl) return;
