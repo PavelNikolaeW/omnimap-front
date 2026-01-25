@@ -39,6 +39,7 @@ import {authStateManager} from "./auth/authStateManager";
 import {networkStatusUI} from "./sincManager/networkStatusUI";
 import {handleTelegramLinkCallback} from "./controller/telegramLinkHandler";
 import {statusIndicators} from "./core/statusIndicators";
+import {errorTracker} from "./core/errorTracker";
 import {initDevCacheManager} from "./core/devCacheManager";
 import {chatBadgeManager} from "./controller/chatBadgeManager";
 import {handleChatDeepLink, initChatEventListeners} from "./controller/chatDeepLinkHandler";
@@ -183,6 +184,10 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
 
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // Инициализируем error tracking первым делом (до других компонентов)
+    // чтобы перехватывать ошибки инициализации
+    errorTracker.init();
+
     // Показываем версию приложения
     // Приоритет: runtime config (ConfigMap) > build-time (webpack)
     const versionEl = document.getElementById('app-version');
@@ -309,6 +314,10 @@ async function initApp() {
 
     // Инициализируем новый UndoManager (локальный undo/redo)
     await undoManager.init()
+
+    // Делаем объекты доступными для errorTracker
+    window.__undoManager = undoManager
+    window.__networkStatusUI = networkStatusUI
 
 
     const isAuth = await checkAuth()

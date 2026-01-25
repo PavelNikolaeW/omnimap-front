@@ -5,10 +5,13 @@ const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const CssMinimizerPlugin = require('css-minimizer-webpack-plugin');
 const TerserPlugin = require('terser-webpack-plugin');
 const WorkboxWebpackPlugin = require('workbox-webpack-plugin');
+const { sentryWebpackPlugin } = require('@sentry/webpack-plugin');
 const path = require('path');
 
 module.exports = merge(common, {
     mode: 'production',
+    // Source maps для Sentry (hidden - не включаются в bundle, но загружаются в Sentry)
+    devtool: process.env.SENTRY_AUTH_TOKEN ? 'hidden-source-map' : false,
     output: {
         filename: '[name].[contenthash].bundle.js',
         path: path.resolve(__dirname, 'dist'),
@@ -170,8 +173,30 @@ module.exports = merge(common, {
             SINC_SERVICE_URL: JSON.stringify(process.env.SINC_SERVICE_URL || 'wss://omnimap.ru/ws'),
             LLM_GATEWAY_URL: JSON.stringify(process.env.LLM_GATEWAY_URL || 'https://omnimap.ru/llm'),
             APP_VERSION: JSON.stringify(process.env.APP_VERSION || 'dev'),
-            APP_BUILD_TIME: JSON.stringify(new Date().toISOString())
-        })
+            APP_BUILD_TIME: JSON.stringify(new Date().toISOString()),
+            // Sentry DSN (может быть переопределён через runtime config)
+            SENTRY_DSN: JSON.stringify(process.env.SENTRY_DSN || ''),
+        }),
+        // Sentry webpack plugin для загрузки source maps
+        // Активируется только при наличии SENTRY_AUTH_TOKEN
+        ...(process.env.SENTRY_AUTH_TOKEN ? [
+            sentryWebpackPlugin({
+                org: process.env.SENTRY_ORG || 'omnimap',
+                project: process.env.SENTRY_PROJECT || 'omnimap-front',
+                authToken: process.env.SENTRY_AUTH_TOKEN,
+                release: {
+                    name: `omnimap-front@${process.env.APP_VERSION || 'dev'}`,
+                },
+                sourcemaps: {
+                    assets: './dist/**/*.js',
+                    filesToDeleteAfterUpload: './dist/**/*.js.map',
+                },
+                // Не прерывать build при ошибке загрузки
+                errorHandler: (err, invokeErr, compilation) => {
+                    compilation.warnings.push('Sentry source maps upload failed: ' + err.message);
+                },
+            }),
+        ] : [])
     ],
     optimization: {
         minimize: true,

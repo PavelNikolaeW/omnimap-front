@@ -3590,6 +3590,8 @@ export const localStateManager = {
     getInstance() {
         if (!_localStateManagerInstance) {
             _localStateManagerInstance = new LocalStateManager();
+            // Делаем доступным глобально для errorTracker
+            window.__localStateManager = _localStateManagerInstance;
         }
         return _localStateManagerInstance;
     },

@@ -145,6 +145,11 @@ class AuthStateManager {
         this.updateUI();
         this._retryCount = 0;
         this._scheduleTokenRefresh();
+
+        // Устанавливаем пользователя для error tracking
+        if (window.__errorTracker && user?.id) {
+            window.__errorTracker.setUser({ id: user.id });
+        }
     }
 
     handleLogout() {
@@ -153,6 +158,11 @@ class AuthStateManager {
         this.updateUI();
         this._clearRefreshTimer();
         this._retryCount = 0;
+
+        // Очищаем пользователя для error tracking
+        if (window.__errorTracker) {
+            window.__errorTracker.clearUser();
+        }
     }
 
     handleAnonimUser() {
