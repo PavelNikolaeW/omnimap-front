@@ -435,6 +435,34 @@ export const popupsCommands = [
                 }
             }
 
+            // Fallback: если данных всё ещё нет, но в DOM есть изображение - извлекаем из DOM
+            if (!currentImage) {
+                const imageContainer = ctx.blockElement?.querySelector('.block-image-container');
+                if (imageContainer) {
+                    const img = imageContainer.querySelector('.block-image');
+                    const fullsizeUrl = imageContainer.getAttribute('data-fullsize-url');
+                    if (fullsizeUrl) {
+                        console.debug('uploadBlockImage: extracting image data from DOM');
+                        currentImage = {
+                            url: fullsizeUrl,
+                            thumbnail_url: img?.src || fullsizeUrl,
+                            filename: img?.alt || 'image',
+                            settings: {
+                                fitMode: imageContainer.getAttribute('data-fit') || 'contain',
+                                position: imageContainer.getAttribute('data-position') || 'center',
+                                background: {
+                                    enabled: imageContainer.getAttribute('data-background') === 'true'
+                                }
+                            }
+                        };
+                        // Сохраняем в локальный state
+                        if (block) {
+                            block.data.image = currentImage;
+                        }
+                    }
+                }
+            }
+
             ctx.popup = new ImageUploadPopup({
                 blockId: blockId,
                 currentImage: currentImage,
