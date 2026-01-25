@@ -479,7 +479,7 @@ export const popupsCommands = [
     {
         id: "viewFullsizeImage",
         mode: ['normal'],
-        defaultHotkey: 'f',
+        defaultHotkey: 'v',
         description: 'Открыть изображение блока на полный экран',
         execute(ctx) {
             const blockElement = ctx.blockElement;
