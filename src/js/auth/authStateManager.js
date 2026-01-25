@@ -143,9 +143,9 @@ class AuthStateManager {
         this.isAuthenticated = true;
         this.currentUser = user;
 
-        // Ждём загрузки шрифтов перед показом UI (для корректного отображения иконок)
+        // Принудительно загружаем Font Awesome перед показом UI
         try {
-            await document.fonts.ready;
+            await document.fonts.load('900 1em "Font Awesome 6 Free"');
         } catch (e) {
             // Игнорируем ошибки, показываем UI в любом случае
         }
@@ -185,9 +185,10 @@ class AuthStateManager {
         this.isAuthenticated = true;
         this.currentUser = user;
 
-        // Ждём загрузки шрифтов перед показом UI (для корректного отображения иконок)
+        // Принудительно загружаем Font Awesome перед показом UI
+        // document.fonts.ready не работает т.к. шрифт не используется пока sidebar скрыт
         try {
-            await document.fonts.ready;
+            await document.fonts.load('900 1em "Font Awesome 6 Free"');
         } catch (e) {
             // Игнорируем ошибки, показываем UI в любом случае
         }
