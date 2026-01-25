@@ -51,32 +51,4 @@ export function openFullsizeImage(imageUrl, alt = 'Изображение') {
     closeBtn.focus();
 }
 
-/**
- * Инициализирует обработчики двойного клика на изображениях в блоках
- * Должен вызываться один раз при инициализации приложения
- */
-export function initBlockImageHandlers() {
-    // Используем делегирование событий на rootContainer
-    const rootContainer = document.getElementById('rootContainer');
-    if (!rootContainer) return;
-
-    rootContainer.addEventListener('dblclick', (e) => {
-        // Проверяем клик по изображению блока
-        const imageContainer = e.target.closest('.block-image-container');
-        if (!imageContainer) return;
-
-        // Получаем URL полноразмерного изображения
-        const fullsizeUrl = imageContainer.getAttribute('data-fullsize-url');
-        if (!fullsizeUrl) return;
-
-        // Предотвращаем открытие блока
-        e.preventDefault();
-        e.stopPropagation();
-
-        // Получаем alt текст из img
-        const img = imageContainer.querySelector('.block-image');
-        const alt = img?.alt || 'Изображение блока';
-
-        openFullsizeImage(fullsizeUrl, alt);
-    });
-}
+// initBlockImageHandlers перенесён inline в index.js чтобы избежать tree-shaking
