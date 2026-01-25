@@ -402,21 +402,25 @@ export const popupsCommands = [
 
             console.debug('uploadBlockImage: local image data:', currentImage ? 'found' : 'not found', currentImage);
 
-            // Если локально нет данных, запрашиваем с сервера
-            if (!currentImage) {
+            // Если локально нет данных ИЛИ нет settings - запрашиваем с сервера
+            // (settings могут отсутствовать после refresh, когда block.data пришёл из /load-trees/)
+            if (!currentImage || !currentImage.settings) {
                 try {
                     const apiImage = await api.getBlockImage(blockId);
                     console.debug('uploadBlockImage: fetched from API:', apiImage);
                     // Нормализуем данные от API (разные поля под одни и те же названия)
                     if (apiImage) {
+                        // Мержим с локальными данными, API имеет приоритет для settings
                         currentImage = {
-                            ...apiImage,
+                            ...(currentImage || {}), // Локальные данные как база
+                            ...apiImage,             // API данные поверх
                             // Нормализуем URL поля - бек может возвращать разные названия
                             url: apiImage.url || apiImage.file_url || apiImage.image_url || apiImage.file,
                             thumbnail_url: apiImage.thumbnail_url || apiImage.thumb_url || apiImage.preview_url,
                             filename: apiImage.filename || apiImage.name || apiImage.file_name,
                             size: apiImage.size || apiImage.file_size,
-                            settings: apiImage.settings || null
+                            // Settings из API имеют приоритет
+                            settings: apiImage.settings || currentImage?.settings || null
                         };
                         // Сохраняем в локальный state для следующих открытий
                         if (block) {
@@ -424,9 +428,9 @@ export const popupsCommands = [
                         }
                     }
                 } catch (err) {
-                    // Игнорируем ошибки - просто откроем попап без картинки
+                    // Игнорируем ошибки - просто откроем попап с тем что есть локально
                     console.debug('getBlockImage error:', err);
-                    currentImage = null;
+                    // Не сбрасываем currentImage в null если он уже есть
                 }
             }
 
