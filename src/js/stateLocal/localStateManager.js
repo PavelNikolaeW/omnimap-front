@@ -502,7 +502,16 @@ export class LocalStateManager {
 
                 if (localBlock) {
                     // Мержим: сервер имеет приоритет для основных полей,
-                    // но сохраняем локальный childOrder если сервер его не прислал
+                    // но сохраняем локальный childOrder и image если сервер их не прислал
+
+                    // Логика мёржа image (как в webSocUpdateBlock):
+                    // - Если сервер явно прислал image - используем его (включая null для удаления)
+                    // - Если сервер не прислал image - сохраняем локальный
+                    let mergedImage = localBlock.data?.image;
+                    if (serverBlock.data && 'image' in serverBlock.data) {
+                        mergedImage = serverBlock.data.image; // Сервер явно указал (или удалил)
+                    }
+
                     const mergedBlock = {
                         ...localBlock,
                         ...serverBlock,
@@ -512,7 +521,9 @@ export class LocalStateManager {
                             // Сохраняем локальный childOrder если серверный пустой или отсутствует
                             childOrder: (serverBlock.data?.childOrder?.length > 0)
                                 ? serverBlock.data.childOrder
-                                : (localBlock.data?.childOrder || serverBlock.children || [])
+                                : (localBlock.data?.childOrder || serverBlock.children || []),
+                            // image - мёрж по логике выше
+                            image: mergedImage
                         }
                     };
 
