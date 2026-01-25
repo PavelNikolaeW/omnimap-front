@@ -407,10 +407,15 @@ export const popupsCommands = [
                 try {
                     const apiImage = await api.getBlockImage(blockId);
                     console.debug('uploadBlockImage: fetched from API:', apiImage);
-                    // Нормализуем данные от API (добавляем settings если нет)
+                    // Нормализуем данные от API (разные поля под одни и те же названия)
                     if (apiImage) {
                         currentImage = {
                             ...apiImage,
+                            // Нормализуем URL поля - бек может возвращать разные названия
+                            url: apiImage.url || apiImage.file_url || apiImage.image_url || apiImage.file,
+                            thumbnail_url: apiImage.thumbnail_url || apiImage.thumb_url || apiImage.preview_url,
+                            filename: apiImage.filename || apiImage.name || apiImage.file_name,
+                            size: apiImage.size || apiImage.file_size,
                             settings: apiImage.settings || null
                         };
                         // Сохраняем в локальный state для следующих открытий

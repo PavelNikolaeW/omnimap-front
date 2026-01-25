@@ -689,19 +689,23 @@ export class ImageUploadPopup extends Popup {
     }
 
     /**
-     * Получить URL превью изображения (поддержка старого и нового формата)
+     * Получить URL превью изображения (поддержка разных форматов от API)
      */
     getPreviewUrl() {
         if (!this.currentImage) {
             console.debug('ImageUploadPopup: no currentImage');
             return null;
         }
+        // Поддержка разных форматов ответа от бека
         const url = this.currentImage.thumbnail_url ||
                this.currentImage.variants?.thumb?.url ||
                this.currentImage.url ||
-               this.currentImage.variants?.original?.url;
+               this.currentImage.file_url ||  // бек может вернуть file_url
+               this.currentImage.image_url || // или image_url
+               this.currentImage.variants?.original?.url ||
+               this.currentImage.file;        // или просто file
         if (!url) {
-            console.warn('ImageUploadPopup: currentImage exists but no URL found:', this.currentImage);
+            console.warn('ImageUploadPopup: currentImage exists but no URL found:', JSON.stringify(this.currentImage, null, 2));
         }
         return url;
     }

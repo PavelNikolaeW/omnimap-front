@@ -576,18 +576,24 @@ export class LocalStateManager {
                         settings = null;
                     }
                 }
+                // Нормализуем URL поля - бек может возвращать разные названия
+                const normalizedUrl = imageData.url || imageData.file_url || imageData.image_url || imageData.file;
+                const normalizedThumbUrl = imageData.thumbnail_url || imageData.thumb_url || imageData.preview_url;
+
                 block.data.image = {
-                    url: imageData.url,
-                    thumbnail_url: imageData.thumbnail_url,
-                    filename: imageData.filename,
+                    url: normalizedUrl,
+                    thumbnail_url: normalizedThumbUrl,
+                    filename: imageData.filename || imageData.name || imageData.file_name,
                     width: imageData.width,
                     height: imageData.height,
-                    size: imageData.size,
+                    size: imageData.size || imageData.file_size,
                     // Варианты изображений разного размера (от бека)
                     variants: imageData.variants || null,
                     // Настройки отображения картинки (используем централизованные дефолты)
                     settings: settings || getDefaultImageSettings()
                 };
+
+                console.debug('updateBlockImage: normalized image data:', block.data.image);
             } else {
                 // Удаляем информацию об изображении
                 delete block.data.image;

@@ -97,7 +97,9 @@ class Api {
                         return Promise.reject(refreshError);
                     }
                 }
-                if (error.response?.status >= 400) {
+                // Не показываем ошибку для запросов с флагом skipErrorDisplay
+                // (например, для getBlockImage где 404 ожидаем)
+                if (error.response?.status >= 400 && !originalRequest?.skipErrorDisplay) {
                     dispatch("ShowError", error)
                 }
                 return Promise.reject(error);
@@ -419,7 +421,8 @@ class Api {
      * @returns {Promise} - Данные файла или null если файл отсутствует
      */
     getBlockImage(blockId) {
-        return this.api.get(`blocks/${blockId}/file/`)
+        // skipErrorDisplay: true - не показывать ошибку для 404 (отсутствие файла - норма)
+        return this.api.get(`blocks/${blockId}/file/`, { skipErrorDisplay: true })
             .then(res => res.data)
             .catch(err => {
                 if (err.response && err.response.status === 404) {
