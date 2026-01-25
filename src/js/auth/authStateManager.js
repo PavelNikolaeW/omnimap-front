@@ -138,10 +138,18 @@ class AuthStateManager {
         this.updateUI();
     }
 
-    handleLogin(event) {
+    async handleLogin(event) {
         const user = event.detail?.user;
         this.isAuthenticated = true;
         this.currentUser = user;
+
+        // Ждём загрузки шрифтов перед показом UI (для корректного отображения иконок)
+        try {
+            await document.fonts.ready;
+        } catch (e) {
+            // Игнорируем ошибки, показываем UI в любом случае
+        }
+
         this.updateUI();
         this._retryCount = 0;
         this._scheduleTokenRefresh();
@@ -172,10 +180,18 @@ class AuthStateManager {
         this._clearRefreshTimer();
     }
 
-    handleInitUser(event) {
+    async handleInitUser(event) {
         const user = event.detail?.user;
         this.isAuthenticated = true;
         this.currentUser = user;
+
+        // Ждём загрузки шрифтов перед показом UI (для корректного отображения иконок)
+        try {
+            await document.fonts.ready;
+        } catch (e) {
+            // Игнорируем ошибки, показываем UI в любом случае
+        }
+
         this.updateUI();
         this._retryCount = 0;
         this._scheduleTokenRefresh();
