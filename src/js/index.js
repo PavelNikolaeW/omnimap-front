@@ -46,7 +46,7 @@ import {handleChatDeepLink, initChatEventListeners} from "./controller/chatDeepL
 import {onboardingManager} from "./onboarding";
 import {toastManager} from "./controller/toastManager";
 import {accessRequestsBadgeManager} from "./controller/accessRequestsBadgeManager";
-import {initBlockImageHandlers} from "./utils/imageUtils";
+import {openFullsizeImage} from "./utils/imageUtils";
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
     // Храним ссылку на updatefound handler для возможности cleanup
@@ -328,7 +328,20 @@ async function initApp() {
     }
 
     // Инициализируем обработчики двойного клика на изображениях в блоках
-    initBlockImageHandlers();
+    // (inline вместо импорта чтобы избежать tree-shaking)
+    const rootContainer = document.getElementById('rootContainer');
+    if (rootContainer) {
+        rootContainer.addEventListener('dblclick', (e) => {
+            const imageContainer = e.target.closest('.block-image-container');
+            if (!imageContainer) return;
+            const fullsizeUrl = imageContainer.getAttribute('data-fullsize-url');
+            if (!fullsizeUrl) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const img = imageContainer.querySelector('.block-image');
+            openFullsizeImage(fullsizeUrl, img?.alt || 'Изображение блока');
+        });
+    }
 
     setInterface()
 
