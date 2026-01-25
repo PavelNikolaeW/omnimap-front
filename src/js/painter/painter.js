@@ -55,6 +55,8 @@ export class Painter {
 
     /**
      * Восстанавливает закэшированные img элементы в новый DOM
+     * Всегда переиспользует DOM элемент, обновляя все атрибуты включая src
+     * (при смене размера блока может измениться вариант картинки)
      */
     _reattachImages() {
         if (this._allImages.size === 0) return
@@ -66,19 +68,21 @@ export class Painter {
                 const blockId = testId.replace('block-image-tag-', '')
                 const cachedImg = this._allImages.get(blockId)
 
-                // Восстанавливаем только если URL совпадает
-                if (cachedImg && cachedImg.src === newImg.src) {
-                    // Копируем новые атрибуты на закэшированный элемент
+                if (cachedImg) {
+                    // Всегда переиспользуем DOM элемент - обновляем ВСЕ атрибуты
+                    // Это предотвращает моргание даже при смене варианта картинки
+                    // (браузер возьмёт новый src из HTTP кэша)
                     for (const attr of newImg.attributes) {
-                        if (attr.name !== 'src') {
-                            cachedImg.setAttribute(attr.name, attr.value)
+                        cachedImg.setAttribute(attr.name, attr.value)
+                    }
+                    // Удаляем атрибуты которых нет в новом элементе
+                    for (const attr of [...cachedImg.attributes]) {
+                        if (!newImg.hasAttribute(attr.name)) {
+                            cachedImg.removeAttribute(attr.name)
                         }
                     }
                     // Заменяем новый img на закэшированный
                     newImg.parentNode.replaceChild(cachedImg, newImg)
-                } else if (cachedImg && cachedImg.src !== newImg.src) {
-                    // URL изменился - удаляем из кэша
-                    this._allImages.delete(blockId)
                 }
             }
         })
