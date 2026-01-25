@@ -172,19 +172,7 @@ export class CommandManager {
             } else if (target.href.startsWith('http')) {
                 window.open(target.href, '_blank')
             }
-        } else if (
-            (target.classList.contains('block-image') || target.closest('.block-image-container')) &&
-            // Исключаем фоновые изображения - клик на них должен открывать блок
-            !target.closest('.block-image-container[data-background="true"]')
-        ) {
-            // Клик на обычное изображение - открываем полноразмерный просмотр
-            event.preventDefault();
-            event.stopPropagation();
-            const container = target.closest('.block-image-container') || target.parentElement;
-            const fullsizeUrl = container?.getAttribute('data-fullsize-url');
-            if (fullsizeUrl) {
-                this.openFullsizeImage(fullsizeUrl);
-            }
+        // Клик на изображение НЕ открывает fullsize - используйте горячую клавишу 'f' или двойной клик
         } else if (isExcludedElement(target, 'commandManager', ['body', 'textarea', 'input', 'emoji-picker'])) {
         } else {
             // Если только что завершили создание соединения или drag - игнорируем клик

@@ -12,6 +12,7 @@ import {EditBlockPopup} from "../popups/editBlockPopup";
 import {SearchBlocksPopup} from "../popups/SearchPopup";
 import {ImportPopup} from "../popups/importPopup";
 import {ImageUploadPopup} from "../popups/imageUploadPopup";
+import {openFullsizeImage} from "../../utils/imageUtils";
 import {ReminderPopup} from "../popups/reminderPopup";
 import {SubscriptionPopup} from "../popups/subscriptionPopup";
 import {NotificationSettingsPopup} from "../popups/notificationSettingsPopup";
@@ -445,6 +446,26 @@ export const popupsCommands = [
                     ctx.mode = 'normal';
                 }
             });
+        }
+    },
+    {
+        id: "viewFullsizeImage",
+        mode: ['normal'],
+        defaultHotkey: 'f',
+        description: 'Открыть изображение блока на полный экран',
+        execute(ctx) {
+            const blockElement = ctx.blockElement;
+            if (!blockElement) return;
+
+            // Ищем изображение в текущем блоке
+            const imageContainer = blockElement.querySelector('.block-image-container');
+            if (!imageContainer) return;
+
+            const fullsizeUrl = imageContainer.getAttribute('data-fullsize-url');
+            if (!fullsizeUrl) return;
+
+            const img = imageContainer.querySelector('.block-image');
+            openFullsizeImage(fullsizeUrl, img?.alt || 'Изображение блока');
         }
     },
     {
