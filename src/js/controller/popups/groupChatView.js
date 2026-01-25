@@ -33,6 +33,7 @@ export class GroupChatView extends Popup {
 
         this.groupId = group.id;
         this.groupName = group.name;
+        this.groupAvatarUrl = group.avatar_url || null;
         this.isAdmin = group.is_admin || false;
         this.messages = [];
         this.members = [];
@@ -42,6 +43,11 @@ export class GroupChatView extends Popup {
         this.currentUserId = null;
         this.typingUsers = new Set();
         this.showMembersSidebar = false;
+
+        // File attachments
+        this.pendingFiles = [];
+        this.maxFiles = 5;
+        this.maxFileSize = 10 * 1024 * 1024; // 10MB
 
         this.init();
     }
@@ -78,7 +84,22 @@ export class GroupChatView extends Popup {
 
         const avatar = document.createElement('div');
         avatar.className = 'p2p-chat-avatar p2p-chat-avatar--group';
-        avatar.textContent = this.groupName.charAt(0).toUpperCase();
+
+        // Show avatar image if available
+        if (this.groupAvatarUrl) {
+            const img = document.createElement('img');
+            img.className = 'p2p-avatar-img';
+            img.src = this.groupAvatarUrl;
+            img.alt = '';
+            // Fallback to initials on error
+            img.onerror = () => {
+                img.remove();
+                avatar.textContent = this.groupName.charAt(0).toUpperCase();
+            };
+            avatar.appendChild(img);
+        } else {
+            avatar.textContent = this.groupName.charAt(0).toUpperCase();
+        }
 
         const nameContainer = document.createElement('div');
         nameContainer.className = 'p2p-group-name-container';
@@ -168,9 +189,35 @@ export class GroupChatView extends Popup {
         this.typingIndicator = typingIndicator;
         this.contentArea.appendChild(typingIndicator);
 
+        // File preview area (above input)
+        const filePreviewArea = document.createElement('div');
+        filePreviewArea.className = 'p2p-file-preview-area';
+        filePreviewArea.id = 'file-preview-area';
+        filePreviewArea.style.display = 'none';
+        this.filePreviewArea = filePreviewArea;
+        this.contentArea.appendChild(filePreviewArea);
+
         // Input area
         const inputArea = document.createElement('div');
         inputArea.className = 'p2p-group-input-area';
+
+        // Hidden file input
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.multiple = true;
+        fileInput.className = 'p2p-file-input';
+        fileInput.id = 'file-input';
+        fileInput.accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar';
+        fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
+        this.fileInput = fileInput;
+
+        // Attach button
+        const attachBtn = document.createElement('button');
+        attachBtn.className = 'p2p-attach-btn';
+        attachBtn.innerHTML = '&#128206;'; // Paperclip icon
+        attachBtn.title = 'Прикрепить файл';
+        attachBtn.addEventListener('click', () => this.fileInput.click());
+        this.attachBtn = attachBtn;
 
         const input = document.createElement('textarea');
         input.className = 'p2p-conversation-input';
@@ -186,10 +233,145 @@ export class GroupChatView extends Popup {
         sendBtn.addEventListener('click', () => this.sendMessage());
         this.sendBtn = sendBtn;
 
+        inputArea.appendChild(fileInput);
+        inputArea.appendChild(attachBtn);
         inputArea.appendChild(input);
         inputArea.appendChild(sendBtn);
 
         this.contentArea.appendChild(inputArea);
+    }
+
+    /**
+     * Handle file selection from input
+     */
+    handleFileSelect(e) {
+        const files = Array.from(e.target.files);
+        this.addFiles(files);
+        // Reset input so same file can be selected again
+        e.target.value = '';
+    }
+
+    /**
+     * Add files to pending list with validation
+     */
+    addFiles(files) {
+        for (const file of files) {
+            // Check max files limit
+            if (this.pendingFiles.length >= this.maxFiles) {
+                alert(`Максимум ${this.maxFiles} файлов`);
+                break;
+            }
+
+            // Check file size
+            if (file.size > this.maxFileSize) {
+                alert(`Файл "${file.name}" превышает лимит 10MB`);
+                continue;
+            }
+
+            // Check for duplicates
+            if (this.pendingFiles.some(f => f.name === file.name && f.size === file.size)) {
+                continue;
+            }
+
+            this.pendingFiles.push(file);
+        }
+
+        this.renderFilePreview();
+    }
+
+    /**
+     * Remove file from pending list
+     */
+    removeFile(index) {
+        this.pendingFiles.splice(index, 1);
+        this.renderFilePreview();
+    }
+
+    /**
+     * Render file preview area
+     */
+    renderFilePreview() {
+        if (!this.filePreviewArea) return;
+
+        if (this.pendingFiles.length === 0) {
+            this.filePreviewArea.style.display = 'none';
+            this.filePreviewArea.innerHTML = '';
+            return;
+        }
+
+        this.filePreviewArea.style.display = 'flex';
+        this.filePreviewArea.innerHTML = '';
+
+        this.pendingFiles.forEach((file, index) => {
+            const item = document.createElement('div');
+            item.className = 'p2p-file-preview-item';
+
+            // Preview for images
+            if (file.type.startsWith('image/')) {
+                const img = document.createElement('img');
+                img.className = 'p2p-file-preview-img';
+                img.src = URL.createObjectURL(file);
+                img.onload = () => URL.revokeObjectURL(img.src);
+                item.appendChild(img);
+            } else {
+                // Icon for other files
+                const icon = document.createElement('span');
+                icon.className = 'p2p-file-preview-icon';
+                icon.textContent = this.getFileIcon(file.name);
+                item.appendChild(icon);
+            }
+
+            // File info
+            const info = document.createElement('div');
+            info.className = 'p2p-file-preview-info';
+
+            const name = document.createElement('span');
+            name.className = 'p2p-file-preview-name';
+            name.textContent = file.name.length > 15 ? file.name.slice(0, 12) + '...' : file.name;
+            name.title = file.name;
+
+            const size = document.createElement('span');
+            size.className = 'p2p-file-preview-size';
+            size.textContent = this.formatFileSize(file.size);
+
+            info.appendChild(name);
+            info.appendChild(size);
+            item.appendChild(info);
+
+            // Remove button
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'p2p-file-preview-remove';
+            removeBtn.innerHTML = '&times;';
+            removeBtn.addEventListener('click', () => this.removeFile(index));
+            item.appendChild(removeBtn);
+
+            this.filePreviewArea.appendChild(item);
+        });
+    }
+
+    /**
+     * Get icon for file type
+     */
+    getFileIcon(filename) {
+        const ext = filename.split('.').pop().toLowerCase();
+        const icons = {
+            pdf: '📄',
+            doc: '📝', docx: '📝',
+            xls: '📊', xlsx: '📊',
+            txt: '📃',
+            zip: '📦', rar: '📦',
+            default: '📎'
+        };
+        return icons[ext] || icons.default;
+    }
+
+    /**
+     * Format file size for display
+     */
+    formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
     }
 
     renderMessages() {
@@ -242,7 +424,18 @@ export class GroupChatView extends Popup {
 
         const bubble = document.createElement('div');
         bubble.className = 'p2p-message-bubble';
-        bubble.textContent = message.content;
+
+        // Add text content if present
+        if (message.content) {
+            const textNode = document.createTextNode(message.content);
+            bubble.appendChild(textNode);
+        }
+
+        // Add attachments if present
+        if (message.files && message.files.length > 0) {
+            const attachments = this.createAttachmentsElement(message.files);
+            bubble.appendChild(attachments);
+        }
 
         const meta = document.createElement('div');
         meta.className = 'p2p-message-meta';
@@ -256,6 +449,115 @@ export class GroupChatView extends Popup {
         container.appendChild(bubble);
 
         return container;
+    }
+
+    /**
+     * Create attachments display element
+     */
+    createAttachmentsElement(files) {
+        const container = document.createElement('div');
+        container.className = 'p2p-message-attachments';
+
+        files.forEach(file => {
+            const isImage = file.is_image || (file.content_type && file.content_type.startsWith('image/'));
+
+            if (isImage) {
+                // Image preview
+                const img = document.createElement('img');
+                img.className = 'p2p-attachment-img';
+                img.src = file.url || file.file_url;
+                img.alt = file.name || 'Image';
+                img.loading = 'lazy';
+                img.addEventListener('click', () => this.openLightbox(file.url || file.file_url));
+                container.appendChild(img);
+            } else {
+                // File attachment
+                const attachment = document.createElement('a');
+                attachment.className = 'p2p-attachment';
+                attachment.href = file.url || file.file_url;
+                attachment.target = '_blank';
+                attachment.download = file.name;
+
+                const icon = document.createElement('span');
+                icon.className = 'p2p-attachment-icon';
+                icon.textContent = this.getFileIcon(file.name);
+
+                const info = document.createElement('div');
+                info.className = 'p2p-attachment-info';
+
+                const name = document.createElement('span');
+                name.className = 'p2p-attachment-name';
+                name.textContent = file.name;
+
+                const size = document.createElement('span');
+                size.className = 'p2p-attachment-size';
+                size.textContent = this.formatFileSize(file.size);
+
+                info.appendChild(name);
+                info.appendChild(size);
+
+                const download = document.createElement('span');
+                download.className = 'p2p-attachment-download';
+                download.innerHTML = '&#8681;'; // Download arrow
+
+                attachment.appendChild(icon);
+                attachment.appendChild(info);
+                attachment.appendChild(download);
+                container.appendChild(attachment);
+            }
+        });
+
+        return container;
+    }
+
+    /**
+     * Open image in lightbox
+     */
+    openLightbox(imageUrl) {
+        const lightbox = document.createElement('div');
+        lightbox.className = 'p2p-lightbox';
+        lightbox.setAttribute('role', 'dialog');
+        lightbox.setAttribute('aria-modal', 'true');
+        lightbox.setAttribute('aria-label', 'Просмотр изображения');
+
+        const img = document.createElement('img');
+        img.src = imageUrl;
+
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'p2p-lightbox-close';
+        closeBtn.innerHTML = '&times;';
+        closeBtn.setAttribute('aria-label', 'Закрыть');
+
+        // Unified close function to prevent memory leaks
+        const closeLightbox = () => {
+            lightbox.remove();
+            document.removeEventListener('keydown', escHandler);
+        };
+
+        closeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeLightbox();
+        });
+
+        lightbox.appendChild(img);
+        lightbox.appendChild(closeBtn);
+
+        // Close on background click
+        lightbox.addEventListener('click', (e) => {
+            if (e.target === lightbox) {
+                closeLightbox();
+            }
+        });
+
+        // Close on Escape key
+        const escHandler = (e) => {
+            if (e.key === 'Escape') {
+                closeLightbox();
+            }
+        };
+        document.addEventListener('keydown', escHandler);
+
+        document.body.appendChild(lightbox);
     }
 
     renderMembers() {
@@ -284,7 +586,16 @@ export class GroupChatView extends Popup {
 
         // Use avatar_url if available, otherwise show initial
         if (member.avatar_url) {
-            avatar.innerHTML = `<img src="${this.escapeHtml(member.avatar_url)}" alt="" class="p2p-avatar-img" />`;
+            const img = document.createElement('img');
+            img.className = 'p2p-avatar-img';
+            img.src = member.avatar_url;
+            img.alt = '';
+            // Fallback to initials on error
+            img.onerror = () => {
+                img.remove();
+                avatar.textContent = (member.username || 'U').charAt(0).toUpperCase();
+            };
+            avatar.appendChild(img);
         } else {
             avatar.textContent = (member.username || 'U').charAt(0).toUpperCase();
         }
@@ -451,7 +762,10 @@ export class GroupChatView extends Popup {
 
     async sendMessage() {
         const content = this.messageInput.value.trim();
-        if (!content) return;
+        const files = this.pendingFiles.length > 0 ? [...this.pendingFiles] : null;
+
+        // Need either content or files
+        if (!content && !files) return;
 
         try {
             // Optimistic update
@@ -460,15 +774,23 @@ export class GroupChatView extends Popup {
                 content,
                 sender_id: this.currentUserId,
                 sender_username: 'Вы',
-                created_at: new Date().toISOString()
+                created_at: new Date().toISOString(),
+                files: files ? files.map(f => ({
+                    name: f.name,
+                    size: f.size,
+                    url: URL.createObjectURL(f),
+                    is_image: f.type.startsWith('image/')
+                })) : null
             };
             this.messages.push(tempMessage);
             this.renderMessages();
             this.messageInput.value = '';
+            this.pendingFiles = [];
+            this.renderFilePreview();
             this.autoResizeInput();
 
             // Send to server
-            const response = await chatApi.sendGroupMessage(this.groupId, content);
+            const response = await chatApi.sendGroupMessage(this.groupId, content, files);
             const sentMessage = response.data;
 
             // Replace temp message with real one
@@ -486,9 +808,22 @@ export class GroupChatView extends Popup {
 
         } catch (error) {
             console.error('Failed to send group message:', error);
+            // Revoke temporary Object URLs to prevent memory leak
+            if (tempMessage.files) {
+                tempMessage.files.forEach(f => {
+                    if (f.url && f.url.startsWith('blob:')) {
+                        URL.revokeObjectURL(f.url);
+                    }
+                });
+            }
             this.messages = this.messages.filter(m => !m.id.startsWith('temp-'));
             this.renderMessages();
             this.messageInput.value = content;
+            // Restore files on error
+            if (files) {
+                this.pendingFiles = files;
+                this.renderFilePreview();
+            }
         }
     }
 

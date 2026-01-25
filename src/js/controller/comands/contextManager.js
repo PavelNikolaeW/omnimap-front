@@ -515,6 +515,8 @@ let contextManagerInstance = null;
 
 export function setContextManager(instance) {
     contextManagerInstance = instance;
+    // Делаем доступным глобально для errorTracker
+    window.__contextManager = instance;
 }
 
 export const contextManager = {

@@ -5,7 +5,7 @@
  */
 
 // Build-time variables from webpack DefinePlugin (declared as globals)
-/* global APP_BACKEND_URL, LLM_GATEWAY_URL, SINC_SERVICE_URL */
+/* global APP_BACKEND_URL, LLM_GATEWAY_URL, SINC_SERVICE_URL, SENTRY_DSN */
 
 function getConfig() {
     const runtimeConfig = window.__OMNIMAP_CONFIG__ || {};
@@ -18,10 +18,18 @@ function getConfig() {
     const sincUrl = runtimeConfig.SINC_SERVICE_URL ||
         (typeof SINC_SERVICE_URL !== 'undefined' ? SINC_SERVICE_URL : 'ws://localhost:7999/ws');
 
+    // Error tracking configuration
+    const sentryDsn = runtimeConfig.SENTRY_DSN ||
+        (typeof SENTRY_DSN !== 'undefined' ? SENTRY_DSN : '');
+    const errorTrackingEnabled = runtimeConfig.ERROR_TRACKING_ENABLED !== false;
+
     return {
         APP_BACKEND_URL: backendUrl.replace(/\/+$/, ''),
         LLM_GATEWAY_URL: llmUrl.replace(/\/+$/, ''),
-        SINC_SERVICE_URL: sincUrl
+        SINC_SERVICE_URL: sincUrl,
+        // Error tracking
+        SENTRY_DSN: sentryDsn,
+        ERROR_TRACKING_ENABLED: errorTrackingEnabled,
     };
 }
 

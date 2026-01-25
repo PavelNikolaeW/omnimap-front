@@ -1,5 +1,9 @@
 export function dispatch(name, data = {}) {
-    console.log(`Dispatching event ${name}`)
+    // Добавляем breadcrumb для error tracking (console.log удаляется в production)
+    if (window.__errorTracker) {
+        window.__errorTracker.addBreadcrumb('event', name, data);
+    }
+
     const event = new CustomEvent(name, {
         detail: data
     });
