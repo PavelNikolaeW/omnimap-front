@@ -264,6 +264,7 @@ export class DiagramUtils {
     }
 
     addBtnHandler(e) {
+        console.trace('🔨 addBtnHandler called')
         dispatch('CreateBlock', {parentId: this.blockId, title: ''})
     }
 

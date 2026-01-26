@@ -222,6 +222,7 @@ export class LocalStateManager {
             }
         });
 
+        console.debug('🔌 Registering CreateBlock listener');
         window.addEventListener('CreateBlock', (e) => {
             this.createBlock(e.detail);
         });
@@ -2607,6 +2608,7 @@ export class LocalStateManager {
     async createBlock({parentId, title}) {
         // Debug: трассировка вызовов для отладки дублирования блоков (TODO: убрать после отладки)
         console.debug(`🔨 createBlock called: parentId=${parentId}, title="${title}"`);
+        console.trace('🔨 createBlock stack trace');
 
         // Получаем блокировку для предотвращения race conditions
         // при одновременном создании блоков в одном родителе
