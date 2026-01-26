@@ -7,6 +7,7 @@ ARG APP_BACKEND_URL=https://omnimap.ru
 ARG LLM_GATEWAY_URL=http://0.0.0.0:7998
 ARG SINC_SERVICE_URL=wss://omnimap.ru/ws
 ARG APP_VERSION=dev
+ARG BUILD_MODE=prod
 
 # Set as environment variables for webpack build
 ENV APP_BACKEND_URL=$APP_BACKEND_URL
@@ -21,7 +22,7 @@ RUN npm install
 # Copy source
 COPY . ./
 
-RUN npm run build
+RUN if [ "$BUILD_MODE" = "dev" ]; then npm run build:dev; else npm run build; fi
 
 FROM nginx:alpine AS runner
 

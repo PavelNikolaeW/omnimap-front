@@ -2,13 +2,20 @@ const webpack = require('webpack');
 const path = require('path');
 const { merge } = require('webpack-merge');
 const common = require('./webpack.common.js');
+const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+
+// webpack-dev-server устанавливает WEBPACK_SERVE=true автоматически
+const isServe = process.env.WEBPACK_SERVE === 'true';
+// Для serve — style-loader (HMR), для build — MiniCssExtractPlugin (статические CSS файлы для nginx)
+const cssFirstLoader = isServe ? 'style-loader' : MiniCssExtractPlugin.loader;
 
 module.exports = merge(common, {
     mode: 'development',
     devtool: 'cheap-module-source-map',
     output: {
-        // Используем hash вместо contenthash для более быстрой пересборки в dev
         filename: '[name].[fullhash].bundle.js',
+        path: path.resolve(__dirname, 'dist'),
+        clean: true,
     },
     devServer: {
         static: './dist',
@@ -54,7 +61,7 @@ module.exports = merge(common, {
             {
                 test: /\.module\.css$/,
                 use: [
-                    'style-loader',
+                    cssFirstLoader,
                     {
                         loader: 'css-loader',
                         options: {
@@ -70,7 +77,7 @@ module.exports = merge(common, {
             {
                 test: /\.css$/,
                 exclude: /\.module\.css$/,
-                use: ['style-loader', 'css-loader'],
+                use: [cssFirstLoader, 'css-loader'],
             },
         ],
     },
@@ -80,10 +87,18 @@ module.exports = merge(common, {
         minimize: false,
     },
     plugins: [
+        // CSS extraction в файлы (только при build, не при serve)
+        ...(!isServe ? [
+            new MiniCssExtractPlugin({
+                filename: '[name].[fullhash].css',
+            }),
+        ] : []),
         new webpack.DefinePlugin({
             APP_BACKEND_URL: JSON.stringify(process.env.APP_BACKEND_URL || 'http://localhost:8000'),
             LLM_GATEWAY_URL: JSON.stringify(process.env.LLM_GATEWAY_URL || 'http://localhost:8001'),
             SINC_SERVICE_URL: JSON.stringify(process.env.SINC_SERVICE_URL || 'ws://localhost:7999/ws'),
+            APP_VERSION: JSON.stringify(process.env.APP_VERSION || 'dev'),
+            APP_BUILD_TIME: JSON.stringify(new Date().toISOString()),
             // Флаг для отключения Service Worker в dev режиме
             'process.env.NODE_ENV': JSON.stringify('development'),
         })
