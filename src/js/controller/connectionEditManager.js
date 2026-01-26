@@ -129,8 +129,12 @@ class ConnectionEditManager {
             e.stopPropagation();
         });
 
-        // Закрыть панель при клике на пустое пространство
+        // Закрыть панель при клике на пустое пространство (но не после drag)
         document.addEventListener('click', () => {
+            if (this.wasDragging) {
+                this.wasDragging = false;
+                return;
+            }
             if (this.panel?.classList.contains('visible')) {
                 this.hide();
             }
@@ -173,6 +177,9 @@ class ConnectionEditManager {
         });
 
         document.addEventListener('mouseup', () => {
+            if (this.isDragging) {
+                this.wasDragging = true;
+            }
             this.isDragging = false;
         });
     }
