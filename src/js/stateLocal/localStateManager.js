@@ -2605,7 +2605,6 @@ export class LocalStateManager {
     }
 
     async createBlock({parentId, title}) {
-
         // Получаем блокировку для предотвращения race conditions
         // при одновременном создании блоков в одном родителе
         const releaseLock = await blockOperationLock.acquire(`parent:${parentId}`);
