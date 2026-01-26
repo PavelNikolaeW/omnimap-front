@@ -23,6 +23,7 @@ class ConnectionEditManager {
 
         // Для drag панели
         this.isDragging = false;
+        this.wasDragging = false;
         this.dragOffset = { x: 0, y: 0 };
 
         // Debounce для сохранения
