@@ -128,6 +128,13 @@ class ConnectionEditManager {
         this.panel?.addEventListener('click', (e) => {
             e.stopPropagation();
         });
+
+        // Закрыть панель при клике на пустое пространство
+        document.addEventListener('click', () => {
+            if (this.panel?.classList.contains('visible')) {
+                this.hide();
+            }
+        });
     }
 
     /**
