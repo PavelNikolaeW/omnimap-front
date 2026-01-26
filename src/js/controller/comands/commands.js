@@ -1347,8 +1347,7 @@ export const commands = [
         description: 'Добавить колонку в сетку диаграммы',
         execute(ctx) {
             ctx.diagramUtils?.adjustGridSize('col', 1)
-        },
-        btnExec(ctx) { this.execute(ctx) }
+        }
     },
     {
         id: 'diagramGridColMinus',
@@ -1362,8 +1361,7 @@ export const commands = [
         description: 'Убрать колонку из сетки диаграммы',
         execute(ctx) {
             ctx.diagramUtils?.adjustGridSize('col', -1)
-        },
-        btnExec(ctx) { this.execute(ctx) }
+        }
     },
     {
         id: 'diagramGridRowPlus',
@@ -1377,8 +1375,7 @@ export const commands = [
         description: 'Добавить строку в сетку диаграммы',
         execute(ctx) {
             ctx.diagramUtils?.adjustGridSize('row', 1)
-        },
-        btnExec(ctx) { this.execute(ctx) }
+        }
     },
     {
         id: 'diagramGridRowMinus',
@@ -1392,8 +1389,7 @@ export const commands = [
         description: 'Убрать строку из сетки диаграммы',
         execute(ctx) {
             ctx.diagramUtils?.adjustGridSize('row', -1)
-        },
-        btnExec(ctx) { this.execute(ctx) }
+        }
     },
     {
         id: 'diagramSizeXs',
@@ -1407,8 +1403,7 @@ export const commands = [
         description: 'Установить размер сетки XS',
         execute(ctx) {
             ctx.diagramUtils?.setGridSize('xs')
-        },
-        btnExec(ctx) { this.execute(ctx) }
+        }
     },
     {
         id: 'diagramSizeS',
@@ -1422,8 +1417,7 @@ export const commands = [
         description: 'Установить размер сетки S',
         execute(ctx) {
             ctx.diagramUtils?.setGridSize('s')
-        },
-        btnExec(ctx) { this.execute(ctx) }
+        }
     },
     {
         id: 'diagramSizeM',
@@ -1437,8 +1431,7 @@ export const commands = [
         description: 'Установить размер сетки M',
         execute(ctx) {
             ctx.diagramUtils?.setGridSize('m')
-        },
-        btnExec(ctx) { this.execute(ctx) }
+        }
     },
     {
         id: 'diagramSizeL',
@@ -1452,8 +1445,7 @@ export const commands = [
         description: 'Установить размер сетки L',
         execute(ctx) {
             ctx.diagramUtils?.setGridSize('l')
-        },
-        btnExec(ctx) { this.execute(ctx) }
+        }
     },
     {
         id: 'diagramAddBlock',
@@ -1500,8 +1492,7 @@ export const commands = [
                 // Блок не выбран - включить режим ожидания выбора
                 blockStyleManager.startStyleSelectionMode()
             }
-        },
-        btnExec(ctx) { this.execute(ctx) }
+        }
     },
     {
         id: 'diagramConnectionSettings',
@@ -1514,8 +1505,7 @@ export const commands = [
         description: 'Открыть панель настройки стилей соединений',
         execute(ctx) {
             ctx.diagramUtils?.connectionStyleManager.toggle()
-        },
-        btnExec(ctx) { this.execute(ctx) }
+        }
     },
     {
         id: 'diagramReset',
@@ -1528,8 +1518,7 @@ export const commands = [
         description: 'Сбросить настройки сетки диаграммы',
         execute(ctx) {
             ctx.diagramUtils?.resetHandler()
-        },
-        btnExec(ctx) { this.execute(ctx) }
+        }
     },
     {
         id: 'diagramResetBlockStyle',
@@ -1567,7 +1556,6 @@ export const commands = [
             } else {
                 console.warn('Выберите блок для сброса стилей')
             }
-        },
-        btnExec(ctx) { this.execute(ctx) }
+        }
     },
 ];
