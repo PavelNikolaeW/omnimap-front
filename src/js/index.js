@@ -197,9 +197,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         const version = runtimeConfig.APP_VERSION ||
             (typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'dev');
         const env = runtimeConfig.APP_ENVIRONMENT || '';
+        const vPrefix = version.startsWith('v') ? '' : 'v';
         versionEl.textContent = env && env !== 'production'
-            ? `v${version} (${env})`
-            : `v${version}`;
+            ? `${vPrefix}${version} (${env})`
+            : `${vPrefix}${version}`;
     }
 
     // Инициализируем менеджер кэша для dev режима
