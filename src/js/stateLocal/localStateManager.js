@@ -2605,8 +2605,8 @@ export class LocalStateManager {
     }
 
     async createBlock({parentId, title}) {
-        // Debug: трассировка вызовов для отладки дублирования блоков
-        console.log(`🔨 createBlock called: parentId=${parentId}, title="${title}"`, new Error().stack?.split('\n').slice(1, 4).join(' <- '));
+        // Debug: трассировка вызовов для отладки дублирования блоков (TODO: убрать после отладки)
+        console.debug(`🔨 createBlock called: parentId=${parentId}, title="${title}"`);
 
         // Получаем блокировку для предотвращения race conditions
         // при одновременном создании блоков в одном родителе

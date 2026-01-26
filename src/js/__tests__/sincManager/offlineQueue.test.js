@@ -1172,6 +1172,11 @@ describe('Batch Import Logic', () => {
                 switch (type) {
                     case 'createBlock':
                     case 'createTree':
+                        // Create затрагивает сам блок и родителя (сервер обновит children родителя)
+                        if (data.blockId === blockId || data.id === blockId || data.parentId === blockId) {
+                            return true;
+                        }
+                        break;
                     case 'updateBlock':
                     case 'deleteBlock':
                         if (data.blockId === blockId || data.id === blockId) {
@@ -1196,6 +1201,15 @@ describe('Batch Import Logic', () => {
             ];
 
             expect(await isBlockAffectedByPendingOperation(queue, 'block-1')).toBe(true);
+        });
+
+        test('returns true for parent affected by createBlock operation', async () => {
+            const queue = [
+                { type: 'createBlock', data: { blockId: 'child-1', parentId: 'parent-1' } }
+            ];
+
+            // Родитель затронут операцией создания ребёнка
+            expect(await isBlockAffectedByPendingOperation(queue, 'parent-1')).toBe(true);
         });
 
         test('returns true for block in moveBlock operation', async () => {
