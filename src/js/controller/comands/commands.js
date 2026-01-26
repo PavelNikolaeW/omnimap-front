@@ -1466,8 +1466,7 @@ export const commands = [
         description: 'Добавить новый блок в диаграмму',
         execute(ctx) {
             ctx.diagramUtils?.addBtnHandler()
-        },
-        btnExec(ctx) { this.execute(ctx) }
+        }
     },
     {
         id: 'diagramBlockStyle',
@@ -1529,36 +1528,6 @@ export const commands = [
         description: 'Сбросить настройки сетки диаграммы',
         execute(ctx) {
             ctx.diagramUtils?.resetHandler()
-        },
-        btnExec(ctx) { this.execute(ctx) }
-    },
-    {
-        id: 'diagramDeleteBlock',
-        mode: ['normal', 'diagram'],
-        btn: {
-            containerId: 'control-panel',
-            label: 'Удалить блок из диаграммы',
-            classes: ['sidebar-button', 'fas', 'fa-square-minus', 'fas-lg'],
-        },
-        description: 'Удалить выбранный блок из диаграммы',
-        async execute(ctx) {
-            let blockIdToDelete = ctx.diagramUtils?.getSelectedChildBlockId()
-
-            // Если нет выделенного блока, удаляем последний добавленный
-            if (!blockIdToDelete && ctx.diagramUtils?.blockId) {
-                const block = await ctx.diagramUtils.getBlock(ctx.diagramUtils.blockId)
-                if (block?.data?.childOrder?.length > 0) {
-                    const lastChildId = block.data.childOrder[block.data.childOrder.length - 1]
-                    // Формируем полный ID с учётом родителя
-                    blockIdToDelete = ctx.diagramUtils.element?.id
-                        ? `${ctx.diagramUtils.element.id}*${lastChildId}`
-                        : lastChildId
-                }
-            }
-
-            if (blockIdToDelete) {
-                dispatch('DeleteTreeBlock', { blockId: blockIdToDelete })
-            }
         },
         btnExec(ctx) { this.execute(ctx) }
     },
