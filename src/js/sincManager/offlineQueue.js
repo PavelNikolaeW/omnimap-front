@@ -1191,6 +1191,11 @@ class OfflineQueueManager {
             switch (type) {
                 case 'createBlock':
                 case 'createTree':
+                    // Create затрагивает сам блок и родителя (сервер обновит children родителя)
+                    if (data.blockId === blockId || data.id === blockId || data.parentId === blockId) {
+                        return true;
+                    }
+                    break;
                 case 'updateBlock':
                 case 'deleteBlock':
                     if (data.blockId === blockId || data.id === blockId) {

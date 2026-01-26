@@ -512,6 +512,18 @@ export class LocalStateManager {
                         mergedImage = serverBlock.data.image; // Сервер явно указал (или удалил)
                     }
 
+                    // Логика мёржа customGrid (как image):
+                    // - Сохраняем локальный если сервер прислал пустой (ещё не синхронизирован)
+                    // - Используем серверный если он содержит реальную конфигурацию (grid)
+                    let mergedCustomGrid = localBlock.data?.customGrid;
+                    if (serverBlock.data && 'customGrid' in serverBlock.data) {
+                        if (serverBlock.data.customGrid === null) {
+                            mergedCustomGrid = null;
+                        } else if (serverBlock.data.customGrid?.grid) {
+                            mergedCustomGrid = serverBlock.data.customGrid;
+                        }
+                    }
+
                     const mergedBlock = {
                         ...localBlock,
                         ...serverBlock,
@@ -523,7 +535,9 @@ export class LocalStateManager {
                                 ? serverBlock.data.childOrder
                                 : (localBlock.data?.childOrder || serverBlock.children || []),
                             // image - мёрж по логике выше
-                            image: mergedImage
+                            image: mergedImage,
+                            // customGrid - мёрж по логике выше
+                            customGrid: mergedCustomGrid
                         }
                     };
 
@@ -1399,6 +1413,8 @@ export class LocalStateManager {
                     // ВАЖНО: дедуплицируем сразу, т.к. сервер может прислать дубликаты
                     // ВАЖНО: мёржим image данные чтобы сохранить локальные settings
                     // (сервер не присылает settings при обычных обновлениях блока)
+                    // ВАЖНО: сохраняем локальный customGrid если сервер прислал пустой
+                    // (сервер может не иметь актуального customGrid до завершения push)
 
                     // Мёржим image: сохраняем локальные settings если сервер их не прислал
                     let mergedImage = localData.image;
@@ -1427,10 +1443,26 @@ export class LocalStateManager {
                         }
                     }
 
+                    // Мёржим customGrid: сохраняем локальный если сервер прислал пустой/устаревший
+                    // Это предотвращает сброс настроек диаграммы при получении WebSocket обновлений
+                    // до завершения push фазы синхронизации
+                    let mergedCustomGrid = localData.customGrid;
+                    if ('customGrid' in serverData) {
+                        if (serverData.customGrid === null) {
+                            // Сервер явно удалил customGrid
+                            mergedCustomGrid = null;
+                        } else if (serverData.customGrid?.grid) {
+                            // Сервер прислал реальную конфигурацию сетки — используем серверную
+                            mergedCustomGrid = serverData.customGrid;
+                        }
+                        // Если сервер прислал customGrid: {} (пустой) — сохраняем локальный
+                    }
+
                     const mergedData = {
                         ...localData,
                         ...serverData,
                         image: mergedImage,
+                        customGrid: mergedCustomGrid,
                         childOrder: deduplicateChildOrder(
                             Array.isArray(serverData.childOrder)
                                 ? serverData.childOrder
@@ -2573,6 +2605,9 @@ export class LocalStateManager {
     }
 
     async createBlock({parentId, title}) {
+        // Debug: трассировка вызовов для отладки дублирования блоков (TODO: убрать после отладки)
+        console.debug(`🔨 createBlock called: parentId=${parentId}, title="${title}"`);
+
         // Получаем блокировку для предотвращения race conditions
         // при одновременном создании блоков в одном родителе
         const releaseLock = await blockOperationLock.acquire(`parent:${parentId}`);
