@@ -58,7 +58,6 @@ export const submenuConfig = {
             'diagramBlockStyle',
             'diagramConnectionSettings',
             'diagramReset',
-            'diagramDeleteBlock',
             'diagramResetBlockStyle'
         ]
     },
@@ -76,7 +75,7 @@ const hiddenInSubmenu = new Set([
     // Diagram команды
     'diagramGridColPlus', 'diagramGridColMinus', 'diagramGridRowPlus', 'diagramGridRowMinus',
     'diagramSizeXs', 'diagramSizeS', 'diagramSizeM', 'diagramSizeL',
-    'diagramAddBlock', 'diagramDeleteBlock', 'diagramBlockStyle', 'diagramResetBlockStyle',
+    'diagramAddBlock', 'diagramBlockStyle', 'diagramResetBlockStyle',
     'diagramConnectionSettings', 'diagramReset',
     // Connections команды (теперь в подменю "Соединения" на верхнем уровне)
     'connectBlock', 'deleteConnectBlock', 'connectDashed', 'connectDouble',
