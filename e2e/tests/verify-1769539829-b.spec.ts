@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures/base.fixture';
 import { uniqueBlockTitle } from '../fixtures/test-data.fixture';
+import { createTestBlock, handleDeleteConfirmDialog, cleanupTestBlocks } from '../fixtures/verify-helpers.fixture';
 
 /**
  * Verify: Group B — Edit & Delete (s6, s7, s8, s9, s10, s11)
@@ -12,53 +13,14 @@ import { uniqueBlockTitle } from '../fixtures/test-data.fixture';
  * s11: Verify title update via API
  */
 test.describe('Verify: Edit & Delete', () => {
-  // Helper: create a block at the current level and return its title.
-  // IMPORTANT: This clicks on the first visible block's titleBlock to select it,
-  // which in this app also navigates INTO that block. The new block is created
-  // as a child of the selected block. After this function, we are inside the
-  // first block's view, where the new block is visible.
-  async function createTestBlock(page: import('@playwright/test').Page, prefix: string): Promise<string> {
-    const title = uniqueBlockTitle(prefix);
-
-    // Ensure we have visible blocks to select. If not, go back until we find some.
-    const blocks = page.locator('#rootContainer [block]');
-    let attempts = 0;
-    while (await blocks.count() === 0 && attempts < 3) {
+  test.afterEach(async ({ page }) => {
+    // Navigate back to root level before cleanup
+    for (let i = 0; i < 5; i++) {
       await page.keyboard.press('Backspace');
-      await page.waitForTimeout(1500);
-      attempts++;
+      await page.waitForTimeout(500);
     }
-
-    // Select the first block
-    const firstBlock = blocks.first();
-    await firstBlock.locator('titleBlock').first().click({ force: true });
-    await page.waitForTimeout(500);
-
-    // Press 'n' to create a new block
-    await page.keyboard.press('n');
-    const dialogInput = page.locator('[data-testid="custom-dialog-input"]');
-    await dialogInput.waitFor({ state: 'visible', timeout: 5000 });
-    await dialogInput.fill(title);
-    await page.locator('[data-testid="custom-dialog-ok-btn"]').click();
-    await page.waitForTimeout(2000);
-
-    // Verify block was created
-    const newBlock = page.locator(`#rootContainer [block] titleBlock:has-text("${title}")`);
-    await expect(newBlock).toBeVisible({ timeout: 15000 });
-
-    return title;
-  }
-
-  // Helper: handle delete confirmation dialog if it appears
-  async function handleDeleteConfirmDialog(page: import('@playwright/test').Page): Promise<void> {
-    const okBtn = page.locator('[data-testid="custom-dialog-ok-btn"]');
-    try {
-      await okBtn.waitFor({ state: 'visible', timeout: 3000 });
-      await okBtn.click();
-    } catch {
-      // No dialog appeared — that's OK for leaf blocks
-    }
-  }
+    await cleanupTestBlocks(page, ['Verify_s6', 'Verify_s7', 'Verify_s8', 'Verify_s9', 'Verify_s10', 'Verify_s11']);
+  });
 
   // s6: Edit title via hotkey 't' with pre-fill
   test('s6: edit block title via hotkey t', async ({ authenticatedPage, page }) => {

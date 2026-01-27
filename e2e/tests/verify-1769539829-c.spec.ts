@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures/base.fixture';
 import { uniqueBlockTitle } from '../fixtures/test-data.fixture';
+import { createTestBlock, handleDeleteConfirmDialog, cleanupTestBlocks } from '../fixtures/verify-helpers.fixture';
 
 /**
  * Verify: Group C — Edge Cases (s12, s13, s14, s15, s16, s17)
@@ -12,49 +13,14 @@ import { uniqueBlockTitle } from '../fixtures/test-data.fixture';
  * s17: Rapid creation of 3 blocks in a row
  */
 test.describe('Verify: Edge Cases', () => {
-  // Helper: create a block and return its title
-  async function createTestBlock(page: import('@playwright/test').Page, prefix: string): Promise<string> {
-    const title = uniqueBlockTitle(prefix);
-
-    // Ensure we have visible blocks. If not, go back.
-    const blocks = page.locator('#rootContainer [block]');
-    let attempts = 0;
-    while (await blocks.count() === 0 && attempts < 3) {
+  test.afterEach(async ({ page }) => {
+    // Navigate back to root level before cleanup
+    for (let i = 0; i < 5; i++) {
       await page.keyboard.press('Backspace');
-      await page.waitForTimeout(1500);
-      attempts++;
+      await page.waitForTimeout(500);
     }
-
-    // Select the first block
-    const firstBlock = blocks.first();
-    await firstBlock.locator('titleBlock').first().click({ force: true });
-    await page.waitForTimeout(500);
-
-    // Press 'n' to create a new block
-    await page.keyboard.press('n');
-    const dialogInput = page.locator('[data-testid="custom-dialog-input"]');
-    await dialogInput.waitFor({ state: 'visible', timeout: 5000 });
-    await dialogInput.fill(title);
-    await page.locator('[data-testid="custom-dialog-ok-btn"]').click();
-    await page.waitForTimeout(2000);
-
-    // Verify block was created
-    const newBlock = page.locator(`#rootContainer [block] titleBlock:has-text("${title}")`);
-    await expect(newBlock).toBeVisible({ timeout: 15000 });
-
-    return title;
-  }
-
-  // Helper: handle delete confirmation dialog if it appears
-  async function handleDeleteConfirmDialog(page: import('@playwright/test').Page): Promise<void> {
-    const okBtn = page.locator('[data-testid="custom-dialog-ok-btn"]');
-    try {
-      await okBtn.waitFor({ state: 'visible', timeout: 3000 });
-      await okBtn.click();
-    } catch {
-      // No dialog appeared — that's OK for leaf blocks
-    }
-  }
+    await cleanupTestBlocks(page, ['Verify_s12', 'Verify_s13', 'Verify_s14', 'Verify_s16', 'Verify_s17']);
+  });
 
   // s12: Cancel block creation via Cancel button
   test('s12: cancel block creation via Cancel button', async ({ authenticatedPage, page }) => {
