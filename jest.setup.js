@@ -45,6 +45,11 @@ jest.mock('./src/js/utils/custom-dialog', () => ({
     customConfirm: jest.fn().mockResolvedValue(true)
 }));
 
+// Polyfill structuredClone for jsdom (not available in jsdom environment)
+if (typeof globalThis.structuredClone === 'undefined') {
+    globalThis.structuredClone = (obj) => JSON.parse(JSON.stringify(obj));
+}
+
 // Global DOM setup
 document.body.innerHTML = `
     <div id="rootContainer"></div>

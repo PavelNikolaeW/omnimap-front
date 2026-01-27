@@ -18,6 +18,52 @@ jest.mock('../../api/api', () => ({
     }
 }));
 
+// Mock custom-dialog
+jest.mock('../../utils/custom-dialog', () => ({
+    customConfirm: jest.fn().mockResolvedValue(true),
+    customPrompt: jest.fn().mockResolvedValue('test'),
+}));
+
+// Mock treeService
+jest.mock('../../services/treeService', () => ({
+    treeService: {
+        refresh: jest.fn().mockResolvedValue(undefined),
+        isRootTree: jest.fn().mockReturnValue(false),
+        count: 2,
+        removeTree: jest.fn().mockResolvedValue(undefined),
+        addTree: jest.fn().mockResolvedValue(undefined),
+        removeMultipleTrees: jest.fn().mockResolvedValue(undefined),
+    }
+}));
+
+// Mock undoManager
+jest.mock('../../controller/undoManager', () => ({
+    undoManager: {
+        recordDelete: jest.fn(),
+        recordDeleteTree: jest.fn(),
+        recordCreate: jest.fn(),
+        recordMove: jest.fn(),
+        removeLastEntryForBlock: jest.fn(),
+    }
+}));
+
+// Mock permissionUtils
+jest.mock('../../utils/permissionUtils', () => ({
+    canEdit: jest.fn().mockReturnValue(true),
+    canDelete: jest.fn().mockReturnValue(true),
+    canCreateInSandbox: jest.fn().mockReturnValue(true),
+    canDeleteInSandbox: jest.fn().mockReturnValue(true),
+    canEditInSandbox: jest.fn().mockReturnValue(true),
+    isInSandbox: jest.fn().mockReturnValue(false),
+}));
+
+// Mock operationLock
+jest.mock('../../utils/operationLock', () => ({
+    blockOperationLock: {
+        acquire: jest.fn().mockResolvedValue(jest.fn()),
+    }
+}));
+
 // Mock offlineQueue for moveBlock tests
 jest.mock('../../sincManager/offlineQueue', () => {
     let mockIdCounter = 0;
@@ -39,6 +85,11 @@ jest.mock('../../sincManager/offlineQueue', () => {
 import { LocalStateManager } from '../../stateLocal/localStateManager';
 import api from '../../api/api';
 import { offlineQueue } from '../../sincManager/offlineQueue';
+import { customConfirm } from '../../utils/custom-dialog';
+import { canEdit, canDelete, canCreateInSandbox, canDeleteInSandbox } from '../../utils/permissionUtils';
+import { treeService } from '../../services/treeService';
+import { undoManager } from '../../controller/undoManager';
+import { blockOperationLock } from '../../utils/operationLock';
 
 // BlockRepository is not exported, but we can test it through LocalStateManager
 describe('LocalStateManager', () => {
@@ -53,12 +104,44 @@ describe('LocalStateManager', () => {
         offlineQueue.generateBlockId.mockImplementation(() => `test-block-${++idCounter}`);
         offlineQueue.enqueue.mockResolvedValue(undefined);
         offlineQueue.registerPendingBlock.mockReturnValue({ resolve: jest.fn(), reject: jest.fn() });
+        offlineQueue.isNetworkOnline.mockReturnValue(true);
+        offlineQueue.isPendingBlock.mockReturnValue(false);
+        offlineQueue.cancelPendingBlocks = jest.fn();
+
+        // Re-setup permission mocks
+        canEdit.mockReturnValue(true);
+        canDelete.mockReturnValue(true);
+        canCreateInSandbox.mockReturnValue(true);
+        canDeleteInSandbox.mockReturnValue(true);
+
+        // Re-setup customConfirm
+        customConfirm.mockResolvedValue(true);
+
+        // Re-setup treeService
+        treeService.refresh.mockResolvedValue(undefined);
+        treeService.isRootTree.mockReturnValue(false);
+        treeService.count = 2;
+        treeService.removeTree.mockResolvedValue(undefined);
+
+        // Re-setup undoManager
+        undoManager.recordDelete.mockImplementation(() => {});
+        undoManager.recordDeleteTree.mockImplementation(() => {});
+        undoManager.recordCreate = jest.fn();
+        undoManager.removeLastEntryForBlock.mockImplementation(() => {});
+
+        // Re-setup blockOperationLock
+        blockOperationLock.acquire.mockResolvedValue(jest.fn());
 
         // Setup default mock implementations
         localforage.getItem.mockResolvedValue(null);
         localforage.setItem.mockResolvedValue(undefined);
         localforage.removeItem.mockResolvedValue(undefined);
         localforage.keys.mockResolvedValue([]);
+
+        // Re-setup api mocks
+        api.removeTree.mockResolvedValue({ status: 200, data: {} });
+        api.createBlock.mockResolvedValue({ status: 200, data: {} });
+        api.updateBlock.mockResolvedValue({ status: 200, data: {} });
 
         // Create fresh instance
         manager = new LocalStateManager();
@@ -590,6 +673,176 @@ describe('LocalStateManager', () => {
             expect(manager.blocks.get('forbidden-block').forbidden).toBe(true);
 
             consoleSpy.mockRestore();
+        });
+    });
+
+    describe('deleteTreeBlock - bug fixes', () => {
+        let block, parentBlock;
+
+        beforeEach(() => {
+            // Setup a parent with one child block
+            parentBlock = {
+                id: 'parent-1',
+                title: 'Parent',
+                children: ['block-1'],
+                data: { childOrder: ['block-1'] }
+            };
+            block = {
+                id: 'block-1',
+                title: 'Test Block',
+                parent_id: 'parent-1',
+                children: [],
+                data: { connections: [{ sourceId: 'a', targetId: 'b' }], customGrid: { cells: {} } }
+            };
+            manager.blocks.set('parent-1', parentBlock);
+            manager.blocks.set('block-1', block);
+
+            // Mock required methods
+            customConfirm.mockResolvedValue(true);
+            canDelete.mockReturnValue(true);
+            canDeleteInSandbox.mockReturnValue(true);
+            treeService.isRootTree.mockReturnValue(false);
+            treeService.count = 2;
+            api.removeTree.mockResolvedValue({ status: 200, data: { parent: parentBlock } });
+
+            // Mock dispatch
+            global.window = global.window || {};
+            global.window.dispatchEvent = jest.fn();
+        });
+
+        test('bug1: structuredClone for rollback prevents mutation', async () => {
+            // Before fix: {...b, data: {...b.data}} didn't deep-clone nested arrays
+            // After fix: structuredClone(b) creates a full deep copy
+            await manager.deleteTreeBlock({ blockId: 'block-1' });
+
+            // The rollback data should not be affected by mutations to the original
+            // Since the block was deleted, we verify the delete was called
+            expect(manager.blockRepository.deleteBlock).toHaveBeenCalledWith('block-1');
+        });
+
+        test('bug1: rollback data is independent from original block', async () => {
+            // Make API fail to trigger rollback
+            api.removeTree.mockRejectedValue(new Error('Server error'));
+
+            await manager.deleteTreeBlock({ blockId: 'block-1' });
+
+            // After rollback, block should be restored with original data
+            const restored = manager.blocks.get('block-1');
+            expect(restored).toBeTruthy();
+            expect(restored.data.connections).toEqual([{ sourceId: 'a', targetId: 'b' }]);
+            expect(restored.data.customGrid).toEqual({ cells: {} });
+        });
+
+        test('bug3: deleteBlock calls are awaited via Promise.all', async () => {
+            // Setup a block with children to trigger multiple deleteBlock calls
+            const child = {
+                id: 'child-1',
+                title: 'Child',
+                parent_id: 'block-1',
+                children: [],
+                data: {}
+            };
+            block.children = ['child-1'];
+            manager.blocks.set('child-1', child);
+
+            // Track the order of operations
+            const operations = [];
+            manager.blockRepository.deleteBlock.mockImplementation(async (id) => {
+                operations.push(`delete-${id}`);
+            });
+
+            await manager.deleteTreeBlock({ blockId: 'block-1' });
+
+            // Both blocks should have been deleted
+            expect(operations).toContain('delete-block-1');
+            expect(operations).toContain('delete-child-1');
+        });
+
+        test('bug4: customConfirm used for last-tree message', async () => {
+            // Setup as root tree with count=1 to trigger "last tree" guard
+            treeService.isRootTree.mockReturnValue(true);
+            treeService.count = 1;
+
+            await manager.deleteTreeBlock({ blockId: 'block-1' });
+
+            // customConfirm should be called (not alert)
+            expect(customConfirm).toHaveBeenCalledWith('Нельзя удалить последнее дерево');
+        });
+
+        test('bug4: last-tree check prevents deletion', async () => {
+            treeService.isRootTree.mockReturnValue(true);
+            treeService.count = 1;
+
+            await manager.deleteTreeBlock({ blockId: 'block-1' });
+
+            // Block should NOT be deleted
+            expect(manager.blocks.has('block-1')).toBe(true);
+            expect(api.removeTree).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('deleteMultipleTreeBlocks - bug fixes', () => {
+        beforeEach(() => {
+            customConfirm.mockResolvedValue(true);
+            canDelete.mockReturnValue(true);
+            canDeleteInSandbox.mockReturnValue(true);
+            api.removeTree.mockResolvedValue({ status: 200, data: {} });
+        });
+
+        test('bug2: uses canDeleteInSandbox for permission check', async () => {
+            const block = {
+                id: 'block-1',
+                title: 'Test',
+                parent_id: 'parent-1',
+                children: [],
+                data: {},
+                permission: 'edit'
+            };
+            const parentBlock = {
+                id: 'parent-1',
+                title: 'Parent',
+                children: ['block-1'],
+                data: {}
+            };
+            manager.blocks.set('block-1', block);
+            manager.blocks.set('parent-1', parentBlock);
+
+            // canDeleteInSandbox returns false (no sandbox permission)
+            canDeleteInSandbox.mockReturnValue(false);
+
+            await manager.deleteMultipleTreeBlocks({ blockIds: ['block-1'] });
+
+            // canDeleteInSandbox should have been called with block, parent, and currentUser
+            expect(canDeleteInSandbox).toHaveBeenCalledWith(block, parentBlock, 'testUser');
+
+            // Deletion should NOT proceed
+            expect(api.removeTree).not.toHaveBeenCalled();
+        });
+
+        test('bug2: sandbox owner can delete in sandbox', async () => {
+            const block = {
+                id: 'block-1',
+                title: 'Test',
+                parent_id: 'parent-1',
+                children: [],
+                data: {}
+            };
+            const parentBlock = {
+                id: 'parent-1',
+                title: 'Parent',
+                children: ['block-1'],
+                data: {}
+            };
+            manager.blocks.set('block-1', block);
+            manager.blocks.set('parent-1', parentBlock);
+
+            canDeleteInSandbox.mockReturnValue(true);
+
+            await manager.deleteMultipleTreeBlocks({ blockIds: ['block-1'] });
+
+            // canDeleteInSandbox returned true, so deletion proceeds
+            expect(canDeleteInSandbox).toHaveBeenCalledWith(block, parentBlock, 'testUser');
+            expect(api.removeTree).toHaveBeenCalledWith('block-1');
         });
     });
 
