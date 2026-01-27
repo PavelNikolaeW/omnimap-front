@@ -6,6 +6,7 @@
   "scripts": {
     "start": "cross-env APP_BACKEND_URL=https://omnimap.ru LLM_GATEWAY_URL=http://0.0.0.0:7998  SINC_SERVICE_URL=wss://omnimap.ru/ws/ws webpack serve --config webpack.dev.js",
     "start_local": "webpack serve --config webpack.dev.js",
+    "start:dev": "webpack serve --config webpack.verify.js",
     "start:clean": "npm run clean:cache && npm run start_local",
     "build": "webpack --config webpack.prod.js",
     "build:dev": "webpack --config webpack.dev.js",

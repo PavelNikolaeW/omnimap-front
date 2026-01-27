@@ -125,10 +125,29 @@ export class DiagramUtils {
         }
 
         const block = await this.getBlock(this.blockId)
-        if (!block?.data?.childOrder) return
+        if (!block?.data) return
 
+        const childOrder = block.data.childOrder || []
         const createConnections = this.connections?.checked || false
-        const { connections, customGrid } = this.generateGrid(block.data.childOrder, size, createConnections)
+
+        let customGrid, connections
+
+        if (childOrder.length === 0) {
+            // Пустой блок — создаём минимальную сетку нужного размера
+            const sizeMap = { xs: 3, s: 4, m: 5, l: 6 }
+            const gridSize = sizeMap[size] || 5
+            customGrid = {
+                grid: [
+                    `grid-template-columns_${'1fr__'.repeat(gridSize)}`,
+                    `grid-template-rows_auto__${'1fr__'.repeat(gridSize)}`
+                ],
+                contentPosition: [`grid-column_1_sl_${gridSize + 1}`],
+                childrenPositions: {}
+            }
+            connections = []
+        } else {
+            ({ connections, customGrid } = this.generateGrid(childOrder, size, createConnections))
+        }
 
         dispatch('UpdateDataBlock', {
             blockId: this.blockId,
@@ -478,6 +497,22 @@ export class DiagramUtils {
         const ASPECT_RATIO = 16 / 10; // ширина / высота
 
         const totalBlocks = childOrder.length;
+
+        // Если нет дочерних блоков — возвращаем минимальную сетку
+        if (totalBlocks === 0) {
+            const gridSize = BLOCK_WIDTH
+            return {
+                connections: [],
+                customGrid: {
+                    grid: [
+                        `grid-template-columns_${'1fr__'.repeat(gridSize)}`,
+                        `grid-template-rows_auto__${'1fr__'.repeat(gridSize)}`
+                    ],
+                    contentPosition: [`grid-column_1_sl_${gridSize + 1}`],
+                    childrenPositions: {}
+                }
+            }
+        }
 
         // Рассчитываем количество строк и колонок с учетом аспектного соотношения
         const approxGridHeight = Math.sqrt(totalBlocks / ASPECT_RATIO);

@@ -33,14 +33,44 @@ npm run test:e2e   # E2E tests
 
 ## Git Workflow
 
-**Работай в отдельной ветке, не коммить в main напрямую!**
+**Всегда используй git worktrees! Не работай в основной рабочей директории напрямую — это мешает другим агентам.**
+
+### Создание worktree для задачи
 
 ```bash
-git checkout -b feature/название-задачи
+# Создай worktree в отдельной директории (за пределами основного репо)
+git worktree add ../omnimap-front-feature-название-задачи -b feature/название-задачи
+
+# Перейди в worktree
+cd ../omnimap-front-feature-название-задачи
+
+# Установи зависимости (node_modules не шарятся между worktrees)
+npm install
+
 # ... работа ...
+git add <files>
+git commit -m "описание изменений"
 git push -u origin feature/название-задачи
 gh pr create --title "Описание" --body "Детали"
 ```
+
+### После завершения работы
+
+```bash
+# Вернись в основную директорию
+cd ../omnimap-front
+
+# Удали worktree
+git worktree remove ../omnimap-front-feature-название-задачи
+```
+
+### Правила
+
+- **НЕ коммить в main напрямую!**
+- **НЕ работай в основной директории** — создавай worktree для каждой задачи
+- Каждый агент работает в своём worktree, что исключает конфликты
+- Имя директории worktree: `../omnimap-front-<branch-name>`
+- Список активных worktrees: `git worktree list`
 
 ## Cross-Service Changes
 
