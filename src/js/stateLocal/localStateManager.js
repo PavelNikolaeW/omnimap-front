@@ -718,7 +718,7 @@ export class LocalStateManager {
 
         // Нельзя удалить последнее дерево
         if (isRootTree && treeService.count === 1) {
-            alert('Нельзя удалить последнее дерево')
+            await customConfirm('Нельзя удалить последнее дерево')
             return
         }
 
@@ -740,7 +740,7 @@ export class LocalStateManager {
         // Сохраняем копии для rollback
         for (const id of allChildIds) {
             const b = this.blocks.get(id);
-            if (b) deletedBlocks.set(id, {...b, data: {...b.data}});
+            if (b) deletedBlocks.set(id, structuredClone(b));
         }
 
         // Сохраняем родительский блок для rollback (используем уже полученный parentBlock)
@@ -780,10 +780,12 @@ export class LocalStateManager {
         }
 
         // Удаляем блок и всех потомков из кеша
+        const deletePromises = [];
         for (const id of allChildIds) {
-            this.blockRepository.deleteBlock(id);
+            deletePromises.push(this.blockRepository.deleteBlock(id));
             this.blocks.delete(id);
         }
+        await Promise.all(deletePromises);
 
         // Отменяем pending статус для удаляемых блоков
         offlineQueue.cancelPendingBlocks(pendingBlockIds);
@@ -886,10 +888,12 @@ export class LocalStateManager {
     async deleteMultipleTreeBlocks({blockIds}) {
         if (!blockIds || blockIds.length === 0) return
 
-        // Проверка прав на удаление всех блоков
+        // Проверка прав на удаление всех блоков (с учётом sandbox режима)
         const forbiddenBlocks = blockIds.filter(id => {
             const block = this.blocks.get(id);
-            return block && !canDelete(block);
+            if (!block) return false;
+            const parentBlock = block.parent_id ? this.blocks.get(block.parent_id) : null;
+            return !canDeleteInSandbox(block, parentBlock, this.currentUser);
         });
         if (forbiddenBlocks.length > 0) {
             dispatch('ShowError', { message: 'Нет прав на удаление некоторых блоков' });
