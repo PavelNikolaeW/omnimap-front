@@ -23,7 +23,7 @@ describe('GraphPatchApplier', () => {
         id,
         parent_id: parentId,
         title,
-        children: JSON.stringify(options.children || []),
+        children: options.children || [],
         updated_at: Date.now(),
         data: {
             text: options.text || '',
@@ -37,13 +37,15 @@ describe('GraphPatchApplier', () => {
     beforeEach(() => {
         jest.clearAllMocks();
 
-        // Create mock blocks
+        // Create mock blocks (children arrays reflect parent_id relationships, as backend computes)
         mockBlocks = new Map([
             ['uuid-1', createBlock('uuid-1', null, 'Root', {
+                children: ['uuid-2', 'uuid-3'],
                 childOrder: ['uuid-2', 'uuid-3'],
                 type: 'group'
             })],
             ['uuid-2', createBlock('uuid-2', 'uuid-1', 'Child 1', {
+                children: ['uuid-4'],
                 childOrder: ['uuid-4'],
                 type: 'system'
             })],
