@@ -294,7 +294,7 @@ export class GraphPatchApplier {
                     id: uuid,
                     parent_id: parentUuid,
                     title: op.title || '',
-                    children: '[]',
+                    children: [],
                     updated_at: Date.now(),
                     data: {
                         text: this._textToHtml(op.text || ''),
@@ -306,10 +306,16 @@ export class GraphPatchApplier {
 
                 await this.stateManager.saveBlock(newBlock);
 
-                // Обновляем childOrder родителя
+                // Обновляем children и childOrder родителя
                 if (parentUuid) {
                     const parent = this.blocks.get(parentUuid);
                     if (parent) {
+                        // children — локальный кеш, должен быть синхронизирован с childOrder
+                        if (!parent.children) parent.children = [];
+                        if (!parent.children.includes(uuid)) {
+                            parent.children.push(uuid);
+                        }
+
                         const childOrder = [...(parent.data?.childOrder || [])];
                         if (op.pos != null && op.pos >= 0 && op.pos < childOrder.length) {
                             childOrder.splice(op.pos, 0, uuid);
