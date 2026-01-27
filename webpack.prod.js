@@ -62,7 +62,7 @@ module.exports = merge(common, {
             clientsClaim: true,
             skipWaiting: true,
             cleanupOutdatedCaches: true,
-            exclude: [/\.map$/, /\.txt$/, /service-worker\.js$/, /sw-custom\.js$/],
+            exclude: [/\.map$/, /\.txt$/, /service-worker\.js$/, /sw-custom\.js$/, /config\/config\.js$/],
             maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
             // Precaching: index.html будет доступен offline
             navigateFallback: '/index.html',
