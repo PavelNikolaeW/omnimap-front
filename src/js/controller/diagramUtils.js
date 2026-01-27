@@ -5,6 +5,23 @@ import {diagramEditor} from "./diagramEditor";
 import {blockStyleManager, connectionStyleManager} from "./blockStyleManager";
 import {contextManager} from "./comands/contextManager";
 
+/**
+ * Создать пустую сетку заданного размера (для блоков без дочерних элементов)
+ */
+function createEmptyGrid(gridSize) {
+    return {
+        connections: [],
+        customGrid: {
+            grid: [
+                `grid-template-columns_${'1fr__'.repeat(gridSize)}`,
+                `grid-template-rows_auto__${'1fr__'.repeat(gridSize)}`
+            ],
+            contentPosition: [`grid-column_1_sl_${gridSize + 1}`],
+            childrenPositions: {}
+        }
+    }
+}
+
 export class DiagramUtils {
     constructor() {
         // Старые элементы (для обратной совместимости)
@@ -133,18 +150,8 @@ export class DiagramUtils {
         let customGrid, connections
 
         if (childOrder.length === 0) {
-            // Пустой блок — создаём минимальную сетку нужного размера
             const sizeMap = { xs: 3, s: 4, m: 5, l: 6 }
-            const gridSize = sizeMap[size] || 5
-            customGrid = {
-                grid: [
-                    `grid-template-columns_${'1fr__'.repeat(gridSize)}`,
-                    `grid-template-rows_auto__${'1fr__'.repeat(gridSize)}`
-                ],
-                contentPosition: [`grid-column_1_sl_${gridSize + 1}`],
-                childrenPositions: {}
-            }
-            connections = []
+            ;({ connections, customGrid } = createEmptyGrid(sizeMap[size] || 5))
         } else {
             ({ connections, customGrid } = this.generateGrid(childOrder, size, createConnections))
         }
@@ -298,11 +305,16 @@ export class DiagramUtils {
             this.diagramEditor.deactivate()
             return
         }
+        const childOrder = block?.data?.childOrder || []
         const createConnections = this.connections?.checked || false
-        const {
-            connections,
-            customGrid
-        } = this.generateGrid(block.data.childOrder, selectedSize, createConnections)
+
+        let connections, customGrid
+        if (childOrder.length === 0) {
+            const sizeMap = { xs: 3, s: 4, m: 5, l: 6 }
+            ;({ connections, customGrid } = createEmptyGrid(sizeMap[selectedSize] || 5))
+        } else {
+            ({ connections, customGrid } = this.generateGrid(childOrder, selectedSize, createConnections))
+        }
         dispatch('UpdateDataBlock', {
             blockId: this.blockId,
             data: {customGrid, connections}
@@ -500,18 +512,7 @@ export class DiagramUtils {
 
         // Если нет дочерних блоков — возвращаем минимальную сетку
         if (totalBlocks === 0) {
-            const gridSize = BLOCK_WIDTH
-            return {
-                connections: [],
-                customGrid: {
-                    grid: [
-                        `grid-template-columns_${'1fr__'.repeat(gridSize)}`,
-                        `grid-template-rows_auto__${'1fr__'.repeat(gridSize)}`
-                    ],
-                    contentPosition: [`grid-column_1_sl_${gridSize + 1}`],
-                    childrenPositions: {}
-                }
-            }
+            return createEmptyGrid(BLOCK_WIDTH)
         }
 
         // Рассчитываем количество строк и колонок с учетом аспектного соотношения
