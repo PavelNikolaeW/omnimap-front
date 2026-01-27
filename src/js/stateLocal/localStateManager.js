@@ -744,11 +744,7 @@ export class LocalStateManager {
         }
 
         // Сохраняем родительский блок для rollback (используем уже полученный parentBlock)
-        const parentBackup = parentBlock ? {
-            ...parentBlock,
-            children: [...(parentBlock.children || [])],
-            data: {...parentBlock.data, childOrder: [...(parentBlock.data?.childOrder || [])]}
-        } : null;
+        const parentBackup = parentBlock ? structuredClone(parentBlock) : null;
 
         // Записываем в undo stack (до удаления)
         // Для деревьев используем recordDeleteTree с проверкой размера

@@ -262,16 +262,15 @@ test.describe('Verify: Edit & Delete', () => {
         const texts = Array.from(blocks).map(b => b.textContent || '');
         const has1 = texts.some(t => t.includes(t1));
         const has2 = texts.some(t => t.includes(t2));
-        return !has1 || !has2;
+        return !has1 && !has2;
       },
       [title1, title2] as [string, string],
       { timeout: 20000 }
     );
 
-    // Verify at least one of the blocks is removed
-    const block1Gone = await block1Title.count() === 0;
-    const block2Gone = await block2Title.count() === 0;
-    expect(block1Gone || block2Gone).toBeTruthy();
+    // Verify both blocks are removed
+    await expect(block1Title).not.toBeVisible({ timeout: 5000 });
+    await expect(block2Title).not.toBeVisible({ timeout: 5000 });
   });
 
   // s11: Verify title update via API
