@@ -276,9 +276,10 @@ describe('GraphPatchApplier', () => {
             // Check block was saved
             expect(mockStateManager.saveBlock).toHaveBeenCalled();
 
-            // Check parent childOrder was updated
+            // Check parent childOrder and children were updated
             const root = mockBlocks.get('uuid-1');
             expect(root.data.childOrder).toContain(result.createdIds['5']);
+            expect(root.children).toContain(result.createdIds['5']);
         });
 
         it('should edit existing blocks', async () => {
@@ -307,13 +308,15 @@ describe('GraphPatchApplier', () => {
             const block = mockBlocks.get('uuid-4');
             expect(block.parent_id).toBe('uuid-3');
 
-            // Check old parent childOrder
+            // Check old parent childOrder and children
             const oldParent = mockBlocks.get('uuid-2');
             expect(oldParent.data.childOrder).not.toContain('uuid-4');
+            expect(oldParent.children).not.toContain('uuid-4');
 
-            // Check new parent childOrder
+            // Check new parent childOrder and children
             const newParent = mockBlocks.get('uuid-3');
             expect(newParent.data.childOrder).toContain('uuid-4');
+            expect(newParent.children).toContain('uuid-4');
         });
 
         it('should add connections', async () => {

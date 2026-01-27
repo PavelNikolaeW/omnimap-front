@@ -365,10 +365,13 @@ export class GraphPatchApplier {
                 // Skip if same parent and no position change
                 if (oldParentUuid === newParentUuid && op.pos == null) continue;
 
-                // Remove from old parent's childOrder
+                // Remove from old parent's children and childOrder
                 if (oldParentUuid) {
                     const oldParent = this.blocks.get(oldParentUuid);
                     if (oldParent) {
+                        if (Array.isArray(oldParent.children)) {
+                            oldParent.children = oldParent.children.filter(id => id !== uuid);
+                        }
                         const oldChildOrder = (oldParent.data?.childOrder || [])
                             .filter(id => id !== uuid);
                         oldParent.data = { ...oldParent.data, childOrder: oldChildOrder };
@@ -380,10 +383,14 @@ export class GraphPatchApplier {
                 block.parent_id = newParentUuid;
                 block.updated_at = Date.now();
 
-                // Add to new parent's childOrder
+                // Add to new parent's children and childOrder
                 if (newParentUuid) {
                     const newParent = this.blocks.get(newParentUuid);
                     if (newParent) {
+                        if (!newParent.children) newParent.children = [];
+                        if (!newParent.children.includes(uuid)) {
+                            newParent.children.push(uuid);
+                        }
                         const newChildOrder = [...(newParent.data?.childOrder || [])];
                         if (op.pos != null && op.pos >= 0 && op.pos <= newChildOrder.length) {
                             newChildOrder.splice(op.pos, 0, uuid);
