@@ -1,4 +1,4 @@
-import { test as setup } from '@playwright/test';
+import { test as setup, expect } from '@playwright/test';
 import { MainPage } from '../pages/main.page';
 
 /**
@@ -18,6 +18,11 @@ const TEST_USER = {
   password: process.env.E2E_TEST_PASSWORD || 'e2e_admin_password',
 };
 
+// Учётные данные для автоматической регистрации на cloud.ru
+const CLOUD_REGISTER_USER = {
+  username: process.env.E2E_VERIFY_USERNAME || 'e2e_verify_test',
+  password: process.env.E2E_VERIFY_PASSWORD || 'e2e_verify_pass_2026',
+};
 
 /**
  * Попытка зарегистрировать пользователя через API
@@ -65,7 +70,13 @@ setup('authenticate and save state', async ({ page }) => {
     const config = (window as any).__OMNIMAP_CONFIG__;
     return config?.APP_BACKEND_URL || null;
   }) || pageURL;
-  await tryRegister(apiURL, user.username, user.password);
+  const registered = await tryRegister(apiURL, user.username, user.password);
+
+  if (!registered) {
+    // Попробуем cloud-учётные данные для регистрации
+    console.log(`[Auth Setup] Trying cloud registration credentials...`);
+    await tryRegister(apiURL, CLOUD_REGISTER_USER.username, CLOUD_REGISTER_USER.password);
+  }
 
   // Повторный логин после регистрации
   console.log(`[Auth Setup] Retrying login after registration...`);
