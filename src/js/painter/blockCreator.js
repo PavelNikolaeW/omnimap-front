@@ -581,7 +581,7 @@ class BlockCreator {
         const sizesAttr = srcset ? ' sizes="(max-width: 400px) 150px, (max-width: 800px) 400px, (max-width: 1200px) 800px, 1200px"' : ''
 
         return `<div class="block-image-container" data-testid="block-image-${block.id}" data-fullsize-url="${originalUrl}" ${containerAttrs.join(' ')}>
-            <img src="${displayUrl}" alt="${safeFilename}" class="block-image" data-testid="block-image-tag-${block.id}" loading="lazy"${srcsetAttr}${sizesAttr}${imgStyleAttr} />
+            <img src="${displayUrl}" alt="${safeFilename}" class="block-image" data-testid="block-image-tag-${block.id}" loading="lazy"${srcsetAttr}${sizesAttr}${imgStyleAttr} onerror="this.setAttribute('data-error','true');this.parentElement.setAttribute('data-error','true')" />
             ${overlayHtml}
         </div>`
     }

@@ -107,6 +107,8 @@ export class LocalStateManager {
         this.painter = new Painter();
         this.blockRepository = null;
         this.debounceTimer = undefined;
+        // Флаг защиты от concurrent рендеров
+        this._isRendering = false;
         // Инициализация слушателей событий
         this.registerEventHandlers();
     }
@@ -252,6 +254,11 @@ export class LocalStateManager {
             this.currentUser = null;
             this.currentTree = null;
             this.path = [];
+
+            // Очищаем кэш картинок painter
+            if (this.painter && this.painter.clearImageCache) {
+                this.painter.clearImageCache();
+            }
 
             // Очищаем данные из IndexedDB
             await localforage.removeItem('currentTree');
@@ -2352,8 +2359,15 @@ export class LocalStateManager {
     }
 
     async showBlocks() {
-        this.currentUser = await localforage.getItem('currentUser') || 'anonim';
-        this.blockRepository = new BlockRepository(this.currentUser);
+        // Защита от concurrent рендеров
+        if (this._isRendering) {
+            return;
+        }
+        this._isRendering = true;
+
+        try {
+            this.currentUser = await localforage.getItem('currentUser') || 'anonim';
+            this.blockRepository = new BlockRepository(this.currentUser);
 
         const isLinkView = window.location.search.length > 0;
 
@@ -2418,6 +2432,9 @@ export class LocalStateManager {
 
         this.painter.render(this.blocks, screenObj, this.currentUser);
         dispatch('ShowedBlocks', {path: this.path, activeId: undefined});
+        } finally {
+            this._isRendering = false;
+        }
     }
 
     /**
