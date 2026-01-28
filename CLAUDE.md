@@ -7,6 +7,7 @@ OmniMap Frontend - visual knowledge mapping with real-time sync.
 ```bash
 npm start          # Dev server (remote backend)
 npm run start_local # Dev server (local backend)
+npm run start:dev  # Dev server for verify (cloud backend via proxy)
 npm run build      # Production build
 npm test           # Unit tests
 npm run test:e2e   # E2E tests
@@ -207,6 +208,8 @@ src/js/
 | `src/js/api/api.js` | HTTP client |
 | `src/js/onboarding/OnboardingManager.js` | Onboarding state |
 | `src/js/services/homePageInitializer.js` | Home page creation |
+| `webpack.verify.js` | Webpack config for verify (cloud backend via proxy) |
+| `public/config.cloud.js` | Runtime config for cloud.ru dev environment |
 
 ## Notes
 

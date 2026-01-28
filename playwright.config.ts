@@ -120,7 +120,7 @@ export default defineConfig({
     {
       name: 'chromium',
       testMatch: /^(?!.*smoke\/)(?!.*\.setup\.).*\.spec\.ts$/,
-      testIgnore: /\.dev\.spec\.ts$/,
+      testIgnore: [/\.dev\.spec\.ts$/, /verify-.*\.spec\.ts$/],
       use: {
         ...devices['Desktop Chrome'],
         storageState: 'e2e/.auth/user.json',
@@ -145,6 +145,7 @@ export default defineConfig({
     {
       name: 'firefox',
       testMatch: /^(?!.*smoke\/)(?!.*\.setup\.)(?!.*\.dev\.).*\.spec\.ts$/,
+      testIgnore: /verify-.*\.spec\.ts$/,
       dependencies: ['setup'],
       use: {
         ...devices['Desktop Firefox'],
@@ -154,6 +155,7 @@ export default defineConfig({
     {
       name: 'webkit',
       testMatch: /^(?!.*smoke\/)(?!.*\.setup\.)(?!.*\.dev\.).*\.spec\.ts$/,
+      testIgnore: /verify-.*\.spec\.ts$/,
       dependencies: ['setup'],
       use: {
         ...devices['Desktop Safari'],

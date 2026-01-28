@@ -46,8 +46,7 @@ e2e/
 │   └── offline.fixture.ts     # Offline хелпер
 ├── pages/
 │   ├── base.page.ts
-│   ├── main.page.ts
-│   ├── login.page.ts
+│   ├── main.page.ts          # Включает login() и gotoAndLogin()
 │   └── chat.page.ts
 ├── helpers/
 │   ├── block.helper.ts
