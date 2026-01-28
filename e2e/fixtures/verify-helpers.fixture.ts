@@ -2,6 +2,69 @@ import { expect, Page } from '@playwright/test';
 import { uniqueBlockTitle } from './test-data.fixture';
 
 /**
+ * API-based cleanup: delete all blocks whose title starts with the given prefix.
+ * Uses delete-tree endpoint for cascading deletion (children first).
+ * Should be called in beforeAll to clean stale data from previous runs.
+ */
+export async function apiCleanupByPrefix(page: Page, prefix: string): Promise<void> {
+  await page.evaluate(async (pfx) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const resp = await fetch('/api/v1/block/?format=json', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const data = await resp.json();
+    const stale = (data.results || []).filter((b: any) =>
+      b.title && b.title.startsWith(pfx)
+    );
+    for (const block of stale.reverse()) {
+      try {
+        await fetch('/api/v1/delete-tree/' + block.id + '/', {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+      } catch {}
+    }
+  }, prefix);
+}
+
+/**
+ * Create a dedicated verify tree for test isolation.
+ * Returns the tree name (used to identify and cleanup later).
+ */
+export async function createVerifyTree(page: Page, timestamp: string): Promise<string> {
+  const treeName = `VerifyTree_${timestamp}`;
+  // Click tree add button
+  await page.locator('[data-testid="tree-add-button"]').click();
+  await page.locator('[data-testid="custom-dialog-input"]').fill(treeName);
+  await page.locator('[data-testid="custom-dialog-ok-btn"]').click();
+  await page.waitForTimeout(2000);
+  return treeName;
+}
+
+/**
+ * Delete a verify tree by name via API.
+ * Finds root block matching the tree name and deletes it with delete-tree.
+ */
+export async function deleteVerifyTree(page: Page, treeName: string): Promise<void> {
+  await page.evaluate(async (name) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const resp = await fetch('/api/v1/block/?format=json', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const data = await resp.json();
+    const tree = (data.results || []).find((b: any) => b.title === name && !b.parent_id);
+    if (tree) {
+      await fetch('/api/v1/delete-tree/' + tree.id + '/', {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+    }
+  }, treeName);
+}
+
+/**
  * Shared helpers for verify E2E tests.
  *
  * createTestBlock: selects the first visible block, presses 'n',

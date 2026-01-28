@@ -8,37 +8,37 @@
 
 | # | Фича | Файл теста | Статус |
 |---|-------|-----------|--------|
-| 1 | Auth | `auth.spec.ts` | ⬜ |
-| 2 | Blocks: CRUD | `blocks-crud.spec.ts` | ⬜ |
-| 3 | Blocks: Text Editor | `blocks-text-editor.spec.ts` | ⬜ |
-| 4 | Blocks: Copy/Paste/Link | `blocks-copy-paste.spec.ts` | ⬜ |
-| 5 | Blocks: Cut/Move | `blocks-cut-move.spec.ts` | ⬜ |
-| 6 | Blocks: Multi-select | `blocks-multiselect.spec.ts` | ⬜ |
-| 7 | Blocks: Undo/Redo | `blocks-undo-redo.spec.ts` | ⬜ |
-| 8 | Blocks: Colors | `blocks-colors.spec.ts` | ⬜ |
-| 9 | Navigation | `navigation.spec.ts` | ⬜ |
-| 10 | Search | `search.spec.ts` | ⬜ |
-| 11 | Connections/Arrows | `connections.spec.ts` | ⬜ |
-| 12 | Diagram Mode | `diagram-mode.spec.ts` | ⬜ |
-| 13 | Block Styles (shapes, borders, shadows) | `block-styles.spec.ts` | ⬜ |
-| 14 | Layout Editor | `layout-editor.spec.ts` | ⬜ |
-| 15 | Permissions & Access | `permissions.spec.ts` | ⬜ |
-| 16 | Image Upload | `image-upload.spec.ts` | ⬜ |
-| 17 | Import | `import.spec.ts` | ⬜ |
-| 18 | Chat (DM, Group, Block comments) | `chat.spec.ts` | ⬜ |
-| 19 | Reminders & Subscriptions | `reminders.spec.ts` | ⬜ |
-| 20 | Hotkeys & Commands | `hotkeys.spec.ts` | ⬜ |
-| 21 | Onboarding | `onboarding.spec.ts` | ⬜ |
-| 22 | Offline: UI индикаторы и статус сети | `offline-ui.spec.ts` | ⬜ |
-| 23 | Offline: Очередь операций (CRUD оффлайн) | `offline-queue.spec.ts` | ⬜ |
-| 24 | Offline: Sync pull-push цикл | `offline-sync-cycle.spec.ts` | ⬜ |
-| 25 | Offline: Перебои сети и восстановление | `network-interruptions.spec.ts` | ⬜ |
-| 26 | Offline: WebSocket reconnect и heartbeat | `ws-reconnect.spec.ts` | ⬜ |
-| 27 | Offline: Edge cases (sleep, конфликты, сессия) | `offline-edge-cases.spec.ts` | ⬜ |
-| 28 | Multi-user Sync | `multiuser-sync.spec.ts` | ⬜ |
-| 29 | Tree Management | `tree-management.spec.ts` | ⬜ |
-| 30 | Iframe Blocks | `iframe-blocks.spec.ts` | ⬜ |
-| 31 | Options/Settings | `options.spec.ts` | ⬜ |
+| 1 | Auth | `auth.spec.ts` | [ ] |
+| 2 | Blocks: CRUD | `blocks-crud.spec.ts` | [ ] |
+| 3 | Blocks: Text Editor | `blocks-text-editor.spec.ts` | [ ] |
+| 4 | Blocks: Copy/Paste/Link | `blocks-copy-paste.spec.ts` | [ ] |
+| 5 | Blocks: Cut/Move | `blocks-cut-move.spec.ts` | [ ] |
+| 6 | Blocks: Multi-select | `blocks-multiselect.spec.ts` | [ ] |
+| 7 | Blocks: Undo/Redo | `blocks-undo-redo.spec.ts` | [ ] |
+| 8 | Blocks: Colors | `blocks-colors.spec.ts` | [ ] |
+| 9 | Navigation | `navigation.spec.ts` | [ ] |
+| 10 | Search | `search.spec.ts` | [ ] |
+| 11 | Connections/Arrows | `connections.spec.ts` | [ ] |
+| 12 | Diagram Mode | `diagram-mode.spec.ts` | [ ] |
+| 13 | Block Styles (shapes, borders, shadows) | `block-styles.spec.ts` | [ ] |
+| 14 | Layout Editor | `layout-editor.spec.ts` | [ ] |
+| 15 | Permissions & Access | `permissions.spec.ts` | [ ] |
+| 16 | Image Upload | `image-upload.spec.ts` | [ ] |
+| 17 | Import | `import.spec.ts` | [ ] |
+| 18 | Chat (DM, Group, Block comments) | `chat.spec.ts` | [ ] |
+| 19 | Reminders & Subscriptions | `reminders.spec.ts` | [ ] |
+| 20 | Hotkeys & Commands | `hotkeys.spec.ts` | [ ] |
+| 21 | Onboarding | `onboarding.spec.ts` | [ ] |
+| 22 | Offline: UI индикаторы и статус сети | `offline-ui.spec.ts` | [ ] |
+| 23 | Offline: Очередь операций (CRUD оффлайн) | `offline-queue.spec.ts` | [ ] |
+| 24 | Offline: Sync pull-push цикл | `offline-sync-cycle.spec.ts` | [ ] |
+| 25 | Offline: Перебои сети и восстановление | `network-interruptions.spec.ts` | [ ] |
+| 26 | Offline: WebSocket reconnect и heartbeat | `ws-reconnect.spec.ts` | [ ] |
+| 27 | Offline: Edge cases (sleep, конфликты, сессия) | `offline-edge-cases.spec.ts` | [ ] |
+| 28 | Multi-user Sync | `multiuser-sync.spec.ts` | [ ] |
+| 29 | Tree Management | `tree-management.spec.ts` | [ ] |
+| 30 | Iframe Blocks | `iframe-blocks.spec.ts` | [ ] |
+| 31 | Options/Settings | `options.spec.ts` | [ ] |
 
 ---
 
