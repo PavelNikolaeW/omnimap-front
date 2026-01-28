@@ -107,6 +107,12 @@ export class LocalStateManager {
         this.painter = new Painter();
         this.blockRepository = null;
         this.debounceTimer = undefined;
+        // Флаг защиты от concurrent рендеров
+        this._isRendering = false;
+        // Флаг отложенного рендера
+        this._pendingRender = false;
+        // Последнее отрендеренное дерево (для очистки кэша при смене)
+        this._lastRenderedTree = null;
         // Инициализация слушателей событий
         this.registerEventHandlers();
     }
@@ -252,6 +258,11 @@ export class LocalStateManager {
             this.currentUser = null;
             this.currentTree = null;
             this.path = [];
+
+            // Очищаем кэш картинок painter
+            if (this.painter && this.painter.clearImageCache) {
+                this.painter.clearImageCache();
+            }
 
             // Очищаем данные из IndexedDB
             await localforage.removeItem('currentTree');
@@ -2352,8 +2363,16 @@ export class LocalStateManager {
     }
 
     async showBlocks() {
-        this.currentUser = await localforage.getItem('currentUser') || 'anonim';
-        this.blockRepository = new BlockRepository(this.currentUser);
+        // Защита от concurrent рендеров с отложенным повторным вызовом
+        if (this._isRendering) {
+            this._pendingRender = true;
+            return;
+        }
+        this._isRendering = true;
+
+        try {
+            this.currentUser = await localforage.getItem('currentUser') || 'anonim';
+            this.blockRepository = new BlockRepository(this.currentUser);
 
         const isLinkView = window.location.search.length > 0;
 
@@ -2416,8 +2435,24 @@ export class LocalStateManager {
             }
         }
 
+        // Очищаем кэш картинок при смене дерева (предотвращение memory leak)
+        if (this._lastRenderedTree && this._lastRenderedTree !== this.currentTree) {
+            if (this.painter && this.painter.clearImageCache) {
+                this.painter.clearImageCache();
+            }
+        }
+        this._lastRenderedTree = this.currentTree;
+
         this.painter.render(this.blocks, screenObj, this.currentUser);
         dispatch('ShowedBlocks', {path: this.path, activeId: undefined});
+        } finally {
+            this._isRendering = false;
+            // Выполняем отложенный рендер если был запрошен
+            if (this._pendingRender) {
+                this._pendingRender = false;
+                this.showBlocks();
+            }
+        }
     }
 
     /**

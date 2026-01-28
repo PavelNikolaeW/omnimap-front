@@ -162,6 +162,18 @@ export default defineConfig({
         storageState: 'e2e/.auth/user.json',
       },
     },
+
+    // ==================== Verify тесты ====================
+    // Временные тесты для верификации изменений (запуск: npx playwright test --project=verify)
+    {
+      name: 'verify',
+      testMatch: /verify-.*\.spec\.ts$/,
+      dependencies: ['setup'],
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: 'e2e/.auth/user.json',
+      },
+    },
   ],
 
   // В CI режиме webServer не нужен - используем docker-compose или K8s

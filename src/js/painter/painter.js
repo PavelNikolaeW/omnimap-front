@@ -32,10 +32,26 @@ export class Painter {
         this.counter = 0
         // Персистентный кэш img элементов (как AllIframes) - не очищается при перерендере
         this._allImages = new Map()
+        // Глобальный обработчик ошибок загрузки картинок (CSP-safe, без inline handlers)
+        this._initImageErrorHandler()
+    }
+
+    /**
+     * Инициализирует глобальный обработчик ошибок загрузки изображений
+     * Использует capture phase для перехвата событий error на img элементах
+     */
+    _initImageErrorHandler() {
+        document.addEventListener('error', (e) => {
+            if (e.target.matches('.block-image')) {
+                e.target.setAttribute('data-error', 'true')
+                e.target.parentElement?.setAttribute('data-error', 'true')
+            }
+        }, true) // capture phase для img элементов
     }
 
     /**
      * Отсоединяет img элементы от DOM перед очисткой (но не удаляет из кэша)
+     * Кэширует все картинки, помечая загруженные
      */
     _detachImages() {
         const images = this.rootContainer.querySelectorAll('.block-image')
@@ -43,23 +59,28 @@ export class Painter {
             const testId = img.getAttribute('data-testid')
             if (testId) {
                 const blockId = testId.replace('block-image-tag-', '')
-                // Сохраняем в кэш если картинка загружена
-                if (img.complete && img.naturalWidth > 0) {
-                    // Отсоединяем от DOM и сохраняем
-                    img.remove()
-                    this._allImages.set(blockId, img)
+                // Помечаем загружена ли картинка
+                const isLoaded = img.complete && img.naturalWidth > 0
+                if (isLoaded) {
+                    img.setAttribute('data-loaded', 'true')
                 }
+                // Отсоединяем от DOM и сохраняем всегда
+                img.remove()
+                this._allImages.set(blockId, img)
             }
         })
     }
 
     /**
      * Восстанавливает закэшированные img элементы в новый DOM
-     * Всегда переиспользует DOM элемент, обновляя все атрибуты включая src
-     * (при смене размера блока может измениться вариант картинки)
+     * Переиспользует DOM элемент, обновляя только изменившиеся атрибуты
+     * и блокируя CSS анимацию для загруженных картинок
      */
     _reattachImages() {
         if (this._allImages.size === 0) return
+
+        // Атрибуты которые не удаляем при sync
+        const preservedAttrs = new Set(['data-cached', 'data-loaded', 'style'])
 
         const newImages = this.rootContainer.querySelectorAll('.block-image')
         newImages.forEach(newImg => {
@@ -69,20 +90,34 @@ export class Painter {
                 const cachedImg = this._allImages.get(blockId)
 
                 if (cachedImg) {
-                    // Всегда переиспользуем DOM элемент - обновляем ВСЕ атрибуты
-                    // Это предотвращает моргание даже при смене варианта картинки
-                    // (браузер возьмёт новый src из HTTP кэша)
+                    const isLoaded = cachedImg.getAttribute('data-loaded') === 'true'
+
+                    // Блокируем CSS анимацию только для загруженных картинок
+                    if (isLoaded) {
+                        cachedImg.style.animation = 'none'
+                        cachedImg.setAttribute('data-cached', 'true')
+                    }
+
+                    // Обновляем только изменившиеся атрибуты
                     for (const attr of newImg.attributes) {
-                        cachedImg.setAttribute(attr.name, attr.value)
+                        const attrName = attr.name
+                        // Пропускаем служебные атрибуты
+                        if (preservedAttrs.has(attrName)) continue
+                        // Обновляем только если значение изменилось
+                        if (cachedImg.getAttribute(attrName) !== attr.value) {
+                            cachedImg.setAttribute(attrName, attr.value)
+                        }
                     }
                     // Удаляем атрибуты которых нет в новом элементе
                     for (const attr of [...cachedImg.attributes]) {
-                        if (!newImg.hasAttribute(attr.name)) {
+                        if (!preservedAttrs.has(attr.name) && !newImg.hasAttribute(attr.name)) {
                             cachedImg.removeAttribute(attr.name)
                         }
                     }
-                    // Заменяем новый img на закэшированный
-                    newImg.parentNode.replaceChild(cachedImg, newImg)
+                    // Заменяем новый img на закэшированный (с проверкой parentNode)
+                    if (newImg.parentNode) {
+                        newImg.parentNode.replaceChild(cachedImg, newImg)
+                    }
                 }
             }
         })
@@ -97,6 +132,13 @@ export class Painter {
                 this._allImages.delete(blockId)
             }
         }
+    }
+
+    /**
+     * Полная очистка кэша картинок (вызывать при logout)
+     */
+    clearImageCache() {
+        this._allImages.clear()
     }
 
     render(blocks, {color = [], blockId}, currentUserId = null) {
@@ -138,6 +180,10 @@ export class Painter {
         // Отсоединяем img элементы перед очисткой DOM (как iframes)
         this._detachImages()
 
+        // Скрываем контейнер во время перерендера чтобы избежать моргания
+        // visibility: hidden сохраняет layout, но не показывает промежуточные кадры
+        this.rootContainer.style.visibility = 'hidden'
+
         this.rootContainer.textContent = ''
         this.removeIframePositions()
         this._render(queue, blocks, this.config, currentUserId);
@@ -147,6 +193,9 @@ export class Painter {
 
         // Чистим кэш от удалённых блоков
         this._cleanupImageCache(blocks)
+
+        // Показываем контейнер после завершения рендера
+        this.rootContainer.style.visibility = ''
 
         // this.printRealSize()
         this.setIframePositions()
