@@ -709,7 +709,7 @@ export function getTutorialBlocks() {
     blocks.set(userRootId, {
         id: userRootId,
         title: 'Мои заметки',
-        parent_id: false,
+        parent_id: null,
         children: [],
         data: {
             text: '<p>Это ваше основное дерево для заметок и идей.</p><p>Нажмите <kbd>N</kbd> чтобы создать первый блок!</p>',
