@@ -109,6 +109,10 @@ export class LocalStateManager {
         this.debounceTimer = undefined;
         // Флаг защиты от concurrent рендеров
         this._isRendering = false;
+        // Флаг отложенного рендера
+        this._pendingRender = false;
+        // Последнее отрендеренное дерево (для очистки кэша при смене)
+        this._lastRenderedTree = null;
         // Инициализация слушателей событий
         this.registerEventHandlers();
     }
@@ -2359,8 +2363,9 @@ export class LocalStateManager {
     }
 
     async showBlocks() {
-        // Защита от concurrent рендеров
+        // Защита от concurrent рендеров с отложенным повторным вызовом
         if (this._isRendering) {
+            this._pendingRender = true;
             return;
         }
         this._isRendering = true;
@@ -2430,10 +2435,23 @@ export class LocalStateManager {
             }
         }
 
+        // Очищаем кэш картинок при смене дерева (предотвращение memory leak)
+        if (this._lastRenderedTree && this._lastRenderedTree !== this.currentTree) {
+            if (this.painter && this.painter.clearImageCache) {
+                this.painter.clearImageCache();
+            }
+        }
+        this._lastRenderedTree = this.currentTree;
+
         this.painter.render(this.blocks, screenObj, this.currentUser);
         dispatch('ShowedBlocks', {path: this.path, activeId: undefined});
         } finally {
             this._isRendering = false;
+            // Выполняем отложенный рендер если был запрошен
+            if (this._pendingRender) {
+                this._pendingRender = false;
+                this.showBlocks();
+            }
         }
     }
 

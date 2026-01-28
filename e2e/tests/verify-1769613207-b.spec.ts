@@ -119,13 +119,15 @@ test.describe('Verify: Image cache management - Group B', () => {
       return Array.from(painter._allImages.keys());
     });
 
-    // Все картинки в DOM должны быть в кэше (или кэш пуст если картинки новые)
-    // Это не строгое равенство — кэш может содержать больше элементов
-    if (domImages.length > 0 && cacheImages.length > 0) {
-      // Хотя бы некоторые картинки должны быть в кэше
+    // Проверяем консистентность кэша с DOM
+    if (domImages.length > 0) {
+      // Если есть картинки в DOM, кэш должен содержать хотя бы некоторые из них
+      // (после первого рендера с detach/reattach)
       const overlap = domImages.filter(id => cacheImages.includes(id));
-      // Не требуем полного совпадения, просто проверяем что кэш работает
-      expect(cacheImages.length).toBeGreaterThanOrEqual(0);
+      // Если кэш не пуст, проверяем что есть пересечение
+      if (cacheImages.length > 0) {
+        expect(overlap.length).toBeGreaterThan(0);
+      }
     }
   });
 });

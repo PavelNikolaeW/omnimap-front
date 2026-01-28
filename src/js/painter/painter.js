@@ -32,6 +32,21 @@ export class Painter {
         this.counter = 0
         // Персистентный кэш img элементов (как AllIframes) - не очищается при перерендере
         this._allImages = new Map()
+        // Глобальный обработчик ошибок загрузки картинок (CSP-safe, без inline handlers)
+        this._initImageErrorHandler()
+    }
+
+    /**
+     * Инициализирует глобальный обработчик ошибок загрузки изображений
+     * Использует capture phase для перехвата событий error на img элементах
+     */
+    _initImageErrorHandler() {
+        document.addEventListener('error', (e) => {
+            if (e.target.matches('.block-image')) {
+                e.target.setAttribute('data-error', 'true')
+                e.target.parentElement?.setAttribute('data-error', 'true')
+            }
+        }, true) // capture phase для img элементов
     }
 
     /**
