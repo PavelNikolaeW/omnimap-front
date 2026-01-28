@@ -1164,7 +1164,7 @@ export class LocalStateManager {
                 title: block.title,
                 data,
                 children,
-                parent_id: block.parent_id || false,
+                parent_id: block.parent_id || null,
                 forbidden: false, // Явно убираем флаг forbidden при grant
                 permission: blockPermission // Уровень прав доступа
             };
