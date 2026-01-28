@@ -166,13 +166,14 @@ function showModal({ message, inputDefault, showInput, okText = 'OK', cancelText
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
 
-    // Фокус на input или OK и очистка возможного лишнего символа
+    // Фокус на input, Cancel (для confirm-диалогов) или OK
     if (input) {
       input.focus();
       // Запускаем очистку после следующего тика, чтобы убрать символ от хоткея
       setTimeout(() => { input.value = typeof inputDefault === 'string' ? inputDefault : ''; }, 0);
     } else {
-      okBtn.focus();
+      // Для confirm-диалогов фокус на Cancel, чтобы предотвратить случайное подтверждение
+      cancelBtn.focus();
     }
 
     function cleanup() {

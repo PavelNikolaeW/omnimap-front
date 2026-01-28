@@ -80,9 +80,9 @@ export async function deleteVerifyTree(page: Page, treeName: string): Promise<vo
 /**
  * Create a block via hotkey 'n' and return its title.
  *
- * IMPORTANT: This clicks the first visible block's titleBlock to select it,
- * which also navigates INTO that block. The new block is created as a child
- * of the selected block.
+ * Uses Shift+Click to select the first visible block WITHOUT navigating.
+ * The new block is created as a child of the selected block and
+ * is immediately visible at the current level.
  */
 export async function createTestBlock(
   page: Page,
@@ -99,9 +99,9 @@ export async function createTestBlock(
     attempts++;
   }
 
-  // Select the first block (navigates into it)
+  // Select the first block with Shift+Click (select WITHOUT navigation)
   const firstBlock = blocks.first();
-  await firstBlock.locator('titleBlock').first().click({ force: true });
+  await firstBlock.locator('titleBlock').first().click({ force: true, modifiers: ['Shift'] });
   await page.waitForTimeout(500);
 
   // Press 'n' to create a new block
@@ -112,7 +112,7 @@ export async function createTestBlock(
   await page.locator('[data-testid="custom-dialog-ok-btn"]').click();
   await page.waitForTimeout(2000);
 
-  // Verify block was created
+  // Verify block was created (it's a child of the selected block, visible at current level)
   const newBlock = page.locator(
     `#rootContainer [block] titleBlock:has-text("${title}")`,
   );

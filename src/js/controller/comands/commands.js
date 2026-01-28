@@ -8,7 +8,7 @@ import {blockStyleManager} from "../blockStyleManager";
 import {CONNECTION_TYPES} from "../connectionTypes";
 import {connectionAnchorManager} from "../connectionAnchorManager";
 import api from "../../api/api";
-import {customPrompt} from "../../utils/custom-dialog";
+import {customPrompt, customConfirm} from "../../utils/custom-dialog";
 
 import {
     commandOpenBlock,
@@ -308,10 +308,14 @@ export const commands = [
         execute(ctx) {
             let id = ctx.blockElement?.id.split('*').at(-1)
             if (!id) return
-            customPrompt('Введите название блока').then(title => {
+            customPrompt('Введите название блока').then(async title => {
                 if (title !== null) {
-                    if (validURL(title)) dispatch('IframeCreate', {parentId: id, src: title})
-                    else dispatch('CreateBlock', {parentId: id, title});
+                    if (validURL(title)) {
+                        const confirmed = await customConfirm('URL будет преобразован в iframe-блок. Продолжить?')
+                        if (confirmed) dispatch('IframeCreate', {parentId: id, src: title})
+                    } else {
+                        dispatch('CreateBlock', {parentId: id, title});
+                    }
                 }
                 setCmdOpenBlock(ctx)
             });
@@ -333,13 +337,14 @@ export const commands = [
             if (ctx.blockLinkElement?.hasAttribute('blockLink')) {
                 id = ctx.blockLinkElement.getAttribute('blocklink')
             }
+            const cleanId = id.split('*').at(-1) || id
             const oldText = ctx.blockElement.querySelector('titleBlock')?.innerText
             customPrompt('Введите название блока', oldText ?? '').then(title => {
                 if (title !== null) {
                     if (validURL(title)) {
-                        dispatch('SetIframe', {blockId: id, src: title})
+                        dispatch('SetIframe', {blockId: cleanId, src: title})
                     } else {
-                        dispatch('TitleUpdate', {blockId: id, title})
+                        dispatch('TitleUpdate', {blockId: cleanId, title})
                     }
                 }
                 setCmdOpenBlock(ctx)
@@ -648,7 +653,8 @@ export const commands = [
             // Одиночное удаление
             const id = ctx.blockLinkElement?.id || ctx.blockElement?.id
             if (!id) return
-            dispatch('DeleteTreeBlock', {blockId: id})
+            const cleanId = id.split('*').at(-1) || id
+            dispatch('DeleteTreeBlock', {blockId: cleanId})
             ctx.shiftLock = false
             ctx.blockElement = ctx.blockLinkElement?.parentNode ?? ctx.blockElement?.parentNode
             if (ctx.blockElement && ctx.blockElement.id.indexOf('*') !== -1) {

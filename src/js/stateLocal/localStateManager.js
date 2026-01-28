@@ -738,13 +738,15 @@ export class LocalStateManager {
         }
 
         // Сохраняем копии для rollback
+        // Используем JSON.parse/JSON.stringify вместо structuredClone, т.к. блок может
+        // содержать ссылки на DOM-элементы которые structuredClone не может клонировать
         for (const id of allChildIds) {
             const b = this.blocks.get(id);
-            if (b) deletedBlocks.set(id, structuredClone(b));
+            if (b) deletedBlocks.set(id, JSON.parse(JSON.stringify(b)));
         }
 
         // Сохраняем родительский блок для rollback (используем уже полученный parentBlock)
-        const parentBackup = parentBlock ? structuredClone(parentBlock) : null;
+        const parentBackup = parentBlock ? JSON.parse(JSON.stringify(parentBlock)) : null;
 
         // Записываем в undo stack (до удаления)
         // Для деревьев используем recordDeleteTree с проверкой размера

@@ -9,7 +9,7 @@
 | # | Фича | Файл теста | Статус |
 |---|-------|-----------|--------|
 | 1 | Auth | `auth.spec.ts` | [ ] |
-| 2 | Blocks: CRUD | `blocks-crud.spec.ts` | [ ] |
+| 2 | Blocks: CRUD | `verify-1769595071-{a,b,c}.spec.ts` | [x] PASS 16/16 |
 | 3 | Blocks: Text Editor | `blocks-text-editor.spec.ts` | [ ] |
 | 4 | Blocks: Copy/Paste/Link | `blocks-copy-paste.spec.ts` | [ ] |
 | 5 | Blocks: Cut/Move | `blocks-cut-move.spec.ts` | [ ] |
