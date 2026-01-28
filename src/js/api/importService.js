@@ -1,5 +1,6 @@
 import api from './api.js';
 import { v4 as uuidV4 } from 'uuid';
+import { normalizeParentId } from '../utils/functions.js';
 
 /**
  * Генерирует UUID v4 для нового блока
@@ -48,7 +49,10 @@ export function validateBlockPayload(block) {
         return { valid: false, error: `Некорректный формат UUID: ${block.id}` };
     }
 
-    if (block.parent_id && block.parent_id !== null && !uuidRegex.test(block.parent_id)) {
+    // Нормализуем parent_id (false, 'None', 'null', 'false', '' → null)
+    block.parent_id = normalizeParentId(block.parent_id);
+
+    if (block.parent_id && !uuidRegex.test(block.parent_id)) {
         return { valid: false, error: `Некорректный формат parent_id: ${block.parent_id}` };
     }
 
