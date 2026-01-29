@@ -44,7 +44,9 @@ export function registration(block, parent) {
         label: 'Пароль',
         type: 'password',
         autocomplete: 'new-password',
-        required: true
+        required: true,
+        showToggle: true,
+        showHint: true  // ux7: показываем требования к паролю
     });
 
     const confirmPasswordGroup = createInputGroup({
@@ -52,7 +54,8 @@ export function registration(block, parent) {
         label: 'Подтвердите пароль',
         type: 'password',
         autocomplete: 'new-password',
-        required: true
+        required: true,
+        showToggle: true
     });
 
     // Кнопка отправки
@@ -62,6 +65,10 @@ export function registration(block, parent) {
     const errorMessage = document.createElement('div');
     errorMessage.classList.add('auth-error');
     errorMessage.style.display = 'none';
+    // ux2: aria-live для скринридеров
+    errorMessage.setAttribute('role', 'alert');
+    errorMessage.setAttribute('aria-live', 'polite');
+    errorMessage.setAttribute('aria-atomic', 'true');
 
     // Сборка формы
     form.appendChild(title);
@@ -73,6 +80,22 @@ export function registration(block, parent) {
     form.appendChild(submitButton);
 
     container.appendChild(form);
+
+    // ux1: Скрываем ошибку при вводе
+    const allInputs = [usernameGroup.input, emailGroup.input, passwordGroup.input, confirmPasswordGroup.input];
+    allInputs.forEach(input => {
+        input.addEventListener('input', () => {
+            hideError(errorMessage);
+            clearFieldError(input);
+        });
+    });
+
+    // ux7: Динамическая валидация пароля
+    if (passwordGroup.hint) {
+        passwordGroup.input.addEventListener('input', () => {
+            updatePasswordHint(passwordGroup.input, passwordGroup.hint);
+        });
+    }
 
     // Блокируем всплытие событий (клики не должны открывать блок)
     const stopEvents = ['click', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'pointerdown', 'pointerup'];
@@ -92,29 +115,50 @@ export function registration(block, parent) {
         const password = passwordGroup.input.value;
         const confirmPassword = confirmPasswordGroup.input.value;
 
+        // Сбрасываем ошибки
+        hideError(errorMessage);
+        clearAllFieldErrors(allInputs);
+
         // Валидация
-        if (!username || !email || !password || !confirmPassword) {
-            showError(errorMessage, 'Заполните все поля');
+        let hasError = false;
+
+        if (!username) {
+            showFieldError(usernameGroup.input, 'Обязательное поле');
+            hasError = true;
+        }
+
+        if (!email) {
+            showFieldError(emailGroup.input, 'Обязательное поле');
+            hasError = true;
+        } else if (!isValidEmail(email)) {
+            showFieldError(emailGroup.input, 'Введите корректный email');
+            hasError = true;
+        }
+
+        if (!password) {
+            showFieldError(passwordGroup.input, 'Обязательное поле');
+            hasError = true;
+        } else if (password.length < 6) {
+            showFieldError(passwordGroup.input, 'Минимум 6 символов');
+            hasError = true;
+        }
+
+        if (!confirmPassword) {
+            showFieldError(confirmPasswordGroup.input, 'Обязательное поле');
+            hasError = true;
+        } else if (password !== confirmPassword) {
+            showFieldError(confirmPasswordGroup.input, 'Пароли не совпадают');
+            hasError = true;
+        }
+
+        if (hasError) {
+            showError(errorMessage, 'Исправьте ошибки в форме');
+            focusFirstInvalidField(allInputs);
             return;
         }
 
-        if (password !== confirmPassword) {
-            showError(errorMessage, 'Пароли не совпадают');
-            return;
-        }
-
-        if (password.length < 6) {
-            showError(errorMessage, 'Пароль должен быть не менее 6 символов');
-            return;
-        }
-
-        if (!isValidEmail(email)) {
-            showError(errorMessage, 'Введите корректный email');
-            return;
-        }
-
-        submitButton.disabled = true;
-        submitButton.textContent = 'Регистрация...';
+        // ux4: Показываем спиннер
+        setButtonLoading(submitButton, true, 'Регистрация...');
 
         try {
             const isRegistered = await api.register({ username, email, password });
@@ -122,18 +166,25 @@ export function registration(block, parent) {
                 // После успешной регистрации страница перерисуется через событие Login
             } else {
                 showError(errorMessage, 'Ошибка регистрации. Попробуйте другое имя пользователя');
+                focusFirstInvalidField(allInputs);
             }
         } catch (error) {
-            showError(errorMessage, 'Ошибка соединения с сервером');
+            // ux8: Проверяем тип ошибки
+            if (isNetworkError(error)) {
+                showNetworkError(errorMessage, () => form.dispatchEvent(new Event('submit')));
+            } else {
+                showError(errorMessage, 'Ошибка соединения с сервером');
+            }
             console.error('Registration error:', error);
         } finally {
-            submitButton.disabled = false;
-            submitButton.textContent = 'Зарегистрироваться';
+            setButtonLoading(submitButton, false, 'Зарегистрироваться');
         }
     });
 
-    // Фокус на первое поле после рендера
-    setTimeout(() => usernameGroup.input.focus(), 100);
+    // ux10: Фокус на первое поле после рендера
+    requestAnimationFrame(() => {
+        usernameGroup.input.focus();
+    });
 
     return container;
 }
@@ -153,7 +204,7 @@ function createForm(id) {
 /**
  * Создает группу ввода (label + input)
  */
-function createInputGroup({ id, label, type, autocomplete, required }) {
+function createInputGroup({ id, label, type, autocomplete, required, showToggle = false, showHint = false }) {
     const wrapper = document.createElement('div');
     wrapper.classList.add('auth-input-group');
 
@@ -161,6 +212,10 @@ function createInputGroup({ id, label, type, autocomplete, required }) {
     labelEl.htmlFor = id;
     labelEl.textContent = label;
     labelEl.classList.add('auth-label');
+
+    // ux5: Контейнер для поля ввода (для позиционирования toggle)
+    const inputWrapper = document.createElement('div');
+    inputWrapper.classList.add('auth-input-wrapper');
 
     const input = document.createElement('input');
     input.type = type;
@@ -175,10 +230,78 @@ function createInputGroup({ id, label, type, autocomplete, required }) {
     input.addEventListener('keyup', (e) => e.stopPropagation());
     input.addEventListener('keypress', (e) => e.stopPropagation());
 
-    wrapper.appendChild(labelEl);
-    wrapper.appendChild(input);
+    inputWrapper.appendChild(input);
 
-    return { wrapper, input };
+    // ux6: Кнопка показать/скрыть пароль
+    if (showToggle && type === 'password') {
+        const toggle = createPasswordToggle(input);
+        inputWrapper.appendChild(toggle);
+        input.classList.add('auth-input--with-toggle');
+    }
+
+    // ux5: Inline ошибка под полем
+    const fieldError = document.createElement('span');
+    fieldError.classList.add('auth-field-error');
+    fieldError.id = `${id}-error`;
+    input.setAttribute('aria-describedby', fieldError.id);
+
+    wrapper.appendChild(labelEl);
+    wrapper.appendChild(inputWrapper);
+    wrapper.appendChild(fieldError);
+
+    // ux7: Подсказка с требованиями к паролю
+    let hint = null;
+    if (showHint && type === 'password') {
+        hint = document.createElement('div');
+        hint.classList.add('auth-password-hint');
+        hint.innerHTML = '<i class="fas fa-info-circle"></i> Минимум 6 символов';
+        wrapper.appendChild(hint);
+    }
+
+    return { wrapper, input, fieldError, hint };
+}
+
+/**
+ * ux6: Создает кнопку toggle для пароля
+ */
+function createPasswordToggle(input) {
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.classList.add('auth-password-toggle');
+    toggle.setAttribute('aria-label', 'Показать пароль');
+    toggle.innerHTML = '<i class="fas fa-eye"></i>';
+
+    toggle.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const isPassword = input.type === 'password';
+        input.type = isPassword ? 'text' : 'password';
+        toggle.innerHTML = isPassword
+            ? '<i class="fas fa-eye-slash"></i>'
+            : '<i class="fas fa-eye"></i>';
+        toggle.setAttribute('aria-label', isPassword ? 'Скрыть пароль' : 'Показать пароль');
+    });
+
+    return toggle;
+}
+
+/**
+ * ux7: Обновляет подсказку по паролю
+ */
+function updatePasswordHint(input, hint) {
+    if (!hint) return;
+
+    const password = input.value;
+    const isValid = password.length >= 6;
+
+    if (isValid) {
+        hint.classList.add('valid');
+        hint.innerHTML = '<i class="fas fa-check-circle"></i> Минимум 6 символов';
+    } else {
+        hint.classList.remove('valid');
+        hint.innerHTML = '<i class="fas fa-info-circle"></i> Минимум 6 символов';
+    }
 }
 
 /**
@@ -187,21 +310,144 @@ function createInputGroup({ id, label, type, autocomplete, required }) {
 function createButton(text, type = 'button') {
     const button = document.createElement('button');
     button.type = type;
-    button.textContent = text;
     button.classList.add('auth-button');
+
+    // ux4: Структура кнопки со спиннером
+    const spinner = document.createElement('span');
+    spinner.classList.add('auth-button-spinner');
+
+    const buttonText = document.createElement('span');
+    buttonText.classList.add('auth-button-text');
+    buttonText.textContent = text;
+
+    button.appendChild(spinner);
+    button.appendChild(buttonText);
 
     return button;
 }
 
 /**
- * Показывает сообщение об ошибке
+ * ux4: Устанавливает состояние загрузки кнопки
+ */
+function setButtonLoading(button, isLoading, text) {
+    button.disabled = isLoading;
+    button.classList.toggle('loading', isLoading);
+    const textEl = button.querySelector('.auth-button-text');
+    if (textEl) {
+        textEl.textContent = text;
+    }
+}
+
+/**
+ * ux1: Показывает сообщение об ошибке (без автоскрытия)
  */
 function showError(element, message) {
+    // Убираем кнопку повтора если была
+    const retryBtn = element.querySelector('.auth-retry-button');
+    if (retryBtn) retryBtn.remove();
+
     element.textContent = message;
     element.style.display = 'block';
-    setTimeout(() => {
-        element.style.display = 'none';
-    }, 5000);
+}
+
+/**
+ * ux1: Скрывает сообщение об ошибке
+ */
+function hideError(element) {
+    element.style.display = 'none';
+    element.textContent = '';
+}
+
+/**
+ * ux5: Показывает inline ошибку на поле
+ */
+function showFieldError(input, message) {
+    input.classList.add('error');
+    input.setAttribute('aria-invalid', 'true');
+    const errorEl = input.closest('.auth-input-group')?.querySelector('.auth-field-error');
+    if (errorEl) {
+        errorEl.textContent = message;
+        errorEl.style.display = 'block';
+    }
+}
+
+/**
+ * ux5: Очищает ошибку поля
+ */
+function clearFieldError(input) {
+    input.classList.remove('error');
+    input.removeAttribute('aria-invalid');
+    const errorEl = input.closest('.auth-input-group')?.querySelector('.auth-field-error');
+    if (errorEl) {
+        errorEl.textContent = '';
+        errorEl.style.display = 'none';
+    }
+}
+
+/**
+ * Очищает ошибки всех полей
+ */
+function clearAllFieldErrors(inputs) {
+    inputs.forEach(input => clearFieldError(input));
+}
+
+/**
+ * ux10: Фокус на первое невалидное или пустое поле
+ */
+function focusFirstInvalidField(inputs) {
+    // Приоритет 1: поле с ошибкой
+    const errorField = inputs.find(input => input.classList.contains('error'));
+    if (errorField) {
+        errorField.focus();
+        return;
+    }
+
+    // Приоритет 2: пустое поле
+    const emptyField = inputs.find(input => !input.value.trim());
+    if (emptyField) {
+        emptyField.focus();
+        return;
+    }
+
+    // Приоритет 3: первое поле
+    if (inputs[0]) {
+        inputs[0].focus();
+    }
+}
+
+/**
+ * ux8: Проверяет, является ли ошибка сетевой
+ */
+function isNetworkError(error) {
+    return !navigator.onLine ||
+           error.message?.includes('network') ||
+           error.message?.includes('Network') ||
+           error.message?.includes('fetch') ||
+           error.name === 'TypeError';
+}
+
+/**
+ * ux8: Показывает ошибку сети с кнопкой повтора
+ */
+function showNetworkError(element, retryCallback) {
+    element.innerHTML = '';
+    element.style.display = 'block';
+
+    const text = document.createTextNode('Нет подключения к сети. ');
+    element.appendChild(text);
+
+    const retryBtn = document.createElement('button');
+    retryBtn.type = 'button';
+    retryBtn.classList.add('auth-retry-button');
+    retryBtn.textContent = 'Повторить';
+    retryBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        hideError(element);
+        retryCallback();
+    });
+
+    element.appendChild(retryBtn);
 }
 
 /**

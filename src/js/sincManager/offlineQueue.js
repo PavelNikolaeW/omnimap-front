@@ -279,6 +279,12 @@ class OfflineQueueManager {
             navigator.serviceWorker.addEventListener('message', this._handleSWMessage);
         }
 
+        // imp4: Слушаем событие ручного повтора синхронизации
+        window.addEventListener('RetrySync', () => {
+            console.log('🔄 Manual sync retry requested');
+            this.triggerManualSync();
+        });
+
         // Инициализируем кэш длины очереди и очищаем устаревшие операции
         const queue = await this.getQueue();
         await this.cleanupStaleOperations(queue);

@@ -615,6 +615,84 @@ button:focus {
     font-size: 12px;
 }
 
+/* imp4: Sync Error Bar - persistent indicator with retry/dismiss */
+.sync-error-bar {
+    position: fixed;
+    bottom: 70px;
+    right: 20px;
+    background: #fffbeb;
+    color: #d97706;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    z-index: 1000;
+    border: 1px solid #fcd34d;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: none;
+}
+
+.sync-error-bar.visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.sync-error-bar i {
+    font-size: 16px;
+}
+
+.sync-error-bar .sync-error-count {
+    font-weight: 600;
+}
+
+.sync-error-bar .sync-error-retry {
+    background: #d97706;
+    color: white;
+    border: none;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: background 0.2s;
+}
+
+.sync-error-bar .sync-error-retry:hover {
+    background: #b45309;
+}
+
+.sync-error-bar .sync-error-retry i {
+    font-size: 11px;
+}
+
+.sync-error-bar .sync-error-dismiss {
+    background: transparent;
+    color: #92400e;
+    border: none;
+    padding: 4px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    transition: background 0.2s;
+}
+
+.sync-error-bar .sync-error-dismiss:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.sync-error-bar .sync-error-dismiss i {
+    font-size: 14px;
+}
+
 /* App Update Notification - появляется при обнаружении новой версии SW */
 .app-update-notification {
     position: fixed;

@@ -41,6 +41,13 @@
     gap: 4px;
 }
 
+/* ux5: Контейнер для input с toggle */
+.auth-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
 /* Метки */
 .auth-label,
 .label {
@@ -67,6 +74,11 @@
     appearance: none;
 }
 
+/* ux6: Поле с toggle кнопкой */
+.auth-input--with-toggle {
+    padding-right: 44px;
+}
+
 .auth-input:focus,
 .input:focus {
     outline: none;
@@ -77,6 +89,79 @@
 
 .auth-input::placeholder {
     color: #9ca3af;
+}
+
+/* ux5: Поле с ошибкой */
+.auth-input.error {
+    border-color: #dc2626;
+    background-color: #fef2f2;
+}
+
+.auth-input.error:focus {
+    border-color: #dc2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.2);
+}
+
+/* ux6: Кнопка показать/скрыть пароль */
+.auth-password-toggle {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    padding: 6px;
+    cursor: pointer;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.auth-password-toggle:hover {
+    color: #374151;
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.auth-password-toggle:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+}
+
+.auth-password-toggle i {
+    font-size: 16px;
+}
+
+/* ux5: Inline ошибка под полем */
+.auth-field-error {
+    display: none;
+    font-size: 12px;
+    color: #dc2626;
+    margin-top: 2px;
+}
+
+/* ux7: Подсказка к паролю */
+.auth-password-hint {
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.auth-password-hint i {
+    font-size: 12px;
+}
+
+.auth-password-hint.valid {
+    color: #059669;
+}
+
+.auth-password-hint.valid i {
+    color: #059669;
 }
 
 /* Кнопка */
@@ -94,6 +179,10 @@
     transition: background-color 0.2s, transform 0.1s;
     -webkit-tap-highlight-color: transparent;
     margin-top: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
 }
 
 .auth-button:hover:not(:disabled) {
@@ -109,6 +198,27 @@
     cursor: not-allowed;
 }
 
+/* ux4: Спиннер в кнопке */
+.auth-button-spinner {
+    display: none;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: auth-spin 0.8s linear infinite;
+}
+
+.auth-button.loading .auth-button-spinner {
+    display: block;
+}
+
+@keyframes auth-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 /* Сообщение об ошибке */
 .auth-error {
     padding: 10px 14px;
@@ -118,6 +228,29 @@
     border: 1px solid #fecaca;
     border-radius: 6px;
     text-align: center;
+}
+
+/* ux8: Кнопка повтора в сообщении об ошибке */
+.auth-retry-button {
+    background: none;
+    border: none;
+    color: #2563eb;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 4px;
+    text-decoration: underline;
+    font-size: 13px;
+}
+
+.auth-retry-button:hover {
+    color: #1d4ed8;
+}
+
+.auth-retry-button:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+    border-radius: 2px;
 }
 
 /* Адаптация для маленьких блоков */
@@ -134,6 +267,10 @@
     .auth-input,
     .input {
         padding: 10px 12px;
+    }
+
+    .auth-input--with-toggle {
+        padding-right: 40px;
     }
 
     .auth-button,
