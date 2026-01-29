@@ -56,15 +56,18 @@ class NetworkStatusUI {
     createSyncErrorBar() {
         this.syncErrorBar = document.createElement('div');
         this.syncErrorBar.className = 'sync-error-bar';
+        // Accessibility: assertive для важных ошибок
+        this.syncErrorBar.setAttribute('role', 'alert');
+        this.syncErrorBar.setAttribute('aria-live', 'assertive');
         this.syncErrorBar.innerHTML = `
-            <i class="fas fa-exclamation-triangle"></i>
+            <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
             <span class="sync-error-text">Ошибка синхронизации</span>
             <span class="sync-error-count"></span>
             <button type="button" class="sync-error-retry" aria-label="Повторить синхронизацию">
-                <i class="fas fa-redo"></i> Повторить
+                <i class="fas fa-redo" aria-hidden="true"></i> Повторить
             </button>
             <button type="button" class="sync-error-dismiss" aria-label="Закрыть">
-                <i class="fas fa-times"></i>
+                <i class="fas fa-times" aria-hidden="true"></i>
             </button>
         `;
         document.body.appendChild(this.syncErrorBar);

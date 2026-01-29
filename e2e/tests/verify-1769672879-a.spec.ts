@@ -47,12 +47,8 @@ test.describe('Verify: Auth - Group A (Positive)', () => {
     // Refresh the page
     await page.reload();
 
-    // Wait for app to load - should NOT show login form
-    await page.waitForTimeout(3000);
-
-    // Check that login form is NOT visible (user is still authenticated)
-    const loginFormVisible = await page.locator('#login-form').isVisible().catch(() => false);
-    expect(loginFormVisible).toBe(false);
+    // Wait for app to load - login form should NOT appear
+    await expect(page.locator('#login-form')).toBeHidden({ timeout: 10000 });
 
     // Verify blocks are still visible after reload
     await mainPage.waitForShowedBlocks();
@@ -75,20 +71,21 @@ test.describe('Verify: Auth - Group A (Positive)', () => {
       window.dispatchEvent(new CustomEvent('Logout'));
     });
 
-    // Wait for logout to process
-    await page.waitForTimeout(1000);
+    // Wait for logout to process - cookies should be cleared
+    await page.waitForFunction(
+      () => !document.cookie.includes('access'),
+      { timeout: 5000 }
+    ).catch(() => {
+      // Cookie may already be cleared or httpOnly
+    });
 
-    // Reload page to see effect of logout (logout clears cookies but may not immediately redirect)
+    // Reload page to see effect of logout
     await page.reload();
-    await page.waitForTimeout(2000);
 
     // After reload with cleared cookies, auth form should appear
-    const loginFormVisible = await page.locator('#login-form').isVisible().catch(() => false);
-    const registerFormVisible = await page.locator('#register-form').isVisible().catch(() => false);
-    const authBlockVisible = await page.locator('.auth-block').isVisible().catch(() => false);
-
-    // After logout + reload, some auth-related UI should be visible
-    expect(loginFormVisible || registerFormVisible || authBlockVisible).toBe(true);
+    await expect(
+      page.locator('#login-form').or(page.locator('#register-form')).or(page.locator('.auth-block'))
+    ).toBeVisible({ timeout: 10000 });
   });
 
   test('s12: successful registration of new user', async ({ mainPage, page }) => {
@@ -103,15 +100,15 @@ test.describe('Verify: Auth - Group A (Positive)', () => {
     await mainPage.goto();
 
     // Wait for registration form to appear
-    // The registration form is shown alongside login form
-    await page.waitForSelector('#register-form', { state: 'visible', timeout: 15000 });
+    await expect(page.locator('#register-form')).toBeVisible({ timeout: 15000 });
 
-    // Get registration form locators
-    const regUsernameInput = page.locator('#register-form #reg-username');
-    const regEmailInput = page.locator('#register-form #email');
-    const regPasswordInput = page.locator('#register-form #reg-password');
-    const regConfirmPasswordInput = page.locator('#register-form #confirm-password');
-    const regSubmitButton = page.locator('#register-form button[type="submit"]');
+    // Get registration form locators with specific selectors
+    const regForm = page.locator('#register-form');
+    const regUsernameInput = regForm.locator('input[autocomplete="username"]');
+    const regEmailInput = regForm.locator('input[autocomplete="email"]');
+    const regPasswordInput = regForm.locator('input[id="reg-password"]');
+    const regConfirmPasswordInput = regForm.locator('input[id="confirm-password"]');
+    const regSubmitButton = regForm.locator('button[type="submit"]');
 
     // Fill in registration form
     await regUsernameInput.fill(uniqueUsername);
@@ -123,54 +120,36 @@ test.describe('Verify: Auth - Group A (Positive)', () => {
     await regSubmitButton.click();
 
     // Wait for registration to complete - form should disappear on success
-    // If registration succeeds, we should be logged in automatically
-    await page.waitForFunction(
-      () => {
-        // Check if registration form is gone (success)
-        const regForm = document.getElementById('register-form');
-        if (!regForm) return true;
+    // or error message should appear
+    const result = await Promise.race([
+      // Success: registration form disappears
+      regForm.waitFor({ state: 'detached', timeout: 15000 })
+        .then(() => ({ success: true })),
+      // Error: error message becomes visible
+      regForm.locator('.auth-error')
+        .filter({ hasText: /.+/ }) // Has any text
+        .waitFor({ state: 'visible', timeout: 15000 })
+        .then(async () => {
+          const errorText = await regForm.locator('.auth-error').textContent();
+          return { success: false, error: errorText };
+        })
+    ]).catch(() => ({ success: false, error: 'timeout' }));
 
-        // Or check if there's an error message visible
-        const errorEl = regForm.querySelector('.auth-error');
-        if (errorEl && (errorEl as HTMLElement).style.display !== 'none') {
-          return true; // Form is showing error, stop waiting
-        }
-
-        return false;
-      },
-      { timeout: 15000 }
-    );
-
-    // Check if registration was successful (form disappeared)
-    const regFormStillVisible = await page.locator('#register-form').isVisible().catch(() => false);
-
-    if (regFormStillVisible) {
-      // Check if there's an error message
-      const errorMessage = await page.locator('#register-form .auth-error').textContent().catch(() => '');
-
-      // If username already exists, the test can't proceed but that's expected
-      // in some environments where the user wasn't cleaned up
-      if (errorMessage?.includes('другое имя') || errorMessage?.includes('ошибка')) {
-        console.log(`Registration failed (expected in some cases): ${errorMessage}`);
-        // Skip rest of test - this isn't a failure, just means user already exists
+    if (!result.success) {
+      // Check if it's a "user exists" error - this is acceptable
+      if (result.error?.includes('другое имя') || result.error?.includes('ошибка')) {
+        console.log(`Registration skipped (user may exist): ${result.error}`);
         test.skip();
         return;
       }
+      throw new Error(`Registration failed: ${result.error}`);
     }
 
-    // If form is gone, registration was successful
-    // User should be automatically logged in
+    // Registration was successful - user should be automatically logged in
     await mainPage.waitForAppLoad();
     await expect(mainPage.rootContainer).toBeVisible({ timeout: 10000 });
 
-    // Verify we're logged in - blocks should be visible
-    // For a new user, there might be onboarding blocks or empty state
-    const hasBlocks = await mainPage.getBlocksCount();
-    // New users may have 0 blocks initially or get onboarding content
-    expect(hasBlocks).toBeGreaterThanOrEqual(0);
-
-    // Verify the login form is not visible (we're authenticated)
-    const loginFormVisible = await page.locator('#login-form').isVisible().catch(() => false);
-    expect(loginFormVisible).toBe(false);
+    // Verify we're logged in - login form should not be visible
+    await expect(page.locator('#login-form')).toBeHidden({ timeout: 5000 });
   });
 });
