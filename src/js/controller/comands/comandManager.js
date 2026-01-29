@@ -57,7 +57,11 @@ export class CommandManager {
         uiManager.renderBtn('normal', this.commandsById)
         window.addEventListener('Login', () => {
             this.resetAndReRegisterCommands(this.hotkeysMap);
-        } )
+        })
+        // Также слушаем InitUser для регистрации — кнопки должны появиться после регистрации
+        window.addEventListener('InitUser', () => {
+            this.resetAndReRegisterCommands(this.hotkeysMap);
+        })
 
         // Инициализируем менеджер якорей для режима создания соединений
         connectionAnchorManager.init(this.rootContainer);
