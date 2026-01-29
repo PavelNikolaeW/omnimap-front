@@ -162,7 +162,10 @@ class Api {
                 const cookieOptions = getCookieOptions();
                 Cookies.set('access', access, cookieOptions);
                 Cookies.set('refresh', refresh, cookieOptions);
-                dispatch('InitUser', {user: user_id})
+                // Сохраняем currentUser в localforage (как в login()) перед dispatch
+                localforage.setItem('currentUser', user_id).then(() => {
+                    dispatch('InitUser', {user: user_id})
+                })
                 return { success: true }
             }
         }).catch(err => {
