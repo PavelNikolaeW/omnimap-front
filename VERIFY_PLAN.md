@@ -8,10 +8,10 @@
 
 | # | Фича | Файл теста | Статус |
 |---|-------|-----------|--------|
-| 1 | Auth | `auth.spec.ts` | [ ] |
+| 1 | Auth | `auth.spec.ts` | [x] |
 | 2 | Blocks: CRUD | `verify-1769595071-{a,b,c}.spec.ts` | [x] PASS 16/16 |
-| 3 | Blocks: Text Editor | `blocks-text-editor.spec.ts` | [ ] |
-| 4 | Blocks: Copy/Paste/Link | `blocks-copy-paste.spec.ts` | [ ] |
+| 3 | Blocks: Text Editor | `blocks-text-editor.spec.ts` | [x] |
+| 4 | Blocks: Copy/Paste/Link | `verify-1769690304-{a,b,c}.spec.ts` | [x] PASS 9/12 (2026-01-29) |
 | 5 | Blocks: Cut/Move | `blocks-cut-move.spec.ts` | [ ] |
 | 6 | Blocks: Multi-select | `blocks-multiselect.spec.ts` | [ ] |
 | 7 | Blocks: Undo/Redo | `blocks-undo-redo.spec.ts` | [ ] |
@@ -111,6 +111,7 @@
 5. Вставка из другого дерева → копия создаётся
 6. Link block отображается с атрибутом blocklink
 7. Клик на link block → навигация к оригиналу
+8. все функции на ссылке работают так же как и на обычнос блоке.
 
 **Ключевые файлы:** `src/js/actions/selectionActions.js`, `src/js/actions/blockActions.js`
 **Fixtures:** `authenticatedPage`, `apiHelper`
@@ -129,6 +130,8 @@
 5. Escape в cut mode → отмена операции
 6. Перемещение блока в себя → запрещено (circular reference)
 7. Порядок children обновляется корректно
+8. перенос блоков- ссылок работает правльно
+9. перенос блоков внутри диаграммы работает правильно
 
 **Ключевые файлы:** `src/js/actions/selectionActions.js`
 **Fixtures:** `authenticatedPage`, `apiHelper`
@@ -147,7 +150,7 @@
 5. Массовый copy (`shift+c`) → все IDs в clipboard
 6. Escape → сброс selection
 7. Клик без Shift → сброс selection, выбран один блок
-
+8. быстрое выделение многоих блоков
 **Ключевые файлы:** `src/js/controller/comands/contextManager.js`
 **Fixtures:** `authenticatedPage`
 
@@ -164,7 +167,9 @@
 4. Множественные undo → корректная последовательность
 5. Новая операция после undo → redo stack очищен
 6. Кнопки undo/redo в control panel работают
-
+7. мнодественные операции переноса блока, копирования, вставки, редактирования, удаления, udno работает правильно 
+8. мнодественные операции переноса блока, копирования, вставки, редактирования, удаления, udno, redo рабоатет правильно
+9. undo/redo для соединений блоков 
 **Ключевые файлы:** `src/js/controller/undoManager.js`
 **Fixtures:** `authenticatedPage`
 
@@ -238,7 +243,8 @@
 7. Connection сохраняется в block.data.connections
 8. Anchor points (top/right/bottom/left) работают
 9. Escape → отмена создания connection
-
+10. клик на соединение открывает попап редактирования соединения
+11. при открытом попапе клик вне его закрывает попап и не открывает блок если клик был по блоку 
 **Ключевые файлы:** `src/js/controller/connectionTypes.js`, commands: connectBlock, connectDashed, etc.
 **Fixtures:** `authenticatedPage`, `apiHelper`
 
@@ -259,6 +265,8 @@
 8. `diagramConnectionSettings` → панель настройки connections
 9. `diagramResetBlockStyle` → сброс кастомных стилей
 10. Drag & Drop блоков в grid ячейки
+11. перетаскивание внешних блоков в диаграмму. блоки имеет такой же размер как и минимальный блок в диаграмме
+12. перетаскиваем большой блок в диаграмме, он не меняет размер (не уменьшается до самого маленького)
 
 **Ключевые файлы:** `src/js/controller/diagramUtils.js`, diagram commands
 **Fixtures:** `authenticatedPage`
@@ -329,7 +337,12 @@
 5. Удаление изображения
 6. Открытие fullsize
 7. Некорректный файл → error message
-
+8. Проверка что изображения рендерятся на любом размере блока правльно
+9. проврка рендара на любом рамещер блока для изображения которое установлено в фон блока
+10. изменить настройки для загруженного изобрадения
+11. сделать фоновое изображение блока обчным
+12. сделать обычное изобраджение в блоке фоновым.
+13. добавить дочерние блоки в блоки с изображением и проверить что ничего не ломается 
 **Ключевые файлы:** ImageUploadPopup
 **Fixtures:** `authenticatedPage`, `ImageUploadPopup` page object
 
