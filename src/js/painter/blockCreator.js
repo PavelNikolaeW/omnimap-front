@@ -122,6 +122,18 @@ class BlockCreator {
             block._renderVisibleChildren = renderContext.visibleChildren;
         }
 
+        // Наследование renderingMode от родителя ДО рендеринга
+        // Если у блока нет собственного renderingMode, наследуем от родителя (если inheritToChildren !== false)
+        if (!block.data?.renderingMode && parentBlock?.data?.renderingMode?.inheritToChildren !== false) {
+            const parentRM = parentBlock.data?.renderingMode || parentBlock._inheritedRenderingMode;
+            if (parentRM?.forceDefault || parentRM?.hideConnections) {
+                block._inheritedRenderingMode = {
+                    forceDefault: parentRM?.forceDefault,
+                    hideConnections: parentRM?.hideConnections
+                };
+            }
+        }
+
         const element = this._createElement(block, parentBlock, screen, depth)
 
         // Восстанавливаем оригинальный childOrder после рендера (если был подменён)
@@ -138,6 +150,10 @@ class BlockCreator {
         if (block.data?.connections && !effectiveRenderingMode?.hideConnections) {
             this.arrows.add({connections: block.data?.connections, layout: block.size.layout});
         }
+
+        // Очищаем временное свойство наследования после рендера
+        delete block._inheritedRenderingMode;
+
         return element
     }
 
@@ -228,18 +244,6 @@ class BlockCreator {
             // Если у блока нет собственного sandbox_mode, наследуем от родителя
             if (!block.sandbox_mode && parentBlock.sandbox_mode) {
                 block.sandbox_mode = parentBlock.sandbox_mode
-            }
-
-            // Наследование renderingMode от родителя для потомков
-            // Если у блока нет собственного renderingMode, наследуем от родителя (если inheritToChildren !== false)
-            if (!block.data?.renderingMode && parentBlock?.data?.renderingMode?.inheritToChildren !== false) {
-                const parentRM = parentBlock.data?.renderingMode || parentBlock._inheritedRenderingMode;
-                if (parentRM?.forceDefault || parentRM?.hideConnections) {
-                    block._inheritedRenderingMode = {
-                        forceDefault: parentRM?.forceDefault,
-                        hideConnections: parentRM?.hideConnections
-                    };
-                }
             }
         } catch (e) {
             console.log(block)

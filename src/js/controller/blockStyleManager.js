@@ -32,6 +32,9 @@ export class BlockStyleManager {
         this.hideConnectionsCheckbox = document.getElementById('hideConnections');
         this.inheritRenderingCheckbox = document.getElementById('inheritRenderingMode');
 
+        // Debounce timer for rendering mode
+        this._renderingModeDebounce = null;
+
         // Drag state
         this.isDragging = false;
         this.dragOffset = { x: 0, y: 0 };
@@ -399,24 +402,28 @@ export class BlockStyleManager {
     }
 
     /**
-     * Применить настройки режима рендеринга
+     * Применить настройки режима рендеринга (с debounce для предотвращения множественных перерендеров)
      */
-    async applyRenderingMode() {
+    applyRenderingMode() {
         if (!this.currentBlockId) return;
 
-        const forceDefault = this.forceDefaultCheckbox?.checked || false;
-        const hideConnections = this.hideConnectionsCheckbox?.checked || false;
-        const inheritToChildren = this.inheritRenderingCheckbox?.checked !== false;
+        // Debounce для предотвращения множественных вызовов при быстрых кликах
+        clearTimeout(this._renderingModeDebounce);
+        this._renderingModeDebounce = setTimeout(() => {
+            const forceDefault = this.forceDefaultCheckbox?.checked || false;
+            const hideConnections = this.hideConnectionsCheckbox?.checked || false;
+            const inheritToChildren = this.inheritRenderingCheckbox?.checked ?? true;
 
-        // Если всё отключено - удаляем renderingMode
-        const renderingMode = (forceDefault || hideConnections)
-            ? { forceDefault, hideConnections, inheritToChildren }
-            : null;
+            // Если всё отключено - удаляем renderingMode
+            const renderingMode = (forceDefault || hideConnections)
+                ? { forceDefault, hideConnections, inheritToChildren }
+                : null;
 
-        dispatch('UpdateRenderingMode', {
-            blockId: this.currentBlockId,
-            renderingMode
-        });
+            dispatch('UpdateRenderingMode', {
+                blockId: this.currentBlockId,
+                renderingMode
+            });
+        }, 50);
     }
 
     /**

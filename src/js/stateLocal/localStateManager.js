@@ -3040,7 +3040,7 @@ export class LocalStateManager {
      *   - inheritToChildren: boolean - наследовать потомкам (default: true)
      */
     async updateRenderingMode({blockId, renderingMode}) {
-        const block = await this.blockRepository.loadBlock(blockId);
+        const block = this.blocks.get(blockId);
         if (!block) {
             console.error(`Block ${blockId} not found`);
             return;
@@ -3057,6 +3057,11 @@ export class LocalStateManager {
 
         // Сохраняем состояние ДО изменения для undo
         const beforeState = JSON.parse(JSON.stringify(block));
+
+        // Гарантируем существование block.data
+        if (!block.data) {
+            block.data = {};
+        }
 
         if (renderingMode) {
             block.data.renderingMode = renderingMode;
