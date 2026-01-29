@@ -1,5 +1,4 @@
 import { test, expect } from '../fixtures/base.fixture';
-import { apiCleanupByPrefix } from '../fixtures/verify-helpers.fixture';
 
 /**
  * Verify: Группа C — Edge cases Text Editor
@@ -12,12 +11,14 @@ import { apiCleanupByPrefix } from '../fixtures/verify-helpers.fixture';
  */
 test.describe('Verify: Text Editor - Group C (Edge cases)', () => {
 
-  let cleanupDone = false;
+  // Platform-specific save key
+  const saveKey = process.platform === 'darwin' ? 'Meta+s' : 'Control+s';
 
-  test.beforeEach(async ({ authenticatedPage, page }) => {
-    if (!cleanupDone) {
-      await apiCleanupByPrefix(page, 'Verify_');
-      cleanupDone = true;
+  test.afterEach(async ({ page }) => {
+    // Ensure editor is closed after each test
+    const editorContainer = page.locator('#editor-container');
+    if (await editorContainer.evaluate(el => el.classList.contains('active')).catch(() => false)) {
+      await page.keyboard.press('Escape');
     }
   });
 
@@ -27,7 +28,6 @@ test.describe('Verify: Text Editor - Group C (Edge cases)', () => {
     await blocks.first().waitFor({ state: 'visible', timeout: 10000 });
 
     const firstBlock = blocks.first();
-    const blockId = await firstBlock.getAttribute('id');
 
     // Выбираем блок
     await firstBlock.locator('titleBlock').first().click({ force: true, modifiers: ['Shift'] });
@@ -49,15 +49,17 @@ test.describe('Verify: Text Editor - Group C (Edge cases)', () => {
 
     // Вводим длинный текст
     await textarea.fill(longText);
-    await page.waitForTimeout(200);
 
     // Проверяем что textarea может содержать длинный текст
     const textLength = await textarea.evaluate((el) => (el as HTMLTextAreaElement).value.length);
     expect(textLength).toBeGreaterThanOrEqual(2500);
 
     // Сохраняем
-    await page.keyboard.press('Meta+s');
-    await page.waitForTimeout(1000);
+    await page.keyboard.press(saveKey);
+
+    // Ждём закрытия редактора
+    const editorContainer = page.locator('#editor-container');
+    await expect(editorContainer).not.toHaveClass(/active/, { timeout: 5000 });
 
     // Открываем редактор снова и проверяем что текст сохранён полностью
     await firstBlock.locator('titleBlock').first().click({ force: true, modifiers: ['Shift'] });
@@ -68,9 +70,6 @@ test.describe('Verify: Text Editor - Group C (Edge cases)', () => {
     const savedText = await textarea.inputValue();
     expect(savedText.length).toBeGreaterThanOrEqual(2500);
     expect(savedText).toContain(uniqueMarker);
-
-    // Закрываем редактор
-    await page.keyboard.press('Escape');
   });
 
   test('s7: Пустой текст очищает контент блока', async ({ authenticatedPage, page }) => {
@@ -79,7 +78,6 @@ test.describe('Verify: Text Editor - Group C (Edge cases)', () => {
     await blocks.first().waitFor({ state: 'visible', timeout: 10000 });
 
     const firstBlock = blocks.first();
-    const blockId = await firstBlock.getAttribute('id');
 
     // Выбираем блок
     await firstBlock.locator('titleBlock').first().click({ force: true, modifiers: ['Shift'] });
@@ -92,8 +90,11 @@ test.describe('Verify: Text Editor - Group C (Edge cases)', () => {
 
     const initialText = 'Some initial content for s7 ' + Date.now();
     await textarea.fill(initialText);
-    await page.keyboard.press('Meta+s');
-    await page.waitForTimeout(1000);
+    await page.keyboard.press(saveKey);
+
+    // Ждём закрытия редактора
+    const editorContainer = page.locator('#editor-container');
+    await expect(editorContainer).not.toHaveClass(/active/, { timeout: 5000 });
 
     // Проверяем что текст сохранён
     const savedContent = page.locator('#rootContainer').getByText('Some initial content for s7');
@@ -107,11 +108,12 @@ test.describe('Verify: Text Editor - Group C (Edge cases)', () => {
 
     // Очищаем текст
     await textarea.fill('');
-    await page.waitForTimeout(200);
 
     // Сохраняем пустой текст
-    await page.keyboard.press('Meta+s');
-    await page.waitForTimeout(1000);
+    await page.keyboard.press(saveKey);
+
+    // Ждём закрытия редактора
+    await expect(editorContainer).not.toHaveClass(/active/, { timeout: 5000 });
 
     // Проверяем что контент очищен (Some initial content больше не видно)
     const clearedCheck = page.locator('#rootContainer').getByText('Some initial content for s7');
@@ -136,25 +138,18 @@ test.describe('Verify: Text Editor - Group C (Edge cases)', () => {
 
     // Вводим текст
     await textarea.fill('make this bold');
-    await page.waitForTimeout(200);
 
     // Выделяем слово "bold" (последние 4 символа)
     await textarea.evaluate((el) => {
       (el as HTMLTextAreaElement).setSelectionRange(10, 14);
     });
-    await page.waitForTimeout(100);
 
     // Нажимаем кнопку Bold
     const boldButton = page.locator("button[title='Полужирный']");
     await boldButton.click();
-    await page.waitForTimeout(200);
 
     // Проверяем что текст обёрнут в **
-    const textareaValue = await textarea.inputValue();
-    expect(textareaValue).toContain('**bold**');
-
-    // Закрываем редактор без сохранения
-    await page.keyboard.press('Escape');
+    await expect(textarea).toHaveValue(/\*\*bold\*\*/);
   });
 
   test('s11: Эмодзи (Unicode) корректно сохраняются и отображаются', async ({ authenticatedPage, page }) => {
@@ -163,7 +158,6 @@ test.describe('Verify: Text Editor - Group C (Edge cases)', () => {
     await blocks.first().waitFor({ state: 'visible', timeout: 10000 });
 
     const firstBlock = blocks.first();
-    const blockId = await firstBlock.getAttribute('id');
 
     // Выбираем блок
     await firstBlock.locator('titleBlock').first().click({ force: true, modifiers: ['Shift'] });
@@ -177,11 +171,13 @@ test.describe('Verify: Text Editor - Group C (Edge cases)', () => {
     // Вводим текст с эмодзи
     const emojiText = 'Hello 🎉 World 👋 Test ✅ Rocket 🚀 Idea 💡 Fire 🔥 Note 📝 Star 🌟';
     await textarea.fill(emojiText);
-    await page.waitForTimeout(200);
 
     // Сохраняем
-    await page.keyboard.press('Meta+s');
-    await page.waitForTimeout(1000);
+    await page.keyboard.press(saveKey);
+
+    // Ждём закрытия редактора
+    const editorContainer = page.locator('#editor-container');
+    await expect(editorContainer).not.toHaveClass(/active/, { timeout: 5000 });
 
     // Проверяем что эмодзи отображаются
     const emojiContent = page.locator('#rootContainer').getByText('🎉');
@@ -202,9 +198,6 @@ test.describe('Verify: Text Editor - Group C (Edge cases)', () => {
     expect(savedText).toContain('🔥');
     expect(savedText).toContain('📝');
     expect(savedText).toContain('🌟');
-
-    // Закрываем редактор без сохранения
-    await page.keyboard.press('Escape');
   });
 
   test('s12: MD→HTML→MD round-trip сохраняет семантику контента', async ({ authenticatedPage, page }) => {
@@ -237,11 +230,13 @@ test.describe('Verify: Text Editor - Group C (Edge cases)', () => {
 > Quote block`;
 
     await textarea.fill(originalMd);
-    await page.waitForTimeout(200);
 
     // Сохраняем (MD → HTML конвертация происходит при сохранении)
-    await page.keyboard.press('Meta+s');
-    await page.waitForTimeout(1000);
+    await page.keyboard.press(saveKey);
+
+    // Ждём закрытия редактора
+    const editorContainer = page.locator('#editor-container');
+    await expect(editorContainer).not.toHaveClass(/active/, { timeout: 5000 });
 
     // Открываем редактор снова (HTML → MD конвертация через TurndownService)
     await firstBlock.locator('titleBlock').first().click({ force: true, modifiers: ['Shift'] });
@@ -272,8 +267,5 @@ test.describe('Verify: Text Editor - Group C (Edge cases)', () => {
 
     // Quote
     expect(roundTrippedText).toContain('> Quote block');
-
-    // Закрываем редактор без сохранения
-    await page.keyboard.press('Escape');
   });
 });

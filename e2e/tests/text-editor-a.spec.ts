@@ -1,6 +1,4 @@
 import { test, expect } from '../fixtures/base.fixture';
-import { uniqueBlockTitle } from '../fixtures/test-data.fixture';
-import { apiCleanupByPrefix } from '../fixtures/verify-helpers.fixture';
 
 /**
  * Verify: Группа A — Основные позитивные сценарии Text Editor
@@ -12,13 +10,14 @@ import { apiCleanupByPrefix } from '../fixtures/verify-helpers.fixture';
  */
 test.describe('Verify: Text Editor - Group A (Basic positive)', () => {
 
-  let cleanupDone = false;
+  // Platform-specific save key
+  const saveKey = process.platform === 'darwin' ? 'Meta+s' : 'Control+s';
 
-  test.beforeEach(async ({ authenticatedPage, page }) => {
-    // Cleanup stale blocks from previous runs (only once)
-    if (!cleanupDone) {
-      await apiCleanupByPrefix(page, 'Verify_');
-      cleanupDone = true;
+  test.afterEach(async ({ page }) => {
+    // Ensure editor is closed after each test
+    const editorContainer = page.locator('#editor-container');
+    if (await editorContainer.evaluate(el => el.classList.contains('active')).catch(() => false)) {
+      await page.keyboard.press('Escape');
     }
   });
 
@@ -34,7 +33,6 @@ test.describe('Verify: Text Editor - Group A (Basic positive)', () => {
 
     // Нажимаем 'w' для открытия редактора
     await page.keyboard.press('w');
-    await page.waitForTimeout(500);
 
     // Проверяем что редактор открылся
     const editorContainer = page.locator('#editor-container');
@@ -50,10 +48,6 @@ test.describe('Verify: Text Editor - Group A (Basic positive)', () => {
     const toolbarButtons = page.locator('.note-editor-toolbar button');
     const buttonCount = await toolbarButtons.count();
     expect(buttonCount).toBeGreaterThanOrEqual(10);
-
-    // Закрываем редактор
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
   });
 
   test('s2: Ввод текста и сохранение через Ctrl+S', async ({ authenticatedPage, page }) => {
@@ -62,7 +56,6 @@ test.describe('Verify: Text Editor - Group A (Basic positive)', () => {
     await blocks.first().waitFor({ state: 'visible', timeout: 10000 });
 
     const firstBlock = blocks.first();
-    const blockId = await firstBlock.getAttribute('id');
 
     // Выбираем блок
     await firstBlock.locator('titleBlock').first().click({ force: true, modifiers: ['Shift'] });
@@ -76,11 +69,9 @@ test.describe('Verify: Text Editor - Group A (Basic positive)', () => {
     // Вводим текст
     const uniqueText = 'VerifyS2_' + Date.now();
     await textarea.fill(uniqueText);
-    await page.waitForTimeout(200);
 
     // Сохраняем через Ctrl+S (Cmd+S на Mac)
-    await page.keyboard.press('Meta+s');
-    await page.waitForTimeout(1000);
+    await page.keyboard.press(saveKey);
 
     // Проверяем что редактор закрылся
     const editorContainer = page.locator('#editor-container');
@@ -110,12 +101,10 @@ test.describe('Verify: Text Editor - Group A (Basic positive)', () => {
     // Вводим Markdown текст
     const mdText = '# Heading\n**bold text** and *italic* and ~~strikethrough~~';
     await textarea.fill(mdText);
-    await page.waitForTimeout(200);
 
     // Нажимаем кнопку Preview
     const previewButton = page.locator("button[title='Превью']");
     await previewButton.click();
-    await page.waitForTimeout(300);
 
     // Проверяем что preview отображается
     const preview = page.locator('.note-editor-preview');
@@ -130,9 +119,6 @@ test.describe('Verify: Text Editor - Group A (Basic positive)', () => {
 
     const italic = preview.locator('em');
     await expect(italic).toContainText('italic');
-
-    // Закрываем редактор без сохранения
-    await page.keyboard.press('Escape');
   });
 
   test('s8: Сохранение через Ctrl+S закрывает редактор', async ({ authenticatedPage, page }) => {
@@ -141,7 +127,6 @@ test.describe('Verify: Text Editor - Group A (Basic positive)', () => {
     await blocks.first().waitFor({ state: 'visible', timeout: 10000 });
 
     const firstBlock = blocks.first();
-    const blockId = await firstBlock.getAttribute('id');
 
     // Выбираем блок
     await firstBlock.locator('titleBlock').first().click({ force: true, modifiers: ['Shift'] });
@@ -161,8 +146,7 @@ test.describe('Verify: Text Editor - Group A (Basic positive)', () => {
     await expect(editorContainer).toHaveClass(/active/);
 
     // Сохраняем через Cmd+S (Mac) / Ctrl+S (Windows)
-    await page.keyboard.press('Meta+s');
-    await page.waitForTimeout(1000);
+    await page.keyboard.press(saveKey);
 
     // Проверяем что редактор закрылся
     await expect(editorContainer).not.toHaveClass(/active/, { timeout: 5000 });
