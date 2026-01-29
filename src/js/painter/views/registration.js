@@ -13,7 +13,8 @@ import {
     isNetworkError,
     showNetworkError,
     updatePasswordHint,
-    isValidEmail
+    isValidEmail,
+    parseDjangoErrors
 } from "./authUtils";
 
 /**
@@ -157,8 +158,8 @@ export function registration(block, parent) {
         if (!password) {
             showFieldError(passwordGroup.input, 'Обязательное поле');
             hasError = true;
-        } else if (password.length < 6) {
-            showFieldError(passwordGroup.input, 'Минимум 6 символов');
+        } else if (password.length < 8) {
+            showFieldError(passwordGroup.input, 'Минимум 8 символов');
             hasError = true;
         }
 
@@ -180,11 +181,37 @@ export function registration(block, parent) {
         setButtonLoading(submitButton, true, 'Регистрация...');
 
         try {
-            const isRegistered = await api.register({ username, email, password });
-            if (isRegistered) {
+            const result = await api.register({ username, email, password });
+
+            if (result?.success) {
                 // После успешной регистрации страница перерисуется через событие Login
+            } else if (result?.errors) {
+                // Парсим ошибки Django
+                const { fieldErrors, generalError } = parseDjangoErrors(result.errors);
+
+                // Показываем ошибки на полях
+                const fieldInputMap = {
+                    'username': usernameGroup.input,
+                    'email': emailGroup.input,
+                    'password': passwordGroup.input,
+                    'confirm-password': confirmPasswordGroup.input
+                };
+
+                for (const [field, message] of Object.entries(fieldErrors)) {
+                    const input = fieldInputMap[field];
+                    if (input) {
+                        showFieldError(input, message);
+                    }
+                }
+
+                // Показываем общую ошибку если есть
+                if (generalError) {
+                    showError(errorMessage, generalError);
+                }
+
+                focusFirstInvalidField(allInputs);
             } else {
-                showError(errorMessage, 'Ошибка регистрации. Попробуйте другое имя пользователя');
+                showError(errorMessage, 'Ошибка регистрации');
                 focusFirstInvalidField(allInputs);
             }
         } catch (error) {

@@ -11,7 +11,8 @@ import {
     clearAllFieldErrors,
     focusFirstInvalidField,
     isNetworkError,
-    showNetworkError
+    showNetworkError,
+    parseDjangoErrors
 } from "./authUtils";
 
 /**
@@ -118,9 +119,25 @@ export function auth(block, parent) {
         setButtonLoading(submitButton, true, 'Вход...');
 
         try {
-            const isAuth = await api.login({ username, password });
-            if (isAuth) {
+            const result = await api.login({ username, password });
+
+            if (result?.success) {
                 // После успешного входа страница перерисуется через событие Login
+            } else if (result?.errors) {
+                // Парсим ошибки Django
+                const { fieldErrors, generalError } = parseDjangoErrors(result.errors);
+
+                // Показываем ошибки на полях
+                if (fieldErrors.username) {
+                    showFieldError(usernameGroup.input, fieldErrors.username);
+                }
+                if (fieldErrors.password) {
+                    showFieldError(passwordGroup.input, fieldErrors.password);
+                }
+
+                // Показываем общую ошибку
+                showError(errorMessage, generalError || 'Неверное имя пользователя или пароль');
+                focusFirstInvalidField(allInputs);
             } else {
                 showError(errorMessage, 'Неверное имя пользователя или пароль');
                 focusFirstInvalidField(allInputs);

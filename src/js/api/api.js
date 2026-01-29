@@ -163,10 +163,15 @@ class Api {
                 Cookies.set('access', access, cookieOptions);
                 Cookies.set('refresh', refresh, cookieOptions);
                 dispatch('InitUser', {user: user_id})
-                return true
+                return { success: true }
             }
         }).catch(err => {
             console.error(err)
+            // Возвращаем ошибки валидации от Django
+            if (err.response?.data) {
+                return { success: false, errors: err.response.data }
+            }
+            throw err; // network error
         })
     }
 
@@ -181,11 +186,15 @@ class Api {
                     localforage.setItem('currentUser', user_id).then(() => {
                         dispatch('Login', {user: user_id})
                     })
-                    return true;
+                    return { success: true };
                 }
             }).catch(err => {
                 console.error(err)
-                return false;
+                // Возвращаем ошибки валидации от Django
+                if (err.response?.data) {
+                    return { success: false, errors: err.response.data }
+                }
+                throw err; // network error
             })
     }
 

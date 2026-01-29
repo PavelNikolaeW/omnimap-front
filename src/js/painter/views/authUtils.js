@@ -68,7 +68,7 @@ export function createInputGroup({ id, label, type, autocomplete, required, show
     if (showHint && type === 'password') {
         hint = document.createElement('div');
         hint.classList.add('auth-password-hint');
-        hint.innerHTML = '<span class="hint-icon">ℹ️</span> <span>Минимум 6 символов</span>';
+        hint.innerHTML = '<span class="hint-icon">ℹ️</span> <span>Минимум 8 символов</span>';
         wrapper.appendChild(hint);
     }
 
@@ -83,19 +83,23 @@ export function createPasswordToggle(input) {
     toggle.type = 'button';
     toggle.classList.add('auth-password-toggle');
     toggle.setAttribute('aria-label', 'Показать пароль');
-    // Используем текстовые иконки как fallback если FontAwesome не загружен
-    toggle.innerHTML = '<span class="toggle-icon">👁</span>';
+    toggle.textContent = '👁';
 
-    toggle.addEventListener('click', (e) => {
+    // Используем mousedown вместо click чтобы избежать проблем с stopPropagation
+    toggle.addEventListener('mousedown', (e) => {
         e.preventDefault();
         e.stopPropagation();
 
         const isPassword = input.type === 'password';
         input.type = isPassword ? 'text' : 'password';
-        toggle.innerHTML = isPassword
-            ? '<span class="toggle-icon">🙈</span>'
-            : '<span class="toggle-icon">👁</span>';
+        toggle.textContent = isPassword ? '🙈' : '👁';
         toggle.setAttribute('aria-label', isPassword ? 'Скрыть пароль' : 'Показать пароль');
+    });
+
+    // Предотвращаем потерю фокуса с поля ввода
+    toggle.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
     });
 
     return toggle;
@@ -257,15 +261,70 @@ export function updatePasswordHint(input, hint) {
     if (!hint) return;
 
     const password = input.value;
-    const isValid = password.length >= 6;
+    const isValid = password.length >= 8;
 
     if (isValid) {
         hint.classList.add('valid');
-        hint.innerHTML = '<span class="hint-icon">✅</span> <span>Минимум 6 символов</span>';
+        hint.innerHTML = '<span class="hint-icon">✅</span> <span>Минимум 8 символов</span>';
     } else {
         hint.classList.remove('valid');
-        hint.innerHTML = '<span class="hint-icon">ℹ️</span> <span>Минимум 6 символов</span>';
+        hint.innerHTML = '<span class="hint-icon">ℹ️</span> <span>Минимум 8 символов</span>';
     }
+}
+
+/**
+ * Парсит ошибки Django и возвращает человекочитаемые сообщения
+ * @param {Object} errors - Объект ошибок от Django {field: [messages]}
+ * @returns {Object} - {fieldErrors: {field: message}, generalError: string}
+ */
+export function parseDjangoErrors(errors) {
+    const fieldErrors = {};
+    const generalErrors = [];
+
+    // Маппинг полей Django → наши поля
+    const fieldMap = {
+        'username': 'username',
+        'email': 'email',
+        'password': 'password',
+        'password1': 'password',
+        'password2': 'confirm-password',
+        'non_field_errors': null
+    };
+
+    // Маппинг сообщений Django → русский
+    const messageMap = {
+        'This password is too short. It must contain at least 8 characters.': 'Пароль слишком короткий (минимум 8 символов)',
+        'This password is too common.': 'Пароль слишком простой',
+        'This password is entirely numeric.': 'Пароль не может состоять только из цифр',
+        'A user with that username already exists.': 'Пользователь с таким именем уже существует',
+        'user with this email already exists.': 'Пользователь с таким email уже существует',
+        'Enter a valid email address.': 'Введите корректный email',
+        'This field may not be blank.': 'Обязательное поле',
+        'This field is required.': 'Обязательное поле',
+        'Unable to log in with provided credentials.': 'Неверное имя пользователя или пароль',
+        'No active account found with the given credentials': 'Неверное имя пользователя или пароль'
+    };
+
+    for (const [field, messages] of Object.entries(errors)) {
+        const mappedField = fieldMap[field] || field;
+        const messageList = Array.isArray(messages) ? messages : [messages];
+
+        // Переводим сообщения
+        const translatedMessages = messageList.map(msg => messageMap[msg] || msg);
+
+        if (mappedField === null || field === 'non_field_errors' || field === 'detail') {
+            // Общие ошибки
+            generalErrors.push(...translatedMessages);
+        } else {
+            // Ошибки полей — берём первую
+            fieldErrors[mappedField] = translatedMessages[0];
+        }
+    }
+
+    return {
+        fieldErrors,
+        generalError: generalErrors.length > 0 ? generalErrors.join('. ') : null
+    };
 }
 
 /**
