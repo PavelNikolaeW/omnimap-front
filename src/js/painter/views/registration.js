@@ -1,4 +1,20 @@
 import api from "../../api/api";
+import {
+    createForm,
+    createInputGroup,
+    createButton,
+    setButtonLoading,
+    showError,
+    hideError,
+    showFieldError,
+    clearFieldError,
+    clearAllFieldErrors,
+    focusFirstInvalidField,
+    isNetworkError,
+    showNetworkError,
+    updatePasswordHint,
+    isValidEmail
+} from "./authUtils";
 
 /**
  * Создает блок с формой регистрации
@@ -44,7 +60,9 @@ export function registration(block, parent) {
         label: 'Пароль',
         type: 'password',
         autocomplete: 'new-password',
-        required: true
+        required: true,
+        showToggle: true,
+        showHint: true  // показываем требования к паролю
     });
 
     const confirmPasswordGroup = createInputGroup({
@@ -52,7 +70,8 @@ export function registration(block, parent) {
         label: 'Подтвердите пароль',
         type: 'password',
         autocomplete: 'new-password',
-        required: true
+        required: true,
+        showToggle: true
     });
 
     // Кнопка отправки
@@ -62,6 +81,10 @@ export function registration(block, parent) {
     const errorMessage = document.createElement('div');
     errorMessage.classList.add('auth-error');
     errorMessage.style.display = 'none';
+    // aria-live для скринридеров
+    errorMessage.setAttribute('role', 'alert');
+    errorMessage.setAttribute('aria-live', 'polite');
+    errorMessage.setAttribute('aria-atomic', 'true');
 
     // Сборка формы
     form.appendChild(title);
@@ -74,12 +97,31 @@ export function registration(block, parent) {
 
     container.appendChild(form);
 
+    // AbortController для cleanup event listeners
+    const abortController = new AbortController();
+
+    // Скрываем ошибку при вводе
+    const allInputs = [usernameGroup.input, emailGroup.input, passwordGroup.input, confirmPasswordGroup.input];
+    allInputs.forEach(input => {
+        input.addEventListener('input', () => {
+            hideError(errorMessage);
+            clearFieldError(input);
+        }, { signal: abortController.signal });
+    });
+
+    // Динамическая валидация пароля
+    if (passwordGroup.hint) {
+        passwordGroup.input.addEventListener('input', () => {
+            updatePasswordHint(passwordGroup.input, passwordGroup.hint);
+        }, { signal: abortController.signal });
+    }
+
     // Блокируем всплытие событий (клики не должны открывать блок)
     const stopEvents = ['click', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'pointerdown', 'pointerup'];
     stopEvents.forEach(eventType => {
         container.addEventListener(eventType, (e) => {
             e.stopPropagation();
-        }, true);
+        }, { capture: true, signal: abortController.signal });
     });
 
     // Обработчик отправки
@@ -92,29 +134,50 @@ export function registration(block, parent) {
         const password = passwordGroup.input.value;
         const confirmPassword = confirmPasswordGroup.input.value;
 
+        // Сбрасываем ошибки
+        hideError(errorMessage);
+        clearAllFieldErrors(allInputs);
+
         // Валидация
-        if (!username || !email || !password || !confirmPassword) {
-            showError(errorMessage, 'Заполните все поля');
+        let hasError = false;
+
+        if (!username) {
+            showFieldError(usernameGroup.input, 'Обязательное поле');
+            hasError = true;
+        }
+
+        if (!email) {
+            showFieldError(emailGroup.input, 'Обязательное поле');
+            hasError = true;
+        } else if (!isValidEmail(email)) {
+            showFieldError(emailGroup.input, 'Введите корректный email');
+            hasError = true;
+        }
+
+        if (!password) {
+            showFieldError(passwordGroup.input, 'Обязательное поле');
+            hasError = true;
+        } else if (password.length < 6) {
+            showFieldError(passwordGroup.input, 'Минимум 6 символов');
+            hasError = true;
+        }
+
+        if (!confirmPassword) {
+            showFieldError(confirmPasswordGroup.input, 'Обязательное поле');
+            hasError = true;
+        } else if (password !== confirmPassword) {
+            showFieldError(confirmPasswordGroup.input, 'Пароли не совпадают');
+            hasError = true;
+        }
+
+        if (hasError) {
+            showError(errorMessage, 'Исправьте ошибки в форме');
+            focusFirstInvalidField(allInputs);
             return;
         }
 
-        if (password !== confirmPassword) {
-            showError(errorMessage, 'Пароли не совпадают');
-            return;
-        }
-
-        if (password.length < 6) {
-            showError(errorMessage, 'Пароль должен быть не менее 6 символов');
-            return;
-        }
-
-        if (!isValidEmail(email)) {
-            showError(errorMessage, 'Введите корректный email');
-            return;
-        }
-
-        submitButton.disabled = true;
-        submitButton.textContent = 'Регистрация...';
+        // Показываем спиннер
+        setButtonLoading(submitButton, true, 'Регистрация...');
 
         try {
             const isRegistered = await api.register({ username, email, password });
@@ -122,92 +185,40 @@ export function registration(block, parent) {
                 // После успешной регистрации страница перерисуется через событие Login
             } else {
                 showError(errorMessage, 'Ошибка регистрации. Попробуйте другое имя пользователя');
+                focusFirstInvalidField(allInputs);
             }
         } catch (error) {
-            showError(errorMessage, 'Ошибка соединения с сервером');
+            // Проверяем тип ошибки
+            if (isNetworkError(error)) {
+                showNetworkError(errorMessage, () => form.dispatchEvent(new Event('submit')));
+            } else {
+                showError(errorMessage, 'Ошибка соединения с сервером');
+            }
             console.error('Registration error:', error);
         } finally {
-            submitButton.disabled = false;
-            submitButton.textContent = 'Зарегистрироваться';
+            setButtonLoading(submitButton, false, 'Зарегистрироваться');
         }
+    }, { signal: abortController.signal });
+
+    // Фокус на первое поле после рендера (если нет другого активного элемента в auth-block)
+    requestAnimationFrame(() => {
+        if (document.activeElement?.closest('.auth-block')) return;
+        usernameGroup.input.focus();
     });
 
-    // Фокус на первое поле после рендера
-    setTimeout(() => usernameGroup.input.focus(), 100);
+    // Cleanup при удалении из DOM
+    const observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            for (const node of mutation.removedNodes) {
+                if (node === container || node.contains?.(container)) {
+                    abortController.abort();
+                    observer.disconnect();
+                    return;
+                }
+            }
+        }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
 
     return container;
-}
-
-/**
- * Создает форму
- */
-function createForm(id) {
-    const form = document.createElement('form');
-    form.id = id;
-    form.classList.add('auth-form');
-    form.setAttribute('novalidate', '');
-
-    return form;
-}
-
-/**
- * Создает группу ввода (label + input)
- */
-function createInputGroup({ id, label, type, autocomplete, required }) {
-    const wrapper = document.createElement('div');
-    wrapper.classList.add('auth-input-group');
-
-    const labelEl = document.createElement('label');
-    labelEl.htmlFor = id;
-    labelEl.textContent = label;
-    labelEl.classList.add('auth-label');
-
-    const input = document.createElement('input');
-    input.type = type;
-    input.id = id;
-    input.name = id;
-    input.autocomplete = autocomplete;
-    input.required = required;
-    input.classList.add('auth-input');
-
-    // Предотвращаем всплытие событий клавиатуры
-    input.addEventListener('keydown', (e) => e.stopPropagation());
-    input.addEventListener('keyup', (e) => e.stopPropagation());
-    input.addEventListener('keypress', (e) => e.stopPropagation());
-
-    wrapper.appendChild(labelEl);
-    wrapper.appendChild(input);
-
-    return { wrapper, input };
-}
-
-/**
- * Создает кнопку
- */
-function createButton(text, type = 'button') {
-    const button = document.createElement('button');
-    button.type = type;
-    button.textContent = text;
-    button.classList.add('auth-button');
-
-    return button;
-}
-
-/**
- * Показывает сообщение об ошибке
- */
-function showError(element, message) {
-    element.textContent = message;
-    element.style.display = 'block';
-    setTimeout(() => {
-        element.style.display = 'none';
-    }, 5000);
-}
-
-/**
- * Проверяет валидность email
- */
-function isValidEmail(email) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
 }

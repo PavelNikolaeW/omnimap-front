@@ -76,6 +76,7 @@ class OfflineQueueManager {
         this._handleBeforeUnload = this.handleBeforeUnload.bind(this);
         this._handleSWMessage = this.handleSWMessage.bind(this);
         this._handleVisibilityChange = this.handleVisibilityChange.bind(this);
+        this._handleRetrySync = this._handleRetrySyncEvent.bind(this);
 
         this.init();
     }
@@ -278,6 +279,9 @@ class OfflineQueueManager {
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.addEventListener('message', this._handleSWMessage);
         }
+
+        // imp4: Слушаем событие ручного повтора синхронизации
+        window.addEventListener('RetrySync', this._handleRetrySync);
 
         // Инициализируем кэш длины очереди и очищаем устаревшие операции
         const queue = await this.getQueue();
@@ -1273,11 +1277,20 @@ class OfflineQueueManager {
      * Очистка ресурсов при уничтожении экземпляра
      * Удаляет event listeners и очищает таймеры
      */
+    /**
+     * imp4: Обработчик события ручного повтора синхронизации
+     */
+    _handleRetrySyncEvent() {
+        console.log('🔄 Manual sync retry requested');
+        this.triggerManualSync();
+    }
+
     destroy() {
         // Удаляем event listeners
         window.removeEventListener('online', this._handleOnline);
         window.removeEventListener('offline', this._handleOffline);
         window.removeEventListener('beforeunload', this._handleBeforeUnload);
+        window.removeEventListener('RetrySync', this._handleRetrySync);
         document.removeEventListener('visibilitychange', this._handleVisibilityChange);
 
         if ('serviceWorker' in navigator) {

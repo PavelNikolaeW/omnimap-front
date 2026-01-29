@@ -7,6 +7,7 @@ class NetworkStatusUI {
     constructor() {
         this.element = null;
         this.offlineBar = null;
+        this.syncErrorBar = null;  // imp4: Persistent sync error bar
         this.hideTimeout = null;
         this.isOffline = !navigator.onLine;
         this.pendingCount = 0;
@@ -16,6 +17,7 @@ class NetworkStatusUI {
     init() {
         this.createElement();
         this.createOfflineBar();
+        this.createSyncErrorBar();  // imp4
         this.addEventListeners();
 
         // Проверяем начальное состояние
@@ -48,6 +50,43 @@ class NetworkStatusUI {
         document.body.appendChild(this.offlineBar);
     }
 
+    /**
+     * imp4: Создаёт persistent индикатор ошибки синхронизации
+     */
+    createSyncErrorBar() {
+        this.syncErrorBar = document.createElement('div');
+        this.syncErrorBar.className = 'sync-error-bar';
+        // Accessibility: assertive для важных ошибок
+        this.syncErrorBar.setAttribute('role', 'alert');
+        this.syncErrorBar.setAttribute('aria-live', 'assertive');
+        this.syncErrorBar.innerHTML = `
+            <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+            <span class="sync-error-text">Ошибка синхронизации</span>
+            <span class="sync-error-count"></span>
+            <button type="button" class="sync-error-retry" aria-label="Повторить синхронизацию">
+                <i class="fas fa-redo" aria-hidden="true"></i> Повторить
+            </button>
+            <button type="button" class="sync-error-dismiss" aria-label="Закрыть">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+        `;
+        document.body.appendChild(this.syncErrorBar);
+
+        // Обработчики кнопок
+        const retryBtn = this.syncErrorBar.querySelector('.sync-error-retry');
+        const dismissBtn = this.syncErrorBar.querySelector('.sync-error-dismiss');
+
+        retryBtn.addEventListener('click', () => {
+            this.hideSyncErrorBar();
+            // Запускаем повторную синхронизацию
+            window.dispatchEvent(new CustomEvent('RetrySync'));
+        });
+
+        dismissBtn.addEventListener('click', () => {
+            this.hideSyncErrorBar();
+        });
+    }
+
     addEventListeners() {
         window.addEventListener('NetworkStatusChange', (e) => {
             this.handleNetworkChange(e.detail.online);
@@ -56,10 +95,11 @@ class NetworkStatusUI {
         // Синхронизация теперь показывается морганием API диода,
         // показываем network-status только при ошибках
         window.addEventListener('SyncCompleted', (e) => {
-            // Показываем только ошибки синхронизации
+            // imp4: Показываем persistent sync error bar при ошибках
             if (e.detail.failedCount > 0) {
-                this.showSyncCompleted(e.detail);
+                this.showSyncErrorBar(e.detail.failedCount);
             } else {
+                this.hideSyncErrorBar();
                 this.hide();
             }
 
@@ -105,6 +145,28 @@ class NetworkStatusUI {
     hideOfflineBar() {
         if (this.offlineBar) {
             this.offlineBar.classList.remove('visible');
+        }
+    }
+
+    /**
+     * imp4: Показывает persistent sync error bar
+     */
+    showSyncErrorBar(failedCount) {
+        if (this.syncErrorBar) {
+            const countEl = this.syncErrorBar.querySelector('.sync-error-count');
+            if (countEl) {
+                countEl.textContent = `(${failedCount})`;
+            }
+            this.syncErrorBar.classList.add('visible');
+        }
+    }
+
+    /**
+     * imp4: Скрывает sync error bar
+     */
+    hideSyncErrorBar() {
+        if (this.syncErrorBar) {
+            this.syncErrorBar.classList.remove('visible');
         }
     }
 
