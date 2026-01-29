@@ -130,7 +130,8 @@
     box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
 }
 
-.auth-password-toggle i {
+.auth-password-toggle i,
+.auth-password-toggle .toggle-icon {
     font-size: 16px;
 }
 
@@ -152,7 +153,8 @@
     gap: 4px;
 }
 
-.auth-password-hint i {
+.auth-password-hint i,
+.auth-password-hint .hint-icon {
     font-size: 12px;
 }
 

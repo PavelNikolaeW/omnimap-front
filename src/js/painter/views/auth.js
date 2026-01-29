@@ -103,7 +103,7 @@ export function auth(block, parent) {
         clearAllFieldErrors(allInputs);
 
         if (!username || !password) {
-            showError(errorMessage, 'Заполните все поля');
+            // Показываем только inline ошибки — они достаточно информативны
             if (!username) {
                 showFieldError(usernameGroup.input, 'Обязательное поле');
             }

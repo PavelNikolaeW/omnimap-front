@@ -68,7 +68,7 @@ export function createInputGroup({ id, label, type, autocomplete, required, show
     if (showHint && type === 'password') {
         hint = document.createElement('div');
         hint.classList.add('auth-password-hint');
-        hint.innerHTML = '<i class="fas fa-info-circle" aria-hidden="true"></i> <span>Минимум 6 символов</span>';
+        hint.innerHTML = '<span class="hint-icon">ℹ️</span> <span>Минимум 6 символов</span>';
         wrapper.appendChild(hint);
     }
 
@@ -83,7 +83,8 @@ export function createPasswordToggle(input) {
     toggle.type = 'button';
     toggle.classList.add('auth-password-toggle');
     toggle.setAttribute('aria-label', 'Показать пароль');
-    toggle.innerHTML = '<i class="fas fa-eye" aria-hidden="true"></i>';
+    // Используем текстовые иконки как fallback если FontAwesome не загружен
+    toggle.innerHTML = '<span class="toggle-icon">👁</span>';
 
     toggle.addEventListener('click', (e) => {
         e.preventDefault();
@@ -92,8 +93,8 @@ export function createPasswordToggle(input) {
         const isPassword = input.type === 'password';
         input.type = isPassword ? 'text' : 'password';
         toggle.innerHTML = isPassword
-            ? '<i class="fas fa-eye-slash" aria-hidden="true"></i>'
-            : '<i class="fas fa-eye" aria-hidden="true"></i>';
+            ? '<span class="toggle-icon">🙈</span>'
+            : '<span class="toggle-icon">👁</span>';
         toggle.setAttribute('aria-label', isPassword ? 'Скрыть пароль' : 'Показать пароль');
     });
 
@@ -260,10 +261,10 @@ export function updatePasswordHint(input, hint) {
 
     if (isValid) {
         hint.classList.add('valid');
-        hint.innerHTML = '<i class="fas fa-check-circle" aria-hidden="true"></i> <span>Минимум 6 символов</span>';
+        hint.innerHTML = '<span class="hint-icon">✅</span> <span>Минимум 6 символов</span>';
     } else {
         hint.classList.remove('valid');
-        hint.innerHTML = '<i class="fas fa-info-circle" aria-hidden="true"></i> <span>Минимум 6 символов</span>';
+        hint.innerHTML = '<span class="hint-icon">ℹ️</span> <span>Минимум 6 символов</span>';
     }
 }
 

@@ -171,7 +171,7 @@ export function registration(block, parent) {
         }
 
         if (hasError) {
-            showError(errorMessage, 'Исправьте ошибки в форме');
+            // Не показываем общее сообщение — inline ошибки достаточно информативны
             focusFirstInvalidField(allInputs);
             return;
         }
