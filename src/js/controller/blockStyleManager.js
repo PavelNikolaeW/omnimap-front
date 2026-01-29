@@ -27,6 +27,14 @@ export class BlockStyleManager {
         this.borderColorInput = document.getElementById('styleBorderColor');
         this.textColorInput = document.getElementById('styleTextColor');
 
+        // Rendering mode elements
+        this.forceDefaultCheckbox = document.getElementById('forceDefaultRendering');
+        this.hideConnectionsCheckbox = document.getElementById('hideConnections');
+        this.inheritRenderingCheckbox = document.getElementById('inheritRenderingMode');
+
+        // Debounce timer for rendering mode
+        this._renderingModeDebounce = null;
+
         // Drag state
         this.isDragging = false;
         this.dragOffset = { x: 0, y: 0 };
@@ -122,6 +130,11 @@ export class BlockStyleManager {
         this.textAlignSelect?.addEventListener('change', autoApplyHandler);
         this.borderColorInput?.addEventListener('change', autoApplyHandler);
         this.textColorInput?.addEventListener('change', autoApplyHandler);
+
+        // Rendering mode handlers
+        this.forceDefaultCheckbox?.addEventListener('change', () => this.applyRenderingMode());
+        this.hideConnectionsCheckbox?.addEventListener('change', () => this.applyRenderingMode());
+        this.inheritRenderingCheckbox?.addEventListener('change', () => this.applyRenderingMode());
 
         // Пресеты форм
         this.shapePresets = document.querySelectorAll('.shape-preset');
@@ -380,6 +393,37 @@ export class BlockStyleManager {
                 p.classList.remove('active');
             }
         });
+
+        // Загрузить настройки режима рендеринга
+        const renderingMode = block?.data?.renderingMode || {};
+        if (this.forceDefaultCheckbox) this.forceDefaultCheckbox.checked = renderingMode.forceDefault || false;
+        if (this.hideConnectionsCheckbox) this.hideConnectionsCheckbox.checked = renderingMode.hideConnections || false;
+        if (this.inheritRenderingCheckbox) this.inheritRenderingCheckbox.checked = renderingMode.inheritToChildren !== false;
+    }
+
+    /**
+     * Применить настройки режима рендеринга (с debounce для предотвращения множественных перерендеров)
+     */
+    applyRenderingMode() {
+        if (!this.currentBlockId) return;
+
+        // Debounce для предотвращения множественных вызовов при быстрых кликах
+        clearTimeout(this._renderingModeDebounce);
+        this._renderingModeDebounce = setTimeout(() => {
+            const forceDefault = this.forceDefaultCheckbox?.checked || false;
+            const hideConnections = this.hideConnectionsCheckbox?.checked || false;
+            const inheritToChildren = this.inheritRenderingCheckbox?.checked ?? true;
+
+            // Если всё отключено - удаляем renderingMode
+            const renderingMode = (forceDefault || hideConnections)
+                ? { forceDefault, hideConnections, inheritToChildren }
+                : null;
+
+            dispatch('UpdateRenderingMode', {
+                blockId: this.currentBlockId,
+                renderingMode
+            });
+        }, 50);
     }
 
     /**
@@ -524,6 +568,11 @@ export class BlockStyleManager {
         if (this.borderColorInput) this.borderColorInput.value = '#e5e7eb';
         if (this.textColorInput) this.textColorInput.value = '#000000';
 
+        // Сбросить настройки режима рендеринга
+        if (this.forceDefaultCheckbox) this.forceDefaultCheckbox.checked = false;
+        if (this.hideConnectionsCheckbox) this.hideConnectionsCheckbox.checked = false;
+        if (this.inheritRenderingCheckbox) this.inheritRenderingCheckbox.checked = true;
+
         // Снять выделение с пресетов форм
         this.shapePresets?.forEach(p => p.classList.remove('active'));
 
@@ -531,6 +580,12 @@ export class BlockStyleManager {
         dispatch('UpdateBlockStyles', {
             blockId: this.currentBlockId,
             customStyles: null  // null означает удаление всех стилей
+        });
+
+        // Сбросить режим рендеринга
+        dispatch('UpdateRenderingMode', {
+            blockId: this.currentBlockId,
+            renderingMode: null
         });
 
         // Очистить стили с элемента

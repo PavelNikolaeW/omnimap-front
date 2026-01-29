@@ -32,9 +32,15 @@ class GridClassManager {
 
     manager(block, parentBlock) {
         this.calcBlockSize(block, parentBlock)
+
+        // Проверяем forceDefault из renderingMode (собственного или унаследованного)
+        // При forceDefault игнорируем кастомный layout type и используем default расчёт
+        const effectiveRenderingMode = block.data?.renderingMode || block._inheritedRenderingMode;
+        const forceDefault = effectiveRenderingMode?.forceDefault;
+
         const sizeLayout = block.size.layout
         const len = GridClassManager.getChildCount(block)
-        const blockLayout = block.data?.layout || 'default'
+        const blockLayout = forceDefault ? 'default' : (block.data?.layout || 'default')
 
         // Парсим тип layout и конфигурацию
         const { type, config } = parseLayoutType(blockLayout)

@@ -122,6 +122,18 @@ class BlockCreator {
             block._renderVisibleChildren = renderContext.visibleChildren;
         }
 
+        // Наследование renderingMode от родителя ДО рендеринга
+        // Если у блока нет собственного renderingMode, наследуем от родителя (если inheritToChildren !== false)
+        if (!block.data?.renderingMode && parentBlock?.data?.renderingMode?.inheritToChildren !== false) {
+            const parentRM = parentBlock.data?.renderingMode || parentBlock._inheritedRenderingMode;
+            if (parentRM?.forceDefault || parentRM?.hideConnections) {
+                block._inheritedRenderingMode = {
+                    forceDefault: parentRM?.forceDefault,
+                    hideConnections: parentRM?.hideConnections
+                };
+            }
+        }
+
         const element = this._createElement(block, parentBlock, screen, depth)
 
         // Восстанавливаем оригинальный childOrder после рендера (если был подменён)
@@ -133,7 +145,15 @@ class BlockCreator {
         // Очищаем временные данные рендера
         delete block._renderVisibleChildren;
 
-        if (block.data?.connections) this.arrows.add({connections: block.data?.connections, layout: block.size.layout})
+        // Проверяем renderingMode для скрытия соединений
+        const effectiveRenderingMode = block.data?.renderingMode || block._inheritedRenderingMode;
+        if (block.data?.connections && !effectiveRenderingMode?.hideConnections) {
+            this.arrows.add({connections: block.data?.connections, layout: block.size.layout});
+        }
+
+        // Очищаем временное свойство наследования после рендера
+        delete block._inheritedRenderingMode;
+
         return element
     }
 
@@ -911,7 +931,11 @@ class BlockCreator {
             });
         }
 
-        if (block.data?.customGrid?.grid) {
+        // Проверяем forceDefault из renderingMode (собственного или унаследованного)
+        const effectiveRenderingMode = block.data?.renderingMode || block._inheritedRenderingMode;
+        const forceDefault = effectiveRenderingMode?.forceDefault;
+
+        if (!forceDefault && block.data?.customGrid?.grid) {
             const customGrid = block.data.customGrid
 
             block.childrenPositions = customGrid.childrenPositions

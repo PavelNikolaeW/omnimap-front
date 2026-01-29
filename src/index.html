@@ -262,6 +262,32 @@
         <input type="color" id="styleTextColor" value="#000000">
     </div>
 
+    <!-- Rendering Mode Section -->
+    <div class="style-section rendering-mode-section">
+        <label class="style-section-label">Режим рендеринга</label>
+
+        <div class="style-row checkbox-row">
+            <label>
+                <input type="checkbox" id="forceDefaultRendering">
+                Дефолтный режим
+            </label>
+        </div>
+
+        <div class="style-row checkbox-row">
+            <label>
+                <input type="checkbox" id="hideConnections">
+                Скрыть стрелки
+            </label>
+        </div>
+
+        <div class="style-row checkbox-row">
+            <label>
+                <input type="checkbox" id="inheritRenderingMode" checked>
+                Наследовать потомкам
+            </label>
+        </div>
+    </div>
+
     <button class="diagram-btn diagram-btn-danger" id="resetBlockStyle" style="width: 100%; margin-top: 12px;">Сбросить стили</button>
 </div>
 
