@@ -209,6 +209,10 @@ export class LocalStateManager {
             this.updateBlockStyles(e.detail);
         });
 
+        window.addEventListener('UpdateRenderingMode', (e) => {
+            this.updateRenderingMode(e.detail);
+        });
+
         // Обработчик для сохранения отдельного поля блока (используется blockCreator для _lastRenderedVersion)
         window.addEventListener('SaveBlockField', (e) => {
             const { blockId, field, value } = e.detail;
@@ -3009,6 +3013,57 @@ export class LocalStateManager {
         const beforeState = JSON.parse(JSON.stringify(block));
 
         block.data.customStyles = customStyles;
+        block.updated_at = new Date().toISOString();
+        await this.saveBlock(block);
+
+        // Записываем в undo stack
+        undoManager.recordEdit(blockId, beforeState, block);
+
+        // Регистрируем блок как pending для индикатора
+        offlineQueue.registerPendingBlock(blockId);
+
+        // Добавляем в очередь синхронизации
+        await offlineQueue.enqueue({
+            type: 'updateBlock',
+            data: { id: blockId }
+        });
+
+        dispatch('ShowBlocks');
+    }
+
+    /**
+     * Обновить настройки режима рендеринга блока
+     * @param {string} blockId - ID блока
+     * @param {Object|null} renderingMode - Настройки режима рендеринга
+     *   - forceDefault: boolean - игнорировать customGrid/layout
+     *   - hideConnections: boolean - не рендерить соединения
+     *   - inheritToChildren: boolean - наследовать потомкам (default: true)
+     */
+    async updateRenderingMode({blockId, renderingMode}) {
+        const block = await this.blockRepository.loadBlock(blockId);
+        if (!block) {
+            console.error(`Block ${blockId} not found`);
+            return;
+        }
+
+        // Получаем родительский блок для проверки sandbox режима
+        const parentBlock = block.parent_id ? this.blocks.get(block.parent_id) : null;
+
+        // Проверка прав на редактирование (с учётом sandbox режима)
+        if (!canEditInSandbox(block, parentBlock, this.currentUser)) {
+            dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
+            return;
+        }
+
+        // Сохраняем состояние ДО изменения для undo
+        const beforeState = JSON.parse(JSON.stringify(block));
+
+        if (renderingMode) {
+            block.data.renderingMode = renderingMode;
+        } else {
+            delete block.data.renderingMode;
+        }
+
         block.updated_at = new Date().toISOString();
         await this.saveBlock(block);
 
