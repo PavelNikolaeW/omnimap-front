@@ -85,10 +85,11 @@ export function auth(block, parent) {
 
     // Блокируем всплытие событий (клики не должны открывать блок)
     const stopEvents = ['click', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'pointerdown', 'pointerup'];
+    // Используем bubble фазу чтобы внутренние элементы (toggle) получали события первыми
     stopEvents.forEach(eventType => {
         container.addEventListener(eventType, (e) => {
             e.stopPropagation();
-        }, { capture: true, signal: abortController.signal });
+        }, { signal: abortController.signal });
     });
 
     // Обработчик отправки

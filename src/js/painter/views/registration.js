@@ -118,11 +118,12 @@ export function registration(block, parent) {
     }
 
     // Блокируем всплытие событий (клики не должны открывать блок)
+    // Используем bubble фазу чтобы внутренние элементы (toggle) получали события первыми
     const stopEvents = ['click', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'pointerdown', 'pointerup'];
     stopEvents.forEach(eventType => {
         container.addEventListener(eventType, (e) => {
             e.stopPropagation();
-        }, { capture: true, signal: abortController.signal });
+        }, { signal: abortController.signal });
     });
 
     // Обработчик отправки
