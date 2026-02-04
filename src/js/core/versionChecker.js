@@ -24,7 +24,10 @@ class VersionChecker {
         console.log('[VersionChecker] Starting version checker, current version:', this.currentVersion);
 
         // Проверяем URL параметр для принудительного обновления
-        this.checkForceUpdateParam();
+        // Если обнаружен - выходим, т.к. будет redirect
+        if (this.checkForceUpdateParam()) {
+            return;
+        }
 
         // Сохраняем текущую версию при первом запуске
         this.saveCurrentVersion();
@@ -120,6 +123,7 @@ class VersionChecker {
     /**
      * Проверяет URL параметры для принудительного обновления
      * Использование: добавьте ?forceUpdate=1 к URL
+     * @returns {boolean} true если обнаружен параметр и начато обновление
      */
     checkForceUpdateParam() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -129,7 +133,7 @@ class VersionChecker {
             if (updateAttempts >= 3) {
                 console.warn('[VersionChecker] Too many force update attempts, aborting');
                 sessionStorage.removeItem('forceUpdateAttempts');
-                return;
+                return false;
             }
 
             console.log('[VersionChecker] Force update parameter detected');
@@ -141,9 +145,11 @@ class VersionChecker {
             window.history.replaceState({}, '', newUrl);
             // Принудительно обновляем
             this.forceUpdate();
+            return true;
         } else {
             // Успешная загрузка без forceUpdate параметра - сбрасываем счетчик
             sessionStorage.removeItem('forceUpdateAttempts');
+            return false;
         }
     }
 
