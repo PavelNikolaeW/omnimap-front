@@ -2381,3 +2381,7 @@ export function closeUnifiedChat() {
         unifiedChatInstance = null;
     }
 }
+
+export function isChatPanelOpen() {
+    return unifiedChatInstance?.isOpen === true;
+}

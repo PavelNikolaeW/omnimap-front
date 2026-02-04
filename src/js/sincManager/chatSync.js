@@ -10,6 +10,7 @@
  */
 
 import { dispatch } from '../utils/utils.js';
+import { isChatPanelOpen } from '../controller/popups/unifiedChatPanel.js';
 
 class ChatSync {
     constructor() {
@@ -266,21 +267,39 @@ class ChatSync {
      * @param {Object} data
      */
     showNotification(type, data) {
-        // Проверяем разрешение на уведомления
-        if (!('Notification' in window) || Notification.permission !== 'granted') {
-            return;
-        }
-
-        // Не показываем уведомление если документ активен
-        if (document.visibilityState === 'visible') {
-            return;
-        }
-
         const title = type === 'dm'
             ? `Новое сообщение от ${data.sender_username || 'пользователя'}`
             : `Новое сообщение в группе`;
 
         const body = data.message?.content?.substring(0, 100) || 'Новое сообщение';
+
+        // Если вкладка активна — показываем toast (если чат-панель закрыта)
+        if (document.visibilityState === 'visible') {
+            if (!isChatPanelOpen()) {
+                dispatch('ShowToast', {
+                    type: 'info',
+                    title,
+                    message: body,
+                    duration: 5000,
+                    action: {
+                        label: 'Открыть',
+                        callback: () => {
+                            if (type === 'dm') {
+                                dispatch('OpenDirectChat', { userId: data.sender_id });
+                            } else {
+                                dispatch('OpenGroupChat', { groupId: data.group_id });
+                            }
+                        }
+                    }
+                });
+            }
+            return;
+        }
+
+        // Вкладка неактивна — показываем браузерное уведомление
+        if (!('Notification' in window) || Notification.permission !== 'granted') {
+            return;
+        }
 
         try {
             const notification = new Notification(title, {
