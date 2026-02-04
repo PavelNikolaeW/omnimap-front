@@ -306,6 +306,9 @@ export class LocalStateManager {
         window.addEventListener('SetHueBlock', async (e) => {
             this.hueUpdate(e.detail);
         });
+        window.addEventListener('SetBorderColor', async (e) => {
+            this.borderColorUpdate(e.detail);
+        });
         window.addEventListener('SetIframe', async (e) => {
             this.setIframe(e.detail);
         });
@@ -3404,6 +3407,36 @@ export class LocalStateManager {
         offlineQueue.registerPendingBlock(blockId);
 
         // Добавляем в очередь синхронизации
+        await offlineQueue.enqueue({
+            type: 'updateBlock',
+            data: { id: blockId }
+        });
+
+        dispatch('ShowBlocks');
+    }
+
+    async borderColorUpdate({blockId, borderColor}) {
+        const block = this.blocks.get(blockId);
+        if (!block) return;
+
+        const parentBlock = block.parent_id ? this.blocks.get(block.parent_id) : null;
+
+        if (!canEditInSandbox(block, parentBlock, this.currentUser)) {
+            dispatch('ShowError', { message: 'Нет прав на редактирование блока' });
+            return;
+        }
+
+        const beforeState = JSON.parse(JSON.stringify(block));
+
+        if (!block.data) block.data = {};
+        block.data.borderColor = borderColor;
+        block.updated_at = new Date().toISOString();
+        await this.saveBlock(block);
+
+        undoManager.recordEdit(blockId, beforeState, block);
+
+        offlineQueue.registerPendingBlock(blockId);
+
         await offlineQueue.enqueue({
             type: 'updateBlock',
             data: { id: blockId }

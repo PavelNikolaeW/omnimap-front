@@ -221,6 +221,9 @@ class BlockCreator {
             // Применить кастомные стили блока (цвет, форма, тень и т.д.)
             this._applyCustomStyles(element, block.data?.customStyles)
 
+            // Применить цвет рамки из data.borderColor (Shift+1..9)
+            this._applyBorderColor(element, block.data?.borderColor)
+
             // Применить data-атрибуты для layoutCells (календарь, kanban и т.д.)
             this._applyLayoutCellsData(element, block, parentBlock)
 
@@ -685,6 +688,22 @@ class BlockCreator {
         }
         if (customStyles.shadow) {
             element.setAttribute('data-block-shadow', customStyles.shadow)
+        }
+    }
+
+    /**
+     * Применить цвет рамки из block.data.borderColor
+     * @param {HTMLElement} element - DOM элемент блока
+     * @param {string} borderColor - hex цвет рамки или пустая строка
+     */
+    _applyBorderColor(element, borderColor) {
+        if (!element) return
+
+        if (borderColor) {
+            element.style.borderColor = borderColor
+            if (!element.hasAttribute('data-block-border')) {
+                element.setAttribute('data-block-border', 'medium')
+            }
         }
     }
 

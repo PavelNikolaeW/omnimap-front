@@ -2,6 +2,7 @@ import {arrowCommands} from "./arrowComands";
 import {validURL} from "../../utils/functions";
 import {dispatch} from "../../utils/utils";
 import {colorCommands} from "./colorCommands";
+import {borderColorCommands} from "./borderColorCommands";
 import {layoutCommands} from "./layoutCommands";
 import {arrowManager} from "../arrowManager";
 import {blockStyleManager} from "../blockStyleManager";
@@ -1336,6 +1337,7 @@ export const commands = [
     ...treeCommands,
     ...arrowCommands,
     ...colorCommands,
+    ...borderColorCommands,
     ...layoutCommands,
 
     // ═══════════════════════════════════════════════════════════════════════════
