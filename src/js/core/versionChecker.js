@@ -20,6 +20,9 @@ class VersionChecker {
     start() {
         console.log('[VersionChecker] Starting version checker, current version:', this.currentVersion);
 
+        // Проверяем URL параметр для принудительного обновления
+        this.checkForceUpdateParam();
+
         // Сохраняем текущую версию при первом запуске
         this.saveCurrentVersion();
 
@@ -100,18 +103,39 @@ class VersionChecker {
     }
 
     /**
+     * Проверяет URL параметры для принудительного обновления
+     * Использование: добавьте ?forceUpdate=1 к URL
+     */
+    checkForceUpdateParam() {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('forceUpdate') === '1') {
+            console.log('[VersionChecker] Force update parameter detected');
+            // Удаляем параметр из URL
+            urlParams.delete('forceUpdate');
+            const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+            window.history.replaceState({}, '', newUrl);
+            // Принудительно обновляем
+            this.forceUpdate();
+        }
+    }
+
+    /**
      * Проверяет, есть ли новая версия
      * Делает запрос к index.html и проверяет версию в мета-теге или через Service Worker
      */
     async checkForUpdate() {
         try {
+            // КРИТИЧНО: добавляем timestamp чтобы минуя Service Worker и браузерный кеш
+            const cacheBuster = `_v=${Date.now()}`;
+
             // Запрашиваем index.html с принудительным обновлением (bypass cache)
-            const response = await fetch('/', {
+            const response = await fetch(`/?${cacheBuster}`, {
                 method: 'GET',
                 cache: 'no-store',
                 headers: {
                     'Cache-Control': 'no-cache, no-store, must-revalidate',
-                    'Pragma': 'no-cache'
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
                 }
             });
 
@@ -256,33 +280,39 @@ class VersionChecker {
         console.log('[VersionChecker] Forcing update...');
 
         try {
-            // Если есть Service Worker - активируем ожидающий
+            // Шаг 1: Очищаем все кеши ПЕРЕД активацией нового SW
+            if ('caches' in window) {
+                const cacheNames = await caches.keys();
+                console.log('[VersionChecker] Clearing caches:', cacheNames);
+                await Promise.all(cacheNames.map(name => caches.delete(name)));
+                console.log('[VersionChecker] All caches cleared');
+            }
+
+            // Шаг 2: Если есть Service Worker - активируем ожидающий
             if ('serviceWorker' in navigator) {
                 const registration = await navigator.serviceWorker.getRegistration();
-                if (registration && registration.waiting) {
-                    // Отправляем сообщение waiting SW для активации
-                    registration.waiting.postMessage({ type: 'SKIP_WAITING' });
 
-                    // Ждём активации и перезагружаем
-                    navigator.serviceWorker.addEventListener('controllerchange', () => {
-                        window.location.reload();
-                    });
-                    return;
+                // Отменяем регистрацию старого SW для принудительного обновления
+                if (registration) {
+                    console.log('[VersionChecker] Unregistering old service worker...');
+                    await registration.unregister();
+                    console.log('[VersionChecker] Service worker unregistered');
                 }
             }
 
-            // Очищаем кэш и перезагружаем
-            if ('caches' in window) {
-                const cacheNames = await caches.keys();
-                await Promise.all(cacheNames.map(name => caches.delete(name)));
-                console.log('[VersionChecker] Caches cleared');
-            }
+            // Шаг 3: Очищаем localStorage и sessionStorage (опционально, осторожно!)
+            // sessionStorage.clear(); // Раскомментируйте если нужно
 
-            // Hard reload (минуя кэш)
-            window.location.reload(true);
+            // Шаг 4: Hard reload с cache bypass
+            console.log('[VersionChecker] Performing hard reload...');
+
+            // Для мобильных браузеров - используем location.replace с timestamp
+            const timestamp = Date.now();
+            window.location.replace(`${window.location.pathname}?_reload=${timestamp}`);
+
         } catch (error) {
             console.error('[VersionChecker] Force update failed:', error);
-            // Просто перезагружаем
+            // Fallback: просто перезагружаем
             window.location.reload();
         }
     }

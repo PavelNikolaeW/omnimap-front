@@ -68,6 +68,12 @@ module.exports = {
                     to: 'config/config.js', // Путь соответствует index.html: /config/config.js
                     noErrorOnMissing: true,
                 },
+                // Страница принудительного обновления
+                {
+                    from: 'public/force-update.html',
+                    to: 'force-update.html',
+                    noErrorOnMissing: true,
+                },
             ],
         }),
     ],
