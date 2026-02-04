@@ -509,9 +509,14 @@ function setInterface() {
         const sel = window.getSelection();
         const currentLength = sel?.toString().trim().length || 0;
 
+        // Не сбрасываем выделение если клик был на текстовом элементе
+        // (пользователь мог выделять текст)
+        const isTextElement = e.target.closest('titleblock, contentblock');
+
         // Если выделение не изменилось или уменьшилось - сбрасываем
         // (при тройном клике выделение увеличивается)
-        if (currentLength > 0 && currentLength <= lastSelectionLength) {
+        // Но не сбрасываем если клик был на текстовом элементе
+        if (currentLength > 0 && currentLength <= lastSelectionLength && !isTextElement) {
             sel.removeAllRanges();
         }
 
