@@ -2,7 +2,7 @@ import {Popup} from "./popup";
 import {pollTaskStatus} from "../../api/api";
 import {customConfirm} from "../../utils/custom-dialog";
 import chatApi from "../../api/chatApi";
-import {GroupChatView} from "./groupChatView";
+import { openUnifiedChat } from "./unifiedChatPanel";
 import {dispatch} from "../../utils/utils";
 
 /**
@@ -696,10 +696,10 @@ export class AccessPopup extends Popup {
      */
     openGroupChat(chat) {
         this.close();
-        new GroupChatView({
-            id: chat.id,
-            name: chat.name,
-            is_admin: chat.is_admin || false
+        openUnifiedChat({
+            tab: 'group',
+            chatId: chat.id,
+            chatData: chat
         });
     }
 

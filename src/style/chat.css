@@ -2156,3 +2156,8 @@
         background: var(--bg-tertiary, #334155);
     }
 }
+
+/* Utility classes */
+.hidden {
+    display: none !important;
+}
