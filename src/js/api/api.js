@@ -78,11 +78,8 @@ class Api {
                     // Если нет refresh токена - сразу диспатчим SessionExpired
                     const hasRefreshToken = !!Cookies.get('refresh');
                     if (!hasRefreshToken) {
+                        this._clearCredentials();
                         dispatch('SessionExpired');
-                        // Очищаем токены и заголовки
-                        Cookies.remove('access', { path: '/' });
-                        Cookies.remove('refresh', { path: '/' });
-                        delete this.api.defaults.headers.common['Authorization'];
                         return Promise.reject(error);
                     }
 
@@ -92,20 +89,14 @@ class Api {
                             return this.api(originalRequest);
                         } else {
                             // Refresh не удался - диспатчим SessionExpired
+                            this._clearCredentials();
                             dispatch('SessionExpired');
-                            // Очищаем токены и заголовки
-                            Cookies.remove('access', { path: '/' });
-                            Cookies.remove('refresh', { path: '/' });
-                            delete this.api.defaults.headers.common['Authorization'];
                             return Promise.reject(error);
                         }
                     } catch (refreshError) {
                         // Ошибка при refresh - диспатчим SessionExpired
+                        this._clearCredentials();
                         dispatch('SessionExpired');
-                        // Очищаем токены и заголовки
-                        Cookies.remove('access', { path: '/' });
-                        Cookies.remove('refresh', { path: '/' });
-                        delete this.api.defaults.headers.common['Authorization'];
                         return Promise.reject(refreshError);
                     }
                 }
@@ -213,12 +204,19 @@ class Api {
             })
     }
 
-    logout() {
-        // Используем те же опции path что и при установке, иначе cookies не удалятся
+    /**
+     * Приватный метод для очистки токенов и заголовков авторизации
+     * Используется в logout() и при SessionExpired
+     */
+    _clearCredentials() {
         Cookies.remove('access', { path: '/' });
         Cookies.remove('refresh', { path: '/' });
-        dispatch('Logout')
         delete this.api.defaults.headers.common['Authorization'];
+    }
+
+    logout() {
+        this._clearCredentials();
+        dispatch('Logout');
     }
 
     /**

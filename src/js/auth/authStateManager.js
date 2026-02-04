@@ -175,16 +175,8 @@ class AuthStateManager {
     }
 
     handleSessionExpired() {
-        this.isAuthenticated = false;
-        this.currentUser = null;
-        this.updateUI();
-        this._clearRefreshTimer();
-        this._retryCount = 0;
-
-        // Очищаем пользователя для error tracking
-        if (window.__errorTracker) {
-            window.__errorTracker.clearUser();
-        }
+        // SessionExpired использует ту же логику что и Logout
+        this.handleLogout();
     }
 
     handleAnonimUser() {
