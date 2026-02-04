@@ -139,7 +139,12 @@ export class Popup {
         document.body.appendChild(this.overlay);
 
         if (this.options.closeOnOverlay) {
-            this.overlay.addEventListener('click', () => this.handleCancel());
+            this.overlay.addEventListener('click', (e) => {
+                // Закрываем только если клик был именно на overlay, а не на popup
+                if (e.target === this.overlay) {
+                    this.handleCancel();
+                }
+            });
         }
     }
 
@@ -327,6 +332,17 @@ export class Popup {
     handleKeyDown(e) {
         if (e.key === 'Escape') {
             this.handleCancel();
+        } else if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+            // Enter сохраняет форму, если только это не textarea и не multiline input
+            const target = e.target;
+            const isTextarea = target.tagName === 'TEXTAREA';
+            const isContentEditable = target.isContentEditable || target.getAttribute('contenteditable') === 'true';
+
+            // Не закрываем если это textarea или contenteditable
+            if (!isTextarea && !isContentEditable) {
+                e.preventDefault();
+                this.handleSubmit();
+            }
         }
     }
 
