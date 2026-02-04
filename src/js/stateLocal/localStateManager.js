@@ -309,6 +309,9 @@ export class LocalStateManager {
         window.addEventListener('SetBorderColor', async (e) => {
             this.borderColorUpdate(e.detail);
         });
+        window.addEventListener('SetBorderColorBatch', async (e) => {
+            this.borderColorBatchUpdate(e.detail);
+        });
         window.addEventListener('SetIframe', async (e) => {
             this.setIframe(e.detail);
         });
@@ -3445,6 +3448,38 @@ export class LocalStateManager {
             type: 'updateBlock',
             data: { id: blockId }
         });
+
+        dispatch('ShowBlocks');
+    }
+
+    async borderColorBatchUpdate({blockIds, borderColor}) {
+        if (!Array.isArray(blockIds) || blockIds.length === 0) return;
+
+        for (const blockId of blockIds) {
+            const block = this.blocks.get(blockId);
+            if (!block) continue;
+
+            const parentBlock = block.parent_id ? this.blocks.get(block.parent_id) : null;
+            if (!canEditInSandbox(block, parentBlock, this.currentUser)) continue;
+
+            const beforeState = JSON.parse(JSON.stringify(block));
+
+            if (!block.data) block.data = {};
+            if (borderColor) {
+                block.data.borderColor = borderColor;
+            } else {
+                delete block.data.borderColor;
+            }
+            block.updated_at = new Date().toISOString();
+            await this.saveBlock(block);
+
+            undoManager.recordEdit(blockId, beforeState, block);
+            offlineQueue.registerPendingBlock(blockId);
+            await offlineQueue.enqueue({
+                type: 'updateBlock',
+                data: { id: blockId }
+            });
+        }
 
         dispatch('ShowBlocks');
     }
