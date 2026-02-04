@@ -332,7 +332,7 @@ export class Popup {
     }
 
     handleKeyDown(e) {
-        if (e.key === 'Escape') {
+        if (this.options.closeOnEsc && e.key === 'Escape') {
             this.handleCancel();
         } else if (this.options.closeOnEnter && e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
             // Enter сохраняет форму, если только это не textarea и не multiline input
