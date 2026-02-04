@@ -232,6 +232,11 @@ export class NoteEditor {
             window.dispatchEvent(event);
         }
 
+        // Убираем фокус с textarea, чтобы мобильный браузер сбросил зум
+        if (this.editorEl) {
+            this.editorEl.blur();
+        }
+
         // cleanup
         // Отписываемся от WebSocket обновлений
         window.removeEventListener('WebSocUpdateBlock', this._handleExternalUpdate);
