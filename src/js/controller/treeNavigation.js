@@ -2,7 +2,7 @@
  * TreeNavigation - компонент навигации по деревьям
  * Отображает кнопки для переключения между корневыми блоками
  */
-import { truncate } from '../utils/functions';
+import { truncate, normalizeParentId } from '../utils/functions';
 import { dispatch } from '../utils/utils';
 import { treeService } from '../services/treeService';
 import { customPrompt } from '../utils/custom-dialog';
@@ -97,7 +97,7 @@ export class TreeNavigation {
         if (!updates?.length) return;
 
         // Проверяем, есть ли среди обновлений корневые блоки (без parent_id)
-        const hasTreeUpdate = updates.some(block => !block.parent_id);
+        const hasTreeUpdate = updates.some(block => !normalizeParentId(block.parent_id));
         if (hasTreeUpdate) {
             await treeService.refresh();
             await this.render();
