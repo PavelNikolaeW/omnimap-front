@@ -351,11 +351,13 @@ export class LocalStateManager {
             else document.body.classList.remove('loading-cursor');
         })
         window.addEventListener('WebSocUpdateBlock', async (e) => {
-            await this.webSocUpdateBlock(e.detail);
-        })
-        // При переподключении (ответ на get_updates) проверяем недостающие дочерние блоки
-        window.addEventListener('ReconnectBlocksReceived', async (e) => {
-            await this.fetchMissingChildren(e.detail);
+            const detail = e.detail;
+            const isReconnect = detail?.isReconnect || false;
+            const blocks = isReconnect ? detail.blocks : detail;
+            await this.webSocUpdateBlock(blocks);
+            if (isReconnect) {
+                await this.fetchMissingChildren(blocks);
+            }
         })
         window.addEventListener('WebSocUpdateBlockAccess', async (e) => {
             await this.WebSocUpdateBlockAccess(e.detail)
@@ -1642,7 +1644,7 @@ export class LocalStateManager {
                 if (!savedBlock) continue;
 
                 const serverChildren = this._safeJsonParse(block.children, []);
-                const childOrder = savedBlock.data?.childOrder || [];
+                const childOrder = [...(savedBlock.data?.childOrder || [])];
                 let updated = false;
 
                 for (const childId of serverChildren) {
