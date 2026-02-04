@@ -185,6 +185,18 @@ export class CommandManager {
                 return
             }
 
+            // Проверка на клик по только что созданному блоку (защита для мобильных)
+            const {element, link} = this.ctxManager.getRelevantElements(target)
+            const clickedElement = element || link
+            if (clickedElement) {
+                const blockId = clickedElement.id?.split('*').pop()
+                if (blockId && this.ctxManager.recentlyCreatedBlocks.has(blockId)) {
+                    // Блок был только что создан, игнорируем клик (рендеринг может быть не завершён)
+                    event.preventDefault()
+                    return
+                }
+            }
+
             // В режиме диаграммы - не открывать дочерние блоки при клике
             if (this.ctxManager.mode === 'diagram') {
                 const diagramBlock = this.ctxManager.diagramUtils?.element

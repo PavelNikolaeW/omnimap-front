@@ -23,6 +23,12 @@ export class ContextManager {
         // Отслеживание кликнутого anchor point для соединений
         this.clickedAnchor = null  // { blockId, position } или null
 
+        // Защита от клика по только что созданным блокам (для мобильных)
+        this.recentlyCreatedBlocks = new Set()  // Set<blockId>
+
+        // Защита от двойной обработки touch/mouse событий на мобильных
+        this.lastTouchTime = 0
+
         this.rootContainer = rootContainer
         this.breadcrumb = breadcrumb
         this.treeNavigation = treeNavigation
@@ -41,6 +47,11 @@ export class ContextManager {
         // Обработка выбора блока в режиме диаграммы
         window.addEventListener('DiagramBlockSelected', (e) => {
             this.handleDiagramBlockSelected(e.detail);
+        });
+
+        // Отслеживание создания новых блоков для защиты от преждевременных кликов
+        window.addEventListener('UpdateBlocks', (e) => {
+            this.handleBlocksCreated(e.detail);
         });
 
         this.rootContainer.addEventListener('mouseover', this.mouseOverBlockHandlerBound);
@@ -81,6 +92,28 @@ export class ContextManager {
 
         // Добавить визуальное выделение
         this.addActiveClass();
+    }
+
+    /**
+     * Отслеживание создания новых блоков для защиты от преждевременных кликов
+     */
+    handleBlocksCreated(blocks) {
+        if (!blocks || !Array.isArray(blocks)) return;
+
+        // Адаптивный timeout: дольше для мобильных (400ms) и короче для desktop (200ms)
+        const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        const protectionTime = isMobile ? 400 : 200;
+
+        blocks.forEach(block => {
+            if (block && block.id) {
+                this.recentlyCreatedBlocks.add(block.id);
+
+                // Удалить блок из защищённого списка через timeout
+                setTimeout(() => {
+                    this.recentlyCreatedBlocks.delete(block.id);
+                }, protectionTime);
+            }
+        });
     }
 
     keydownHandler(e) {
@@ -144,6 +177,17 @@ export class ContextManager {
     }
 
     mouseOverBlockHandler(event) {
+        // Защита от двойной обработки: игнорировать mouse события после touch
+        const now = Date.now();
+        if (event.type === 'touchstart' || event.type === 'touchend') {
+            this.lastTouchTime = now;
+        } else if (event.type.startsWith('mouse')) {
+            // Игнорировать mouse событие если недавно был touch (в течение 500ms)
+            if (now - this.lastTouchTime < 500) {
+                return;
+            }
+        }
+
         // Проверить наведение на anchor point для режима соединений
         if (event.target.classList.contains('anchor-point')) {
             this.clickedAnchor = {
@@ -178,6 +222,17 @@ export class ContextManager {
     }
 
     mouseOutBlockHandler(event) {
+        // Защита от двойной обработки: игнорировать mouse события после touch
+        const now = Date.now();
+        if (event.type === 'touchstart' || event.type === 'touchend') {
+            this.lastTouchTime = now;
+        } else if (event.type.startsWith('mouse')) {
+            // Игнорировать mouse событие если недавно был touch (в течение 500ms)
+            if (now - this.lastTouchTime < 500) {
+                return;
+            }
+        }
+
         const relatedTarget = event.relatedTarget
         if (!this.shiftLock) {
             this.setDisActiveBlock(relatedTarget)
@@ -214,6 +269,14 @@ export class ContextManager {
     }
 
     mouseOverTreeHandler(event) {
+        // Защита от двойной обработки touch/mouse
+        const now = Date.now();
+        if (event.type === 'touchstart' || event.type === 'touchend') {
+            this.lastTouchTime = now;
+        } else if (event.type.startsWith('mouse') && now - this.lastTouchTime < 500) {
+            return;
+        }
+
         if (event.target.hasAttribute('blockid')) {
             this.blockId = event.target.getAttribute('blockid')
             this.isTree = true
@@ -224,6 +287,14 @@ export class ContextManager {
     }
 
     mouseOutTreeHandler(event) {
+        // Защита от двойной обработки touch/mouse
+        const now = Date.now();
+        if (event.type === 'touchstart' || event.type === 'touchend') {
+            this.lastTouchTime = now;
+        } else if (event.type.startsWith('mouse') && now - this.lastTouchTime < 500) {
+            return;
+        }
+
         this.blockId = undefined
         this.isTree = false
         if (this.mode === 'cutBlock' && !this.cutIsMultiple && this.cut) {
@@ -232,6 +303,14 @@ export class ContextManager {
     }
 
     mouseOverBreadcrumbHandler(event) {
+        // Защита от двойной обработки touch/mouse
+        const now = Date.now();
+        if (event.type === 'touchstart' || event.type === 'touchend') {
+            this.lastTouchTime = now;
+        } else if (event.type.startsWith('mouse') && now - this.lastTouchTime < 500) {
+            return;
+        }
+
         if (event.target.hasAttribute('blockid')) {
             this.blockId = event.target.getAttribute('blockid')
         }
@@ -241,6 +320,14 @@ export class ContextManager {
     }
 
     mouseOutBreadcrumbHandler(event) {
+        // Защита от двойной обработки touch/mouse
+        const now = Date.now();
+        if (event.type === 'touchstart' || event.type === 'touchend') {
+            this.lastTouchTime = now;
+        } else if (event.type.startsWith('mouse') && now - this.lastTouchTime < 500) {
+            return;
+        }
+
         this.blockId = undefined
         if (this.mode === 'cutBlock' && !this.cutIsMultiple && this.cut) {
             this.cut['new_parent_id'] = undefined

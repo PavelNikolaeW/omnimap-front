@@ -23,8 +23,11 @@
     z-index: 10;
 }
 
-.block:hover .layout-indicator {
-    opacity: 1;
+/* Hover только на устройствах с мышью */
+@media (hover: hover) and (pointer: fine) {
+    .block:hover .layout-indicator {
+        opacity: 1;
+    }
 }
 
 /* Иконки для разных типов layout */
