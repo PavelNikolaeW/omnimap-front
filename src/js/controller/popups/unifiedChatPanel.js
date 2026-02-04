@@ -682,13 +682,20 @@ export class UnifiedChatPanel {
         };
         this.container.querySelector('#sidebar-title').textContent = titles[tab];
 
-        // Update new chat button text
-        const newBtnTexts = {
-            [CHAT_TYPES.AI]: '+ Новый',
-            [CHAT_TYPES.DM]: '+ Найти',
-            [CHAT_TYPES.GROUP]: '+ Создать'
-        };
-        this.container.querySelector('#new-chat-btn').textContent = newBtnTexts[tab];
+        // Update new chat button text and visibility
+        const newChatBtn = this.container.querySelector('#new-chat-btn');
+        if (tab === CHAT_TYPES.GROUP) {
+            // Для групповых чатов скрываем кнопку создания
+            // Групповые чаты создаются только через права на блок (там автоматически добавляются все участники)
+            newChatBtn.style.display = 'none';
+        } else {
+            newChatBtn.style.display = '';
+            const newBtnTexts = {
+                [CHAT_TYPES.AI]: '+ Новый',
+                [CHAT_TYPES.DM]: '+ Найти'
+            };
+            newChatBtn.textContent = newBtnTexts[tab];
+        }
 
         // Show/hide attach button (only for P2P chats)
         this.updateAttachButtonVisibility();
@@ -1117,10 +1124,22 @@ export class UnifiedChatPanel {
         welcome.style.display = '';
 
         if (!this.activeChat) {
-            welcome.innerHTML = `
-                <h3>Добро пожаловать в чаты</h3>
-                <p>Выберите чат из списка слева или создайте новый</p>
-            `;
+            // Специальное сообщение для вкладки групповых чатов
+            if (this.activeTab === CHAT_TYPES.GROUP) {
+                welcome.innerHTML = `
+                    <h3>Групповые чаты</h3>
+                    <p>Групповые чаты создаются через права доступа к блокам.</p>
+                    <p style="margin-top: 1em; opacity: 0.7;">
+                        Откройте блок → Настройки → "Создать чат для этого блока".<br>
+                        Все пользователи с правами на блок будут автоматически добавлены в чат.
+                    </p>
+                `;
+            } else {
+                welcome.innerHTML = `
+                    <h3>Добро пожаловать в чаты</h3>
+                    <p>Выберите чат из списка слева или создайте новый</p>
+                `;
+            }
         } else {
             const texts = {
                 [CHAT_TYPES.AI]: '<h3>Начните диалог с AI</h3><p>Задайте вопрос или опишите задачу</p>',
@@ -2354,7 +2373,15 @@ export class UnifiedChatPanel {
 // Singleton
 let unifiedChatInstance = null;
 
-export function openUnifiedChat() {
+/**
+ * Открывает единую панель чатов
+ * @param {Object} [options] - Опции открытия
+ * @param {string} [options.tab] - Вкладка для открытия ('ai'|'dm'|'group')
+ * @param {string|number} [options.chatId] - ID чата для открытия
+ * @param {Object} [options.chatData] - Данные чата (если известны)
+ * @returns {UnifiedChatPanel} Инстанс панели чатов
+ */
+export function openUnifiedChat(options = {}) {
     if (unifiedChatInstance) {
         unifiedChatInstance.close();
         unifiedChatInstance = null;
@@ -2370,6 +2397,69 @@ export function openUnifiedChat() {
         // Store references for patch applier
         unifiedChatInstance._localStateManager = lsm;
         unifiedChatInstance._undoManager = window.undoManager;
+    }
+
+    // Если переданы параметры для открытия конкретного чата
+    if (options.tab && options.chatId) {
+        // Переключаем вкладку
+        unifiedChatInstance.switchTab(options.tab);
+
+        // Открываем чат после небольшой задержки (чтобы данные успели загрузиться)
+        setTimeout(async () => {
+            try {
+                // Ищем чат в загруженных данных
+                let chatItem = null;
+                const chatId = options.tab === CHAT_TYPES.DM ? Number(options.chatId) : options.chatId;
+
+                if (options.tab === CHAT_TYPES.DM) {
+                    const conv = unifiedChatInstance.dmConversations.find(c => c.user_id === chatId);
+                    if (conv) {
+                        chatItem = {
+                            type: CHAT_TYPES.DM,
+                            id: chatId,
+                            title: conv.username || `User ${chatId}`,
+                            data: conv
+                        };
+                    } else if (options.chatData) {
+                        // Добавляем чат в список, если его там нет
+                        unifiedChatInstance.dmConversations.unshift(options.chatData);
+                        unifiedChatInstance.renderChatList();
+                        chatItem = {
+                            type: CHAT_TYPES.DM,
+                            id: chatId,
+                            title: options.chatData.username || `User ${chatId}`,
+                            data: options.chatData
+                        };
+                    }
+                } else if (options.tab === CHAT_TYPES.GROUP) {
+                    const group = unifiedChatInstance.groups.find(g => g.id === chatId);
+                    if (group) {
+                        chatItem = {
+                            type: CHAT_TYPES.GROUP,
+                            id: chatId,
+                            title: group.name,
+                            data: group
+                        };
+                    } else if (options.chatData) {
+                        // Добавляем чат в список, если его там нет
+                        unifiedChatInstance.groups.unshift(options.chatData);
+                        unifiedChatInstance.renderChatList();
+                        chatItem = {
+                            type: CHAT_TYPES.GROUP,
+                            id: chatId,
+                            title: options.chatData.name,
+                            data: options.chatData
+                        };
+                    }
+                }
+
+                if (chatItem) {
+                    await unifiedChatInstance.selectChat(chatItem);
+                }
+            } catch (error) {
+                console.error('Failed to open specific chat:', error);
+            }
+        }, 300);
     }
 
     return unifiedChatInstance;

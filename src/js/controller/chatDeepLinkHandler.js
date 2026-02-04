@@ -10,8 +10,7 @@
  * - OpenGroupChat - Открыть групповой чат (от push notifications)
  */
 
-import { ConversationView } from './popups/conversationView.js';
-import { GroupChatView } from './popups/groupChatView.js';
+import { openUnifiedChat } from './popups/unifiedChatPanel.js';
 import chatApi from '../api/chatApi.js';
 
 const LOG_PREFIX = '[ChatDeepLink]';
@@ -104,6 +103,7 @@ export async function openDirectChatById(userId, username = null) {
     try {
         // Если username не передан, пробуем найти в conversations
         let displayName = username;
+        let conversationData = null;
 
         if (!displayName) {
             try {
@@ -112,16 +112,26 @@ export async function openDirectChatById(userId, username = null) {
                 const existing = conversations.find(c => c.user_id === numericUserId);
                 if (existing) {
                     displayName = existing.username;
+                    conversationData = existing;
                 }
             } catch (e) {
                 console.warn(LOG_PREFIX, 'Failed to fetch conversations', e);
             }
         }
 
-        // Открываем чат
-        new ConversationView({
-            user_id: numericUserId,
-            username: displayName || `User ${numericUserId}`
+        // Если чата нет в списке, создаем минимальный объект
+        if (!conversationData) {
+            conversationData = {
+                user_id: numericUserId,
+                username: displayName || `User ${numericUserId}`
+            };
+        }
+
+        // Открываем UnifiedChatPanel с параметрами
+        openUnifiedChat({
+            tab: 'dm',
+            chatId: numericUserId,
+            chatData: conversationData
         });
 
     } catch (error) {
@@ -146,8 +156,12 @@ export async function openGroupChatById(groupId) {
             return;
         }
 
-        // Открываем чат группы
-        new GroupChatView(group);
+        // Открываем UnifiedChatPanel с параметрами
+        openUnifiedChat({
+            tab: 'group',
+            chatId: group.id,
+            chatData: group
+        });
 
     } catch (error) {
         console.error(LOG_PREFIX, 'Failed to open group chat', error);
