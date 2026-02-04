@@ -76,9 +76,9 @@ class Api {
                     originalRequest._retry = true;
 
                     // Если нет refresh токена - сразу диспатчим SessionExpired
+                    // Очистка токенов происходит в обработчике SessionExpired в localStateManager
                     const hasRefreshToken = !!Cookies.get('refresh');
                     if (!hasRefreshToken) {
-                        this._clearCredentials();
                         dispatch('SessionExpired');
                         return Promise.reject(error);
                     }
@@ -89,13 +89,13 @@ class Api {
                             return this.api(originalRequest);
                         } else {
                             // Refresh не удался - диспатчим SessionExpired
-                            this._clearCredentials();
+                            // Очистка токенов происходит в обработчике SessionExpired в localStateManager
                             dispatch('SessionExpired');
                             return Promise.reject(error);
                         }
                     } catch (refreshError) {
                         // Ошибка при refresh - диспатчим SessionExpired
-                        this._clearCredentials();
+                        // Очистка токенов происходит в обработчике SessionExpired в localStateManager
                         dispatch('SessionExpired');
                         return Promise.reject(refreshError);
                     }

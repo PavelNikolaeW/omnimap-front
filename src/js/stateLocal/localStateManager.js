@@ -267,6 +267,11 @@ export class LocalStateManager {
             if (this._sessionExpiredHandled) return;
             this._sessionExpiredHandled = true;
 
+            // Очищаем токены и заголовки авторизации
+            // Это гарантирует очистку независимо от источника SessionExpired
+            // (api.js, webSocket.js, authStateManager.js)
+            api._clearCredentials();
+
             await this._cleanupUserData();
 
             // Проверяем, онлайн ли мы
@@ -3771,12 +3776,6 @@ export class LocalStateManager {
             this.showSessionExpiredScreen();
         };
         window.addEventListener('online', onlineHandler);
-    }
-
-    showLoginScreen() {
-        // При явном выходе пользователя просто перезагружаем страницу
-        // чтобы показать обычные блоки входа без сообщения о истечении сессии
-        window.location.reload();
     }
 
     showOfflineLogoutScreen() {
