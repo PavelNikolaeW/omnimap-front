@@ -47,6 +47,7 @@ import {onboardingManager} from "./onboarding";
 import {toastManager} from "./controller/toastManager";
 import {accessRequestsBadgeManager} from "./controller/accessRequestsBadgeManager";
 import {openFullsizeImage} from "./utils/imageUtils";
+import {versionChecker} from "./core/versionChecker";
 
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
     // Храним ссылку на updatefound handler для возможности cleanup
@@ -277,6 +278,9 @@ async function fastInitialization() {
 
     // Инициализируем статус-индикаторы после того как интерфейс готов
     statusIndicators.init();
+
+    // Запускаем проверку версии для автоматических обновлений
+    versionChecker.start();
 
     // Скрываем загрузочный экран после полной инициализации
     hideLoader();

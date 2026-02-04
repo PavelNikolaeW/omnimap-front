@@ -174,6 +174,13 @@ async function processQueueInBackground() {
     });
 }
 
+// Обработчик активации Service Worker
+self.addEventListener('activate', event => {
+    console.log('[SW] Service Worker activated');
+    // Немедленно захватываем всех клиентов (включая текущую страницу)
+    event.waitUntil(self.clients.claim());
+});
+
 // Обработчик Background Sync события
 self.addEventListener('sync', event => {
     console.log('[SW] Sync event:', event.tag);
@@ -201,6 +208,12 @@ self.addEventListener('message', event => {
         self.registration.update().catch(err => {
             console.warn('[SW] Update check failed:', err);
         });
+    }
+
+    if (event.data && event.data.type === 'SKIP_WAITING') {
+        // Принудительная активация нового Service Worker
+        console.log('[SW] Skip waiting requested - activating new version');
+        self.skipWaiting();
     }
 });
 
