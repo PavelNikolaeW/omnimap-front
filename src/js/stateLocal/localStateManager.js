@@ -1415,7 +1415,7 @@ export class LocalStateManager {
                     }
 
                     // Если это корневой блок (дерево), добавляем через treeService
-                    if (!block.parent_id) {
+                    if (!normalizeParentId(block.parent_id)) {
                         await treeService.refresh();
                         if (!treeService.hasTree(block.id)) {
                             await treeService.addTree(block.id);
