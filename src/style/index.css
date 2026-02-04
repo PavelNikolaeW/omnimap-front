@@ -326,6 +326,17 @@ th {
     box-shadow: 0 0 5px rgba(0, 150, 255, 0.8);
 }
 
+/* Мобильные: увеличенная зона вставки перед блоком */
+@media (hover: none) and (pointer: coarse) {
+    .before-block {
+        width: 40px;
+        opacity: 0.7;
+        background-color: rgba(0, 150, 255, 0.25);
+        border: 2px dashed rgba(0, 150, 255, 0.6);
+        border-radius: 6px;
+    }
+}
+
 .block-tag-link {
 
 }

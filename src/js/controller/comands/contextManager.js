@@ -1,5 +1,7 @@
 import {DiagramUtils} from "../diagramUtils";
-import {extractBlockId, extractParentId} from "../../actions/selectionActions";
+import {extractBlockId, extractParentId, completeCutBlock} from "../../actions/selectionActions";
+import {isMobileOrTablet} from "../../utils/functions";
+import {dispatch} from "../../utils/utils";
 
 export class ContextManager {
     constructor(rootContainer, breadcrumb, treeNavigation) {
@@ -438,7 +440,11 @@ export class ContextManager {
         beforeBlockElement.setAttribute('parent_id', blockElement.parentNode.id);
         beforeBlockElement.classList.add('before-block');
 
-        // Устанавливаем позицию относительно родительского элемента
+        const isMobile = isMobileOrTablet();
+
+        // На мобильных — широкая зона для удобного тапа
+        const width = isMobile ? 40 : 15;
+        beforeBlockElement.style.width = `${width}px`;
         beforeBlockElement.style.height = `${blockElement.offsetHeight + 20}px`;
         beforeBlockElement.style.left = `${blockElement.offsetLeft - 10}px`;
         beforeBlockElement.style.top = `${blockElement.offsetTop - 10}px`;
@@ -446,23 +452,66 @@ export class ContextManager {
         blockElement.parentNode.insertBefore(beforeBlockElement, blockElement);
         this.beforeBlockElement = beforeBlockElement;
 
-        // Наведение мыши
-        beforeBlockElement.addEventListener('mouseover', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
+        const activateBeforeBlock = () => {
             beforeBlockElement.classList.add('before-block-hover');
-            this.cut['new_parent_id'] = blockElement.parentElement.id
+            this.cut['new_parent_id'] = blockElement.parentElement.id;
             this.cut['before'] = blockElement.id;
-        });
+        };
 
-        // Уход мыши
-        beforeBlockElement.addEventListener('mouseout', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
+        const deactivateBeforeBlock = () => {
             beforeBlockElement.classList.remove('before-block-hover');
             this.cut['before'] = undefined;
             this.cut['new_parent_id'] = undefined;
+        };
+
+        // Наведение мыши (десктоп)
+        beforeBlockElement.addEventListener('mouseover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            activateBeforeBlock();
         });
+
+        beforeBlockElement.addEventListener('mouseout', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            deactivateBeforeBlock();
+        });
+
+        // Тач-события: тап по before-block сразу выполняет вставку перед блоком
+        if (isMobile) {
+            beforeBlockElement.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                activateBeforeBlock();
+            }, { passive: false });
+
+            beforeBlockElement.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                // Выполняем вставку перед блоком напрямую
+                this._executePasteBefore();
+            }, { passive: false });
+        }
+    }
+
+    /**
+     * Выполнить вставку перед блоком (используется при тапе на before-block на мобильных)
+     */
+    _executePasteBefore() {
+        if (!this.beforeBlockElement || !this.cut) return;
+
+        const newParentId = this.beforeBlockElement.getAttribute('parent_id').split('*').at(-1);
+        const beforeId = this.beforeBlockElement.getAttribute('block_id');
+        const result = completeCutBlock(this.cut, newParentId, beforeId);
+        if (result.success) {
+            dispatch('MoveBlock', result.moveData);
+        }
+
+        this.beforeBlockElement.remove();
+        this.beforeBlockElement = undefined;
+        this.cut = undefined;
+        this.cutIsMultiple = false;
+        this.mode = 'normal';
     }
 
     // ========== Методы мульти-выделения ==========
