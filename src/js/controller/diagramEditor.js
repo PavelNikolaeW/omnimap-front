@@ -985,18 +985,24 @@ export class DiagramEditor {
             await this.moveBlockByDelta(this.draggedBlockId, deltaCol, deltaRow);
         }
 
+        // Установить флаг для предотвращения клика ТОЛЬКО если блок реально двигался
+        const wasMoved = deltaCol !== 0 || deltaRow !== 0;
+        if (wasMoved) {
+            this.justFinishedDrag = true;
+            // Адаптивный debounce: дольше для мобильных устройств (300ms) и короче для desktop (150ms)
+            const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+            const debounceTime = isMobile ? 300 : 150;
+            setTimeout(() => {
+                this.justFinishedDrag = false;
+            }, debounceTime);
+        }
+
         this.isDragging = false;
         this.draggedBlockId = null;
         this.dragStartCell = null;
         this.dragBlockSize = null;
         this.dragStartBlockPos = null;
         this.lastHighlightPos = null;  // Сбросить для следующего drag
-
-        // Установить флаг для предотвращения клика после drag
-        this.justFinishedDrag = true;
-        setTimeout(() => {
-            this.justFinishedDrag = false;
-        }, 100);
 
         // Деактивировать quick mode после завершения drag
         if (this.quickModeActive) {

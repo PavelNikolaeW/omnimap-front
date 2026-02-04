@@ -115,9 +115,11 @@ h6 {
     width: 100%;
 }
 
-/* При наведении курсора */
-.breadcrumb-item:hover {
-    text-decoration: underline;
+/* При наведении курсора (только для устройств с мышью) */
+@media (hover: hover) and (pointer: fine) {
+    .breadcrumb-item:hover {
+        text-decoration: underline;
+    }
 }
 
 /* Разделитель */
