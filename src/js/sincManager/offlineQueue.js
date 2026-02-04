@@ -558,10 +558,10 @@ class OfflineQueueManager {
             console.error('❌ Pull phase failed:', error);
             this.isPulling = false;
 
-            // Проверяем, является ли это сетевой ошибкой
-            const isNetworkError = this.isNetworkError(error);
-
-            if (isNetworkError) {
+            if (this.isThrottleError(error)) {
+                // 429 — сервер ограничил запросы, но связь есть
+                this.scheduleThrottleRetry(error);
+            } else if (this.isNetworkError(error)) {
                 // Сетевая ошибка - помечаем как офлайн и планируем retry
                 console.log('⚠️ Network error detected, marking as offline and scheduling retry...');
                 this.isOnline = false;
@@ -598,9 +598,9 @@ class OfflineQueueManager {
         if (status) {
             // 5xx - серверные ошибки, требуют retry
             // 408 - Request Timeout
-            // 429 - Too Many Requests
             // 0 - сетевая ошибка (браузер не смог выполнить запрос)
-            if (status >= 500 || status === 408 || status === 429 || status === 0) {
+            // 429 НЕ является сетевой ошибкой — обрабатывается отдельно через isThrottleError()
+            if (status >= 500 || status === 408 || status === 0) {
                 return true;
             }
         }
@@ -627,6 +627,62 @@ class OfflineQueueManager {
             message.includes('gateway timeout') ||
             message.includes('aborted')
         );
+    }
+
+    /**
+     * Проверяет, является ли ошибка троттлингом (429 Too Many Requests)
+     */
+    isThrottleError(error) {
+        if (!error) return false;
+        const status = error.status || error.response?.status;
+        return status === 429;
+    }
+
+    /**
+     * Возвращает задержку в мс из Retry-After заголовка или дефолтное значение
+     */
+    getRetryAfterMs(error) {
+        const DEFAULT_THROTTLE_DELAY_MS = 30000; // 30 секунд
+        const retryAfter = error.response?.headers?.['retry-after'];
+        if (!retryAfter) return DEFAULT_THROTTLE_DELAY_MS;
+
+        const seconds = parseInt(retryAfter, 10);
+        if (!isNaN(seconds)) return seconds * 1000;
+
+        // Retry-After может быть HTTP-date
+        const date = new Date(retryAfter);
+        if (!isNaN(date.getTime())) {
+            return Math.max(0, date.getTime() - Date.now());
+        }
+
+        return DEFAULT_THROTTLE_DELAY_MS;
+    }
+
+    /**
+     * Планирует retry после троттлинга (429) — без перевода в offline
+     */
+    scheduleThrottleRetry(error) {
+        if (this.retryTimer) {
+            clearTimeout(this.retryTimer);
+            this.retryTimer = null;
+        }
+
+        const delayMs = this.getRetryAfterMs(error);
+        console.log(`⏳ Rate limited (429), retrying in ${delayMs / 1000}s (not marking as offline)`);
+
+        this.retryTimer = setTimeout(async () => {
+            this.retryTimer = null;
+            try {
+                if (!this.pullCompleted) {
+                    await this.pullFromServer();
+                } else {
+                    await this.processQueue();
+                }
+            } catch (retryError) {
+                console.error('❌ Retry after throttle failed:', retryError);
+                this.scheduleRetry();
+            }
+        }, delayMs);
     }
 
     /**
@@ -1005,10 +1061,17 @@ class OfflineQueueManager {
             // Сигнализируем об окончании синхронизации (даже при ошибке)
             dispatch('ApiSyncFinished');
 
-            // Проверяем, является ли это сетевой ошибкой
-            const isNetworkError = this.isNetworkError(error);
+            if (this.isThrottleError(error)) {
+                // 429 — сервер ограничил запросы, но связь есть
+                dispatch('SyncCompleted', {
+                    successCount: 0,
+                    failedCount: queue.length,
+                    remainingCount: queue.length,
+                    error: 'Сервер ограничил запросы, повтор через некоторое время'
+                });
 
-            if (isNetworkError) {
+                this.scheduleThrottleRetry(error);
+            } else if (this.isNetworkError(error)) {
                 // Сетевая ошибка - помечаем как офлайн и планируем retry
                 console.log('⚠️ Network error in push phase, marking as offline and scheduling retry...');
                 this.isOnline = false;
