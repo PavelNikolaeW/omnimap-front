@@ -231,6 +231,12 @@ contentblock {
     pointer-events: auto;
 }
 
+/* Текст внутри блоков должен оставаться выделяемым */
+[data-shift-drag] [block][draggable="true"] titleblock,
+[data-shift-drag] [block][draggable="true"] contentblock {
+    pointer-events: auto;
+}
+
 [data-shift-drag] [block][draggable="true"]:active {
     cursor: grabbing;
 }
