@@ -94,14 +94,15 @@ export class UnifiedChatPanel {
         this.messagesContainer = null;
         this.messageInput = null;
 
-        this.init();
+        // Промис инициализации (для ожидания loadData)
+        this._initPromise = this.init();
     }
 
     async init() {
         this.currentUserId = await localforage.getItem('currentUser');
         this.render();
         this.bindEvents();
-        this.open();
+        await this.open();
     }
 
     // =====================================================
@@ -684,12 +685,11 @@ export class UnifiedChatPanel {
 
         // Update new chat button text and visibility
         const newChatBtn = this.container.querySelector('#new-chat-btn');
-        if (tab === CHAT_TYPES.GROUP) {
-            // Для групповых чатов скрываем кнопку создания
-            // Групповые чаты создаются только через права на блок (там автоматически добавляются все участники)
-            newChatBtn.style.display = 'none';
-        } else {
-            newChatBtn.style.display = '';
+        // Для групповых чатов скрываем кнопку создания
+        // Групповые чаты создаются только через права на блок (там автоматически добавляются все участники)
+        newChatBtn.classList.toggle('hidden', tab === CHAT_TYPES.GROUP);
+
+        if (tab !== CHAT_TYPES.GROUP) {
             const newBtnTexts = {
                 [CHAT_TYPES.AI]: '+ Новый',
                 [CHAT_TYPES.DM]: '+ Найти'
@@ -726,6 +726,47 @@ export class UnifiedChatPanel {
     // =====================================================
     // CHAT LIST
     // =====================================================
+
+    /**
+     * Безопасно добавляет чат в список, если его там еще нет
+     * @param {string} type - Тип чата ('dm' | 'group')
+     * @param {Object} chatData - Данные чата
+     * @returns {boolean} true если чат был добавлен, false если уже существует
+     */
+    ensureChatInList(type, chatData) {
+        if (type === CHAT_TYPES.DM) {
+            const userId = chatData.user_id || chatData.id;
+            const exists = this.dmConversations.find(c => c.user_id === userId || c.id === userId);
+            if (!exists) {
+                // Нормализуем данные для DM
+                const normalized = {
+                    user_id: userId,
+                    username: chatData.username || `User ${userId}`,
+                    avatar_url: chatData.avatar_url || null,
+                    last_message: chatData.last_message || null,
+                    unread_count: chatData.unread_count || 0
+                };
+                this.dmConversations.unshift(normalized);
+                return true;
+            }
+        } else if (type === CHAT_TYPES.GROUP) {
+            const exists = this.groups.find(g => g.id === chatData.id);
+            if (!exists) {
+                // Нормализуем данные для группы
+                const normalized = {
+                    id: chatData.id,
+                    name: chatData.name,
+                    members_count: chatData.members_count || 0,
+                    last_message: chatData.last_message || null,
+                    unread_count: chatData.unread_count || 0,
+                    is_admin: chatData.is_admin || false
+                };
+                this.groups.unshift(normalized);
+                return true;
+            }
+        }
+        return false;
+    }
 
     renderChatList() {
         this.chatList.innerHTML = '';
@@ -2401,18 +2442,26 @@ export function openUnifiedChat(options = {}) {
 
     // Если переданы параметры для открытия конкретного чата
     if (options.tab && options.chatId) {
-        // Переключаем вкладку
-        unifiedChatInstance.switchTab(options.tab);
+        // Захватываем ссылку на инстанс для безопасной работы в async контексте
+        const instance = unifiedChatInstance;
 
-        // Открываем чат после небольшой задержки (чтобы данные успели загрузиться)
-        setTimeout(async () => {
+        // Дожидаемся завершения инициализации (loadData) перед открытием чата
+        instance._initPromise.then(async () => {
+            // Проверяем что панель все еще открыта
+            if (!instance || !instance.isOpen) {
+                return;
+            }
+
             try {
+                // Переключаем вкладку
+                instance.switchTab(options.tab);
+
                 // Ищем чат в загруженных данных
                 let chatItem = null;
                 const chatId = options.tab === CHAT_TYPES.DM ? Number(options.chatId) : options.chatId;
 
                 if (options.tab === CHAT_TYPES.DM) {
-                    const conv = unifiedChatInstance.dmConversations.find(c => c.user_id === chatId);
+                    const conv = instance.dmConversations.find(c => c.user_id === chatId);
                     if (conv) {
                         chatItem = {
                             type: CHAT_TYPES.DM,
@@ -2421,9 +2470,9 @@ export function openUnifiedChat(options = {}) {
                             data: conv
                         };
                     } else if (options.chatData) {
-                        // Добавляем чат в список, если его там нет
-                        unifiedChatInstance.dmConversations.unshift(options.chatData);
-                        unifiedChatInstance.renderChatList();
+                        // Безопасно добавляем чат в список через метод
+                        instance.ensureChatInList(CHAT_TYPES.DM, options.chatData);
+                        instance.renderChatList();
                         chatItem = {
                             type: CHAT_TYPES.DM,
                             id: chatId,
@@ -2432,7 +2481,7 @@ export function openUnifiedChat(options = {}) {
                         };
                     }
                 } else if (options.tab === CHAT_TYPES.GROUP) {
-                    const group = unifiedChatInstance.groups.find(g => g.id === chatId);
+                    const group = instance.groups.find(g => g.id === chatId);
                     if (group) {
                         chatItem = {
                             type: CHAT_TYPES.GROUP,
@@ -2441,9 +2490,9 @@ export function openUnifiedChat(options = {}) {
                             data: group
                         };
                     } else if (options.chatData) {
-                        // Добавляем чат в список, если его там нет
-                        unifiedChatInstance.groups.unshift(options.chatData);
-                        unifiedChatInstance.renderChatList();
+                        // Безопасно добавляем чат в список через метод
+                        instance.ensureChatInList(CHAT_TYPES.GROUP, options.chatData);
+                        instance.renderChatList();
                         chatItem = {
                             type: CHAT_TYPES.GROUP,
                             id: chatId,
@@ -2454,12 +2503,14 @@ export function openUnifiedChat(options = {}) {
                 }
 
                 if (chatItem) {
-                    await unifiedChatInstance.selectChat(chatItem);
+                    await instance.selectChat(chatItem);
                 }
             } catch (error) {
                 console.error('Failed to open specific chat:', error);
             }
-        }, 300);
+        }).catch(error => {
+            console.error('Failed to initialize chat panel:', error);
+        });
     }
 
     return unifiedChatInstance;
