@@ -70,6 +70,12 @@ if (!document.getElementById(styleId)) {
     border: 1px solid #e5e7eb;
     border-radius: 8px;
     transition: border-color 0.2s, box-shadow 0.2s;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 42px;
+    max-height: 200px;
+    overflow-y: auto;
+    line-height: 1.5;
   }
   .custom-modal-input:focus {
     outline: none;
@@ -145,8 +151,10 @@ function showModal({ message, inputDefault, showInput, okText = 'OK', cancelText
     // Поле ввода (для prompt)
     let input;
     if (showInput) {
-      input = document.createElement('input');
-      input.className = 'custom-modal-input'; input.type = 'text'; input.value = typeof inputDefault === 'string' ? inputDefault : '';
+      input = document.createElement('textarea');
+      input.className = 'custom-modal-input';
+      input.rows = 1;
+      input.value = typeof inputDefault === 'string' ? inputDefault : '';
       input.setAttribute('data-testid', 'custom-dialog-input');
       modal.appendChild(input);
     }
@@ -170,7 +178,15 @@ function showModal({ message, inputDefault, showInput, okText = 'OK', cancelText
     if (input) {
       input.focus();
       // Запускаем очистку после следующего тика, чтобы убрать символ от хоткея
-      setTimeout(() => { input.value = typeof inputDefault === 'string' ? inputDefault : ''; }, 0);
+      setTimeout(() => {
+        const value = typeof inputDefault === 'string' ? inputDefault : '';
+        input.value = value;
+        // Если есть значение по умолчанию, переместить курсор в начало для удобства редактирования
+        if (value) {
+          input.setSelectionRange(0, 0);
+          input.scrollTop = 0;
+        }
+      }, 0);
     } else {
       // Для confirm-диалогов фокус на Cancel, чтобы предотвратить случайное подтверждение
       cancelBtn.focus();
@@ -192,7 +208,8 @@ function showModal({ message, inputDefault, showInput, okText = 'OK', cancelText
     overlay.addEventListener('keydown', e => {
       // Предотвращаем другие вводы внутри модалки
       e.stopPropagation();
-      if (e.key === 'Enter') { e.preventDefault(); okBtn.click(); }
+      // Enter (без Shift) подтверждает ввод, Shift+Enter создает новую строку в textarea
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); okBtn.click(); }
       if (e.key === 'Escape') { e.preventDefault(); cancelBtn.click(); }
     }, true);
   });
