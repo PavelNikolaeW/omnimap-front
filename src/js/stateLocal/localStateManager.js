@@ -282,8 +282,8 @@ export class LocalStateManager {
             const isOnline = navigator.onLine;
 
             if (isOnline) {
-                // Онлайн: загружаем публичные блоки
-                dispatch('InitAnonimUser');
+                // Онлайн: показываем экран входа без запроса к API
+                this.showLoginScreen();
             } else {
                 // Офлайн: показываем пустой экран с сообщением
                 this.showOfflineLogoutScreen();
@@ -3690,6 +3690,53 @@ export class LocalStateManager {
     /**
      * Показывает экран выхода в офлайн режиме
      */
+    /**
+     * Показывает экран входа при logout
+     * Очищает rootContainer и показывает сообщение о необходимости повторного входа
+     */
+    showLoginScreen() {
+        // Очищаем rootContainer
+        if (!this.rootContainer) return;
+        this.rootContainer.innerHTML = '';
+
+        // Устанавливаем анонимного пользователя в localforage
+        localforage.setItem('currentUser', 'anonim');
+
+        // Показываем сообщение о истечении сессии
+        const loginScreen = document.createElement('div');
+        loginScreen.className = 'session-expired-screen';
+        loginScreen.style.cssText = 'display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);';
+
+        const content = document.createElement('div');
+        content.style.cssText = 'background: white; border-radius: 12px; padding: 32px 24px; max-width: 380px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); text-align: center;';
+
+        const icon = document.createElement('div');
+        icon.style.cssText = 'font-size: 48px; margin-bottom: 16px; color: #667eea;';
+        icon.innerHTML = '<i class="fas fa-clock"></i>';
+
+        const title = document.createElement('h2');
+        title.textContent = 'Сессия истекла';
+        title.style.cssText = 'margin: 0 0 12px 0; font-size: 24px; font-weight: 600; color: #1a1a1a;';
+
+        const message = document.createElement('p');
+        message.textContent = 'Ваша сессия завершена. Пожалуйста, обновите страницу для повторного входа.';
+        message.style.cssText = 'margin: 0 0 24px 0; color: #666; font-size: 15px; line-height: 1.5;';
+
+        const button = document.createElement('button');
+        button.textContent = 'Обновить страницу';
+        button.style.cssText = 'width: 100%; padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 500; transition: background 0.2s;';
+        button.onmouseover = () => button.style.background = '#5568d3';
+        button.onmouseout = () => button.style.background = '#667eea';
+        button.onclick = () => window.location.reload();
+
+        content.appendChild(icon);
+        content.appendChild(title);
+        content.appendChild(message);
+        content.appendChild(button);
+        loginScreen.appendChild(content);
+        this.rootContainer.appendChild(loginScreen);
+    }
+
     showOfflineLogoutScreen() {
         // Очищаем rootContainer
         if (this.rootContainer) {
