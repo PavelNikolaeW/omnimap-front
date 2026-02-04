@@ -1567,10 +1567,12 @@ export const commands = [
     },
     {
         id: 'forceUpdate',
-        mode: ['normal'],
+        mode: ['normal', 'diagram', 'chat'], // Доступна во всех основных режимах
         description: 'Принудительное обновление приложения (очистка кеша)',
-        execute(ctx) {
-            const confirmed = confirm(
+        // Без defaultHotkey - команда доступна только через command palette
+        // Это сделано намеренно, чтобы избежать случайного вызова
+        async execute(ctx) {
+            const confirmed = await customConfirm(
                 'Принудительное обновление приложения\n\n' +
                 'Будут очищены все кеши и Service Worker.\n' +
                 'Приложение перезагрузится с новой версией.\n\n' +

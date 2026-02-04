@@ -12,6 +12,9 @@ class VersionChecker {
         this.currentVersion = APP_VERSION || 'unknown';
         this.checkTimer = null;
         this.isChecking = false;
+        // Сохраняем ссылки на обработчики для cleanup
+        this._onOnline = null;
+        this._onVisibilityChange = null;
     }
 
     /**
@@ -35,13 +38,14 @@ class VersionChecker {
         }, CHECK_INTERVAL);
 
         // Проверяем при восстановлении соединения
-        window.addEventListener('online', () => {
+        this._onOnline = () => {
             console.log('[VersionChecker] Network restored, checking for updates');
             this.checkNow();
-        });
+        };
+        window.addEventListener('online', this._onOnline);
 
         // Проверяем когда окно снова становится активным
-        document.addEventListener('visibilitychange', () => {
+        this._onVisibilityChange = () => {
             if (!document.hidden) {
                 const lastCheck = localStorage.getItem(LAST_CHECK_KEY);
                 const timeSinceLastCheck = Date.now() - (parseInt(lastCheck) || 0);
@@ -52,16 +56,27 @@ class VersionChecker {
                     this.checkNow();
                 }
             }
-        });
+        };
+        document.addEventListener('visibilitychange', this._onVisibilityChange);
     }
 
     /**
-     * Останавливает проверку версии
+     * Останавливает проверку версии и очищает все обработчики
      */
     stop() {
         if (this.checkTimer) {
             clearInterval(this.checkTimer);
             this.checkTimer = null;
+        }
+
+        // Очищаем event listeners
+        if (this._onOnline) {
+            window.removeEventListener('online', this._onOnline);
+            this._onOnline = null;
+        }
+        if (this._onVisibilityChange) {
+            document.removeEventListener('visibilitychange', this._onVisibilityChange);
+            this._onVisibilityChange = null;
         }
     }
 
@@ -109,13 +124,26 @@ class VersionChecker {
     checkForceUpdateParam() {
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('forceUpdate') === '1') {
+            // Защита от бесконечного цикла: проверяем не пытались ли мы уже обновиться
+            const updateAttempts = parseInt(sessionStorage.getItem('forceUpdateAttempts') || '0');
+            if (updateAttempts >= 3) {
+                console.warn('[VersionChecker] Too many force update attempts, aborting');
+                sessionStorage.removeItem('forceUpdateAttempts');
+                return;
+            }
+
             console.log('[VersionChecker] Force update parameter detected');
+            sessionStorage.setItem('forceUpdateAttempts', (updateAttempts + 1).toString());
+
             // Удаляем параметр из URL
             urlParams.delete('forceUpdate');
             const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
             window.history.replaceState({}, '', newUrl);
             // Принудительно обновляем
             this.forceUpdate();
+        } else {
+            // Успешная загрузка без forceUpdate параметра - сбрасываем счетчик
+            sessionStorage.removeItem('forceUpdateAttempts');
         }
     }
 
@@ -145,8 +173,8 @@ class VersionChecker {
 
             const html = await response.text();
 
-            // Парсим версию из HTML (ищем APP_VERSION в webpack-инжектированном коде)
-            const versionMatch = html.match(/APP_VERSION:\s*JSON\.stringify\("([^"]+)"\)/);
+            // Парсим версию из мета-тега (надежнее чем regex по JS коду)
+            const versionMatch = html.match(/<meta\s+name="app-version"\s+content="([^"]+)"/i);
 
             if (versionMatch) {
                 const serverVersion = versionMatch[1];
@@ -155,6 +183,8 @@ class VersionChecker {
                     console.log('[VersionChecker] New version detected:', serverVersion, 'current:', this.currentVersion);
                     return true;
                 }
+            } else {
+                console.warn('[VersionChecker] Could not parse version from HTML meta tag');
             }
 
             // Дополнительно проверяем Service Worker

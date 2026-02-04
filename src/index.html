@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>omniMap</title>
+    <!-- Версия приложения для versionChecker -->
+    <meta name="app-version" content="<%= htmlWebpackPlugin.options.appVersion || 'dev' %>">
     <!-- Критично: Запрет кэширования HTML для обновлений -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
