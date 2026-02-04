@@ -113,6 +113,8 @@ export class LocalStateManager {
         this._pendingRender = false;
         // Последнее отрендеренное дерево (для очистки кэша при смене)
         this._lastRenderedTree = null;
+        // Флаг для защиты от множественных SessionExpired
+        this._sessionExpiredHandled = false;
         // Инициализация слушателей событий
         this.registerEventHandlers();
     }
@@ -252,41 +254,36 @@ export class LocalStateManager {
         });
 
         window.addEventListener('Logout', async () => {
-            // Очищаем URL если есть параметры
-            if (window.location.search || window.location.hash) {
-                window.history.replaceState({}, '', window.location.pathname);
-            }
+            // Сбрасываем флаг SessionExpired при явном выходе
+            this._sessionExpiredHandled = false;
 
-            // Очищаем данные текущего пользователя из памяти
-            this.blocks.clear();
-            this.currentUser = null;
-            this.currentTree = null;
-            this.path = [];
+            // При явном выходе просто перезагружаем страницу
+            // Все данные будут очищены автоматически при reload
+            window.location.reload();
+        });
 
-            // Очищаем кэш картинок painter
-            if (this.painter && this.painter.clearImageCache) {
-                this.painter.clearImageCache();
-            }
+        window.addEventListener('SessionExpired', async () => {
+            // Guard: защита от множественных вызовов
+            if (this._sessionExpiredHandled) return;
+            this._sessionExpiredHandled = true;
 
-            // Очищаем данные из IndexedDB
-            await localforage.removeItem('currentTree');
-            await localforage.removeItem('currentUser');
+            // Очищаем токены и заголовки авторизации
+            // Это гарантирует очистку независимо от источника SessionExpired
+            // (api.js, webSocket.js, authStateManager.js)
+            api._clearCredentials();
 
-            // Скрываем UI элементы
-            const sidebar = document.getElementById('sidebar');
-            const topSidebar = document.getElementById('topSidebar');
-            if (sidebar) sidebar.classList.add('hidden');
-            if (topSidebar) topSidebar.classList.add('hidden');
+            await this._cleanupUserData();
 
             // Проверяем, онлайн ли мы
             const isOnline = navigator.onLine;
 
             if (isOnline) {
-                // Онлайн: показываем экран входа без запроса к API
-                this.showLoginScreen();
+                // Онлайн: показываем экран истечения сессии
+                this.showSessionExpiredScreen();
             } else {
-                // Офлайн: показываем пустой экран с сообщением
+                // Офлайн: показываем пустой экран с сообщением и ждем возвращения сети
                 this.showOfflineLogoutScreen();
+                this._setupOnlineListener();
             }
         });
 
@@ -3773,7 +3770,7 @@ export class LocalStateManager {
      * Показывает экран входа при logout
      * Очищает rootContainer и показывает сообщение о необходимости повторного входа
      */
-    showLoginScreen() {
+    showSessionExpiredScreen() {
         // Очищаем rootContainer
         if (!this.rootContainer) return;
         this.rootContainer.innerHTML = '';
@@ -3814,6 +3811,50 @@ export class LocalStateManager {
         content.appendChild(button);
         loginScreen.appendChild(content);
         this.rootContainer.appendChild(loginScreen);
+    }
+
+    /**
+     * Приватный метод для очистки данных пользователя
+     * Используется обработчиками Logout и SessionExpired
+     */
+    async _cleanupUserData() {
+        // Очищаем URL если есть параметры
+        if (window.location.search || window.location.hash) {
+            window.history.replaceState({}, '', window.location.pathname);
+        }
+
+        // Очищаем данные текущего пользователя из памяти
+        this.blocks.clear();
+        this.currentUser = null;
+        this.currentTree = null;
+        this.path = [];
+
+        // Очищаем кэш картинок painter
+        if (this.painter && this.painter.clearImageCache) {
+            this.painter.clearImageCache();
+        }
+
+        // Очищаем данные из IndexedDB
+        await localforage.removeItem('currentTree');
+        await localforage.removeItem('currentUser');
+
+        // Скрываем UI элементы
+        const sidebar = document.getElementById('sidebar');
+        const topSidebar = document.getElementById('topSidebar');
+        if (sidebar) sidebar.classList.add('hidden');
+        if (topSidebar) topSidebar.classList.add('hidden');
+    }
+
+    /**
+     * Настраивает слушатель для автоматического перехода на экран входа
+     * когда сеть восстанавливается после офлайн-режима
+     */
+    _setupOnlineListener() {
+        const onlineHandler = () => {
+            window.removeEventListener('online', onlineHandler);
+            this.showSessionExpiredScreen();
+        };
+        window.addEventListener('online', onlineHandler);
     }
 
     showOfflineLogoutScreen() {

@@ -75,10 +75,11 @@ class Api {
                 if (error.response?.status === 401 && !originalRequest._retry && !isRefreshRequest) {
                     originalRequest._retry = true;
 
-                    // Если нет refresh токена - сразу logout
+                    // Если нет refresh токена - сразу диспатчим SessionExpired
+                    // Очистка токенов происходит в обработчике SessionExpired в localStateManager
                     const hasRefreshToken = !!Cookies.get('refresh');
                     if (!hasRefreshToken) {
-                        this.logout();
+                        dispatch('SessionExpired');
                         return Promise.reject(error);
                     }
 
@@ -87,13 +88,15 @@ class Api {
                         if (tokenRefreshed) {
                             return this.api(originalRequest);
                         } else {
-                            // Refresh не удался - выходим из системы
-                            this.logout();
+                            // Refresh не удался - диспатчим SessionExpired
+                            // Очистка токенов происходит в обработчике SessionExpired в localStateManager
+                            dispatch('SessionExpired');
                             return Promise.reject(error);
                         }
                     } catch (refreshError) {
-                        // Ошибка при refresh - выходим из системы
-                        this.logout();
+                        // Ошибка при refresh - диспатчим SessionExpired
+                        // Очистка токенов происходит в обработчике SessionExpired в localStateManager
+                        dispatch('SessionExpired');
                         return Promise.reject(refreshError);
                     }
                 }
@@ -201,12 +204,19 @@ class Api {
             })
     }
 
-    logout() {
-        // Используем те же опции path что и при установке, иначе cookies не удалятся
+    /**
+     * Приватный метод для очистки токенов и заголовков авторизации
+     * Используется в logout() и при SessionExpired
+     */
+    _clearCredentials() {
         Cookies.remove('access', { path: '/' });
         Cookies.remove('refresh', { path: '/' });
-        dispatch('Logout')
         delete this.api.defaults.headers.common['Authorization'];
+    }
+
+    logout() {
+        this._clearCredentials();
+        dispatch('Logout');
     }
 
     /**

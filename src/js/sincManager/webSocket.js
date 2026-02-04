@@ -265,15 +265,17 @@ export class UpdateServiceWebSocket {
                     this.connect();
                 }, interval);
             } else {
-                // Refresh не удался - токены недействительны
-                console.error('WebSocket: token refresh failed, logging out');
+                // Refresh не удался - токены недействительны, сессия истекла
+                console.error('WebSocket: token refresh failed, session expired');
                 this.shouldReconnect = false;
-                api.logout();
+                this.disconnect();
+                dispatch('SessionExpired');
             }
         } catch (error) {
             console.error('WebSocket: token refresh error:', error);
             this.shouldReconnect = false;
-            api.logout();
+            this.disconnect();
+            dispatch('SessionExpired');
         }
     }
 

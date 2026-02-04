@@ -8,8 +8,9 @@ jest.mock('js-cookie', () => ({
     get: jest.fn(() => 'test-token'),
 }));
 
+const mockDispatch = jest.fn();
 jest.mock('../../utils/utils', () => ({
-    dispatch: jest.fn(),
+    dispatch: mockDispatch,
 }));
 
 jest.mock('../../sincManager/chatSync', () => ({
@@ -385,8 +386,9 @@ describe('UpdateServiceWebSocket', () => {
             await new Promise(resolve => setTimeout(resolve, 10));
 
             expect(api.refreshToken).toHaveBeenCalled();
-            expect(api.logout).toHaveBeenCalled();
+            expect(mockDispatch).toHaveBeenCalledWith('SessionExpired');
             expect(wsInstance.shouldReconnect).toBe(false);
+            expect(wsInstance.isConnected).toBe(false);
         });
 
         test('should logout if token refresh throws error', async () => {
@@ -403,8 +405,9 @@ describe('UpdateServiceWebSocket', () => {
             await new Promise(resolve => setTimeout(resolve, 10));
 
             expect(api.refreshToken).toHaveBeenCalled();
-            expect(api.logout).toHaveBeenCalled();
+            expect(mockDispatch).toHaveBeenCalledWith('SessionExpired');
             expect(wsInstance.shouldReconnect).toBe(false);
+            expect(wsInstance.isConnected).toBe(false);
         });
 
         test('should not refresh token on normal close (code 1000)', () => {
