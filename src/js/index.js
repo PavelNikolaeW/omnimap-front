@@ -145,42 +145,13 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
         }, 1000); // Задержка 1 секунда перед проверкой
     });
 
-    // Обработчик события обновления приложения - показываем уведомление
+    // Обработчик события обновления приложения
+    // Теперь используется versionChecker.showUpdateNotification()
+    // который имеет защиту от спама и более продвинутый UI
     window.addEventListener('AppUpdateAvailable', () => {
-        // Проверяем, нет ли уже уведомления
-        if (document.querySelector('.app-update-notification')) {
-            return;
-        }
-
-        // Создаём уведомление безопасным способом (без innerHTML)
-        const notification = document.createElement('div');
-        notification.className = 'app-update-notification';
-
-        const messageSpan = document.createElement('span');
-        messageSpan.textContent = 'Доступна новая версия';
-
-        const updateBtn = document.createElement('button');
-        updateBtn.textContent = 'Обновить';
-        updateBtn.addEventListener('click', () => {
-            // Проверяем наличие несохранённых данных перед обновлением
-            // networkStatusUI.getPendingCount() - синхронный метод с кэшированным значением
-            const pendingCount = networkStatusUI.getPendingCount();
-            if (pendingCount > 0) {
-                if (!confirm(`У вас есть ${pendingCount} несохранённых изменений. Обновить страницу?`)) {
-                    return;
-                }
-            }
-            window.location.reload();
-        });
-
-        const closeBtn = document.createElement('button');
-        closeBtn.textContent = '✕';
-        closeBtn.addEventListener('click', () => notification.remove());
-
-        notification.appendChild(messageSpan);
-        notification.appendChild(updateBtn);
-        notification.appendChild(closeBtn);
-        document.body.appendChild(notification);
+        // Service Worker обнаружил новую версию
+        // versionChecker автоматически обработает это в checkForUpdate()
+        console.log('[App] Service Worker update detected, versionChecker will handle notification');
     });
 }
 
