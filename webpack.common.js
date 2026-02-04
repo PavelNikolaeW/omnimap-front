@@ -40,6 +40,7 @@ module.exports = {
     plugins: [
         new HtmlWebpackPlugin({
             template: './src/index.html',
+            appVersion: process.env.APP_VERSION || 'dev',
             minify: {
                 collapseWhitespace: true,
                 removeComments: true,
@@ -67,6 +68,12 @@ module.exports = {
                     from: 'public/config.js',
                     to: 'config/config.js', // Путь соответствует index.html: /config/config.js
                     noErrorOnMissing: true,
+                },
+                // Страница принудительного обновления
+                // ВАЖНО: отсутствие noErrorOnMissing - файл критичный для обновлений
+                {
+                    from: 'public/force-update.html',
+                    to: 'force-update.html',
                 },
             ],
         }),

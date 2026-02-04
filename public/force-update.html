@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Обновление OmniMap</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 100%;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 16px;
+        }
+
+        p {
+            color: #666;
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+
+        .steps {
+            text-align: left;
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .step {
+            display: flex;
+            align-items: start;
+            margin-bottom: 12px;
+        }
+
+        .step:last-child {
+            margin-bottom: 0;
+        }
+
+        .step-number {
+            background: #667eea;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+
+        .step-text {
+            color: #333;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .progress {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .status {
+            color: #666;
+            font-size: 14px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #e0e0e0;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">🔄</div>
+        <h1>Обновление OmniMap</h1>
+        <p>Для корректной работы приложения необходимо выполнить принудительное обновление</p>
+
+        <div class="steps">
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-text">Очистка старых кешей и Service Worker</div>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-text">Загрузка новой версии приложения</div>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-text">Автоматический переход в приложение</div>
+            </div>
+        </div>
+
+        <button class="btn" onclick="forceUpdate()">Обновить приложение</button>
+
+        <div class="progress" id="progress">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="status" id="status">
+                <span class="spinner"></span>
+                <span id="statusText">Подготовка к обновлению...</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function forceUpdate() {
+            const btn = document.querySelector('.btn');
+            const progress = document.getElementById('progress');
+            const progressFill = document.getElementById('progressFill');
+            const statusText = document.getElementById('statusText');
+
+            // Показываем прогресс
+            btn.style.display = 'none';
+            progress.style.display = 'block';
+
+            try {
+                // Шаг 1: Очистка кешей
+                updateProgress(20, 'Очистка кешей...');
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                if ('caches' in window) {
+                    const cacheNames = await caches.keys();
+                    await Promise.all(cacheNames.map(name => caches.delete(name)));
+                    console.log('[ForceUpdate] Caches cleared:', cacheNames.length);
+                }
+
+                // Шаг 2: Удаление Service Worker
+                updateProgress(40, 'Удаление Service Worker...');
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    for (const registration of registrations) {
+                        await registration.unregister();
+                    }
+                    console.log('[ForceUpdate] Service Workers unregistered:', registrations.length);
+                }
+
+                // Шаг 3: Очистка localStorage (опционально)
+                updateProgress(60, 'Очистка хранилища...');
+                await new Promise(resolve => setTimeout(resolve, 300));
+
+                // Не очищаем localStorage полностью, только служебные ключи
+                localStorage.removeItem('omnimap_app_version');
+                localStorage.removeItem('omnimap_last_version_check');
+
+                // Шаг 4: Переход в приложение
+                updateProgress(80, 'Загрузка новой версии...');
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                updateProgress(100, 'Готово! Перенаправление...');
+                await new Promise(resolve => setTimeout(resolve, 300));
+
+                // Переходим в приложение с force update параметром
+                window.location.href = '/?forceUpdate=1&_t=' + Date.now();
+
+            } catch (error) {
+                console.error('[ForceUpdate] Error:', error);
+                statusText.textContent = 'Ошибка: ' + error.message;
+                setTimeout(() => {
+                    // При ошибке всё равно пробуем перейти в приложение
+                    window.location.href = '/?forceUpdate=1&_t=' + Date.now();
+                }, 2000);
+            }
+        }
+
+        function updateProgress(percent, text) {
+            document.getElementById('progressFill').style.width = percent + '%';
+            document.getElementById('statusText').textContent = text;
+        }
+    </script>
+</body>
+</html>

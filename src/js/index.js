@@ -186,6 +186,15 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
 
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // Очищаем служебные URL параметры (_reload, _t) для чистоты адресной строки
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('_reload') || urlParams.has('_t')) {
+        urlParams.delete('_reload');
+        urlParams.delete('_t');
+        const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+        window.history.replaceState({}, '', newUrl);
+    }
+
     // Инициализируем error tracking первым делом (до других компонентов)
     // чтобы перехватывать ошибки инициализации
     errorTracker.init();
