@@ -18,11 +18,10 @@ const COLOR_NAMES = {
 };
 
 function setBorderColor(val, ctx) {
-    // Мульти-выделение
+    // Мульти-выделение — один батчевый dispatch
     if (ctx.hasMultiSelection()) {
-        for (const blockId of ctx.getSelectedBlockIds()) {
-            dispatch('SetBorderColor', {blockId, borderColor: val})
-        }
+        const blockIds = ctx.getSelectedBlockIds()
+        dispatch('SetBorderColorBatch', {blockIds, borderColor: val})
         ctx.clearSelection()
         setTimeout(() => { ctx.setCmd('openBlock') }, 300)
         return
