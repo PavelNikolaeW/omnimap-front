@@ -12,7 +12,22 @@ const BORDER_COLORS = {
     9: '#1A202C', // Тёмный
 };
 
+const COLOR_NAMES = {
+    1: 'красный', 2: 'оранжевый', 3: 'жёлтый', 4: 'зелёный',
+    5: 'бирюзовый', 6: 'синий', 7: 'фиолетовый', 8: 'розовый', 9: 'тёмный',
+};
+
 function setBorderColor(val, ctx) {
+    // Мульти-выделение
+    if (ctx.hasMultiSelection()) {
+        for (const blockId of ctx.getSelectedBlockIds()) {
+            dispatch('SetBorderColor', {blockId, borderColor: val})
+        }
+        ctx.clearSelection()
+        setTimeout(() => { ctx.setCmd('openBlock') }, 300)
+        return
+    }
+
     let id = ctx.blockElement?.id
     if (ctx.blockLinkElement) id = ctx.blockLinkElement.getAttribute('blocklink')
     if (id) dispatch('SetBorderColor', {blockId: id, borderColor: val})
@@ -29,6 +44,8 @@ for (let i = 1; i <= 9; i++) {
         id: `borderColor${i}`,
         defaultHotkey: `shift+${i}`,
         mode: ['normal'],
+        eventType: 'keyup',
+        description: `Установить ${COLOR_NAMES[i]} цвет рамки`,
         execute(ctx) {
             setBorderColor(BORDER_COLORS[i], ctx);
         }
@@ -40,6 +57,8 @@ borderColorCommands.push({
     id: 'borderColorRemove',
     defaultHotkey: 'shift+0',
     mode: ['normal'],
+    eventType: 'keyup',
+    description: 'Убрать цвет рамки',
     execute(ctx) {
         setBorderColor('', ctx);
     }

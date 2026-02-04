@@ -3429,7 +3429,11 @@ export class LocalStateManager {
         const beforeState = JSON.parse(JSON.stringify(block));
 
         if (!block.data) block.data = {};
-        block.data.borderColor = borderColor;
+        if (borderColor) {
+            block.data.borderColor = borderColor;
+        } else {
+            delete block.data.borderColor;
+        }
         block.updated_at = new Date().toISOString();
         await this.saveBlock(block);
 
