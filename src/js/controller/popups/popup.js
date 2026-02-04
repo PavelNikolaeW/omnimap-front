@@ -90,6 +90,7 @@ export class Popup {
      * @param {boolean} options.draggable - Возможность перетаскивания
      * @param {boolean} options.closeOnOverlay - Закрывать при клике на оверлей
      * @param {boolean} options.closeOnEsc - Закрывать по Escape
+     * @param {boolean} options.closeOnEnter - Закрывать по Enter в input (по умолчанию false)
      */
     constructor(options = {}) {
         this.options = {
@@ -103,6 +104,7 @@ export class Popup {
             draggable: true,
             closeOnOverlay: true,
             closeOnEsc: true,
+            closeOnEnter: false,
             ...options
         };
 
@@ -139,7 +141,12 @@ export class Popup {
         document.body.appendChild(this.overlay);
 
         if (this.options.closeOnOverlay) {
-            this.overlay.addEventListener('click', () => this.handleCancel());
+            this.overlay.addEventListener('click', (e) => {
+                // Закрываем только если клик был именно на overlay, а не на popup
+                if (e.target === this.overlay) {
+                    this.handleCancel();
+                }
+            });
         }
     }
 
@@ -319,14 +326,25 @@ export class Popup {
 
         window.addEventListener('resize', this.boundResizeHandler);
 
-        if (this.options.closeOnEsc) {
+        if (this.options.closeOnEsc || this.options.closeOnEnter) {
             document.addEventListener('keydown', this.boundKeyHandler);
         }
     }
 
     handleKeyDown(e) {
-        if (e.key === 'Escape') {
+        if (this.options.closeOnEsc && e.key === 'Escape') {
             this.handleCancel();
+        } else if (this.options.closeOnEnter && e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+            // Enter сохраняет форму, если только это не textarea и не multiline input
+            const target = e.target;
+            const isTextarea = target.tagName === 'TEXTAREA';
+            const isContentEditable = target.isContentEditable || target.getAttribute('contenteditable') === 'true';
+
+            // Не закрываем если это textarea или contenteditable
+            if (!isTextarea && !isContentEditable) {
+                e.preventDefault();
+                this.handleSubmit();
+            }
         }
     }
 
