@@ -326,7 +326,7 @@ export class Popup {
 
         window.addEventListener('resize', this.boundResizeHandler);
 
-        if (this.options.closeOnEsc) {
+        if (this.options.closeOnEsc || this.options.closeOnEnter) {
             document.addEventListener('keydown', this.boundKeyHandler);
         }
     }
