@@ -127,17 +127,36 @@ class VersionChecker {
      */
     checkForceUpdateParam() {
         const urlParams = new URLSearchParams(window.location.search);
+
+        // Очищаем служебные параметры (_reload, _t) оставшиеся после предыдущих обновлений
+        if (urlParams.has('_reload') || urlParams.has('_t')) {
+            urlParams.delete('_reload');
+            urlParams.delete('_t');
+            const cleanUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+            window.history.replaceState({}, '', cleanUrl);
+        }
+
         if (urlParams.get('forceUpdate') === '1') {
-            // Защита от бесконечного цикла: проверяем не пытались ли мы уже обновиться
-            const updateAttempts = parseInt(sessionStorage.getItem('forceUpdateAttempts') || '0');
-            if (updateAttempts >= 3) {
+            // Защита от бесконечного цикла используя localStorage (надежнее sessionStorage)
+            const updateAttempts = parseInt(localStorage.getItem('forceUpdateAttempts') || '0');
+            const lastUpdateTimestamp = parseInt(localStorage.getItem('forceUpdateTimestamp') || '0');
+            const now = Date.now();
+
+            // Сбрасываем счетчик если прошло больше 5 минут с последней попытки
+            if (now - lastUpdateTimestamp > 5 * 60 * 1000) {
+                localStorage.setItem('forceUpdateAttempts', '0');
+                localStorage.setItem('forceUpdateTimestamp', now.toString());
+            }
+
+            const currentAttempts = parseInt(localStorage.getItem('forceUpdateAttempts') || '0');
+            if (currentAttempts >= 3) {
                 console.warn('[VersionChecker] Too many force update attempts, aborting');
-                sessionStorage.removeItem('forceUpdateAttempts');
+                localStorage.removeItem('forceUpdateAttempts');
+                localStorage.removeItem('forceUpdateTimestamp');
                 return false;
             }
 
             console.log('[VersionChecker] Force update parameter detected');
-            sessionStorage.setItem('forceUpdateAttempts', (updateAttempts + 1).toString());
 
             // Удаляем параметр из URL
             urlParams.delete('forceUpdate');
@@ -148,7 +167,13 @@ class VersionChecker {
             return true;
         } else {
             // Успешная загрузка без forceUpdate параметра - сбрасываем счетчик
-            sessionStorage.removeItem('forceUpdateAttempts');
+            const lastUpdateTimestamp = parseInt(localStorage.getItem('forceUpdateTimestamp') || '0');
+            const now = Date.now();
+            // Сбрасываем только если прошло достаточно времени (30 сек) после последнего обновления
+            if (now - lastUpdateTimestamp > 30 * 1000) {
+                localStorage.removeItem('forceUpdateAttempts');
+                localStorage.removeItem('forceUpdateTimestamp');
+            }
             return false;
         }
     }
@@ -311,11 +336,35 @@ class VersionChecker {
 
     /**
      * Принудительно обновляет приложение
+     * КРИТИЧНО: Проверяет pending операции перед обновлением чтобы не потерять данные
      */
     async forceUpdate() {
         console.log('[VersionChecker] Forcing update...');
 
         try {
+            // КРИТИЧНО: Проверяем pending операции перед обновлением
+            // Если есть несинхронизированные изменения - предупреждаем пользователя
+            const hasPendingOperations = await this.checkPendingOperations();
+            if (hasPendingOperations) {
+                console.warn('[VersionChecker] Pending operations detected, waiting for sync...');
+
+                // Показываем уведомление пользователю
+                const shouldProceed = confirm(
+                    'У вас есть несохранённые изменения, которые ещё синхронизируются с сервером.\n\n' +
+                    'Рекомендуется дождаться завершения синхронизации перед обновлением.\n\n' +
+                    'Обновить сейчас? (НЕ рекомендуется, можете потерять данные)'
+                );
+
+                if (!shouldProceed) {
+                    console.log('[VersionChecker] Update cancelled by user, waiting for sync completion');
+                    // Запускаем синхронизацию и повторяем попытку после завершения
+                    this.scheduleUpdateAfterSync();
+                    return;
+                }
+                // Пользователь подтвердил принудительное обновление несмотря на риск
+                console.warn('[VersionChecker] User confirmed force update despite pending operations');
+            }
+
             // Шаг 1: Очищаем все кеши ПЕРЕД активацией нового SW
             if ('caches' in window) {
                 const cacheNames = await caches.keys();
@@ -336,8 +385,18 @@ class VersionChecker {
                 }
             }
 
-            // Шаг 3: Очищаем localStorage и sessionStorage (опционально, осторожно!)
-            // sessionStorage.clear(); // Раскомментируйте если нужно
+            // Шаг 3: Используем localStorage для защиты от loop (надежнее sessionStorage)
+            const updateAttempts = parseInt(localStorage.getItem('forceUpdateAttempts') || '0');
+            const lastUpdateTimestamp = parseInt(localStorage.getItem('forceUpdateTimestamp') || '0');
+            const now = Date.now();
+
+            // Сбрасываем счетчик если прошло больше 5 минут с последней попытки
+            if (now - lastUpdateTimestamp > 5 * 60 * 1000) {
+                localStorage.setItem('forceUpdateAttempts', '0');
+            } else {
+                localStorage.setItem('forceUpdateAttempts', (updateAttempts + 1).toString());
+            }
+            localStorage.setItem('forceUpdateTimestamp', now.toString());
 
             // Шаг 4: Hard reload с cache bypass
             console.log('[VersionChecker] Performing hard reload...');
@@ -351,6 +410,65 @@ class VersionChecker {
             // Fallback: просто перезагружаем
             window.location.reload();
         }
+    }
+
+    /**
+     * Проверяет наличие pending операций в offlineQueue
+     * @returns {Promise<boolean>}
+     */
+    async checkPendingOperations() {
+        try {
+            // Динамический импорт offlineQueue чтобы избежать circular dependency
+            const { offlineQueue } = await import('../sincManager/offlineQueue.js');
+            const pendingCount = await offlineQueue.getPendingCount();
+            console.log(`[VersionChecker] Pending operations: ${pendingCount}`);
+            return pendingCount > 0;
+        } catch (error) {
+            console.warn('[VersionChecker] Failed to check pending operations:', error);
+            // Если не можем проверить - предполагаем что есть pending операции (безопаснее)
+            return true;
+        }
+    }
+
+    /**
+     * Планирует обновление после завершения синхронизации
+     */
+    scheduleUpdateAfterSync() {
+        console.log('[VersionChecker] Scheduling update after sync completion');
+
+        // Слушаем событие завершения синхронизации
+        const syncCompletedHandler = async (e) => {
+            const { remainingCount } = e.detail || {};
+
+            // Если синхронизация завершилась успешно (remainingCount === 0)
+            if (remainingCount === 0) {
+                console.log('[VersionChecker] Sync completed, proceeding with update');
+                window.removeEventListener('SyncCompleted', syncCompletedHandler);
+
+                // Небольшая задержка чтобы пользователь увидел что синхронизация завершена
+                setTimeout(() => {
+                    this.forceUpdate();
+                }, 1000);
+            }
+        };
+
+        window.addEventListener('SyncCompleted', syncCompletedHandler);
+
+        // Таймаут на случай если синхронизация зависла (5 минут)
+        setTimeout(() => {
+            window.removeEventListener('SyncCompleted', syncCompletedHandler);
+            console.warn('[VersionChecker] Sync timeout, cancelling scheduled update');
+        }, 5 * 60 * 1000);
+
+        // Запускаем синхронизацию вручную если она не идёт
+        import('../sincManager/offlineQueue.js').then(({ offlineQueue }) => {
+            if (!offlineQueue.isSyncing) {
+                console.log('[VersionChecker] Triggering manual sync before update');
+                window.dispatchEvent(new CustomEvent('RetrySync'));
+            }
+        }).catch(error => {
+            console.error('[VersionChecker] Failed to trigger sync:', error);
+        });
     }
 }
 
