@@ -597,6 +597,9 @@ export const popupsCommands = [
                     return;
                 } catch (err) {
                     console.error('Failed to create subscription:', err);
+                    dispatch('ShowError', { message: 'Не удалось создать подписку' });
+                    ctx.mode = 'normal';
+                    return;
                 }
             }
 
