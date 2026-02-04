@@ -75,10 +75,14 @@ class Api {
                 if (error.response?.status === 401 && !originalRequest._retry && !isRefreshRequest) {
                     originalRequest._retry = true;
 
-                    // Если нет refresh токена - сразу logout
+                    // Если нет refresh токена - сразу диспатчим SessionExpired
                     const hasRefreshToken = !!Cookies.get('refresh');
                     if (!hasRefreshToken) {
-                        this.logout();
+                        dispatch('SessionExpired');
+                        // Очищаем токены и заголовки
+                        Cookies.remove('access', { path: '/' });
+                        Cookies.remove('refresh', { path: '/' });
+                        delete this.api.defaults.headers.common['Authorization'];
                         return Promise.reject(error);
                     }
 
@@ -87,13 +91,21 @@ class Api {
                         if (tokenRefreshed) {
                             return this.api(originalRequest);
                         } else {
-                            // Refresh не удался - выходим из системы
-                            this.logout();
+                            // Refresh не удался - диспатчим SessionExpired
+                            dispatch('SessionExpired');
+                            // Очищаем токены и заголовки
+                            Cookies.remove('access', { path: '/' });
+                            Cookies.remove('refresh', { path: '/' });
+                            delete this.api.defaults.headers.common['Authorization'];
                             return Promise.reject(error);
                         }
                     } catch (refreshError) {
-                        // Ошибка при refresh - выходим из системы
-                        this.logout();
+                        // Ошибка при refresh - диспатчим SessionExpired
+                        dispatch('SessionExpired');
+                        // Очищаем токены и заголовки
+                        Cookies.remove('access', { path: '/' });
+                        Cookies.remove('refresh', { path: '/' });
+                        delete this.api.defaults.headers.common['Authorization'];
                         return Promise.reject(refreshError);
                     }
                 }

@@ -116,6 +116,7 @@ class AuthStateManager {
     addEventListeners() {
         window.addEventListener('Login', this.handleLogin.bind(this));
         window.addEventListener('Logout', this.handleLogout.bind(this));
+        window.addEventListener('SessionExpired', this.handleSessionExpired.bind(this));
         window.addEventListener('InitAnonimUser', this.handleAnonimUser.bind(this));
         window.addEventListener('InitUser', this.handleInitUser.bind(this));
     }
@@ -161,6 +162,19 @@ class AuthStateManager {
     }
 
     handleLogout() {
+        this.isAuthenticated = false;
+        this.currentUser = null;
+        this.updateUI();
+        this._clearRefreshTimer();
+        this._retryCount = 0;
+
+        // Очищаем пользователя для error tracking
+        if (window.__errorTracker) {
+            window.__errorTracker.clearUser();
+        }
+    }
+
+    handleSessionExpired() {
         this.isAuthenticated = false;
         this.currentUser = null;
         this.updateUI();
@@ -333,8 +347,8 @@ class AuthStateManager {
             // Проверяем наличие токенов перед refresh
             const hasRefreshToken = Cookies.get('refresh') !== undefined;
             if (!hasRefreshToken) {
-                console.warn('[AuthStateManager] No refresh token, logging out');
-                dispatch('Logout');
+                console.warn('[AuthStateManager] No refresh token, session expired');
+                dispatch('SessionExpired');
                 return;
             }
 

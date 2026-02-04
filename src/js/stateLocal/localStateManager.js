@@ -290,6 +290,45 @@ export class LocalStateManager {
             }
         });
 
+        window.addEventListener('SessionExpired', async () => {
+            // Очищаем URL если есть параметры
+            if (window.location.search || window.location.hash) {
+                window.history.replaceState({}, '', window.location.pathname);
+            }
+
+            // Очищаем данные текущего пользователя из памяти
+            this.blocks.clear();
+            this.currentUser = null;
+            this.currentTree = null;
+            this.path = [];
+
+            // Очищаем кэш картинок painter
+            if (this.painter && this.painter.clearImageCache) {
+                this.painter.clearImageCache();
+            }
+
+            // Очищаем данные из IndexedDB
+            await localforage.removeItem('currentTree');
+            await localforage.removeItem('currentUser');
+
+            // Скрываем UI элементы
+            const sidebar = document.getElementById('sidebar');
+            const topSidebar = document.getElementById('topSidebar');
+            if (sidebar) sidebar.classList.add('hidden');
+            if (topSidebar) topSidebar.classList.add('hidden');
+
+            // Проверяем, онлайн ли мы
+            const isOnline = navigator.onLine;
+
+            if (isOnline) {
+                // Онлайн: показываем экран истечения сессии
+                this.showSessionExpiredScreen();
+            } else {
+                // Офлайн: показываем пустой экран с сообщением
+                this.showOfflineLogoutScreen();
+            }
+        });
+
         window.addEventListener('PasteBlock', async (e) => {
             this.pasteBlock(e.detail);
         });
@@ -3694,7 +3733,7 @@ export class LocalStateManager {
      * Показывает экран входа при logout
      * Очищает rootContainer и показывает сообщение о необходимости повторного входа
      */
-    showLoginScreen() {
+    showSessionExpiredScreen() {
         // Очищаем rootContainer
         if (!this.rootContainer) return;
         this.rootContainer.innerHTML = '';
@@ -3735,6 +3774,12 @@ export class LocalStateManager {
         content.appendChild(button);
         loginScreen.appendChild(content);
         this.rootContainer.appendChild(loginScreen);
+    }
+
+    showLoginScreen() {
+        // При явном выходе пользователя просто перезагружаем страницу
+        // чтобы показать обычные блоки входа без сообщения о истечении сессии
+        window.location.reload();
     }
 
     showOfflineLogoutScreen() {
