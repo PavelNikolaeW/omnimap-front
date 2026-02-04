@@ -379,6 +379,8 @@ export class UpdateServiceWebSocket {
                 // Ответ на get_updates запрос: { type: 'block_updates', updates: [...] }
                 if (Array.isArray(message.updates)) {
                     dispatch('WebSocUpdateBlock', message.updates);
+                    // После обработки обновлений проверяем недостающие дочерние блоки
+                    dispatch('ReconnectBlocksReceived', message.updates);
                 }
             } else if (message.type === 'block_updates_batch') {
                 // Батч обновлений от сервера: { type: 'block_updates_batch', updates: [{type: 'block_update', data: ...}, ...] }

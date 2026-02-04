@@ -353,6 +353,10 @@ export class LocalStateManager {
         window.addEventListener('WebSocUpdateBlock', async (e) => {
             await this.webSocUpdateBlock(e.detail);
         })
+        // При переподключении (ответ на get_updates) проверяем недостающие дочерние блоки
+        window.addEventListener('ReconnectBlocksReceived', async (e) => {
+            await this.fetchMissingChildren(e.detail);
+        })
         window.addEventListener('WebSocUpdateBlockAccess', async (e) => {
             await this.WebSocUpdateBlockAccess(e.detail)
         })
@@ -1588,6 +1592,79 @@ export class LocalStateManager {
 
         if (processedBlocks.length > 0) {
             this.updateScreen(processedBlocks);
+        }
+    }
+
+    /**
+     * Проверяет наличие недостающих дочерних блоков после переподключения
+     * Вызывается только при ответе на get_updates (переподключение),
+     * не при обычных realtime-обновлениях
+     * @param {Array} serverUpdates - блоки, полученные от сервера в ответе block_updates
+     */
+    async fetchMissingChildren(serverUpdates) {
+        if (!Array.isArray(serverUpdates) || serverUpdates.length === 0) return;
+
+        const missingChildIds = new Set();
+        for (const block of serverUpdates) {
+            if (!block?.id || block.deleted) continue;
+            const children = this._safeJsonParse(block.children, []);
+            for (const childId of children) {
+                if (!this.blocks.has(childId)) {
+                    missingChildIds.add(childId);
+                }
+            }
+        }
+
+        if (missingChildIds.size === 0) return;
+
+        console.log(`🔄 Reconnect: ${missingChildIds.size} missing children detected, fetching tree...`);
+
+        try {
+            const { blocks: serverBlocks } = await api.getTreeBlocks();
+            let fetchedCount = 0;
+
+            for (const [blockId, serverBlock] of serverBlocks) {
+                if (!this.blocks.has(blockId)) {
+                    await this.saveBlock(serverBlock);
+                    fetchedCount++;
+                }
+            }
+
+            if (fetchedCount === 0) return;
+
+            console.log(`✅ Fetched ${fetchedCount} missing blocks`);
+
+            // Пересинхронизируем children/childOrder родителей
+            const blocksToRender = [];
+            for (const block of serverUpdates) {
+                if (!block?.id || block.deleted) continue;
+                const savedBlock = this.blocks.get(block.id);
+                if (!savedBlock) continue;
+
+                const serverChildren = this._safeJsonParse(block.children, []);
+                const childOrder = savedBlock.data?.childOrder || [];
+                let updated = false;
+
+                for (const childId of serverChildren) {
+                    if (this.blocks.has(childId) && !childOrder.includes(childId)) {
+                        childOrder.push(childId);
+                        updated = true;
+                    }
+                }
+
+                if (updated) {
+                    savedBlock.data = { ...savedBlock.data, childOrder };
+                    savedBlock.children = childOrder.filter(id => this.blocks.has(id));
+                    await this.saveBlock(savedBlock);
+                    blocksToRender.push(savedBlock);
+                }
+            }
+
+            if (blocksToRender.length > 0) {
+                this.updateScreen(blocksToRender);
+            }
+        } catch (error) {
+            console.error('❌ Failed to fetch missing children:', error);
         }
     }
 
