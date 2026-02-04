@@ -90,6 +90,7 @@ export class Popup {
      * @param {boolean} options.draggable - Возможность перетаскивания
      * @param {boolean} options.closeOnOverlay - Закрывать при клике на оверлей
      * @param {boolean} options.closeOnEsc - Закрывать по Escape
+     * @param {boolean} options.closeOnEnter - Закрывать по Enter в input (по умолчанию false)
      */
     constructor(options = {}) {
         this.options = {
@@ -103,6 +104,7 @@ export class Popup {
             draggable: true,
             closeOnOverlay: true,
             closeOnEsc: true,
+            closeOnEnter: false,
             ...options
         };
 
@@ -332,7 +334,7 @@ export class Popup {
     handleKeyDown(e) {
         if (e.key === 'Escape') {
             this.handleCancel();
-        } else if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        } else if (this.options.closeOnEnter && e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
             // Enter сохраняет форму, если только это не textarea и не multiline input
             const target = e.target;
             const isTextarea = target.tagName === 'TEXTAREA';
