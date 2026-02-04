@@ -173,10 +173,11 @@ contentblock {
     cursor: text;
 }
 
-/* Форсируем выделение текста внутри draggable блоков (повышенная специфичность) */
-[block][draggable="true"] titleblock,
-[block][draggable="true"] contentblock,
-[block][draggable="true"] .defaultContent {
+/* Форсируем выделение текста внутри draggable блоков ТОЛЬКО когда Shift НЕ зажат */
+/* Это позволяет выделять текст в обычном режиме, но не мешает drag-and-drop при Shift */
+:not([data-shift-drag]) [block][draggable="true"] titleblock,
+:not([data-shift-drag]) [block][draggable="true"] contentblock,
+:not([data-shift-drag]) [block][draggable="true"] .defaultContent {
     user-select: text !important;
     -webkit-user-select: text !important;
     -moz-user-select: text !important;
