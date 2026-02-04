@@ -495,27 +495,6 @@ function setInterface() {
         }
     });
 
-    // Останавливаем всплытие mousedown от текстовых элементов к draggable родителю
-    // Это позволяет выделять текст без инициации drag
-    // НО: не мешаем drag-and-drop при зажатом Shift
-    document.addEventListener('mousedown', (e) => {
-        // При зажатом Shift не останавливаем всплытие - разрешаем drag
-        if (e.shiftKey) return;
-
-        const textElement = e.target.closest('titleblock, contentblock');
-        if (textElement) {
-            // Проверяем, что клик не на вложенном блоке
-            const nestedBlock = e.target.closest('[block]');
-            const textParentBlock = textElement.closest('[block]');
-
-            // Если клик на текстовом элементе (а не на вложенном блоке внутри текста)
-            // останавливаем всплытие чтобы draggable родитель не получил событие
-            if (nestedBlock === textParentBlock) {
-                e.stopPropagation();
-            }
-        }
-    }, true); // capture phase - до других обработчиков
-
     // Предотвращаем drag если он начинается с текстового элемента
     document.addEventListener('dragstart', (e) => {
         const textElement = e.target.closest('titleblock, contentblock');
