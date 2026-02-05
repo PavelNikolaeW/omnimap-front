@@ -23,6 +23,33 @@ export class SincManager {
         this.lastFullTreeLoad = 0;
         // Интервал полной подгрузки (5 минут)
         this.FULL_TREE_LOAD_INTERVAL = 5 * 60 * 1000;
+
+        // Подписываемся на visibilitychange для проверки при возвращении на вкладку
+        this._boundVisibilityHandler = this.handleVisibilityChange.bind(this);
+        document.addEventListener('visibilitychange', this._boundVisibilityHandler);
+    }
+
+    /**
+     * Обработчик visibilitychange - проверяет нужна ли подгрузка при возвращении на вкладку
+     * Вызывается когда пользователь переключается на вкладку после долгого отсутствия
+     */
+    async handleVisibilityChange() {
+        if (document.visibilityState !== 'visible') {
+            return;
+        }
+
+        const username = await localforage.getItem('currentUser');
+        if (!username) return;
+
+        const now = Date.now();
+        const timeSinceLastFullLoad = now - this.lastFullTreeLoad;
+
+        // Если прошло больше интервала и WebSocket подключен
+        if (timeSinceLastFullLoad > this.FULL_TREE_LOAD_INTERVAL && this.webSocket?.isConnected) {
+            console.log('📱 SincManager: tab visible after', Math.round(timeSinceLastFullLoad / 1000), 'seconds, loading full tree');
+            await this.loadFullTree();
+            this.lastFullTreeLoad = now;
+        }
     }
 
     /**
@@ -129,6 +156,12 @@ export class SincManager {
         if (this.webSocket) {
             this.webSocket.destroy();
             this.webSocket = null;
+        }
+
+        // Удаляем обработчик visibilitychange
+        if (this._boundVisibilityHandler) {
+            document.removeEventListener('visibilitychange', this._boundVisibilityHandler);
+            this._boundVisibilityHandler = null;
         }
     }
 }
