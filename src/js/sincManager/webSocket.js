@@ -383,10 +383,10 @@ export class UpdateServiceWebSocket {
                     dispatch('WebSocUpdateBlock', { blocks: message.updates, isReconnect: true });
                 }
 
-                // Если есть новые блоки - запрашиваем полное дерево
+                // Если есть новые блоки - загружаем только их (не всё дерево)
                 if (Array.isArray(message.new_block_ids) && message.new_block_ids.length > 0) {
-                    console.log(`🆕 WebSocket: detected ${message.new_block_ids.length} new blocks, loading full tree`);
-                    dispatch('LoadTrees');
+                    console.log(`🆕 WebSocket: detected ${message.new_block_ids.length} new blocks, loading them`);
+                    dispatch('LoadEmptyBlocks', { emptyBlocks: message.new_block_ids });
                 }
             } else if (message.type === 'block_updates_batch') {
                 // Батч обновлений от сервера: { type: 'block_updates_batch', updates: [{type: 'block_update', data: ...}, ...] }
