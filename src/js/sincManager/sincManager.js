@@ -27,6 +27,19 @@ export class SincManager {
         // Подписываемся на visibilitychange для проверки при возвращении на вкладку
         this._boundVisibilityHandler = this.handleVisibilityChange.bind(this);
         document.addEventListener('visibilitychange', this._boundVisibilityHandler);
+
+        // Слушаем событие полной загрузки дерева из других источников
+        this._boundFullTreeLoadedHandler = this.handleFullTreeLoaded.bind(this);
+        window.addEventListener('FullTreeLoaded', this._boundFullTreeLoadedHandler);
+    }
+
+    /**
+     * Обработчик события FullTreeLoaded - обновляет timestamp когда дерево загружено из другого источника
+     * Предотвращает дублирование загрузки если LoadTrees уже загрузил данные
+     */
+    handleFullTreeLoaded() {
+        this.lastFullTreeLoad = Date.now();
+        console.log('📥 SincManager: full tree loaded externally, timestamp updated');
     }
 
     /**
@@ -182,10 +195,15 @@ export class SincManager {
             this.webSocket = null;
         }
 
-        // Удаляем обработчик visibilitychange
+        // Удаляем обработчики событий
         if (this._boundVisibilityHandler) {
             document.removeEventListener('visibilitychange', this._boundVisibilityHandler);
             this._boundVisibilityHandler = null;
+        }
+
+        if (this._boundFullTreeLoadedHandler) {
+            window.removeEventListener('FullTreeLoaded', this._boundFullTreeLoadedHandler);
+            this._boundFullTreeLoadedHandler = null;
         }
     }
 }
