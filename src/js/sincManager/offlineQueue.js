@@ -46,7 +46,7 @@ class OfflineQueueManager {
 
         // Lazy-loaded reference для localStateManager (избежание circular dependency)
         this._localStateManager = null;
-        this.PULL_COOLDOWN_MS = 30000; // Минимальный интервал между pull (30 сек)
+        this.PULL_COOLDOWN_MS = 60000; // Минимальный интервал между pull (60 сек)
 
         // Retry механизм для обработки ненадёжного navigator.onLine
         this.retryAttempts = 0;
