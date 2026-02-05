@@ -18,85 +18,22 @@ export class SincManager {
         this.webSocket = new UpdateServiceWebSocket(wsUrl);
         this.webSocket.eventListeners.open.push(this.online.bind(this));
         this.webSocket.connect();
-
-        // Время последней полной подгрузки дерева
-        this.lastFullTreeLoad = 0;
-        // Интервал полной подгрузки (5 минут)
-        this.FULL_TREE_LOAD_INTERVAL = 5 * 60 * 1000;
-
-        // Подписываемся на visibilitychange для проверки при возвращении на вкладку
-        this._boundVisibilityHandler = this.handleVisibilityChange.bind(this);
-        document.addEventListener('visibilitychange', this._boundVisibilityHandler);
-
-        // Слушаем событие полной загрузки дерева из других источников
-        this._boundFullTreeLoadedHandler = this.handleFullTreeLoaded.bind(this);
-        window.addEventListener('FullTreeLoaded', this._boundFullTreeLoadedHandler);
-    }
-
-    /**
-     * Обработчик события FullTreeLoaded - обновляет timestamp когда дерево загружено из другого источника
-     * Предотвращает дублирование загрузки если LoadTrees уже загрузил данные
-     */
-    handleFullTreeLoaded() {
-        this.lastFullTreeLoad = Date.now();
-        console.log('📥 SincManager: full tree loaded externally, timestamp updated');
-    }
-
-    /**
-     * Обработчик visibilitychange - проверяет нужна ли подгрузка при возвращении на вкладку
-     * Вызывается когда пользователь переключается на вкладку после долгого отсутствия
-     */
-    async handleVisibilityChange() {
-        if (document.visibilityState !== 'visible') {
-            return;
-        }
-
-        const username = await localforage.getItem('currentUser');
-        if (!username) return;
-
-        const now = Date.now();
-        const timeSinceLastFullLoad = now - this.lastFullTreeLoad;
-
-        // Если прошло больше интервала и WebSocket подключен
-        if (timeSinceLastFullLoad > this.FULL_TREE_LOAD_INTERVAL && this.webSocket?.isConnected) {
-            console.log('📱 SincManager: tab visible after', Math.round(timeSinceLastFullLoad / 1000), 'seconds, loading full tree');
-            await this.loadFullTree();
-            this.lastFullTreeLoad = now;
-        }
     }
 
     /**
      * Обработчик восстановления соединения
      * Стратегия:
-     * 1. Всегда пытаемся сделать инкрементальное обновление (get_updates)
-     * 2. Если есть локальные блоки - get_updates вернёт изменённые + new_block_ids
-     * 3. Если нет локальных блоков - внутри requestIncrementalUpdates() вызовется loadFullTree()
-     * 4. Если прошло >5 минут с последней полной подгрузки - делаем полную загрузку (очистка стухших данных)
+     * 1. Всегда делаем инкрементальное обновление (get_updates)
+     * 2. Sync вернёт обновлённые блоки (updates) и новые блоки (new_blocks)
+     * 3. Если нет локальных блоков - вызовется loadFullTree()
      */
     async online() {
         try {
             const username = await localforage.getItem('currentUser');
             if (!username) return;
 
-            const now = Date.now();
-            const timeSinceLastFullLoad = now - this.lastFullTreeLoad;
-
-            // Полная загрузка только если прошло слишком много времени (очистка стухших данных)
-            // lastFullTreeLoad = 0 при первом подключении НЕ считается причиной для полной загрузки
-            const shouldDoFullLoad = this.lastFullTreeLoad > 0 && timeSinceLastFullLoad > this.FULL_TREE_LOAD_INTERVAL;
-
-            if (shouldDoFullLoad) {
-                console.log('🌳 SincManager: full tree load (last load', Math.round(timeSinceLastFullLoad / 1000), 'seconds ago)');
-                await this.loadFullTree();
-                this.lastFullTreeLoad = now;
-            } else {
-                console.log('🔄 SincManager: incremental updates (first connection or recent full load)');
-                await this.requestIncrementalUpdates();
-                // Обновляем timestamp после первого успешного подключения
-                if (this.lastFullTreeLoad === 0) {
-                    this.lastFullTreeLoad = now;
-                }
-            }
+            console.log('🔄 SincManager: incremental updates');
+            await this.requestIncrementalUpdates();
         } catch (err) {
             console.error('SincManager: sync error:', err.stack || err.message || err);
         }
@@ -202,17 +139,6 @@ export class SincManager {
         if (this.webSocket) {
             this.webSocket.destroy();
             this.webSocket = null;
-        }
-
-        // Удаляем обработчики событий
-        if (this._boundVisibilityHandler) {
-            document.removeEventListener('visibilitychange', this._boundVisibilityHandler);
-            this._boundVisibilityHandler = null;
-        }
-
-        if (this._boundFullTreeLoadedHandler) {
-            window.removeEventListener('FullTreeLoaded', this._boundFullTreeLoadedHandler);
-            this._boundFullTreeLoadedHandler = null;
         }
     }
 }

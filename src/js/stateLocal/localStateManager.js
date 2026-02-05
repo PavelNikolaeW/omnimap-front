@@ -191,9 +191,6 @@ export class LocalStateManager {
             // Явно обновляем навигацию после загрузки деревьев
             dispatch('UpdateTreeNavigation');
             dispatch('ShowBlocks');
-
-            // Уведомляем что полная загрузка дерева завершена (для SincManager)
-            dispatch('FullTreeLoaded');
         })
 
         window.addEventListener('OpenBlock', (e) => {
