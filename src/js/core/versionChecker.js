@@ -12,9 +12,13 @@ class VersionChecker {
         this.currentVersion = APP_VERSION || 'unknown';
         this.checkTimer = null;
         this.isChecking = false;
+        this._isUpdating = false; // Защита от concurrent вызовов forceUpdate()
         // Сохраняем ссылки на обработчики для cleanup
         this._onOnline = null;
         this._onVisibilityChange = null;
+        // Event listeners для scheduleUpdateAfterSync
+        this._syncCompletedHandler = null;
+        this._syncCompletedTimeout = null;
     }
 
     /**
@@ -80,6 +84,16 @@ class VersionChecker {
         if (this._onVisibilityChange) {
             document.removeEventListener('visibilitychange', this._onVisibilityChange);
             this._onVisibilityChange = null;
+        }
+
+        // Очищаем scheduleUpdateAfterSync handlers
+        if (this._syncCompletedHandler) {
+            window.removeEventListener('SyncCompleted', this._syncCompletedHandler);
+            this._syncCompletedHandler = null;
+        }
+        if (this._syncCompletedTimeout) {
+            clearTimeout(this._syncCompletedTimeout);
+            this._syncCompletedTimeout = null;
         }
     }
 
@@ -157,6 +171,10 @@ class VersionChecker {
             }
 
             console.log('[VersionChecker] Force update parameter detected');
+
+            // Инкрементируем счетчик ПЕРЕД вызовом forceUpdate()
+            localStorage.setItem('forceUpdateAttempts', (currentAttempts + 1).toString());
+            localStorage.setItem('forceUpdateTimestamp', now.toString());
 
             // Удаляем параметр из URL
             urlParams.delete('forceUpdate');
@@ -339,6 +357,13 @@ class VersionChecker {
      * КРИТИЧНО: Проверяет pending операции перед обновлением чтобы не потерять данные
      */
     async forceUpdate() {
+        // Защита от concurrent вызовов
+        if (this._isUpdating) {
+            console.warn('[VersionChecker] Force update already in progress, ignoring');
+            return;
+        }
+
+        this._isUpdating = true;
         console.log('[VersionChecker] Forcing update...');
 
         try {
@@ -358,6 +383,7 @@ class VersionChecker {
                 if (!shouldProceed) {
                     console.log('[VersionChecker] Update cancelled by user, waiting for sync completion');
                     // Запускаем синхронизацию и повторяем попытку после завершения
+                    this._isUpdating = false; // Сбрасываем флаг перед выходом
                     this.scheduleUpdateAfterSync();
                     return;
                 }
@@ -385,20 +411,9 @@ class VersionChecker {
                 }
             }
 
-            // Шаг 3: Используем localStorage для защиты от loop (надежнее sessionStorage)
-            const updateAttempts = parseInt(localStorage.getItem('forceUpdateAttempts') || '0');
-            const lastUpdateTimestamp = parseInt(localStorage.getItem('forceUpdateTimestamp') || '0');
-            const now = Date.now();
-
-            // Сбрасываем счетчик если прошло больше 5 минут с последней попытки
-            if (now - lastUpdateTimestamp > 5 * 60 * 1000) {
-                localStorage.setItem('forceUpdateAttempts', '0');
-            } else {
-                localStorage.setItem('forceUpdateAttempts', (updateAttempts + 1).toString());
-            }
-            localStorage.setItem('forceUpdateTimestamp', now.toString());
-
-            // Шаг 4: Hard reload с cache bypass
+            // Шаг 3: Hard reload с cache bypass
+            // Примечание: инкремент счетчика попыток происходит в checkForceUpdateParam()
+            // или в showUpdateNotification() ПЕРЕД вызовом forceUpdate()
             console.log('[VersionChecker] Performing hard reload...');
 
             // Для мобильных браузеров - используем location.replace с timestamp
@@ -436,14 +451,30 @@ class VersionChecker {
     scheduleUpdateAfterSync() {
         console.log('[VersionChecker] Scheduling update after sync completion');
 
+        // Очищаем предыдущий handler если был (защита от множественных вызовов)
+        if (this._syncCompletedHandler) {
+            window.removeEventListener('SyncCompleted', this._syncCompletedHandler);
+            this._syncCompletedHandler = null;
+        }
+        if (this._syncCompletedTimeout) {
+            clearTimeout(this._syncCompletedTimeout);
+            this._syncCompletedTimeout = null;
+        }
+
         // Слушаем событие завершения синхронизации
-        const syncCompletedHandler = async (e) => {
+        this._syncCompletedHandler = async (e) => {
             const { remainingCount } = e.detail || {};
 
             // Если синхронизация завершилась успешно (remainingCount === 0)
             if (remainingCount === 0) {
                 console.log('[VersionChecker] Sync completed, proceeding with update');
-                window.removeEventListener('SyncCompleted', syncCompletedHandler);
+                window.removeEventListener('SyncCompleted', this._syncCompletedHandler);
+                this._syncCompletedHandler = null;
+
+                if (this._syncCompletedTimeout) {
+                    clearTimeout(this._syncCompletedTimeout);
+                    this._syncCompletedTimeout = null;
+                }
 
                 // Небольшая задержка чтобы пользователь увидел что синхронизация завершена
                 setTimeout(() => {
@@ -452,11 +483,15 @@ class VersionChecker {
             }
         };
 
-        window.addEventListener('SyncCompleted', syncCompletedHandler);
+        window.addEventListener('SyncCompleted', this._syncCompletedHandler);
 
         // Таймаут на случай если синхронизация зависла (5 минут)
-        setTimeout(() => {
-            window.removeEventListener('SyncCompleted', syncCompletedHandler);
+        this._syncCompletedTimeout = setTimeout(() => {
+            if (this._syncCompletedHandler) {
+                window.removeEventListener('SyncCompleted', this._syncCompletedHandler);
+                this._syncCompletedHandler = null;
+            }
+            this._syncCompletedTimeout = null;
             console.warn('[VersionChecker] Sync timeout, cancelling scheduled update');
         }, 5 * 60 * 1000);
 

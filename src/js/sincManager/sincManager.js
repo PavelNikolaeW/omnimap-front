@@ -83,13 +83,37 @@ export class SincManager {
     /**
      * Полная подгрузка дерева с сервера
      * Используется при долгом офлайне чтобы получить новые деревья и блоки
+     * @returns {Promise<void>} - Резолвится после завершения загрузки и сохранения блоков
      */
     async loadFullTree() {
         try {
-            const { dispatch } = await import('../utils/utils');
-            // Диспатчим LoadTrees который вызовет api.getTreeBlocks() и обновит все блоки
-            dispatch('LoadTrees');
-            console.log('✅ SincManager: full tree load dispatched');
+            const [{ dispatch }, api] = await Promise.all([
+                import('../utils/utils'),
+                import('../api/api')
+            ]);
+
+            // Напрямую вызываем api.getTreeBlocks() чтобы дождаться завершения
+            const treeBlocks = await api.default.getTreeBlocks();
+            console.log(`📥 SincManager: loaded ${treeBlocks.blocks.size} blocks from server`);
+
+            // Сохраняем блоки через localStateManager
+            const { localStateManager } = await import('../stateLocal/localStateManager');
+
+            // Обновляем treeIds
+            if (localStateManager.currentUser) {
+                await localforage.setItem(`treeIds${localStateManager.currentUser}`, treeBlocks.treeIds);
+            }
+
+            // Сохраняем все блоки
+            for (const block of treeBlocks.blocks.values()) {
+                await localStateManager.saveBlock(block);
+            }
+
+            // Обновляем UI
+            dispatch('UpdateTreeNavigation');
+            dispatch('ShowBlocks');
+
+            console.log('✅ SincManager: full tree load completed');
         } catch (err) {
             console.error('SincManager: failed to load full tree:', err);
             // Fallback на инкрементальные обновления
