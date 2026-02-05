@@ -378,9 +378,15 @@ export class UpdateServiceWebSocket {
             }
 
             if (message.type === 'block_updates') {
-                // Ответ на get_updates запрос: { type: 'block_updates', updates: [...] }
+                // Ответ на get_updates запрос: { type: 'block_updates', updates: [...], new_block_ids: [...] }
                 if (Array.isArray(message.updates)) {
                     dispatch('WebSocUpdateBlock', { blocks: message.updates, isReconnect: true });
+                }
+
+                // Если есть новые блоки - запрашиваем полное дерево
+                if (Array.isArray(message.new_block_ids) && message.new_block_ids.length > 0) {
+                    console.log(`🆕 WebSocket: detected ${message.new_block_ids.length} new blocks, loading full tree`);
+                    dispatch('LoadTrees');
                 }
             } else if (message.type === 'block_updates_batch') {
                 // Батч обновлений от сервера: { type: 'block_updates_batch', updates: [{type: 'block_update', data: ...}, ...] }
