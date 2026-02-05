@@ -235,6 +235,12 @@ export class ContextManager {
             }
         }
 
+        // На мобильных: touchend НЕ должен сбрасывать blockElement,
+        // потому что click событие придёт после touchend и ему нужен blockElement
+        if (event.type === 'touchend') {
+            return;
+        }
+
         const relatedTarget = event.relatedTarget
         if (!this.shiftLock) {
             this.setDisActiveBlock(relatedTarget)
@@ -297,6 +303,11 @@ export class ContextManager {
             return;
         }
 
+        // На мобильных: touchend НЕ должен сбрасывать blockId (click придёт после)
+        if (event.type === 'touchend') {
+            return;
+        }
+
         this.blockId = undefined
         this.isTree = false
         if (this.mode === 'cutBlock' && !this.cutIsMultiple && this.cut) {
@@ -327,6 +338,11 @@ export class ContextManager {
         if (event.type === 'touchstart' || event.type === 'touchend') {
             this.lastTouchTime = now;
         } else if (event.type.startsWith('mouse') && now - this.lastTouchTime < 500) {
+            return;
+        }
+
+        // На мобильных: touchend НЕ должен сбрасывать blockId (click придёт после)
+        if (event.type === 'touchend') {
             return;
         }
 
