@@ -309,8 +309,11 @@ async function initApp() {
     const isAuth = await checkAuth()
 
     if (isAuth) {
-        // Загружаем свежие данные с сервера (LoadTrees внутри вызовет ShowBlocks)
-        dispatch('LoadTrees')
+        // Показываем кэш мгновенно (если есть)
+        // WebSocket подключится и автоматически:
+        // - Если есть локальные блоки → получит инкрементальные обновления
+        // - Если нет → вызовет loadFullTree() (sincManager.js:128)
+        dispatch('ShowBlocks')
     }
 
     // Инициализируем обработчики двойного клика на изображениях в блоках
