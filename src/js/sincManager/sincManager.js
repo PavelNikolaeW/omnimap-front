@@ -68,8 +68,10 @@ export class SincManager {
     /**
      * Обработчик восстановления соединения
      * Стратегия:
-     * 1. Если прошло больше 5 минут с последней полной подгрузки → полная подгрузка
-     * 2. Иначе → только обновления существующих блоков (get_updates)
+     * 1. Всегда пытаемся сделать инкрементальное обновление (get_updates)
+     * 2. Если есть локальные блоки - get_updates вернёт изменённые + new_block_ids
+     * 3. Если нет локальных блоков - внутри requestIncrementalUpdates() вызовется loadFullTree()
+     * 4. Если прошло >5 минут с последней полной подгрузки - делаем полную загрузку (очистка стухших данных)
      */
     async online() {
         try {
@@ -78,15 +80,22 @@ export class SincManager {
 
             const now = Date.now();
             const timeSinceLastFullLoad = now - this.lastFullTreeLoad;
-            const shouldDoFullLoad = timeSinceLastFullLoad > this.FULL_TREE_LOAD_INTERVAL;
+
+            // Полная загрузка только если прошло слишком много времени (очистка стухших данных)
+            // lastFullTreeLoad = 0 при первом подключении НЕ считается причиной для полной загрузки
+            const shouldDoFullLoad = this.lastFullTreeLoad > 0 && timeSinceLastFullLoad > this.FULL_TREE_LOAD_INTERVAL;
 
             if (shouldDoFullLoad) {
                 console.log('🌳 SincManager: full tree load (last load', Math.round(timeSinceLastFullLoad / 1000), 'seconds ago)');
                 await this.loadFullTree();
                 this.lastFullTreeLoad = now;
             } else {
-                console.log('🔄 SincManager: incremental updates (last full load', Math.round(timeSinceLastFullLoad / 1000), 'seconds ago)');
+                console.log('🔄 SincManager: incremental updates (first connection or recent full load)');
                 await this.requestIncrementalUpdates();
+                // Обновляем timestamp после первого успешного подключения
+                if (this.lastFullTreeLoad === 0) {
+                    this.lastFullTreeLoad = now;
+                }
             }
         } catch (err) {
             console.error('SincManager: sync error:', err.stack || err.message || err);
