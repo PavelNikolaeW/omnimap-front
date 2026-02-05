@@ -122,7 +122,23 @@ export class LocalStateManager {
     registerEventHandlers() {
         window.addEventListener('ShowBlocks', () => this.showBlocks());
         window.addEventListener('LoadEmptyBlocks', async (e) => {
-            await this.loadEmptyBlocks(e.detail)
+            const loadedBlocks = await this.loadEmptyBlocks(e.detail);
+
+            // Проверяем есть ли среди загруженных блоков новые деревья (root блоки)
+            const newTreeIds = loadedBlocks
+                .filter(block => block.parent_id === false)
+                .map(block => block.id);
+
+            if (newTreeIds.length > 0 && this.currentUser) {
+                // Обновляем treeIds с новыми деревьями
+                const currentTreeIds = await localforage.getItem(`treeIds${this.currentUser}`) || [];
+                const updatedTreeIds = [...new Set([...currentTreeIds, ...newTreeIds])];
+                await localforage.setItem(`treeIds${this.currentUser}`, updatedTreeIds);
+
+                // Обновляем навигацию
+                dispatch('UpdateTreeNavigation');
+            }
+
             dispatch('ShowBlocks');
         });
 
@@ -1598,6 +1614,25 @@ export class LocalStateManager {
             }
         }
 
+        // Проверяем есть ли среди обработанных блоков новые деревья (root блоки)
+        const newTreeIds = processedBlocks
+            .filter(block => !block.deleted && block.parent_id === false)
+            .map(block => block.id);
+
+        if (newTreeIds.length > 0 && this.currentUser) {
+            // Обновляем treeIds с новыми деревьями
+            const currentTreeIds = await localforage.getItem(`treeIds${this.currentUser}`) || [];
+            const updatedTreeIds = [...new Set([...currentTreeIds, ...newTreeIds])];
+
+            // Проверяем действительно ли есть новые
+            if (updatedTreeIds.length > currentTreeIds.length) {
+                await localforage.setItem(`treeIds${this.currentUser}`, updatedTreeIds);
+                // Обновляем навигацию
+                dispatch('UpdateTreeNavigation');
+                console.log(`🆕 LocalStateManager: added ${updatedTreeIds.length - currentTreeIds.length} new trees to navigation`);
+            }
+        }
+
         if (processedBlocks.length > 0) {
             this.updateScreen(processedBlocks);
         }
@@ -2177,13 +2212,16 @@ export class LocalStateManager {
     }
 
     async loadEmptyBlocks({emptyBlocks}) {
+        const loadedBlocks = [];
         await api.loadEmpty(emptyBlocks).then((res) => {
             if (res.status === 200) {
                 Object.values(res.data).forEach((block) => {
-                    this.saveBlock(block)
+                    this.saveBlock(block);
+                    loadedBlocks.push(block);
                 })
             }
-        })
+        });
+        return loadedBlocks;
     }
 
 
