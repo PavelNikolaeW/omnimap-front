@@ -2,6 +2,10 @@ import { test as base, expect, BrowserContext, Page } from '@playwright/test';
 import { MainPage } from '../pages/main.page';
 import { ApiHelper, createApiHelper } from '../helpers/api.helper';
 import { OfflineHelper } from './offline.fixture';
+import { SelectionHelper } from './selection.fixture';
+import { AppModeHelper, MODES } from './app-mode.fixture';
+import { LinkBlockHelper } from './link-block.fixture';
+import { ClipboardHelper } from './clipboard.fixture';
 import * as fs from 'fs';
 
 /**
@@ -317,6 +321,14 @@ type BaseFixtures = {
   cleanup: TestCleanupHelper;
   /** Трекер тестовых данных */
   testData: TestDataTracker;
+  /** Selection хелпер (multi-select, active state) */
+  selection: SelectionHelper;
+  /** AppMode хелпер (режимы приложения) */
+  appMode: AppModeHelper;
+  /** LinkBlock хелпер (блоки-ссылки) */
+  linkBlock: LinkBlockHelper;
+  /** Clipboard хелпер (буфер обмена) */
+  clipboard: ClipboardHelper;
 };
 
 /**
@@ -411,6 +423,42 @@ export const test = base.extend<BaseFixtures>({
     };
     await use(tracker);
   },
+
+  /**
+   * Selection хелпер для работы с выделением блоков
+   * Поддерживает single selection (active) и multi-selection
+   */
+  selection: async ({ page }, use) => {
+    const helper = new SelectionHelper(page);
+    await use(helper);
+  },
+
+  /**
+   * AppMode хелпер для управления режимами приложения
+   * Режимы: normal, textEdit, connectToBlock, cutBlock, diagram, chat
+   */
+  appMode: async ({ page }, use) => {
+    const helper = new AppModeHelper(page);
+    await use(helper);
+  },
+
+  /**
+   * LinkBlock хелпер для работы с блоками-ссылками
+   * Создание, навигация, проверка атрибута blocklink
+   */
+  linkBlock: async ({ page }, use) => {
+    const helper = new LinkBlockHelper(page);
+    await use(helper);
+  },
+
+  /**
+   * Clipboard хелпер для работы с буфером обмена
+   * Требует permissions: ['clipboard-read', 'clipboard-write']
+   */
+  clipboard: async ({ page }, use) => {
+    const helper = new ClipboardHelper(page);
+    await use(helper);
+  },
 });
 
 /**
@@ -451,3 +499,9 @@ export function uniqueTreeName(prefix: string = 'TestTree'): string {
 }
 
 export { expect };
+
+// Re-export helpers for direct import
+export { SelectionHelper } from './selection.fixture';
+export { AppModeHelper, MODES } from './app-mode.fixture';
+export { LinkBlockHelper } from './link-block.fixture';
+export { ClipboardHelper, setupClipboardPermissions } from './clipboard.fixture';

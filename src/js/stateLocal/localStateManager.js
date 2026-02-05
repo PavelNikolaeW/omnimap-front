@@ -1278,7 +1278,12 @@ export class LocalStateManager {
     }
 
     async webSocUpdateBlock(newBlocks) {
-        if (!Array.isArray(newBlocks) || newBlocks.length === 0) return;
+        if (!Array.isArray(newBlocks) || newBlocks.length === 0) {
+            console.log('📭 webSocUpdateBlock: no blocks received');
+            return;
+        }
+
+        console.log(`📬 webSocUpdateBlock: processing ${newBlocks.length} blocks`);
 
         const processedBlocks = [];
 
@@ -1646,37 +1651,62 @@ export class LocalStateManager {
      * @param {Array} serverUpdates - блоки, полученные от сервера в ответе block_updates
      */
     async fetchMissingChildren(serverUpdates) {
-        if (!Array.isArray(serverUpdates) || serverUpdates.length === 0) return;
+        if (!Array.isArray(serverUpdates) || serverUpdates.length === 0) {
+            console.log('🔍 fetchMissingChildren: no updates to check');
+            return;
+        }
+
+        console.log(`🔍 fetchMissingChildren: checking ${serverUpdates.length} blocks for missing children`);
 
         const missingChildIds = new Set();
         for (const block of serverUpdates) {
             if (!block?.id || block.deleted) continue;
             const children = this._safeJsonParse(block.children, []);
+            if (children.length > 0) {
+                console.log(`🔍 Block ${block.id} has ${children.length} children`);
+            }
             for (const childId of children) {
                 if (!this.blocks.has(childId)) {
                     missingChildIds.add(childId);
+                    console.log(`⚠️ Missing child: ${childId} (parent: ${block.id})`);
                 }
             }
         }
 
-        if (missingChildIds.size === 0) return;
+        if (missingChildIds.size === 0) {
+            console.log('✅ fetchMissingChildren: no missing children');
+            return;
+        }
 
         console.log(`🔄 Reconnect: ${missingChildIds.size} missing children detected, fetching tree...`);
 
         try {
             const { blocks: serverBlocks } = await api.getTreeBlocks();
+            console.log(`📥 getTreeBlocks returned ${serverBlocks.size} blocks`);
+
             let fetchedCount = 0;
+            const fetchedIds = [];
 
             for (const [blockId, serverBlock] of serverBlocks) {
                 if (!this.blocks.has(blockId)) {
                     await this.saveBlock(serverBlock);
                     fetchedCount++;
+                    fetchedIds.push(blockId);
                 }
             }
 
-            if (fetchedCount === 0) return;
+            // Проверяем, были ли найдены нужные missing children
+            const stillMissing = [...missingChildIds].filter(id => !serverBlocks.has(id));
+            if (stillMissing.length > 0) {
+                console.warn(`⚠️ Still missing after fetch: ${stillMissing.join(', ')}`);
+            }
 
-            console.log(`✅ Fetched ${fetchedCount} missing blocks`);
+            if (fetchedCount === 0) {
+                console.log('ℹ️ fetchMissingChildren: all blocks already present locally');
+                return;
+            }
+
+            console.log(`✅ Fetched ${fetchedCount} missing blocks: ${fetchedIds.slice(0, 5).join(', ')}${fetchedIds.length > 5 ? '...' : ''}`);
 
             // Пересинхронизируем children/childOrder родителей
             const blocksToRender = [];

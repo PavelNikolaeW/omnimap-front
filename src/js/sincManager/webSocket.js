@@ -379,7 +379,11 @@ export class UpdateServiceWebSocket {
 
             if (message.type === 'block_updates') {
                 // Ответ на get_updates запрос: { type: 'block_updates', updates: [...], new_blocks: [...] }
-                if (Array.isArray(message.updates)) {
+                const updatesCount = Array.isArray(message.updates) ? message.updates.length : 0;
+                const newBlocksCount = Array.isArray(message.new_blocks) ? message.new_blocks.length : 0;
+                console.log(`📥 WebSocket: block_updates received - updates: ${updatesCount}, new_blocks: ${newBlocksCount}`);
+
+                if (Array.isArray(message.updates) && message.updates.length > 0) {
                     dispatch('WebSocUpdateBlock', { blocks: message.updates, isReconnect: true });
                 }
 
