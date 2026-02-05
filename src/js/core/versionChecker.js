@@ -383,7 +383,6 @@ class VersionChecker {
                 if (!shouldProceed) {
                     console.log('[VersionChecker] Update cancelled by user, waiting for sync completion');
                     // Запускаем синхронизацию и повторяем попытку после завершения
-                    this._isUpdating = false; // Сбрасываем флаг перед выходом
                     this.scheduleUpdateAfterSync();
                     return;
                 }
@@ -424,6 +423,10 @@ class VersionChecker {
             console.error('[VersionChecker] Force update failed:', error);
             // Fallback: просто перезагружаем
             window.location.reload();
+        } finally {
+            // Сбрасываем флаг если reload не произошёл (например, при раннем return)
+            // Если reload произошёл - страница уже перезагрузилась и этот код не выполнится
+            this._isUpdating = false;
         }
     }
 

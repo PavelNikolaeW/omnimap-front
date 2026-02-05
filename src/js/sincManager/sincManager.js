@@ -42,9 +42,10 @@ export class SincManager {
     /**
      * Полная подгрузка дерева с сервера
      * Используется при долгом офлайне чтобы получить новые деревья и блоки
+     * @param {boolean} allowFallbackToIncremental - Разрешить fallback на инкрементальные обновления при ошибке
      * @returns {Promise<void>} - Резолвится после завершения загрузки и сохранения блоков
      */
-    async loadFullTree() {
+    async loadFullTree(allowFallbackToIncremental = true) {
         try {
             const [{ dispatch }, api] = await Promise.all([
                 import('../utils/utils'),
@@ -75,16 +76,19 @@ export class SincManager {
             console.log('✅ SincManager: full tree load completed');
         } catch (err) {
             console.error('SincManager: failed to load full tree:', err);
-            // Fallback на инкрементальные обновления
-            await this.requestIncrementalUpdates();
+            // Fallback на инкрементальные обновления только если разрешено (предотвращает рекурсию)
+            if (allowFallbackToIncremental) {
+                await this.requestIncrementalUpdates(false);
+            }
         }
     }
 
     /**
      * Запрашивает только обновления для существующих локальных блоков
      * Используется для быстрой синхронизации при частых переподключениях
+     * @param {boolean} allowFallbackToFull - Разрешить fallback на полную загрузку дерева при отсутствии блоков
      */
-    async requestIncrementalUpdates() {
+    async requestIncrementalUpdates(allowFallbackToFull = true) {
         try {
             const username = await localforage.getItem('currentUser');
             if (!username) return;
@@ -122,10 +126,12 @@ export class SincManager {
             if (toSend.length > 0) {
                 this.webSocket.getUpdates(toSend);
                 console.log(`🔄 SincManager: requested updates for ${toSend.length} blocks`);
-            } else {
+            } else if (allowFallbackToFull) {
                 console.log('🔄 SincManager: no local blocks, triggering full tree load');
-                // Если нет локальных блоков - загружаем полное дерево
-                await this.loadFullTree();
+                // Если нет локальных блоков - загружаем полное дерево (предотвращаем рекурсию)
+                await this.loadFullTree(false);
+            } else {
+                console.log('⏭️ SincManager: no local blocks and fallback disabled, skipping');
             }
         } catch (err) {
             console.error('SincManager: failed to request incremental updates:', err);

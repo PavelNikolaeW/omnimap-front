@@ -40,6 +40,38 @@ class BlockRepository {
         return `Block_${blockId}_${this.currentUser}`;
     }
 
+    /**
+     * Обновляет treeIds при появлении новых root блоков
+     * @param {Array} blocks - Массив блоков для проверки
+     * @param {boolean} checkDeleted - Проверять ли флаг deleted (для webSocUpdateBlock)
+     * @returns {Promise<void>}
+     */
+    async _updateTreeIdsIfNeeded(blocks, checkDeleted = false) {
+        if (!this.currentUser || !Array.isArray(blocks) || blocks.length === 0) return;
+
+        // Находим новые деревья (root блоки)
+        const newTreeIds = blocks
+            .filter(block => {
+                const isRoot = block.parent_id === false;
+                return checkDeleted ? (isRoot && !block.deleted) : isRoot;
+            })
+            .map(block => block.id);
+
+        if (newTreeIds.length === 0) return;
+
+        // Обновляем treeIds с новыми деревьями
+        const currentTreeIds = await localforage.getItem(`treeIds${this.currentUser}`) || [];
+        const updatedTreeIds = [...new Set([...currentTreeIds, ...newTreeIds])];
+
+        // Проверяем действительно ли есть новые
+        if (updatedTreeIds.length > currentTreeIds.length) {
+            await localforage.setItem(`treeIds${this.currentUser}`, updatedTreeIds);
+            // Обновляем навигацию
+            dispatch('UpdateTreeNavigation');
+            console.log(`🆕 LocalStateManager: added ${updatedTreeIds.length - currentTreeIds.length} new trees to navigation`);
+        }
+    }
+
     async saveBlock(block) {
         const key = this.getKey(block.id);
         const blockData = {
@@ -124,20 +156,8 @@ export class LocalStateManager {
         window.addEventListener('LoadEmptyBlocks', async (e) => {
             const loadedBlocks = await this.loadEmptyBlocks(e.detail);
 
-            // Проверяем есть ли среди загруженных блоков новые деревья (root блоки)
-            const newTreeIds = loadedBlocks
-                .filter(block => block.parent_id === false)
-                .map(block => block.id);
-
-            if (newTreeIds.length > 0 && this.currentUser) {
-                // Обновляем treeIds с новыми деревьями
-                const currentTreeIds = await localforage.getItem(`treeIds${this.currentUser}`) || [];
-                const updatedTreeIds = [...new Set([...currentTreeIds, ...newTreeIds])];
-                await localforage.setItem(`treeIds${this.currentUser}`, updatedTreeIds);
-
-                // Обновляем навигацию
-                dispatch('UpdateTreeNavigation');
-            }
+            // Обновляем treeIds если появились новые root блоки
+            await this._updateTreeIdsIfNeeded(loadedBlocks, false);
 
             dispatch('ShowBlocks');
         });
@@ -1611,24 +1631,8 @@ export class LocalStateManager {
             }
         }
 
-        // Проверяем есть ли среди обработанных блоков новые деревья (root блоки)
-        const newTreeIds = processedBlocks
-            .filter(block => !block.deleted && block.parent_id === false)
-            .map(block => block.id);
-
-        if (newTreeIds.length > 0 && this.currentUser) {
-            // Обновляем treeIds с новыми деревьями
-            const currentTreeIds = await localforage.getItem(`treeIds${this.currentUser}`) || [];
-            const updatedTreeIds = [...new Set([...currentTreeIds, ...newTreeIds])];
-
-            // Проверяем действительно ли есть новые
-            if (updatedTreeIds.length > currentTreeIds.length) {
-                await localforage.setItem(`treeIds${this.currentUser}`, updatedTreeIds);
-                // Обновляем навигацию
-                dispatch('UpdateTreeNavigation');
-                console.log(`🆕 LocalStateManager: added ${updatedTreeIds.length - currentTreeIds.length} new trees to navigation`);
-            }
-        }
+        // Обновляем treeIds если появились новые root блоки
+        await this._updateTreeIdsIfNeeded(processedBlocks, true);
 
         if (processedBlocks.length > 0) {
             this.updateScreen(processedBlocks);
