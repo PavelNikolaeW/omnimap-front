@@ -310,10 +310,14 @@ async function initApp() {
 
     if (isAuth) {
         // Показываем кэш мгновенно (если есть)
-        // WebSocket подключится и автоматически:
-        // - Если есть локальные блоки → получит инкрементальные обновления
-        // - Если нет → вызовет loadFullTree() (sincManager.js:128)
         dispatch('ShowBlocks')
+
+        // КРИТИЧНО: Запускаем синхронизацию явно после логина
+        // Защита от race condition: если WebSocket подключился ДО установки currentUser,
+        // то online() handler пропустил синхронизацию (return на sincManager.js:33)
+        // Явный вызов гарантирует получение обновлений
+        console.log('🔄 index.js: triggering sync after login');
+        await sincManager.requestIncrementalUpdates();
     }
 
     // Инициализируем обработчики двойного клика на изображениях в блоках
