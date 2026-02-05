@@ -309,7 +309,8 @@ async function initApp() {
     const isAuth = await checkAuth()
 
     if (isAuth) {
-        dispatch('ShowBlocks')
+        // Загружаем свежие данные с сервера (LoadTrees внутри вызовет ShowBlocks)
+        dispatch('LoadTrees')
     }
 
     // Инициализируем обработчики двойного клика на изображениях в блоках
