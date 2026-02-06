@@ -1061,6 +1061,115 @@ export class LocalStateManager {
         }
     }
 
+    /**
+     * Нормализует childrenPositions в customGrid:
+     * - удаляет позиции для детей, которых нет в childOrder
+     * - добавляет позицию для детей без явной позиции
+     * @param {Object|null} customGrid
+     * @param {Array<string>} childIds
+     * @returns {Object|null}
+     */
+    _normalizeCustomGridPositions(customGrid, childIds = []) {
+        if (!customGrid?.grid) return customGrid;
+
+        const normalizedChildIds = Array.isArray(childIds) ? childIds : [];
+        const sourcePositions = (customGrid.childrenPositions &&
+            typeof customGrid.childrenPositions === 'object' &&
+            !Array.isArray(customGrid.childrenPositions))
+            ? customGrid.childrenPositions
+            : {};
+
+        const positions = {};
+        let changed = false;
+
+        // Оставляем только валидные позиции для детей из текущего childOrder
+        for (const childId of normalizedChildIds) {
+            const position = sourcePositions[childId];
+            if (Array.isArray(position) && position.length > 0) {
+                positions[childId] = position;
+            } else {
+                changed = true;
+            }
+        }
+
+        // Если были лишние позиции (для удалённых/перемещённых детей) — это изменение
+        if (Object.keys(sourcePositions).length !== Object.keys(positions).length) {
+            changed = true;
+        }
+
+        // Добавляем позиции для детей, у которых их нет
+        for (const childId of normalizedChildIds) {
+            if (!positions[childId]) {
+                const customGridSnapshot = { ...customGrid, childrenPositions: positions };
+                positions[childId] = this._calculateBlockPositionInDiagram(customGridSnapshot, childId, null);
+                changed = true;
+            }
+        }
+
+        if (!changed) return customGrid;
+
+        return {
+            ...customGrid,
+            childrenPositions: positions
+        };
+    }
+
+    /**
+     * Удаляет блок из всех родительских списков, кроме целевого.
+     * Используется как защита от гонки, когда WS update пришёл до загрузки localBlock в память.
+     * @param {string} blockId
+     * @param {string|null} keepParentId
+     * @param {Array<Object>} processedBlocks
+     */
+    async _detachBlockFromOtherParents(blockId, keepParentId, processedBlocks) {
+        if (!blockId) return;
+
+        for (const [candidateId, candidate] of this.blocks) {
+            if (!candidate || candidate.id === blockId) continue;
+            if (keepParentId && candidateId === keepParentId) continue;
+
+            let changed = false;
+
+            if (Array.isArray(candidate.children) && candidate.children.includes(blockId)) {
+                candidate.children = candidate.children.filter(id => id !== blockId);
+                changed = true;
+            }
+
+            if (Array.isArray(candidate.data?.childOrder) && candidate.data.childOrder.includes(blockId)) {
+                candidate.data.childOrder = candidate.data.childOrder.filter(id => id !== blockId);
+                changed = true;
+            }
+
+            if (candidate.data?.layoutCells?.cells?.[blockId]) {
+                delete candidate.data.layoutCells.cells[blockId];
+                changed = true;
+            }
+
+            if (candidate.data?.customGrid?.childrenPositions?.[blockId]) {
+                delete candidate.data.customGrid.childrenPositions[blockId];
+                changed = true;
+            }
+
+            if (!changed) continue;
+
+            // Если есть customGrid — приводим позиции в консистентный вид
+            if (candidate.data?.customGrid?.grid) {
+                candidate.data.customGrid = this._normalizeCustomGridPositions(
+                    candidate.data.customGrid,
+                    candidate.data.childOrder || []
+                );
+            }
+
+            delete candidate.childrenPositions;
+            delete candidate.grid;
+            await this.saveBlock(candidate);
+
+            if (!processedBlocks.find(b => b.id === candidateId)) {
+                processedBlocks.push(candidate);
+            }
+        }
+    }
+
     async WebSocUpdateBlockAccess(message) {
         console.log('🔔 WebSocUpdateBlockAccess received:', JSON.stringify(message, null, 2));
 
@@ -1604,6 +1713,14 @@ export class LocalStateManager {
                         this.blocks.has(id) || batchBlockIds.has(id)
                     );
 
+                    // В customGrid держим только актуальные childrenPositions
+                    if (mergedData.customGrid?.grid) {
+                        mergedData.customGrid = this._normalizeCustomGridPositions(
+                            mergedData.customGrid,
+                            syncedChildren
+                        );
+                    }
+
                     // Обновляем версию childOrder для отслеживания изменений при рендеринге
                     let childOrderVersion = localBlock?._childOrderVersion;
                     if (childOrderChanged) {
@@ -1646,6 +1763,12 @@ export class LocalStateManager {
                     const newParentId = normalizeParentId(block.parent_id);
                     const parentChanged = localBlock && oldParentId !== newParentId;
 
+                    // Если localBlock отсутствует (update пришёл раньше загрузки кэша),
+                    // удаляем блок из всех прочих родителей чтобы не остался "залипшим"
+                    if (!localBlock) {
+                        await this._detachBlockFromOtherParents(block.id, newParentId, processedBlocks);
+                    }
+
                     // Если родитель изменился - удаляем из старого родителя
                     if (parentChanged && oldParentId) {
                         const oldParent = this.blocks.get(oldParentId);
@@ -1656,6 +1779,20 @@ export class LocalStateManager {
                             if (oldParent.children) {
                                 oldParent.children = oldParent.children.filter(id => id !== block.id);
                             }
+                            if (oldParent.data?.customGrid?.childrenPositions?.[block.id]) {
+                                delete oldParent.data.customGrid.childrenPositions[block.id];
+                            }
+                            if (oldParent.data?.layoutCells?.cells?.[block.id]) {
+                                delete oldParent.data.layoutCells.cells[block.id];
+                            }
+
+                            if (oldParent.data?.customGrid?.grid) {
+                                oldParent.data.customGrid = this._normalizeCustomGridPositions(
+                                    oldParent.data.customGrid,
+                                    oldParent.data.childOrder || []
+                                );
+                            }
+
                             delete oldParent.childrenPositions;
                             delete oldParent.grid;
                             await this.saveBlock(oldParent);
@@ -1669,6 +1806,7 @@ export class LocalStateManager {
                     if ((!localBlock || parentChanged) && newParentId) {
                         const newParent = this.blocks.get(newParentId);
                         if (newParent) {
+                            let newParentChanged = false;
                             const parentChildOrder = newParent.data?.childOrder || [];
                             if (!parentChildOrder.includes(block.id)) {
                                 newParent.data = newParent.data || {};
@@ -1677,6 +1815,22 @@ export class LocalStateManager {
                                 if (!newParent.children.includes(block.id)) {
                                     newParent.children = [...newParent.children, block.id];
                                 }
+                                newParentChanged = true;
+                            }
+
+                            // Для диаграммы гарантируем наличие позиции для нового ребёнка
+                            if (newParent.data?.customGrid?.grid) {
+                                const normalizedCustomGrid = this._normalizeCustomGridPositions(
+                                    newParent.data.customGrid,
+                                    newParent.data.childOrder || []
+                                );
+                                if (normalizedCustomGrid !== newParent.data.customGrid) {
+                                    newParent.data.customGrid = normalizedCustomGrid;
+                                    newParentChanged = true;
+                                }
+                            }
+
+                            if (newParentChanged) {
                                 delete newParent.childrenPositions;
                                 delete newParent.grid;
                                 await this.saveBlock(newParent);

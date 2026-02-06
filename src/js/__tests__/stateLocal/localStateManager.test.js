@@ -28,6 +28,7 @@ jest.mock('../../utils/custom-dialog', () => ({
 jest.mock('../../services/treeService', () => ({
     treeService: {
         refresh: jest.fn().mockResolvedValue(undefined),
+        hasTree: jest.fn().mockReturnValue(true),
         isRootTree: jest.fn().mockReturnValue(false),
         count: 2,
         removeTree: jest.fn().mockResolvedValue(undefined),
@@ -43,6 +44,7 @@ jest.mock('../../controller/undoManager', () => ({
         recordDeleteTree: jest.fn(),
         recordCreate: jest.fn(),
         recordMove: jest.fn(),
+        invalidateEntriesForBlock: jest.fn(),
         removeLastEntryForBlock: jest.fn(),
     }
 }));
@@ -119,6 +121,7 @@ describe('LocalStateManager', () => {
 
         // Re-setup treeService
         treeService.refresh.mockResolvedValue(undefined);
+        treeService.hasTree.mockReturnValue(true);
         treeService.isRootTree.mockReturnValue(false);
         treeService.count = 2;
         treeService.removeTree.mockResolvedValue(undefined);
@@ -127,6 +130,7 @@ describe('LocalStateManager', () => {
         undoManager.recordDelete.mockImplementation(() => {});
         undoManager.recordDeleteTree.mockImplementation(() => {});
         undoManager.recordCreate = jest.fn();
+        undoManager.invalidateEntriesForBlock = jest.fn();
         undoManager.removeLastEntryForBlock.mockImplementation(() => {});
 
         // Re-setup blockOperationLock
@@ -387,7 +391,7 @@ describe('LocalStateManager', () => {
             // Should not throw
         });
 
-        test('saves non-deleted blocks', () => {
+        test('saves non-deleted blocks', async () => {
             const saveBlockSpy = jest.spyOn(manager, 'saveBlock');
             const blocks = [{
                 id: 'block-1',
@@ -398,9 +402,101 @@ describe('LocalStateManager', () => {
                 parent_id: 'parent-1'
             }];
 
-            manager.webSocUpdateBlock(blocks);
+            await manager.webSocUpdateBlock(blocks);
 
             expect(saveBlockSpy).toHaveBeenCalled();
+        });
+
+        test('removes moved block from stale old parent when local block is not loaded', async () => {
+            const oldParent = {
+                id: 'old-parent',
+                title: 'Old Parent',
+                children: ['block-1'],
+                data: {
+                    childOrder: ['block-1'],
+                    customGrid: {
+                        grid: ['grid-template-columns_1fr', 'grid-template-rows_1fr'],
+                        childrenPositions: {
+                            'block-1': ['grid-column_1__2', 'grid-row_2__3']
+                        }
+                    }
+                }
+            };
+
+            const newParent = {
+                id: 'new-parent',
+                title: 'New Parent',
+                children: [],
+                data: {
+                    childOrder: [],
+                    customGrid: {
+                        grid: ['grid-template-columns_1fr', 'grid-template-rows_1fr'],
+                        childrenPositions: {}
+                    }
+                }
+            };
+
+            manager.blocks.set('old-parent', oldParent);
+            manager.blocks.set('new-parent', newParent);
+
+            await manager.webSocUpdateBlock([{
+                id: 'block-1',
+                title: 'Moved',
+                updated_at: Date.now() / 1000,
+                data: '{}',
+                children: '[]',
+                parent_id: 'new-parent'
+            }]);
+
+            expect(manager.blocks.get('old-parent').children).toEqual([]);
+            expect(manager.blocks.get('old-parent').data.childOrder).toEqual([]);
+            expect(manager.blocks.get('old-parent').data.customGrid.childrenPositions['block-1']).toBeUndefined();
+
+            expect(manager.blocks.get('new-parent').children).toContain('block-1');
+            expect(manager.blocks.get('new-parent').data.childOrder).toContain('block-1');
+            expect(manager.blocks.get('new-parent').data.customGrid.childrenPositions['block-1']).toBeDefined();
+        });
+
+        test('normalizes diagram positions when server children changed', async () => {
+            manager.blocks.set('new-child', {
+                id: 'new-child',
+                title: 'New Child',
+                parent_id: 'parent-1',
+                children: [],
+                data: {}
+            });
+
+            manager.blocks.set('parent-1', {
+                id: 'parent-1',
+                title: 'Parent',
+                parent_id: null,
+                children: ['old-child'],
+                updated_at: new Date().toISOString(),
+                data: {
+                    childOrder: ['old-child'],
+                    customGrid: {
+                        grid: ['grid-template-columns_1fr_1fr', 'grid-template-rows_1fr_1fr'],
+                        childrenPositions: {
+                            'old-child': ['grid-column_1__2', 'grid-row_2__3']
+                        }
+                    }
+                }
+            });
+
+            await manager.webSocUpdateBlock([{
+                id: 'parent-1',
+                title: 'Parent',
+                updated_at: Date.now() / 1000,
+                data: '{"childOrder":["new-child"]}',
+                children: '["new-child"]',
+                parent_id: null
+            }]);
+
+            const updatedParent = manager.blocks.get('parent-1');
+            expect(updatedParent.children).toEqual(['new-child']);
+            expect(updatedParent.data.childOrder).toEqual(['new-child']);
+            expect(updatedParent.data.customGrid.childrenPositions['old-child']).toBeUndefined();
+            expect(updatedParent.data.customGrid.childrenPositions['new-child']).toBeDefined();
         });
     });
 
