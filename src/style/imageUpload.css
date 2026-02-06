@@ -479,6 +479,14 @@
    Mobile Responsive
    ───────────────────────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
+    /* На телефонах изображение в высоких блоках должно занимать всю ширину */
+    [layout$="-h"] .block-image-container {
+        max-width: 100%;
+        width: 100%;
+        float: none;
+        margin-right: 0;
+    }
+
     .image-upload-dropzone {
         padding: var(--popup-spacing-lg);
     }
@@ -806,11 +814,20 @@
     border-radius: inherit;
     overflow: hidden;
     pointer-events: none; /* Клики проходят сквозь к блоку */
+    /* Сбрасываем адаптивные ограничения миниатюр */
+    flex: none;
+    width: auto;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    float: none;
 }
 
 .block-image-container[data-background="true"] .block-image {
     width: 100%;
     height: 100%;
+    max-width: none;
+    max-height: none;
     border-radius: inherit;
     object-fit: cover; /* По умолчанию заполняем весь блок */
 }
