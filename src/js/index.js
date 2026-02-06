@@ -183,8 +183,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             : `${vPrefix}${version}`;
     }
 
-    // Инициализируем менеджер кэша для dev режима
-    await initDevCacheManager();
+    // Инициализируем менеджер кэша ТОЛЬКО для dev режима
+    // Дополнительная проверка на уровне вызова для надежности
+    if (process.env.NODE_ENV !== 'production') {
+        await initDevCacheManager();
+    }
 
     // Быстрая инициализация без блокирующего экрана загрузки
     try {
