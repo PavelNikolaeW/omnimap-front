@@ -164,8 +164,15 @@ function showReloadNotification() {
  * Вызывается при загрузке приложения
  */
 export async function initDevCacheManager() {
-    // Только для dev режима
+    // КРИТИЧНО: Этот код должен работать ТОЛЬКО в dev режиме!
+    // Двойная проверка для надежности (на случай если webpack не заменил переменную)
     if (process.env.NODE_ENV === 'production') {
+        return;
+    }
+
+    // Дополнительная проверка через APP_VERSION (dev версия = 'dev')
+    if (typeof APP_VERSION !== 'undefined' && APP_VERSION !== 'dev') {
+        console.log('DevCacheManager: skipping in production build (APP_VERSION:', APP_VERSION, ')');
         return;
     }
 
