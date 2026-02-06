@@ -1638,6 +1638,32 @@ export class LocalStateManager {
                             delete savedBlock.grid;
                         }
                     }
+
+                    // Если это НОВЫЙ блок (не было локально) - добавляем в childOrder родителя
+                    // Это важно когда приходят только new_blocks без родителя в updates
+                    const parentId = normalizeParentId(block.parent_id);
+                    if (!localBlock && parentId) {
+                        const parentBlock = this.blocks.get(parentId);
+                        if (parentBlock) {
+                            const parentChildOrder = parentBlock.data?.childOrder || [];
+                            if (!parentChildOrder.includes(block.id)) {
+                                parentBlock.data = parentBlock.data || {};
+                                parentBlock.data.childOrder = [...parentChildOrder, block.id];
+                                parentBlock.children = parentBlock.children || [];
+                                if (!parentBlock.children.includes(block.id)) {
+                                    parentBlock.children = [...parentBlock.children, block.id];
+                                }
+                                // Инвалидируем кэш родителя
+                                delete parentBlock.childrenPositions;
+                                delete parentBlock.grid;
+                                await this.saveBlock(parentBlock);
+                                // Добавляем родителя в processedBlocks для перерисовки
+                                if (!processedBlocks.find(b => b.id === parentId)) {
+                                    processedBlocks.push(parentBlock);
+                                }
+                            }
+                        }
+                    }
                 }
                 processedBlocks.push(block);
             } catch (error) {
