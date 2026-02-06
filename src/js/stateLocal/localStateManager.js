@@ -1389,6 +1389,8 @@ export class LocalStateManager {
                 } else {
                     // Получаем локальный блок для проверки
                     const localBlock = this.blocks.get(block.id);
+                    // ВАЖНО: сохраняем старый parent_id ДО saveBlock, т.к. localBlock - ссылка на объект в this.blocks
+                    const oldParentId = localBlock?.parent_id;
                     const isPending = offlineQueue.isPendingBlock(block.id);
                     const serverData = this._safeJsonParse(block.data, {});
                     const serverChildren = this._safeJsonParse(block.children, []);
@@ -1640,8 +1642,8 @@ export class LocalStateManager {
                     }
 
                     // Обработка изменения родителя (перемещение блока)
+                    // oldParentId уже сохранён в начале блока (до saveBlock)
                     const newParentId = normalizeParentId(block.parent_id);
-                    const oldParentId = localBlock?.parent_id;
                     const parentChanged = localBlock && oldParentId !== newParentId;
 
                     // Если родитель изменился - удаляем из старого родителя
