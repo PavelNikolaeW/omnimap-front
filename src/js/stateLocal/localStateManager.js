@@ -1874,12 +1874,11 @@ export class LocalStateManager {
         console.log(`🔍 fetchMissingChildren: checking ${serverUpdates.length} blocks for missing children`);
 
         const missingChildIds = new Set();
+        let totalChildrenCount = 0;
         for (const block of serverUpdates) {
             if (!block?.id || block.deleted) continue;
             const children = this._safeJsonParse(block.children, []);
-            if (children.length > 0) {
-                console.log(`🔍 Block ${block.id} has ${children.length} children`);
-            }
+            totalChildrenCount += children.length;
             for (const childId of children) {
                 if (!this.blocks.has(childId)) {
                     missingChildIds.add(childId);
@@ -1887,6 +1886,8 @@ export class LocalStateManager {
                 }
             }
         }
+
+        console.log(`🔍 Checked ${serverUpdates.length} blocks (${totalChildrenCount} total children)`);
 
         if (missingChildIds.size === 0) {
             console.log('✅ fetchMissingChildren: no missing children');
