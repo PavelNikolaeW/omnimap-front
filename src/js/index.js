@@ -146,12 +146,11 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
     });
 
     // Обработчик события обновления приложения
-    // Теперь используется versionChecker.showUpdateNotification()
-    // который имеет защиту от спама и более продвинутый UI
+    // Service Worker диспатчит это событие когда обнаруживает новую версию
+    // Показываем уведомление через versionChecker для единообразного UX
     window.addEventListener('AppUpdateAvailable', () => {
-        // Service Worker обнаружил новую версию
-        // versionChecker автоматически обработает это в checkForUpdate()
-        console.log('[App] Service Worker update detected, versionChecker will handle notification');
+        console.log('[App] Service Worker update detected, showing notification');
+        versionChecker.showUpdateNotification();
     });
 }
 
