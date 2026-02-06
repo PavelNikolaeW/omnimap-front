@@ -184,7 +184,11 @@ export class SincManager {
 
             if (toSend.length > 0) {
                 this.webSocket.getUpdates(toSend);
-                console.log(`🔄 SincManager: requested updates for ${toSend.length} blocks`);
+                // Debug: показываем статистику по timestamps
+                const timestamps = toSend.map(b => b.updated_at).sort((a, b) => a - b);
+                const oldest = new Date(timestamps[0] * 1000).toISOString();
+                const newest = new Date(timestamps[timestamps.length - 1] * 1000).toISOString();
+                console.log(`🔄 SincManager: requested updates for ${toSend.length} blocks (oldest: ${oldest}, newest: ${newest})`);
             } else if (allowFallbackToFull) {
                 console.log('🔄 SincManager: no local blocks, triggering full tree load');
                 // Если нет локальных блоков - загружаем полное дерево (предотвращаем рекурсию)

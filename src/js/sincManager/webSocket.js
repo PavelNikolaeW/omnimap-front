@@ -381,6 +381,10 @@ export class UpdateServiceWebSocket {
                 // Ответ на get_updates запрос: { type: 'block_updates', updates: [...], new_blocks: [...] }
                 const updates = Array.isArray(message.updates) ? message.updates : [];
                 const newBlocks = Array.isArray(message.new_blocks) ? message.new_blocks : [];
+                const totalReceived = updates.length + newBlocks.length;
+                if (totalReceived > 100) {
+                    console.warn(`⚠️ WebSocket: received ${totalReceived} blocks after reconnect - possible backend issue with incremental sync`);
+                }
                 console.log(`📥 WebSocket: block_updates received - updates: ${updates.length}, new_blocks: ${newBlocks.length}`);
 
                 // ВАЖНО: объединяем updates и new_blocks в один batch
@@ -480,6 +484,15 @@ export class UpdateServiceWebSocket {
      */
     getUpdates(blocks) {
         if (this.isConnected) {
+            // Debug: показываем примеры отправляемых данных
+            if (blocks.length > 0) {
+                const samples = blocks.slice(0, 3).map(b => ({
+                    id: b.id.substring(0, 8),
+                    updated_at: b.updated_at,
+                    date: new Date(b.updated_at * 1000).toISOString()
+                }));
+                console.log('📤 WebSocket: sending get_updates with samples:', samples);
+            }
             this.sendMessage({
                 action: 'get_updates',
                 blocks
