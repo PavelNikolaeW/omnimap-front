@@ -1639,27 +1639,47 @@ export class LocalStateManager {
                         }
                     }
 
-                    // Если это НОВЫЙ блок (не было локально) - добавляем в childOrder родителя
-                    // Это важно когда приходят только new_blocks без родителя в updates
-                    const parentId = normalizeParentId(block.parent_id);
-                    if (!localBlock && parentId) {
-                        const parentBlock = this.blocks.get(parentId);
-                        if (parentBlock) {
-                            const parentChildOrder = parentBlock.data?.childOrder || [];
+                    // Обработка изменения родителя (перемещение блока)
+                    const newParentId = normalizeParentId(block.parent_id);
+                    const oldParentId = localBlock?.parent_id;
+                    const parentChanged = localBlock && oldParentId !== newParentId;
+
+                    // Если родитель изменился - удаляем из старого родителя
+                    if (parentChanged && oldParentId) {
+                        const oldParent = this.blocks.get(oldParentId);
+                        if (oldParent) {
+                            if (oldParent.data?.childOrder) {
+                                oldParent.data.childOrder = oldParent.data.childOrder.filter(id => id !== block.id);
+                            }
+                            if (oldParent.children) {
+                                oldParent.children = oldParent.children.filter(id => id !== block.id);
+                            }
+                            delete oldParent.childrenPositions;
+                            delete oldParent.grid;
+                            await this.saveBlock(oldParent);
+                            if (!processedBlocks.find(b => b.id === oldParentId)) {
+                                processedBlocks.push(oldParent);
+                            }
+                        }
+                    }
+
+                    // Если это НОВЫЙ блок или родитель изменился - добавляем в childOrder нового родителя
+                    if ((!localBlock || parentChanged) && newParentId) {
+                        const newParent = this.blocks.get(newParentId);
+                        if (newParent) {
+                            const parentChildOrder = newParent.data?.childOrder || [];
                             if (!parentChildOrder.includes(block.id)) {
-                                parentBlock.data = parentBlock.data || {};
-                                parentBlock.data.childOrder = [...parentChildOrder, block.id];
-                                parentBlock.children = parentBlock.children || [];
-                                if (!parentBlock.children.includes(block.id)) {
-                                    parentBlock.children = [...parentBlock.children, block.id];
+                                newParent.data = newParent.data || {};
+                                newParent.data.childOrder = [...parentChildOrder, block.id];
+                                newParent.children = newParent.children || [];
+                                if (!newParent.children.includes(block.id)) {
+                                    newParent.children = [...newParent.children, block.id];
                                 }
-                                // Инвалидируем кэш родителя
-                                delete parentBlock.childrenPositions;
-                                delete parentBlock.grid;
-                                await this.saveBlock(parentBlock);
-                                // Добавляем родителя в processedBlocks для перерисовки
-                                if (!processedBlocks.find(b => b.id === parentId)) {
-                                    processedBlocks.push(parentBlock);
+                                delete newParent.childrenPositions;
+                                delete newParent.grid;
+                                await this.saveBlock(newParent);
+                                if (!processedBlocks.find(b => b.id === newParentId)) {
+                                    processedBlocks.push(newParent);
                                 }
                             }
                         }
