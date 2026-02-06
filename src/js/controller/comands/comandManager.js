@@ -23,6 +23,27 @@ hotkeys.filter = function (event) {
     return !(tagName === 'INPUT' || tagName === 'TEXTAREA' || target.isContentEditable);
 };
 
+function extractBlockIdFromLink(target) {
+    const attrId = target.getAttribute('block-id');
+    if (typeof attrId === 'string' && attrId.trim()) {
+        return attrId.trim().replace(/^[:/]+/, '');
+    }
+
+    const href = target.getAttribute('href') || '';
+    if (!href) return '';
+
+    let value = href.trim();
+    if (value.includes('#block:')) {
+        value = value.slice(value.indexOf('#block:') + '#block:'.length);
+    } else if (value.startsWith('block:')) {
+        value = value.slice('block:'.length);
+    } else {
+        return '';
+    }
+
+    return value.replace(/^[:/]+/, '');
+}
+
 export class CommandManager {
     constructor(idRootContainer, breadcrumb, treeNavigation, hotkeysMap = {},) {
 
@@ -188,8 +209,10 @@ export class CommandManager {
         if (target.tagName === 'A') {
             event.preventDefault();
             if (target.classList.contains('block-tag-link')) {
+                const blockId = extractBlockIdFromLink(target);
+                if (!blockId) return;
                 dispatch('OpenBlock', {
-                    id: target.getAttribute('href').slice(7,),
+                    id: blockId,
                     parentHsl: [],
                     isIframe: false,
                     links: []

@@ -353,6 +353,46 @@ describe('CommandManager', () => {
             });
         });
 
+        test('dispatches OpenBlock for hash block-tag-link', () => {
+            const link = document.createElement('a');
+            link.setAttribute('href', '#block:block-123');
+            link.classList.add('block-tag-link');
+
+            const event = {
+                target: link,
+                preventDefault: jest.fn()
+            };
+
+            manager.clickOnRootContainerHandler(event);
+
+            expect(dispatch).toHaveBeenCalledWith('OpenBlock', {
+                id: 'block-123',
+                parentHsl: [],
+                isIframe: false,
+                links: []
+            });
+        });
+
+        test('normalizes malformed block-tag-link with extra ":"', () => {
+            const link = document.createElement('a');
+            link.setAttribute('href', '#block::block-123');
+            link.classList.add('block-tag-link');
+
+            const event = {
+                target: link,
+                preventDefault: jest.fn()
+            };
+
+            manager.clickOnRootContainerHandler(event);
+
+            expect(dispatch).toHaveBeenCalledWith('OpenBlock', {
+                id: 'block-123',
+                parentHsl: [],
+                isIframe: false,
+                links: []
+            });
+        });
+
         test('ignores click on excluded elements', () => {
             isExcludedElement.mockReturnValueOnce(true);
 

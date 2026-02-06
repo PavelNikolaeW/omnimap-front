@@ -319,8 +319,13 @@ export class NoteEditor {
         this.turndownService.addRule('customBlockLink', {
             filter: (node) => node.nodeName === 'A' && node.classList.contains('block-tag-link'),
             replacement: (content, node) => {
-                const id = node.getAttribute('href').slice(BLOCK_LINK_PREFIX.length);
-                return `[${content}](${BLOCK_LINK_PREFIX}${id})`;
+                const id = this._extractBlockLinkId(
+                    node.getAttribute('href'),
+                    node.getAttribute('block-id')
+                );
+                return id
+                    ? `[${content}](${BLOCK_LINK_PREFIX}${id})`
+                    : `[${content}](${node.getAttribute('href') || ''})`;
             },
         });
 
@@ -343,19 +348,17 @@ export class NoteEditor {
 
     _setupCustomRenderer() {
         this.customRenderer = new marked.Renderer();
-        const originalLink = this.customRenderer.link?.bind(this.customRenderer);
 
         // ссылки
         this.customRenderer.link = ({ href, title, text }) => {
-            if (typeof href === 'string' && href.startsWith(BLOCK_LINK_PREFIX)) {
-                const id = href.slice(BLOCK_LINK_PREFIX.length);
+            const id = this._extractBlockLinkId(href);
+            if (id) {
                 const t = text ?? '';
                 const titleAttr = title ? ` title="${title}"` : '';
-                return `<a href="#${href}" class="block-tag-link" block-id="${id}"${titleAttr}>${t}</a>`;
+                return `<a href="#${BLOCK_LINK_PREFIX}${id}" class="block-tag-link" block-id="${id}"${titleAttr}>${t}</a>`;
             }
-            return originalLink
-                ? originalLink({ href, title, text })
-                : `<a href="${href}"${title ? ` title="${title}"` : ''}>${text ?? ''}</a>`;
+            const safeHref = typeof href === 'string' ? href : '';
+            return `<a href="${safeHref}"${title ? ` title="${title}"` : ''}>${text ?? ''}</a>`;
         };
 
         // картинки
@@ -606,6 +609,36 @@ export class NoteEditor {
             const val = this.editorEl.value;
             this.editorEl.setSelectionRange(val.length, val.length);
         }, 0);
+    }
+
+    _extractBlockLinkId(href, fallbackId = '') {
+        const directId = this._normalizeBlockId(fallbackId);
+        if (directId) return directId;
+        if (typeof href !== 'string') return '';
+
+        let raw = href.trim();
+        if (!raw) return '';
+
+        if (raw.includes('#block:')) {
+            raw = raw.slice(raw.indexOf('#block:') + '#block:'.length);
+            return this._normalizeBlockId(raw);
+        }
+
+        if (raw.startsWith('#')) {
+            raw = raw.slice(1);
+        }
+
+        if (raw.startsWith(BLOCK_LINK_PREFIX)) {
+            raw = raw.slice(BLOCK_LINK_PREFIX.length);
+            return this._normalizeBlockId(raw);
+        }
+
+        return '';
+    }
+
+    _normalizeBlockId(id) {
+        if (typeof id !== 'string') return '';
+        return id.trim().replace(/^[:/]+/, '');
     }
 
     // ---------- Предобработка и нормализация ----------

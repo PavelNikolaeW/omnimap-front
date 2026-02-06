@@ -150,8 +150,13 @@ describe('NoteEditor', () => {
         });
 
         it('должен конвертировать block-ссылки', () => {
-            // href содержит "#block:123", а правило извлекает id после "block:"
             const html = '<a href="block:123" class="block-tag-link" block-id="123">Блок</a>';
+            const md = editor.turndownService.turndown(html);
+            expect(md).toBe('[Блок](block:123)');
+        });
+
+        it('должен корректно конвертировать block-ссылки с href="#block:..."', () => {
+            const html = '<a href="#block:123" class="block-tag-link" block-id="123">Блок</a>';
             const md = editor.turndownService.turndown(html);
             expect(md).toBe('[Блок](block:123)');
         });
@@ -172,6 +177,14 @@ describe('NoteEditor', () => {
             const html = marked(md, editor.markedOptions);
             expect(html).toContain('class="block-tag-link"');
             expect(html).toContain('block-id="123"');
+        });
+
+        it('не должен превращать обычные URL в block-ссылки', () => {
+            const { marked } = require('marked');
+            const md = '[Сайт](https://example.com)';
+            const html = marked(md, editor.markedOptions);
+            expect(html).not.toContain('class="block-tag-link"');
+            expect(html).toContain('href="https://example.com"');
         });
 
         it('должен конвертировать code блоки', () => {
@@ -226,6 +239,14 @@ describe('NoteEditor', () => {
             expect(result).toContain('**жирный**');
             // Turndown может конвертировать *курсив* в _курсив_ - оба варианта валидны
             expect(result.includes('*курсив*') || result.includes('_курсив_')).toBe(true);
+        });
+
+        it('не должен добавлять лишний ":" в block-ссылках после повторного round-trip', () => {
+            const original = '[Блок](block:123)';
+            const afterFirst = roundTrip(original);
+            const afterSecond = roundTrip(afterFirst);
+            expect(afterFirst).toBe('[Блок](block:123)');
+            expect(afterSecond).toBe('[Блок](block:123)');
         });
     });
 
