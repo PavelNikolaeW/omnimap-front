@@ -151,37 +151,17 @@ class VersionChecker {
         }
 
         if (urlParams.get('forceUpdate') === '1') {
-            // Защита от бесконечного цикла используя localStorage (надежнее sessionStorage)
-            const updateAttempts = parseInt(localStorage.getItem('forceUpdateAttempts') || '0');
-            const lastUpdateTimestamp = parseInt(localStorage.getItem('forceUpdateTimestamp') || '0');
-            const now = Date.now();
+            // Параметр forceUpdate=1 означает что мы пришли с force-update.html
+            // Очистка кешей и SW уже произошла, просто убираем параметр из URL
+            console.log('[VersionChecker] Force update completed, cleaning URL');
 
-            // Сбрасываем счетчик если прошло больше 5 минут с последней попытки
-            if (now - lastUpdateTimestamp > 5 * 60 * 1000) {
-                localStorage.setItem('forceUpdateAttempts', '0');
-                localStorage.setItem('forceUpdateTimestamp', now.toString());
-            }
-
-            const currentAttempts = parseInt(localStorage.getItem('forceUpdateAttempts') || '0');
-            if (currentAttempts >= 3) {
-                console.warn('[VersionChecker] Too many force update attempts, aborting');
-                localStorage.removeItem('forceUpdateAttempts');
-                localStorage.removeItem('forceUpdateTimestamp');
-                return false;
-            }
-
-            console.log('[VersionChecker] Force update parameter detected');
-
-            // Инкрементируем счетчик ПЕРЕД вызовом forceUpdate()
-            localStorage.setItem('forceUpdateAttempts', (currentAttempts + 1).toString());
-            localStorage.setItem('forceUpdateTimestamp', now.toString());
-
-            // Удаляем параметр из URL
             urlParams.delete('forceUpdate');
             const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
             window.history.replaceState({}, '', newUrl);
-            // Принудительно обновляем
-            this.forceUpdate();
+
+            // Сохраняем текущую версию
+            this.saveCurrentVersion();
+
             return true;
         } else {
             // Успешная загрузка без forceUpdate параметра - сбрасываем счетчик
@@ -261,8 +241,16 @@ class VersionChecker {
         if (lastNotification) {
             const timeSinceNotification = Date.now() - parseInt(lastNotification);
             if (timeSinceNotification < 60000) { // Не показывать чаще раза в минуту
+                console.log('[VersionChecker] Notification shown recently, skipping');
                 return;
             }
+        }
+
+        // Проверяем, не показано ли уже уведомление на экране
+        const existingNotification = document.getElementById('version-update-notification');
+        if (existingNotification) {
+            console.log('[VersionChecker] Notification already visible, skipping');
+            return;
         }
 
         const notification = document.createElement('div');
@@ -390,34 +378,10 @@ class VersionChecker {
                 console.warn('[VersionChecker] User confirmed force update despite pending operations');
             }
 
-            // Шаг 1: Очищаем все кеши ПЕРЕД активацией нового SW
-            if ('caches' in window) {
-                const cacheNames = await caches.keys();
-                console.log('[VersionChecker] Clearing caches:', cacheNames);
-                await Promise.all(cacheNames.map(name => caches.delete(name)));
-                console.log('[VersionChecker] All caches cleared');
-            }
-
-            // Шаг 2: Если есть Service Worker - активируем ожидающий
-            if ('serviceWorker' in navigator) {
-                const registration = await navigator.serviceWorker.getRegistration();
-
-                // Отменяем регистрацию старого SW для принудительного обновления
-                if (registration) {
-                    console.log('[VersionChecker] Unregistering old service worker...');
-                    await registration.unregister();
-                    console.log('[VersionChecker] Service worker unregistered');
-                }
-            }
-
-            // Шаг 3: Hard reload с cache bypass
-            // Примечание: инкремент счетчика попыток происходит в checkForceUpdateParam()
-            // или в showUpdateNotification() ПЕРЕД вызовом forceUpdate()
-            console.log('[VersionChecker] Performing hard reload...');
-
-            // Для мобильных браузеров - используем location.replace с timestamp
-            const timestamp = Date.now();
-            window.location.replace(`${window.location.pathname}?_reload=${timestamp}`);
+            // Используем force-update.html для надежного обновления
+            // force-update.html очищает все кеши, удаляет SW и перезагружает приложение
+            console.log('[VersionChecker] Redirecting to force-update.html...');
+            window.location.href = '/force-update.html';
 
         } catch (error) {
             console.error('[VersionChecker] Force update failed:', error);
