@@ -360,7 +360,8 @@ export class LocalStateManager {
         window.addEventListener('WebSocUpdateBlock', async (e) => {
             const detail = e.detail;
             const isReconnect = detail?.isReconnect || false;
-            const blocks = isReconnect ? detail.blocks : detail;
+            // detail может быть: {blocks: [...], isReconnect: bool} или просто массив блоков
+            const blocks = detail?.blocks || detail;
             await this.webSocUpdateBlock(blocks);
             if (isReconnect) {
                 await this.fetchMissingChildren(blocks);
