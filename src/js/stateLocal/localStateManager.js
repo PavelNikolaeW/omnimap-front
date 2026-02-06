@@ -1640,8 +1640,12 @@ export class LocalStateManager {
         // Обновляем treeIds если появились новые root блоки
         await this._updateTreeIdsIfNeeded(processedBlocks, true);
 
+        console.log(`📊 webSocUpdateBlock finished: ${processedBlocks.length} blocks processed`);
         if (processedBlocks.length > 0) {
+            console.log(`🖼️ Calling updateScreen for blocks: ${processedBlocks.map(b => b.id).slice(0, 5).join(', ')}${processedBlocks.length > 5 ? '...' : ''}`);
             this.updateScreen(processedBlocks);
+        } else {
+            console.log('⏭️ No blocks to render');
         }
     }
 
@@ -1745,11 +1749,19 @@ export class LocalStateManager {
 
     updateScreen(newBlocks) {
         for (let i = 0; i < newBlocks.length; i++) {
-            const id = newBlocks[i].id
-            const element = document.getElementById(id)
-            if (element || document.querySelector(`[blocklink="${id}"]`)) {
-                this.showBlocks()
-                break
+            const block = newBlocks[i];
+            const id = block.id;
+            const parentId = block.parent_id;
+
+            // Проверяем: блок на экране ИЛИ его родитель на экране (для новых детей)
+            const element = document.getElementById(id);
+            const parentElement = parentId ? document.getElementById(parentId) : null;
+            const linkElement = document.querySelector(`[blocklink="${id}"]`);
+
+            if (element || parentElement || linkElement) {
+                console.log(`🔄 updateScreen: triggering showBlocks (matched: ${element ? 'block' : parentElement ? 'parent' : 'link'})`);
+                this.showBlocks();
+                break;
             }
         }
     }
