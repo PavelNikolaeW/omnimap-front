@@ -3,12 +3,52 @@ import localforage from "localforage";
 import config from "../config";
 
 /**
+ * Запас в секундах для запроса инкрементальных обновлений.
+ * Нужен чтобы не пропускать изменения с одинаковым updated_at (точность БД до секунды).
+ */
+const INCREMENTAL_TS_SAFETY_MARGIN_SEC = 1;
+
+/**
  * Экранирует специальные символы RegExp в строке
  * @param {string} string - Исходная строка
  * @returns {string} Экранированная строка
  */
 function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Преобразует updated_at в unix timestamp (секунды).
+ * Поддерживает ISO строки, миллисекунды и секунды (числом/строкой).
+ * @param {string|number|Date} updatedAt
+ * @returns {number|null}
+ */
+function parseUpdatedAtToUnixSeconds(updatedAt) {
+    if (updatedAt === null || updatedAt === undefined) return null;
+
+    // Числовой формат: секунды или миллисекунды
+    if (typeof updatedAt === 'number' && Number.isFinite(updatedAt)) {
+        const millis = updatedAt > 1e12 ? updatedAt : updatedAt * 1000;
+        return Math.floor(millis / 1000);
+    }
+
+    // Строковый числовой формат: "1730000000" или "1730000000000"
+    if (typeof updatedAt === 'string') {
+        const trimmed = updatedAt.trim();
+        if (/^\d+(\.\d+)?$/.test(trimmed)) {
+            const num = Number(trimmed);
+            if (Number.isFinite(num)) {
+                const millis = num > 1e12 ? num : num * 1000;
+                return Math.floor(millis / 1000);
+            }
+        }
+    }
+
+    // ISO дата и прочие форматы Date.parse
+    const timestamp = new Date(updatedAt).getTime();
+    if (isNaN(timestamp)) return null;
+
+    return Math.floor(timestamp / 1000);
 }
 
 export class SincManager {
@@ -110,15 +150,16 @@ export class SincManager {
             const toSend = blocks
                 .filter(block => block?.id && block?.updated_at)
                 .map(block => {
-                    const timestamp = new Date(block.updated_at).getTime();
+                    const unixSeconds = parseUpdatedAtToUnixSeconds(block.updated_at);
                     // Проверяем валидность даты
-                    if (isNaN(timestamp)) {
+                    if (unixSeconds === null) {
                         console.warn('SincManager: invalid updated_at for block:', block.id);
                         return null;
                     }
                     return {
                         id: block.id,
-                        updated_at: Math.floor(timestamp / 1000),
+                        // Safety margin чтобы не пропускать апдейты в ту же секунду
+                        updated_at: Math.max(0, unixSeconds - INCREMENTAL_TS_SAFETY_MARGIN_SEC),
                     };
                 })
                 .filter(Boolean);
