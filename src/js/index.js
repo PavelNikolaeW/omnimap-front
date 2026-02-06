@@ -174,8 +174,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const versionEl = document.getElementById('app-version');
     if (versionEl) {
         const runtimeConfig = window.__OMNIMAP_CONFIG__ || {};
-        const version = runtimeConfig.APP_VERSION ||
-            (typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'dev');
+        const buildVersion = typeof APP_VERSION !== 'undefined' ? APP_VERSION : null;
+        const runtimeVersion = runtimeConfig.APP_VERSION || null;
+        // Build version отражает фактически загруженный бандл, поэтому у него приоритет.
+        const version = (buildVersion && buildVersion !== 'dev')
+            ? buildVersion
+            : (runtimeVersion || buildVersion || 'dev');
         const env = runtimeConfig.APP_ENVIRONMENT || '';
         const vPrefix = version.startsWith('v') ? '' : 'v';
         versionEl.textContent = env && env !== 'production'

@@ -6,6 +6,7 @@
 const CHECK_INTERVAL = 5 * 60 * 1000; // Проверять каждые 5 минут
 const VERSION_STORAGE_KEY = 'omnimap_app_version';
 const LAST_CHECK_KEY = 'omnimap_last_version_check';
+const SW_ACTIVATION_TIMEOUT = 4000;
 
 class VersionChecker {
     constructor() {
@@ -151,7 +152,7 @@ class VersionChecker {
         }
 
         if (urlParams.get('forceUpdate') === '1') {
-            // Параметр forceUpdate=1 означает что мы пришли с force-update.html
+            // Параметр forceUpdate=1 означает что ранее был выполнен hard update
             // Очистка кешей и SW уже произошла, просто убираем параметр из URL
             console.log('[VersionChecker] Force update completed, cleaning URL');
 
@@ -378,17 +379,26 @@ class VersionChecker {
                 console.warn('[VersionChecker] User confirmed force update despite pending operations');
             }
 
-            // Используем force-update.html для надежного обновления
-            // force-update.html очищает все кеши, удаляет SW и перезагружает приложение
-            // Добавляем timestamp для обхода кеша самого force-update.html
-            console.log('[VersionChecker] Redirecting to force-update.html...');
-            const timestamp = Date.now();
-            window.location.href = `/force-update.html?_t=${timestamp}`;
+            // Сначала пробуем "мягкое" обновление через активацию waiting Service Worker
+            // Это быстрее и не требует полной очистки кэшей.
+            const fastUpdateSucceeded = await this.tryActivateWaitingServiceWorker();
+            if (fastUpdateSucceeded) {
+                console.log('[VersionChecker] Waiting Service Worker activated, reloading app');
+                this.redirectToApp(false);
+                return;
+            }
+
+            // Fallback: full reset (очистка cache storage + unregister SW + cache-busted reload)
+            console.log('[VersionChecker] Waiting SW not available, running hard update');
+            await this.runHardUpdateReset();
+            this.redirectToApp(true);
 
         } catch (error) {
             console.error('[VersionChecker] Force update failed:', error);
-            // Fallback: просто перезагружаем
-            window.location.reload();
+            // Последний fallback: отдельная страница принудительного обновления
+            // (на случай если обновление из текущего контекста не удалось)
+            const timestamp = Date.now();
+            window.location.href = `/force-update.html?_t=${timestamp}`;
         } finally {
             // Сбрасываем флаг если reload не произошёл (например, при раннем return)
             // Если reload произошёл - страница уже перезагрузилась и этот код не выполнится
@@ -473,6 +483,98 @@ class VersionChecker {
         }).catch(error => {
             console.error('[VersionChecker] Failed to trigger sync:', error);
         });
+    }
+
+    /**
+     * Пытается активировать waiting Service Worker (если он есть)
+     * @returns {Promise<boolean>} true если активация прошла успешно
+     */
+    async tryActivateWaitingServiceWorker() {
+        if (!('serviceWorker' in navigator)) {
+            return false;
+        }
+
+        try {
+            const registration = await navigator.serviceWorker.getRegistration();
+            if (!registration) {
+                return false;
+            }
+
+            // Проверяем обновления перед попыткой активации
+            await registration.update().catch(() => {});
+
+            let waitingWorker = registration.waiting;
+            if (!waitingWorker) {
+                return false;
+            }
+
+            console.log('[VersionChecker] Activating waiting Service Worker...');
+            const didControllerChange = await new Promise(resolve => {
+                const onControllerChange = () => {
+                    cleanup();
+                    resolve(true);
+                };
+
+                const timeoutId = setTimeout(() => {
+                    cleanup();
+                    resolve(false);
+                }, SW_ACTIVATION_TIMEOUT);
+
+                const cleanup = () => {
+                    clearTimeout(timeoutId);
+                    navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+                };
+
+                navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
+                waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+            });
+
+            return didControllerChange;
+        } catch (error) {
+            console.warn('[VersionChecker] Failed to activate waiting SW:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Полный сброс клиентского кэша и Service Worker
+     */
+    async runHardUpdateReset() {
+        // Очищаем CacheStorage
+        if ('caches' in window) {
+            const cacheNames = await caches.keys();
+            await Promise.all(cacheNames.map(name => caches.delete(name)));
+            console.log('[VersionChecker] Cache storage cleared:', cacheNames.length);
+        }
+
+        // Удаляем все Service Worker регистрации
+        if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(registrations.map(registration => registration.unregister()));
+            console.log('[VersionChecker] Service workers unregistered:', registrations.length);
+        }
+
+        // Сбрасываем служебные ключи версионирования
+        localStorage.removeItem(VERSION_STORAGE_KEY);
+        localStorage.removeItem(LAST_CHECK_KEY);
+        localStorage.setItem('forceUpdateTimestamp', Date.now().toString());
+    }
+
+    /**
+     * Переход в приложение с cache buster параметрами
+     * @param {boolean} withForceParam - добавить forceUpdate=1 в URL
+     */
+    redirectToApp(withForceParam = false) {
+        const timestamp = Date.now();
+        const nextUrl = new URL(window.location.origin + '/');
+
+        if (withForceParam) {
+            nextUrl.searchParams.set('forceUpdate', '1');
+        }
+        nextUrl.searchParams.set('_t', timestamp.toString());
+        nextUrl.searchParams.set('_reload', '1');
+
+        window.location.replace(nextUrl.toString());
     }
 }
 
