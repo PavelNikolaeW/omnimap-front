@@ -71,8 +71,10 @@ class Api {
 
                 // Skip retry for token refresh endpoint to prevent infinite loop
                 const isRefreshRequest = originalRequest.url?.includes('/token/refresh/');
+                // Skip retry for login/register - они сами обрабатывают 401
+                const skipAuthInterceptor = originalRequest._skipAuthInterceptor;
 
-                if (error.response?.status === 401 && !originalRequest._retry && !isRefreshRequest) {
+                if (error.response?.status === 401 && !originalRequest._retry && !isRefreshRequest && !skipAuthInterceptor) {
                     originalRequest._retry = true;
 
                     // Если нет refresh токена - сразу диспатчим SessionExpired
@@ -102,7 +104,8 @@ class Api {
                 }
                 // Не показываем ошибку для запросов с флагом skipErrorDisplay
                 // (например, для getBlockImage где 404 ожидаем)
-                if (error.response?.status >= 400 && !originalRequest?.skipErrorDisplay) {
+                // Также пропускаем для login/register которые сами обрабатывают ошибки
+                if (error.response?.status >= 400 && !originalRequest?.skipErrorDisplay && !skipAuthInterceptor) {
                     dispatch("ShowError", error)
                 }
                 return Promise.reject(error);
@@ -159,7 +162,10 @@ class Api {
 
     // Метод для регистрации
     async register(userData) {
-        return this.api.post('/register/', userData).then((res) => {
+        return this.api.post('/register/', userData, {
+            // Не обрабатываем 401 через interceptor для register запроса
+            _skipAuthInterceptor: true
+        }).then((res) => {
             if (res.status === 201) {
                 const {access, refresh, user_id} = res.data;
                 const cookieOptions = getCookieOptions();
@@ -182,7 +188,10 @@ class Api {
     }
 
     async login(credentials) {
-        return this.api.post('/login/', credentials)
+        return this.api.post('/login/', credentials, {
+            // Не обрабатываем 401 через interceptor для login запроса
+            _skipAuthInterceptor: true
+        })
             .then(res => {
                 if (res.status === 200) {
                     const {access, refresh, user_id} = res.data;
