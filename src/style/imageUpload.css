@@ -448,21 +448,6 @@
     object-fit: cover;
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   Горизонтальные блоки - особое отображение
-   ───────────────────────────────────────────────────────────────────────────── */
-[layout$="-h"] .block-image-container {
-    max-width: 50%;
-    float: left;
-    margin-right: 6px;
-    margin-bottom: 4px;
-}
-
-[layout$="-h"] .block-image {
-    height: auto;
-    max-height: 100%;
-}
-
 /* Широкие блоки - картинка на всю ширину */
 [layout$="-w"] .block-image-container {
     width: 100%;
@@ -479,14 +464,6 @@
    Mobile Responsive
    ───────────────────────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
-    /* На телефонах изображение в высоких блоках должно занимать всю ширину */
-    [layout$="-h"] .block-image-container {
-        max-width: 100%;
-        width: 100%;
-        float: none;
-        margin-right: 0;
-    }
-
     .image-upload-dropzone {
         padding: var(--popup-spacing-lg);
     }
