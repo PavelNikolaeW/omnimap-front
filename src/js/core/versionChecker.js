@@ -7,6 +7,12 @@ const CHECK_INTERVAL = 5 * 60 * 1000; // Проверять каждые 5 ми�
 const VERSION_STORAGE_KEY = 'omnimap_app_version';
 const LAST_CHECK_KEY = 'omnimap_last_version_check';
 const SW_ACTIVATION_TIMEOUT = 4000;
+const DYNAMIC_IMPORT_FAILURE_PATTERNS = [
+    'loading chunk',
+    'failed to fetch dynamically imported module',
+    'error loading dynamically imported module',
+    'importing a module script failed',
+];
 
 class VersionChecker {
     constructor() {
@@ -350,12 +356,47 @@ class VersionChecker {
         sessionStorage.setItem('update_notification_shown', Date.now().toString());
 
         // Обработчик кнопки "Обновить сейчас"
-        document.getElementById('update-now-btn').addEventListener('click', () => {
-            this.forceUpdate();
+        const updateNowBtn = notification.querySelector('#update-now-btn');
+        const updateLaterBtn = notification.querySelector('#update-later-btn');
+        if (!updateNowBtn || !updateLaterBtn) {
+            console.error('[VersionChecker] Failed to bind update notification buttons');
+            return;
+        }
+
+        updateNowBtn.addEventListener('click', async () => {
+            if (updateNowBtn.disabled) {
+                return;
+            }
+
+            // Визуальный фидбек, чтобы клик не выглядел как "ничего не произошло"
+            const initialNowLabel = updateNowBtn.textContent;
+            updateNowBtn.disabled = true;
+            updateNowBtn.textContent = 'Обновляем...';
+            updateNowBtn.style.cursor = 'wait';
+            updateNowBtn.style.opacity = '0.85';
+
+            updateLaterBtn.disabled = true;
+            updateLaterBtn.style.cursor = 'not-allowed';
+            updateLaterBtn.style.opacity = '0.65';
+
+            await this.forceUpdate();
+
+            // Если перезагрузки не было (например, пользователь отменил второй confirm),
+            // возвращаем кнопки в активное состояние.
+            if (notification.parentNode && !this._isUpdating) {
+                updateNowBtn.disabled = false;
+                updateNowBtn.textContent = initialNowLabel;
+                updateNowBtn.style.cursor = 'pointer';
+                updateNowBtn.style.opacity = '1';
+
+                updateLaterBtn.disabled = false;
+                updateLaterBtn.style.cursor = 'pointer';
+                updateLaterBtn.style.opacity = '1';
+            }
         });
 
         // Обработчик кнопки "Позже"
-        document.getElementById('update-later-btn').addEventListener('click', () => {
+        updateLaterBtn.addEventListener('click', () => {
             notification.remove();
         });
 
@@ -447,8 +488,18 @@ class VersionChecker {
             return pendingCount > 0;
         } catch (error) {
             console.warn('[VersionChecker] Failed to check pending operations:', error);
-            // Если не можем проверить - предполагаем что есть pending операции (безопаснее)
-            return true;
+            // После деплоя старая вкладка может не загрузить динамический chunk.
+            // В таком случае не блокируем обновление, иначе кнопка выглядит "сломанной".
+            const message = (error?.message || '').toLowerCase();
+            const isDynamicImportFailure = DYNAMIC_IMPORT_FAILURE_PATTERNS.some(pattern => message.includes(pattern));
+
+            if (isDynamicImportFailure) {
+                console.warn('[VersionChecker] Pending check skipped due stale chunks, proceeding with update');
+            } else {
+                console.warn('[VersionChecker] Pending check unavailable, proceeding with update to avoid blocked flow');
+            }
+
+            return false;
         }
     }
 
