@@ -310,13 +310,6 @@ async function initApp() {
     if (isAuth) {
         // Показываем кэш мгновенно (если есть)
         dispatch('ShowBlocks')
-
-        // КРИТИЧНО: Запускаем синхронизацию явно после логина
-        // Защита от race condition: если WebSocket подключился ДО установки currentUser,
-        // то online() handler пропустил синхронизацию (return на sincManager.js:33)
-        // Явный вызов гарантирует получение обновлений
-        console.log('🔄 index.js: triggering sync after login');
-        await sincManager.requestIncrementalUpdates();
     }
 
     // Инициализируем обработчики двойного клика на изображениях в блоках

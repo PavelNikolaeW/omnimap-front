@@ -10,6 +10,14 @@ const localforage = require('localforage');
 const { SincManager } = require('../../sincManager/sincManager');
 
 describe('SincManager.requestIncrementalUpdates', () => {
+    function createManager() {
+        const manager = Object.create(SincManager.prototype);
+        manager.webSocket = { getUpdates: mockGetUpdates };
+        manager.loadFullTree = jest.fn();
+        manager._incrementalSyncPromise = null;
+        return manager;
+    }
+
     beforeEach(() => {
         jest.clearAllMocks();
     });
@@ -26,9 +34,7 @@ describe('SincManager.requestIncrementalUpdates', () => {
         });
         localforage.keys.mockResolvedValue(['Block_block-1_user1']);
 
-        const manager = Object.create(SincManager.prototype);
-        manager.webSocket = { getUpdates: mockGetUpdates };
-        manager.loadFullTree = jest.fn();
+        const manager = createManager();
         await manager.requestIncrementalUpdates();
 
         const expectedTs = Math.floor(new Date(updatedAt).getTime() / 1000) - 1;
@@ -48,9 +54,7 @@ describe('SincManager.requestIncrementalUpdates', () => {
         });
         localforage.keys.mockResolvedValue(['Block_block-2_user2']);
 
-        const manager = Object.create(SincManager.prototype);
-        manager.webSocket = { getUpdates: mockGetUpdates };
-        manager.loadFullTree = jest.fn();
+        const manager = createManager();
         await manager.requestIncrementalUpdates();
 
         expect(mockGetUpdates).toHaveBeenCalledWith([
@@ -71,14 +75,47 @@ describe('SincManager.requestIncrementalUpdates', () => {
         });
         localforage.keys.mockResolvedValue(['Block_bad_user3']);
 
-        const manager = Object.create(SincManager.prototype);
-        manager.webSocket = { getUpdates: mockGetUpdates };
-        manager.loadFullTree = jest.fn();
+        const manager = createManager();
         await manager.requestIncrementalUpdates(false);
 
         expect(mockGetUpdates).not.toHaveBeenCalled();
         expect(warnSpy).toHaveBeenCalledWith('SincManager: invalid updated_at for block:', 'bad');
 
         warnSpy.mockRestore();
+    });
+
+    test('deduplicates parallel incremental sync calls', async () => {
+        let resolveCurrentUser;
+        let resolveKeys;
+        localforage.getItem.mockImplementation((key) => {
+            if (key === 'currentUser') {
+                return new Promise((resolve) => {
+                    resolveCurrentUser = resolve;
+                });
+            }
+            if (key === 'Block_block-4_user4') {
+                return Promise.resolve({ id: 'block-4', updated_at: '2026-02-06T12:00:00Z' });
+            }
+            return Promise.resolve(null);
+        });
+        localforage.keys.mockImplementation(() => new Promise((resolve) => {
+            resolveKeys = resolve;
+        }));
+
+        const manager = createManager();
+
+        const p1 = manager.requestIncrementalUpdates();
+        const p2 = manager.requestIncrementalUpdates();
+
+        resolveCurrentUser('user4');
+        await Promise.resolve();
+        resolveKeys(['Block_block-4_user4']);
+        await Promise.all([p1, p2]);
+
+        expect(localforage.keys).toHaveBeenCalledTimes(1);
+        expect(mockGetUpdates).toHaveBeenCalledTimes(1);
+        expect(mockGetUpdates).toHaveBeenCalledWith([
+            { id: 'block-4', updated_at: 1770379199 }
+        ]);
     });
 });

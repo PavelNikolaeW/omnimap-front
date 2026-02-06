@@ -55,6 +55,9 @@ export class SincManager {
     constructor() {
         const wsUrl = config.SINC_SERVICE_URL;
 
+        // Дедупликация параллельных запросов incremental sync
+        this._incrementalSyncPromise = null;
+
         this.webSocket = new UpdateServiceWebSocket(wsUrl);
         this.webSocket.eventListeners.open.push(this.online.bind(this));
         this.webSocket.connect();
@@ -129,6 +132,21 @@ export class SincManager {
      * @param {boolean} allowFallbackToFull - Разрешить fallback на полную загрузку дерева при отсутствии блоков
      */
     async requestIncrementalUpdates(allowFallbackToFull = true) {
+        if (this._incrementalSyncPromise) {
+            console.log('⏭️ SincManager: incremental sync already in progress, joining existing request');
+            return this._incrementalSyncPromise;
+        }
+
+        this._incrementalSyncPromise = this._requestIncrementalUpdatesInternal(allowFallbackToFull);
+
+        try {
+            return await this._incrementalSyncPromise;
+        } finally {
+            this._incrementalSyncPromise = null;
+        }
+    }
+
+    async _requestIncrementalUpdatesInternal(allowFallbackToFull = true) {
         try {
             const username = await localforage.getItem('currentUser');
             if (!username) return;
