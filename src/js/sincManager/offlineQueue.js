@@ -1250,6 +1250,52 @@ class OfflineQueueManager {
     }
 
     /**
+     * Полный сброс состояния синхронизации.
+     * Используется при reset/logout чтобы старые операции не "воскрешали" удалённые блоки.
+     * @param {Object} options
+     * @param {boolean} options.clearQueue - очищать ли очередь операций в IndexedDB
+     */
+    async resetState({ clearQueue = false } = {}) {
+        // Останавливаем таймеры
+        if (this.retryTimer) {
+            clearTimeout(this.retryTimer);
+            this.retryTimer = null;
+        }
+        if (this.throttleTimer) {
+            clearTimeout(this.throttleTimer);
+            this.throttleTimer = null;
+        }
+        if (this.syncDebounceTimer) {
+            clearTimeout(this.syncDebounceTimer);
+            this.syncDebounceTimer = null;
+        }
+
+        // Сбрасываем флаги и счётчики
+        this.isSyncing = false;
+        this.isPulling = false;
+        this.pullCompleted = false;
+        this.syncStartTimestamp = 0;
+        this.retryAttempts = 0;
+        this.throttleRetryAttempts = 0;
+
+        // Разрешаем все pending промисы, чтобы никто не завис на await
+        for (const { resolve } of this.pendingBlocksResolvers.values()) {
+            if (typeof resolve === 'function') {
+                resolve();
+            }
+        }
+        this.pendingBlocksResolvers.clear();
+        this.pendingBlocks.clear();
+
+        if (clearQueue) {
+            await this.clearQueue();
+        } else {
+            // Обновляем кэшированную длину очереди
+            this.cachedQueueLength = (await this.getQueue()).length;
+        }
+    }
+
+    /**
      * Очищает очередь
      */
     async clearQueue() {

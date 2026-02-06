@@ -279,9 +279,14 @@ class Api {
         return {treeIds, blocks}
     }
 
-    removeTree(blockId) {
+    removeTree(blockId, options = {}) {
         console.log('🗑️ Delete tree request:', blockId);
-        return this.api.delete(`delete-tree/${blockId}/`).then(res => {
+        return this.api.delete(`delete-tree/${blockId}/`, {
+            // Для удаления 404 может быть ожидаемым состоянием (блок уже удалён).
+            // Ошибки обрабатываются в вызывающем коде без глобального popup.
+            skipErrorDisplay: true,
+            ...options
+        }).then(res => {
             console.log('🗑️ Delete tree response:', res.status, res.data);
             return res;
         }).catch(err => {

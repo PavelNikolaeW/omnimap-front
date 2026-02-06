@@ -905,6 +905,11 @@ export class LocalStateManager {
                     data: { id: blockId, parentId: block.parent_id }
                 });
                 console.log('Block delete queued for sync:', blockId);
+            } else if (error.response?.status === 404) {
+                // Блок уже удалён на сервере (stale локальный кэш) — считаем успехом.
+                // Локальное удаление уже выполнено optimistic-путём, rollback не нужен.
+                console.warn(`Block ${blockId} not found on server during delete, keeping local removal`);
+                dispatch('ShowBlocks');
             } else {
                 // Rollback при других ошибках
                 console.error('Delete failed, rolling back:', error);
@@ -1006,6 +1011,42 @@ export class LocalStateManager {
     }
 
     /**
+     * Локально удаляет блок и его потомков из памяти/IndexedDB.
+     * Дополнительно синхронизирует родителя чтобы убрать "залипшие" ссылки.
+     * @param {Object} block
+     * @private
+     */
+    async _removeBlockTreeLocally(block) {
+        if (!block?.id) return;
+
+        // Обновляем родителя локально (на случай 404/неполного ответа сервера)
+        if (block.parent_id) {
+            const parentBlock = this.blocks.get(block.parent_id);
+            if (parentBlock) {
+                if (Array.isArray(parentBlock.children)) {
+                    parentBlock.children = parentBlock.children.filter(id => id !== block.id);
+                }
+                if (Array.isArray(parentBlock.data?.childOrder)) {
+                    parentBlock.data.childOrder = parentBlock.data.childOrder.filter(id => id !== block.id);
+                }
+                if (parentBlock.data?.layoutCells?.cells) {
+                    delete parentBlock.data.layoutCells.cells[block.id];
+                }
+                if (parentBlock.data?.customGrid?.childrenPositions?.[block.id]) {
+                    delete parentBlock.data.customGrid.childrenPositions[block.id];
+                }
+                await this.saveBlock(parentBlock);
+            }
+        }
+
+        const childIds = this.getAllChildIds(block);
+        for (const id of childIds) {
+            await this.blockRepository.deleteBlock(id)
+            this.blocks.delete(id)
+        }
+    }
+
+    /**
      * Удаление блока с сервера и из локального кеша
      * @param {string} blockId - ID блока для удаления
      * @returns {Promise<boolean>} - true если удаление успешно
@@ -1027,16 +1068,18 @@ export class LocalStateManager {
                 }
 
                 // Удаляем блок и всех потомков из локального кеша
-                const childIds = this.getAllChildIds(block)
-                for (const id of childIds) {
-                    await this.blockRepository.deleteBlock(id)
-                    this.blocks.delete(id)
-                }
+                await this._removeBlockTreeLocally(block);
 
                 return true
             }
             console.warn(`Неожиданный статус ответа при удалении блока ${blockId}:`, res.status)
         } catch (error) {
+            if (error.response?.status === 404) {
+                // Блок уже отсутствует на сервере — удаляем локально и считаем успехом
+                console.warn(`Block ${blockId} already removed on server (404), cleaning local cache`);
+                await this._removeBlockTreeLocally(block);
+                return true;
+            }
             console.error(`Ошибка при удалении блока ${blockId}:`, error)
         }
 
@@ -1983,6 +2026,10 @@ export class LocalStateManager {
                 console.warn('No current user found, cannot reset state');
                 return;
             }
+
+            // Полностью очищаем офлайн-очередь и pending состояния,
+            // чтобы старые операции не восстановили удалённые блоки после reset.
+            await offlineQueue.resetState({ clearQueue: true });
 
             // Экранируем username для защиты от RegExp injection
             const escapedUser = escapeRegExp(user);
@@ -4195,6 +4242,10 @@ export class LocalStateManager {
         this.currentUser = null;
         this.currentTree = null;
         this.path = [];
+
+        // На logout/session-expired сбрасываем офлайн-очередь,
+        // чтобы операции предыдущей сессии не применялись в новой.
+        await offlineQueue.resetState({ clearQueue: true });
 
         // Очищаем кэш картинок painter
         if (this.painter && this.painter.clearImageCache) {

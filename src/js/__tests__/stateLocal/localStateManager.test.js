@@ -79,7 +79,8 @@ jest.mock('../../sincManager/offlineQueue', () => {
             resolvePendingBlock: jest.fn(),
             isPendingBlock: jest.fn().mockReturnValue(false),
             isBlockAffectedByPendingOperation: jest.fn().mockResolvedValue(false),
-            getBlocksAffectedByPendingOperations: jest.fn().mockResolvedValue(new Set())
+            getBlocksAffectedByPendingOperations: jest.fn().mockResolvedValue(new Set()),
+            resetState: jest.fn().mockResolvedValue(undefined)
         }
     };
 });
@@ -109,6 +110,7 @@ describe('LocalStateManager', () => {
         offlineQueue.isNetworkOnline.mockReturnValue(true);
         offlineQueue.isPendingBlock.mockReturnValue(false);
         offlineQueue.cancelPendingBlocks = jest.fn();
+        offlineQueue.resetState.mockResolvedValue(undefined);
 
         // Re-setup permission mocks
         canEdit.mockReturnValue(true);
@@ -875,6 +877,17 @@ describe('LocalStateManager', () => {
             expect(manager.blocks.has('block-1')).toBe(true);
             expect(api.removeTree).not.toHaveBeenCalled();
         });
+
+        test('treats 404 on delete as success and does not rollback', async () => {
+            api.removeTree.mockRejectedValue({ response: { status: 404 } });
+            const rollbackSpy = jest.spyOn(manager, 'rollbackDeleteBlock');
+
+            await manager.deleteTreeBlock({ blockId: 'block-1' });
+
+            expect(rollbackSpy).not.toHaveBeenCalled();
+            expect(manager.blocks.has('block-1')).toBe(false);
+            expect(manager.blockRepository.deleteBlock).toHaveBeenCalledWith('block-1');
+        });
     });
 
     describe('deleteMultipleTreeBlocks - bug fixes', () => {
@@ -939,6 +952,33 @@ describe('LocalStateManager', () => {
             // canDeleteInSandbox returned true, so deletion proceeds
             expect(canDeleteInSandbox).toHaveBeenCalledWith(block, parentBlock, 'testUser');
             expect(api.removeTree).toHaveBeenCalledWith('block-1');
+        });
+
+        test('treats 404 in batch delete as success and cleans local cache', async () => {
+            const parentBlock = {
+                id: 'parent-1',
+                title: 'Parent',
+                children: ['block-1'],
+                data: { childOrder: ['block-1'] }
+            };
+            const block = {
+                id: 'block-1',
+                title: 'Ghost',
+                parent_id: 'parent-1',
+                children: [],
+                data: {}
+            };
+            manager.blocks.set('parent-1', parentBlock);
+            manager.blocks.set('block-1', block);
+
+            api.removeTree.mockRejectedValue({ response: { status: 404 } });
+
+            await manager.deleteMultipleTreeBlocks({ blockIds: ['block-1'] });
+
+            expect(manager.blocks.has('block-1')).toBe(false);
+            expect(manager.blockRepository.deleteBlock).toHaveBeenCalledWith('block-1');
+            expect(manager.blocks.get('parent-1').children).toEqual([]);
+            expect(manager.blocks.get('parent-1').data.childOrder).toEqual([]);
         });
     });
 
