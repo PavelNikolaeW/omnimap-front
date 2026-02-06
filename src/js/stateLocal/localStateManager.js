@@ -1286,6 +1286,10 @@ export class LocalStateManager {
 
         console.log(`📬 webSocUpdateBlock: processing ${newBlocks.length} blocks`);
 
+        // Собираем все id блоков из текущего batch для проверки детей
+        // Это важно т.к. родитель может обрабатываться раньше ребёнка
+        const batchBlockIds = new Set(newBlocks.map(b => b?.id).filter(Boolean));
+
         const processedBlocks = [];
 
         for (const block of newBlocks) {
@@ -1568,12 +1572,13 @@ export class LocalStateManager {
                     );
 
                     // Добавляем недостающие children из server в конец childOrder,
-                    // НО только если они существуют локально (не были удалены)
+                    // НО только если они существуют локально ИЛИ придут в этом же batch
                     for (const childId of serverChildren) {
                         if (!mergedData.childOrder.includes(childId)) {
-                            // Проверяем, существует ли ребёнок локально
-                            // Если его нет — значит был удалён локально (undo) и не нужно добавлять
-                            if (this.blocks.has(childId)) {
+                            // Проверяем: ребёнок уже есть локально ИЛИ придёт в этом же batch
+                            // batchBlockIds нужен т.к. родитель может обрабатываться раньше ребёнка
+                            // Если ребёнка нет ни там ни там — он был удалён локально (undo)
+                            if (this.blocks.has(childId) || batchBlockIds.has(childId)) {
                                 mergedData.childOrder.push(childId);
                             }
                         }
@@ -1592,7 +1597,10 @@ export class LocalStateManager {
                     // Примечание: в loadTree() используется обратная логика (childOrder фильтруется по children),
                     // потому что там сервер авторитетен по структуре дерева (children).
                     // Здесь же childOrder авторитетен, т.к. он уже смёрджен с учётом pending операций.
-                    const syncedChildren = mergedData.childOrder.filter(id => this.blocks.has(id));
+                    // Учитываем batchBlockIds для детей которые придут позже в этом batch
+                    const syncedChildren = mergedData.childOrder.filter(id =>
+                        this.blocks.has(id) || batchBlockIds.has(id)
+                    );
 
                     // Обновляем версию childOrder для отслеживания изменений при рендеринге
                     let childOrderVersion = localBlock?._childOrderVersion;
