@@ -141,40 +141,68 @@ class VersionChecker {
      * @returns {boolean} true если обнаружен параметр и начато обновление
      */
     checkForceUpdateParam() {
-        const urlParams = new URLSearchParams(window.location.search);
+        const url = new URL(window.location.href);
+        const queryParams = url.searchParams;
+
+        const rawHash = window.location.hash.startsWith('#')
+            ? window.location.hash.slice(1)
+            : '';
+        const hashParams = rawHash.includes('=') ? new URLSearchParams(rawHash) : null;
+
+        const hasForceUpdateInQuery = queryParams.get('forceUpdate') === '1';
+        const hasForceUpdateInHash = hashParams?.get('forceUpdate') === '1';
+        const hasForceUpdate = hasForceUpdateInQuery || hasForceUpdateInHash;
+
+        let shouldReplaceUrl = false;
 
         // Очищаем служебные параметры (_reload, _t) оставшиеся после предыдущих обновлений
-        if (urlParams.has('_reload') || urlParams.has('_t')) {
-            urlParams.delete('_reload');
-            urlParams.delete('_t');
-            const cleanUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
-            window.history.replaceState({}, '', cleanUrl);
+        if (queryParams.has('_reload') || queryParams.has('_t')) {
+            queryParams.delete('_reload');
+            queryParams.delete('_t');
+            shouldReplaceUrl = true;
+        }
+        if (hashParams && (hashParams.has('_reload') || hashParams.has('_t'))) {
+            hashParams.delete('_reload');
+            hashParams.delete('_t');
+            shouldReplaceUrl = true;
         }
 
-        if (urlParams.get('forceUpdate') === '1') {
+        if (hasForceUpdate) {
             // Параметр forceUpdate=1 означает что ранее был выполнен hard update
             // Очистка кешей и SW уже произошла, просто убираем параметр из URL
             console.log('[VersionChecker] Force update completed, cleaning URL');
 
-            urlParams.delete('forceUpdate');
-            const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
-            window.history.replaceState({}, '', newUrl);
+            queryParams.delete('forceUpdate');
+            if (hashParams) {
+                hashParams.delete('forceUpdate');
+            }
+            shouldReplaceUrl = true;
+        }
 
+        if (shouldReplaceUrl) {
+            const nextSearch = queryParams.toString();
+            const nextHash = hashParams
+                ? (hashParams.toString() ? `#${hashParams.toString()}` : '')
+                : window.location.hash;
+            const nextUrl = `${url.pathname}${nextSearch ? `?${nextSearch}` : ''}${nextHash}`;
+            window.history.replaceState({}, '', nextUrl);
+        }
+
+        if (hasForceUpdate) {
             // Сохраняем текущую версию
             this.saveCurrentVersion();
-
             return true;
-        } else {
-            // Успешная загрузка без forceUpdate параметра - сбрасываем счетчик
-            const lastUpdateTimestamp = parseInt(localStorage.getItem('forceUpdateTimestamp') || '0');
-            const now = Date.now();
-            // Сбрасываем только если прошло достаточно времени (30 сек) после последнего обновления
-            if (now - lastUpdateTimestamp > 30 * 1000) {
-                localStorage.removeItem('forceUpdateAttempts');
-                localStorage.removeItem('forceUpdateTimestamp');
-            }
-            return false;
         }
+
+        // Успешная загрузка без forceUpdate параметра - сбрасываем счетчик
+        const lastUpdateTimestamp = parseInt(localStorage.getItem('forceUpdateTimestamp') || '0');
+        const now = Date.now();
+        // Сбрасываем только если прошло достаточно времени (30 сек) после последнего обновления
+        if (now - lastUpdateTimestamp > 30 * 1000) {
+            localStorage.removeItem('forceUpdateAttempts');
+            localStorage.removeItem('forceUpdateTimestamp');
+        }
+        return false;
     }
 
     /**
@@ -567,12 +595,14 @@ class VersionChecker {
     redirectToApp(withForceParam = false) {
         const timestamp = Date.now();
         const nextUrl = new URL(window.location.origin + '/');
+        const hashParams = new URLSearchParams();
 
         if (withForceParam) {
-            nextUrl.searchParams.set('forceUpdate', '1');
+            hashParams.set('forceUpdate', '1');
         }
-        nextUrl.searchParams.set('_t', timestamp.toString());
-        nextUrl.searchParams.set('_reload', '1');
+        hashParams.set('_t', timestamp.toString());
+        hashParams.set('_reload', '1');
+        nextUrl.hash = hashParams.toString();
 
         window.location.replace(nextUrl.toString());
     }

@@ -2,6 +2,7 @@ import {commands} from "./commands";
 import localforage from "localforage";
 import { MODES } from "../../actions/selectionActions";
 import { dispatch } from "../../utils/utils";
+import { isLinkViewSearch } from "../../utils/linkView";
 
 /**
  * Конфигурация подменю
@@ -173,7 +174,7 @@ export class UIManager {
         this.mode = mode
         this.commandsById = commandsById
         localforage.getItem('currentUser').then(user => {
-            if ((user && user !== 'anonim') || window.location.search) {
+            if ((user && user !== 'anonim') || isLinkViewSearch(window.location.search)) {
                 // Очищаем контейнеры перед рендерингом, чтобы избежать дублирования кнопок
                 Object.values(this.elements).forEach(element => {
                     if (element) element.innerHTML = ''

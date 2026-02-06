@@ -1,6 +1,7 @@
 import localforage from "localforage";
 import Cookies from "js-cookie";
 import { dispatch } from "../utils/utils";
+import { isLinkViewSearch } from "../utils/linkView";
 
 /**
  * Обновлять токен за 5 минут до истечения
@@ -88,8 +89,9 @@ class AuthStateManager {
         this.cacheElements();
         console.log('[AuthStateManager] elements:', this.elements);
 
-        // Проверяем, открыта ли страница по ссылке
-        this.isLinkView = window.location.search.includes('?');
+        // Проверяем, открыта ли страница по legacy-link (/?slug)
+        // Служебные query-параметры обновления не должны скрывать UI.
+        this.isLinkView = isLinkViewSearch(window.location.search);
         console.log('[AuthStateManager] isLinkView:', this.isLinkView);
 
         // Инициализируем состояние

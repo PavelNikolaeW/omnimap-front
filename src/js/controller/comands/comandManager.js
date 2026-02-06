@@ -8,6 +8,7 @@ import {diagramEditor} from "../diagramEditor";
 import {connectionAnchorManager} from "../connectionAnchorManager";
 import {dragDropManager} from "../dragDropManager";
 import {MODES} from "../../actions/selectionActions";
+import {isLinkViewSearch} from "../../utils/linkView";
 
 hotkeys.filter = function (event) {
     const target = event.target || event.srcElement;
@@ -32,7 +33,7 @@ export class CommandManager {
         this.ctxManager = new ContextManager(this.rootContainer, this.breadcrumb, this.treeNavigation)
         // Регистрируем singleton для использования в других модулях
         setContextManager(this.ctxManager)
-        this.isLink = window.location.href.indexOf('/?') !== -1
+        this.isLink = isLinkViewSearch(window.location.search)
         this.selectedText = ''
         this.init()
     }
@@ -390,4 +391,3 @@ export class CommandManager {
         dragDropManager.endDrag();
     }
 }
-

@@ -17,6 +17,7 @@ import {focusManager} from "../services/focusManager";
 import {blockOperationLock} from "../utils/operationLock";
 import {deduplicateChildOrder} from "../utils/childOrderUtils";
 import {getDefaultImageSettings} from "../utils/imageSettingsDefaults";
+import {getLinkSlugFromSearch} from "../utils/linkView";
 
 /**
  * Экранирует специальные символы RegExp в строке
@@ -2802,11 +2803,12 @@ export class LocalStateManager {
             this.currentUser = await localforage.getItem('currentUser') || 'anonim';
             this.blockRepository = new BlockRepository(this.currentUser);
 
-        const isLinkView = window.location.search.length > 0;
+        const linkSlug = getLinkSlugFromSearch(window.location.search);
+        const isLinkView = Boolean(linkSlug);
 
         if (isLinkView) {
             // Просмотр по ссылке
-            this.currentTree = await this.initShowLink(window.location.search.slice(1,), this.currentUser)
+            this.currentTree = await this.initShowLink(linkSlug, this.currentUser)
         } else {
             // Обычный режим — загружаем деревья пользователя
             const treeIds = await localforage.getItem(`treeIds${this.currentUser}`);

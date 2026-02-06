@@ -158,11 +158,34 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
 document.addEventListener('DOMContentLoaded', async () => {
     // Очищаем служебные URL параметры (_reload, _t) для чистоты адресной строки
     const urlParams = new URLSearchParams(window.location.search);
-    const isPostUpdateReload = urlParams.has('_reload') || urlParams.get('forceUpdate') === '1';
-    if (urlParams.has('_reload') || urlParams.has('_t')) {
+    const rawHash = window.location.hash.startsWith('#')
+        ? window.location.hash.slice(1)
+        : '';
+    const hashParams = rawHash.includes('=') ? new URLSearchParams(rawHash) : null;
+
+    const hasReloadQuery = urlParams.has('_reload') || urlParams.has('_t');
+    const hasReloadHash = Boolean(hashParams && (hashParams.has('_reload') || hashParams.has('_t')));
+    const isPostUpdateReload =
+        hasReloadQuery ||
+        hasReloadHash ||
+        urlParams.get('forceUpdate') === '1' ||
+        Boolean(hashParams && hashParams.get('forceUpdate') === '1');
+
+    if (hasReloadQuery || hasReloadHash) {
         urlParams.delete('_reload');
         urlParams.delete('_t');
-        const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+        if (hashParams) {
+            hashParams.delete('_reload');
+            hashParams.delete('_t');
+        }
+
+        const cleanedSearch = urlParams.toString();
+        const cleanedHash = hashParams
+            ? (hashParams.toString() ? `#${hashParams.toString()}` : '')
+            : window.location.hash;
+        const newUrl = window.location.pathname +
+            (cleanedSearch ? `?${cleanedSearch}` : '') +
+            cleanedHash;
         window.history.replaceState({}, '', newUrl);
     }
 
