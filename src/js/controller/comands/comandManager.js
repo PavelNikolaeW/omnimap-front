@@ -10,6 +10,9 @@ import {dragDropManager} from "../dragDropManager";
 import {MODES} from "../../actions/selectionActions";
 import {isLinkViewSearch} from "../../utils/linkView";
 
+const TOUCH_TAP_THRESHOLD_PX = 10;
+const TOUCH_CLICK_DEDUP_MS = 450;
+
 hotkeys.filter = function (event) {
     const target = event.target || event.srcElement;
     const tagName = target.tagName.toUpperCase();
@@ -35,6 +38,10 @@ export class CommandManager {
         setContextManager(this.ctxManager)
         this.isLink = isLinkViewSearch(window.location.search)
         this.selectedText = ''
+        this.controlPanelTouchState = null
+        this.topNavigationTouchState = null
+        this.lastControlPanelTouchAt = 0
+        this.lastTopNavigationTouchAt = 0
         this.init()
     }
 
@@ -45,10 +52,23 @@ export class CommandManager {
         this.clickOnRootContainerHandlerBound = this.clickOnRootContainerHandler.bind(this)
         this.clickOnControlPanelBound = this.clickOnControlPanel.bind(this)
         this.clickOnTopNavigationBound = this.clickOnTopNavigation.bind(this)
+        this.touchStartOnControlPanelBound = this.touchStartOnControlPanel.bind(this)
+        this.touchMoveOnControlPanelBound = this.touchMoveOnControlPanel.bind(this)
+        this.touchEndOnControlPanelBound = this.touchEndOnControlPanel.bind(this)
+        this.touchStartOnTopNavigationBound = this.touchStartOnTopNavigation.bind(this)
+        this.touchMoveOnTopNavigationBound = this.touchMoveOnTopNavigation.bind(this)
+        this.touchEndOnTopNavigationBound = this.touchEndOnTopNavigation.bind(this)
 
         this.rootContainer.addEventListener('click', this.clickOnRootContainerHandlerBound);
         this.topSidebar.addEventListener('click', this.clickOnTopNavigationBound);
         this.controlPanel.addEventListener('click', this.clickOnControlPanelBound);
+        // Mobile fallback: click может теряться в скроллируемых контейнерах
+        this.topSidebar.addEventListener('touchstart', this.touchStartOnTopNavigationBound, { passive: true });
+        this.topSidebar.addEventListener('touchmove', this.touchMoveOnTopNavigationBound, { passive: true });
+        this.topSidebar.addEventListener('touchend', this.touchEndOnTopNavigationBound, { passive: true });
+        this.controlPanel.addEventListener('touchstart', this.touchStartOnControlPanelBound, { passive: true });
+        this.controlPanel.addEventListener('touchmove', this.touchMoveOnControlPanelBound, { passive: true });
+        this.controlPanel.addEventListener('touchend', this.touchEndOnControlPanelBound, { passive: true });
 
         // Drag-and-drop для перемещения блоков
         this._initDragAndDrop();
@@ -246,34 +266,110 @@ export class CommandManager {
     }
 
     clickOnControlPanel(event) {
+        if (event.type === 'click' && Date.now() - this.lastControlPanelTouchAt < TOUCH_CLICK_DEDUP_MS) {
+            return
+        }
+
         const target = event.target
-        if (target.tagName === 'BUTTON') {
-            const targetId = target.id
+        if (!(target instanceof Element)) return
 
-            // Проверяем, это клик по подменю
-            if (uiManager.handleSubmenuClick(targetId, this.ctxManager)) {
-                return
-            }
+        const button = target.closest('button')
+        if (!button || !this.controlPanel.contains(button)) return
 
-            const cmd = this.commandsById[targetId]
-            if (!cmd) return
-            this.ctxManager.isTree = false
-            this.ctxManager.setCmd(cmd)
-            // Если есть btnExec, используем его, иначе вызываем execute напрямую
-            if (typeof cmd.btnExec === 'function') {
-                cmd.btnExec(this.ctxManager)
-            } else if (cmd.mode.includes(this.ctxManager.mode) || cmd.mode.includes('*')) {
-                cmd.execute(this.ctxManager)
-            }
+        const targetId = button.id
+
+        // Проверяем, это клик по подменю
+        if (uiManager.handleSubmenuClick(targetId, this.ctxManager)) {
+            return
+        }
+
+        const cmd = this.commandsById[targetId]
+        if (!cmd) return
+        this.ctxManager.isTree = false
+        this.ctxManager.setCmd(cmd)
+        // Если есть btnExec, используем его, иначе вызываем execute напрямую
+        if (typeof cmd.btnExec === 'function') {
+            cmd.btnExec(this.ctxManager)
+        } else if (cmd.mode.includes(this.ctxManager.mode) || cmd.mode.includes('*')) {
+            cmd.execute(this.ctxManager)
         }
     }
 
     clickOnTopNavigation(event) {
-        const target = event.target
-        if (target.classList.contains('top-btn')) {
-            const cmd = this.commandsById[target.id]
-            this.ctxManager.setCmd(cmd)
+        if (event.type === 'click' && Date.now() - this.lastTopNavigationTouchAt < TOUCH_CLICK_DEDUP_MS) {
+            return
         }
+
+        const target = event.target
+        if (!(target instanceof Element)) return
+
+        const button = target.closest('.top-btn')
+        if (!button || !this.topSidebar.contains(button)) return
+
+        const cmd = this.commandsById[button.id]
+        if (!cmd) return
+        this.ctxManager.setCmd(cmd)
+    }
+
+    createTouchState(event) {
+        const touch = event.touches?.[0]
+        if (!touch) return null
+
+        return {
+            x: touch.clientX,
+            y: touch.clientY,
+            moved: false
+        }
+    }
+
+    updateTouchStateMovement(state, event) {
+        if (!state) return
+        const touch = event.touches?.[0]
+        if (!touch) return
+
+        const deltaX = Math.abs(touch.clientX - state.x)
+        const deltaY = Math.abs(touch.clientY - state.y)
+        if (deltaX > TOUCH_TAP_THRESHOLD_PX || deltaY > TOUCH_TAP_THRESHOLD_PX) {
+            state.moved = true
+        }
+    }
+
+    touchStartOnControlPanel(event) {
+        this.controlPanelTouchState = this.createTouchState(event)
+    }
+
+    touchMoveOnControlPanel(event) {
+        this.updateTouchStateMovement(this.controlPanelTouchState, event)
+    }
+
+    touchEndOnControlPanel(event) {
+        if (!this.controlPanelTouchState) return
+
+        const moved = this.controlPanelTouchState.moved
+        this.controlPanelTouchState = null
+        if (moved) return
+
+        this.lastControlPanelTouchAt = Date.now()
+        this.clickOnControlPanel(event)
+    }
+
+    touchStartOnTopNavigation(event) {
+        this.topNavigationTouchState = this.createTouchState(event)
+    }
+
+    touchMoveOnTopNavigation(event) {
+        this.updateTouchStateMovement(this.topNavigationTouchState, event)
+    }
+
+    touchEndOnTopNavigation(event) {
+        if (!this.topNavigationTouchState) return
+
+        const moved = this.topNavigationTouchState.moved
+        this.topNavigationTouchState = null
+        if (moved) return
+
+        this.lastTopNavigationTouchAt = Date.now()
+        this.clickOnTopNavigation(event)
     }
 
     openFullsizeImage(url) {

@@ -372,6 +372,7 @@ describe('CommandManager', () => {
 
             const button = document.createElement('button');
             button.id = 'testCommand1';
+            mockControlPanel.appendChild(button);
             manager.commandsById['testCommand1'] = {
                 id: 'testCommand1',
                 mode: ['normal'],
@@ -401,9 +402,10 @@ describe('CommandManager', () => {
         test('sets command when clicking on top-btn', () => {
             manager.ctxManager.setCmd = jest.fn();
 
-            const button = document.createElement('div');
+            const button = document.createElement('button');
             button.id = 'testCommand1';
             button.classList.add('top-btn');
+            mockTopSidebar.appendChild(button);
             manager.commandsById['testCommand1'] = { id: 'testCommand1' };
 
             const event = { target: button };

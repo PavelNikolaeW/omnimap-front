@@ -7,6 +7,9 @@ import { dispatch } from '../utils/utils';
 import { treeService } from '../services/treeService';
 import { customPrompt } from '../utils/custom-dialog';
 
+const TOUCH_TAP_THRESHOLD_PX = 10;
+const TOUCH_CLICK_DEDUP_MS = 450;
+
 export class TreeNavigation {
     constructor() {
         this.element = document.getElementById('tree-navigation');
@@ -17,6 +20,9 @@ export class TreeNavigation {
         this.draggedButton = null;
         this.draggedTreeId = null;
         this.dropIndicator = null;
+        this._touchStartPoint = null;
+        this._touchMoved = false;
+        this._lastTouchTapAt = 0;
 
         // Bound handlers for proper cleanup
         this._handleShowedBlocks = this._handleShowedBlocks.bind(this);
@@ -28,6 +34,9 @@ export class TreeNavigation {
         this._handleDragLeave = this._handleDragLeave.bind(this);
         this._handleDragEnd = this._handleDragEnd.bind(this);
         this._handleDrop = this._handleDrop.bind(this);
+        this._handleTouchStart = this._handleTouchStart.bind(this);
+        this._handleTouchMove = this._handleTouchMove.bind(this);
+        this._handleTouchEnd = this._handleTouchEnd.bind(this);
 
         this._init();
     }
@@ -44,6 +53,10 @@ export class TreeNavigation {
 
         // Click handler on container (event delegation)
         this.element.addEventListener('click', this._handleTreeClick);
+        // Mobile fallback: click может не сработать в scrollable контейнере
+        this.element.addEventListener('touchstart', this._handleTouchStart, { passive: true });
+        this.element.addEventListener('touchmove', this._handleTouchMove, { passive: true });
+        this.element.addEventListener('touchend', this._handleTouchEnd, { passive: true });
 
         // Drag and drop handlers
         this.element.addEventListener('dragstart', this._handleDragStart);
@@ -62,6 +75,9 @@ export class TreeNavigation {
         window.removeEventListener('UpdateTreeNavigation', this._handleUpdateNavigation);
         window.removeEventListener('Login', this._handleUpdateNavigation);
         this.element.removeEventListener('click', this._handleTreeClick);
+        this.element.removeEventListener('touchstart', this._handleTouchStart);
+        this.element.removeEventListener('touchmove', this._handleTouchMove);
+        this.element.removeEventListener('touchend', this._handleTouchEnd);
 
         // Drag and drop handlers
         this.element.removeEventListener('dragstart', this._handleDragStart);
@@ -108,7 +124,15 @@ export class TreeNavigation {
      * Обработчик кликов (event delegation)
      */
     async _handleTreeClick(event) {
-        const button = event.target.closest('button');
+        // Предотвращаем двойной запуск после touchend -> click
+        if (event.type === 'click' && Date.now() - this._lastTouchTapAt < TOUCH_CLICK_DEDUP_MS) {
+            return;
+        }
+
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+
+        const button = target.closest('button');
         if (!button) return;
 
         // Клик на кнопку дерева
@@ -128,6 +152,43 @@ export class TreeNavigation {
                 dispatch('CreateTree', { title });
             }
         }
+    }
+
+    _handleTouchStart(event) {
+        const touch = event.touches?.[0];
+        if (!touch) {
+            this._touchStartPoint = null;
+            this._touchMoved = false;
+            return;
+        }
+
+        this._touchStartPoint = { x: touch.clientX, y: touch.clientY };
+        this._touchMoved = false;
+    }
+
+    _handleTouchMove(event) {
+        if (!this._touchStartPoint) return;
+        const touch = event.touches?.[0];
+        if (!touch) return;
+
+        const deltaX = Math.abs(touch.clientX - this._touchStartPoint.x);
+        const deltaY = Math.abs(touch.clientY - this._touchStartPoint.y);
+        if (deltaX > TOUCH_TAP_THRESHOLD_PX || deltaY > TOUCH_TAP_THRESHOLD_PX) {
+            this._touchMoved = true;
+        }
+    }
+
+    async _handleTouchEnd(event) {
+        if (!this._touchStartPoint) return;
+
+        const moved = this._touchMoved;
+        this._touchStartPoint = null;
+        this._touchMoved = false;
+
+        if (moved) return;
+
+        this._lastTouchTapAt = Date.now();
+        await this._handleTreeClick(event);
     }
 
     /**
