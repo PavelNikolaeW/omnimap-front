@@ -158,6 +158,7 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
 document.addEventListener('DOMContentLoaded', async () => {
     // Очищаем служебные URL параметры (_reload, _t) для чистоты адресной строки
     const urlParams = new URLSearchParams(window.location.search);
+    const isPostUpdateReload = urlParams.has('_reload') || urlParams.get('forceUpdate') === '1';
     if (urlParams.has('_reload') || urlParams.has('_t')) {
         urlParams.delete('_reload');
         urlParams.delete('_t');
@@ -196,9 +197,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Быстрая инициализация без блокирующего экрана загрузки
     try {
         await fastInitialization();
+        // Успешная инициализация - сбрасываем флаг recovery-ретрая
+        sessionStorage.removeItem('post_update_recovery_attempted');
     } catch (error) {
         console.error('Critical initialization error:', error);
-        // При критической ошибке показываем сообщение в консоль и пробуем продолжить
+        // После обновления иногда возможен transient сбой инициализации.
+        // Делаем один автоматический retry перед показом ошибки пользователю.
+        const recoveryAttempted = sessionStorage.getItem('post_update_recovery_attempted') === '1';
+        if (isPostUpdateReload && !recoveryAttempted) {
+            sessionStorage.setItem('post_update_recovery_attempted', '1');
+            window.location.reload();
+            return;
+        }
+
+        // При повторном или обычном сбое показываем ошибку
         alert(`Ошибка инициализации: ${error.message}`);
     }
 });
