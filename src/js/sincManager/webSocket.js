@@ -379,18 +379,17 @@ export class UpdateServiceWebSocket {
 
             if (message.type === 'block_updates') {
                 // Ответ на get_updates запрос: { type: 'block_updates', updates: [...], new_blocks: [...] }
-                const updatesCount = Array.isArray(message.updates) ? message.updates.length : 0;
-                const newBlocksCount = Array.isArray(message.new_blocks) ? message.new_blocks.length : 0;
-                console.log(`📥 WebSocket: block_updates received - updates: ${updatesCount}, new_blocks: ${newBlocksCount}`);
+                const updates = Array.isArray(message.updates) ? message.updates : [];
+                const newBlocks = Array.isArray(message.new_blocks) ? message.new_blocks : [];
+                console.log(`📥 WebSocket: block_updates received - updates: ${updates.length}, new_blocks: ${newBlocks.length}`);
 
-                if (Array.isArray(message.updates) && message.updates.length > 0) {
-                    dispatch('WebSocUpdateBlock', { blocks: message.updates, isReconnect: true });
-                }
+                // ВАЖНО: объединяем updates и new_blocks в один batch
+                // Это гарантирует что при обработке родителя его дети уже будут в batchBlockIds
+                // new_blocks идут первыми чтобы дети были сохранены до обработки родителей
+                const allBlocks = [...newBlocks, ...updates];
 
-                // Если есть новые блоки - сохраняем их напрямую (sync уже вернул полные данные)
-                if (Array.isArray(message.new_blocks) && message.new_blocks.length > 0) {
-                    console.log(`🆕 WebSocket: received ${message.new_blocks.length} new blocks from sync`);
-                    dispatch('WebSocUpdateBlock', { blocks: message.new_blocks, isReconnect: false });
+                if (allBlocks.length > 0) {
+                    dispatch('WebSocUpdateBlock', { blocks: allBlocks, isReconnect: true });
                 }
             } else if (message.type === 'block_updates_batch') {
                 // Батч обновлений от сервера: { type: 'block_updates_batch', updates: [{type: 'block_update', data: ...}, ...] }
