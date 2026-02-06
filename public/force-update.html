@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Обновление OmniMap</title>
+    <!-- Критично: Запрет кеширования этой страницы -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <style>
         * {
             margin: 0;
@@ -187,6 +191,12 @@
     </div>
 
     <script>
+        /**
+         * ВАЖНО: Эта страница должна ВСЕГДА загружаться с сервера, никогда из кеша!
+         * - Мета-теги Cache-Control запрещают кеширование
+         * - webpack.prod.js исключает force-update.html из SW precache и runtimeCaching
+         * - versionChecker.js добавляет timestamp при редиректе: /force-update.html?_t=...
+         */
         async function forceUpdate() {
             const btn = document.querySelector('.btn');
             const progress = document.getElementById('progress');

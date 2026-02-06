@@ -62,12 +62,13 @@ module.exports = merge(common, {
             clientsClaim: true,
             skipWaiting: true,
             cleanupOutdatedCaches: true,
-            exclude: [/\.map$/, /\.txt$/, /service-worker\.js$/, /sw-custom\.js$/, /config\/config\.js$/],
+            exclude: [/\.map$/, /\.txt$/, /service-worker\.js$/, /sw-custom\.js$/, /config\/config\.js$/, /force-update\.html$/],
             maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
             // Precaching: index.html будет доступен offline
             navigateFallback: '/index.html',
             // Regex должен матчить и /admin и /admin/ (с и без trailing slash)
-            navigateFallbackDenylist: [/^\/api(\/|$)/, /^\/admin(\/|$)/, /^\/static(\/|$)/, /^\/media(\/|$)/],
+            // force-update.html не должен редиректиться на index.html
+            navigateFallbackDenylist: [/^\/api(\/|$)/, /^\/admin(\/|$)/, /^\/static(\/|$)/, /^\/media(\/|$)/, /^\/force-update\.html/],
             // Подключаем кастомный код для Background Sync
             importScripts: ['sw-custom.js'],
             runtimeCaching: [
@@ -132,9 +133,11 @@ module.exports = merge(common, {
                         },
                     },
                 },
-                // HTML документы
+                // HTML документы (исключая force-update.html)
                 {
-                    urlPattern: ({request}) => request.destination === 'document',
+                    urlPattern: ({request, url}) => {
+                        return request.destination === 'document' && !url.pathname.includes('force-update.html');
+                    },
                     handler: 'NetworkFirst',
                     options: {
                         cacheName: 'html-cache',

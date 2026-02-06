@@ -380,8 +380,10 @@ class VersionChecker {
 
             // Используем force-update.html для надежного обновления
             // force-update.html очищает все кеши, удаляет SW и перезагружает приложение
+            // Добавляем timestamp для обхода кеша самого force-update.html
             console.log('[VersionChecker] Redirecting to force-update.html...');
-            window.location.href = '/force-update.html';
+            const timestamp = Date.now();
+            window.location.href = `/force-update.html?_t=${timestamp}`;
 
         } catch (error) {
             console.error('[VersionChecker] Force update failed:', error);
