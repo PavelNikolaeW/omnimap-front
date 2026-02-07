@@ -23,7 +23,93 @@ import {FocusContainerPopup} from "../popups/focusContainerPopup";
 import {focusManager} from "../../services/focusManager";
 import {MODES} from "../../actions/selectionActions";
 import {resolveBlockId} from "../../actions/navigationActions";
+import {getDefaultImageSettings} from "../../utils/imageSettingsDefaults";
 
+const normalizePopupBlockId = (value) => {
+    if (!value || typeof value !== 'string') return null;
+    return value.trim().split('*').at(-1) || null;
+};
+
+const getBlockLinkValue = (el) =>
+    normalizePopupBlockId(el?.getAttribute?.('blockLink') || el?.getAttribute?.('blocklink'));
+
+const hasImagePreviewSource = (image) => {
+    if (!image || typeof image !== 'object') return false;
+    return Boolean(
+        image.thumbnail_url ||
+        image.thumb_url ||
+        image.preview_url ||
+        image.url ||
+        image.file_url ||
+        image.image_url ||
+        image.file ||
+        image.variants?.thumb?.url ||
+        image.variants?.original?.url
+    );
+};
+
+const normalizeImageData = (image) => {
+    if (!image || typeof image !== 'object') return null;
+
+    let settings = image.settings;
+    if (typeof settings === 'string') {
+        try {
+            settings = JSON.parse(settings);
+        } catch {
+            settings = null;
+        }
+    }
+
+    const defaults = getDefaultImageSettings();
+    const normalizedSettings = settings ? {
+        fitMode: settings.fitMode || defaults.fitMode,
+        position: settings.position || defaults.position,
+        background: {
+            ...defaults.background,
+            ...(settings.background || {})
+        }
+    } : defaults;
+
+    return {
+        ...image,
+        url: image.url || image.file_url || image.image_url || image.file,
+        thumbnail_url: image.thumbnail_url || image.thumb_url || image.preview_url || image.variants?.thumb?.url,
+        filename: image.filename || image.name || image.file_name || image.file || 'image',
+        size: image.size || image.file_size,
+        settings: normalizedSettings
+    };
+};
+
+const getImageCommandCandidateBlockIds = (ctx) => {
+    const activeBlockEl = document.querySelector('.block-active');
+    const activeLinkEl = document.querySelector('.block-link-active');
+    const focusedElement = document.activeElement;
+    const focusedBlockEl = focusedElement?.closest?.('[block]');
+    const focusedLinkEl = focusedElement?.closest?.('[blocklink]') || focusedElement?.closest?.('[blockLink]');
+    const rememberedBlockId = normalizePopupBlockId(ctx.lastImagePopupBlockId);
+
+    return [...new Set([
+        normalizePopupBlockId(resolveBlockId(ctx.blockElement, ctx.blockLinkElement)),
+        normalizePopupBlockId(ctx.blockId),
+        normalizePopupBlockId(ctx.blockElement?.id),
+        getBlockLinkValue(ctx.blockElement),
+        normalizePopupBlockId(ctx.blockLinkElement?.id),
+        getBlockLinkValue(ctx.blockLinkElement),
+        normalizePopupBlockId(activeBlockEl?.id),
+        normalizePopupBlockId(activeLinkEl?.id),
+        getBlockLinkValue(activeLinkEl),
+        normalizePopupBlockId(focusedBlockEl?.id),
+        normalizePopupBlockId(focusedLinkEl?.id),
+        getBlockLinkValue(focusedLinkEl),
+        rememberedBlockId
+    ].filter(Boolean))];
+};
+
+const getBlockImageFromLocalState = (blockId) => {
+    if (!blockId) return null;
+    const block = localStateManager.blocks.get(blockId);
+    return normalizeImageData(block?.data?.image || null);
+};
 
 export const popupsCommands = [
     {
@@ -395,94 +481,9 @@ export const popupsCommands = [
         defaultHotkey: 'i',
         description: 'Загрузить изображение в блок',
         async execute(ctx) {
-            const normalizeBlockId = (value) => {
-                if (!value || typeof value !== 'string') return null;
-                return value.trim().split('*').at(-1) || null;
-            };
-
-            const extractFromTestId = (testId, prefix) => {
-                if (typeof testId !== 'string' || !testId.startsWith(prefix)) return null;
-                return normalizeBlockId(testId.slice(prefix.length));
-            };
-
-            const getElementCandidateIds = (el) => {
-                if (!el || typeof el.getAttribute !== 'function') return [];
-                return [
-                    normalizeBlockId(el.id),
-                    normalizeBlockId(el.getAttribute('blockLink')),
-                    extractFromTestId(el.getAttribute('data-testid'), 'block-'),
-                    extractFromTestId(el.getAttribute('data-testid'), 'block-link-'),
-                ].filter(Boolean);
-            };
-
-            const getImageOwnerIdFromDom = (el, preferredIds = []) => {
-                if (!el || typeof el.querySelector !== 'function') return null;
-
-                // Сначала пробуем найти контейнер картинки для ожидаемого блока.
-                for (const preferredId of preferredIds) {
-                    const exact = el.matches?.(`.block-image-container[data-testid="block-image-${preferredId}"]`)
-                        ? el
-                        : el.querySelector(`.block-image-container[data-testid="block-image-${preferredId}"]`);
-                    if (exact) return preferredId;
-                }
-
-                const ownId = normalizeBlockId(el.id);
-                if (ownId) {
-                    const ownContainer = el.querySelector(`.block-image-container[data-testid="block-image-${ownId}"]`);
-                    if (ownContainer) return ownId;
-                }
-
-                const anyContainer = el.matches?.('.block-image-container[data-testid^="block-image-"]')
-                    ? el
-                    : el.querySelector('.block-image-container[data-testid^="block-image-"]');
-
-                return extractFromTestId(anyContainer?.getAttribute?.('data-testid'), 'block-image-');
-            };
-
-            const rememberedBlockId = normalizeBlockId(ctx.lastImagePopupBlockId);
-            const focusedElement = document.activeElement;
-
-            const domSources = [...new Set([
-                ctx.blockElement,
-                ctx.blockLinkElement,
-                document.querySelector('.block-active'),
-                document.querySelector('.block-link-active'),
-                focusedElement?.closest?.('[block]'),
-                focusedElement?.closest?.('[blockLink]'),
-            ].filter(Boolean))];
-
-            const blockId = normalizeBlockId(resolveBlockId(ctx.blockElement, ctx.blockLinkElement))
-                || normalizeBlockId(ctx.blockId)
-                || domSources.flatMap((el) => getElementCandidateIds(el))[0]
-                || rememberedBlockId
-                || null;
+            const candidateBlockIds = getImageCommandCandidateBlockIds(ctx);
+            const blockId = candidateBlockIds[0];
             if (!blockId) return;
-
-            const imageOwnerFromDom = domSources
-                .map((el) => getImageOwnerIdFromDom(el, [blockId, ...getElementCandidateIds(el)]))
-                .find(Boolean);
-
-            const candidateBlockIds = [...new Set([
-                blockId,
-                imageOwnerFromDom,
-                rememberedBlockId,
-                ...domSources.flatMap((el) => getElementCandidateIds(el)),
-            ].filter(Boolean))];
-
-            const hasImagePreviewSource = (image) => {
-                if (!image || typeof image !== 'object') return false;
-                return Boolean(
-                    image.thumbnail_url ||
-                    image.thumb_url ||
-                    image.preview_url ||
-                    image.url ||
-                    image.file_url ||
-                    image.image_url ||
-                    image.file ||
-                    image.variants?.thumb?.url ||
-                    image.variants?.original?.url
-                );
-            };
 
             ctx.mode = 'uploadBlockImage';
             dispatch('OpenImageUploadPopup', { blockId });
@@ -492,163 +493,21 @@ export const popupsCommands = [
             let imageOwnerBlockId = blockId;
             let currentImage = null;
 
-            // Сначала проверяем локальный state (включая link-контексты)
+            // Источник истины: block.data.image в local state.
             for (const candidateId of candidateBlockIds) {
-                const block = localStateManager.blocks.get(candidateId);
-                const localImage = block?.data?.image || null;
-                if (!localImage) continue;
-                if (hasImagePreviewSource(localImage) || localImage?.settings) {
-                    currentImage = localImage;
-                    imageOwnerBlockId = candidateId;
-                    break;
-                }
-                if (!currentImage) {
-                    currentImage = localImage;
-                    imageOwnerBlockId = candidateId;
-                }
+                const image = getBlockImageFromLocalState(candidateId);
+                if (!image) continue;
+                currentImage = image;
+                imageOwnerBlockId = candidateId;
+                break;
             }
 
-            console.debug('uploadBlockImage: local image data:', currentImage ? 'found' : 'not found', currentImage, 'candidates:', candidateBlockIds);
-
-            // Если локально нет URL картинки или нет settings - запрашиваем с сервера.
-            // Это покрывает кейс, когда в блоке сохранились только settings без ссылок на файл.
-            if (!hasImagePreviewSource(currentImage) || !currentImage?.settings) {
-                for (const candidateId of candidateBlockIds) {
-                    try {
-                        const apiImage = await api.getBlockImage(candidateId);
-                        console.debug('uploadBlockImage: fetched from API:', candidateId, apiImage);
-                        // Нормализуем данные от API (разные поля под одни и те же названия)
-                        if (apiImage) {
-                            // Мержим с локальными данными, API имеет приоритет для settings
-                            currentImage = {
-                                ...(currentImage || {}), // Локальные данные как база
-                                ...apiImage,             // API данные поверх
-                                // Нормализуем URL поля - бек может возвращать разные названия
-                                url: apiImage.url || apiImage.file_url || apiImage.image_url || apiImage.file,
-                                thumbnail_url: apiImage.thumbnail_url || apiImage.thumb_url || apiImage.preview_url,
-                                filename: apiImage.filename || apiImage.name || apiImage.file_name,
-                                size: apiImage.size || apiImage.file_size,
-                                // Settings из API имеют приоритет
-                                settings: apiImage.settings || currentImage?.settings || null
-                            };
-                            imageOwnerBlockId = candidateId;
-
-                            // Сохраняем в локальный state для следующих открытий
-                            const block = localStateManager.blocks.get(candidateId);
-                            if (block) {
-                                block.data.image = currentImage;
-                            }
-                            break;
-                        }
-                    } catch (err) {
-                        // Игнорируем ошибки - просто попробуем другие варианты ID
-                        console.debug('getBlockImage error:', candidateId, err);
-                    }
-                }
-            }
-
-            // Fallback: если URL всё ещё не найден, но в DOM есть изображение - извлекаем из DOM
-            if (!hasImagePreviewSource(currentImage)) {
-                for (const sourceEl of domSources) {
-                    let imageContainer = null;
-
-                    // Приоритет: ищем контейнеры, соответствующие candidate ID.
-                    for (const candidateId of candidateBlockIds) {
-                        imageContainer = sourceEl.matches?.(`.block-image-container[data-testid="block-image-${candidateId}"]`)
-                            ? sourceEl
-                            : sourceEl.querySelector(`.block-image-container[data-testid="block-image-${candidateId}"]`);
-                        if (imageContainer) {
-                            imageOwnerBlockId = candidateId;
-                            break;
-                        }
-                    }
-
-                    // Последний fallback: любой контейнер картинки в найденном блоке.
-                    if (!imageContainer) {
-                        imageContainer = sourceEl.matches?.('.block-image-container[data-testid^="block-image-"]')
-                            ? sourceEl
-                            : sourceEl.querySelector('.block-image-container[data-testid^="block-image-"]');
-                        const ownerFromContainer = extractFromTestId(
-                            imageContainer?.getAttribute?.('data-testid'),
-                            'block-image-'
-                        );
-                        if (ownerFromContainer) {
-                            imageOwnerBlockId = ownerFromContainer;
-                        }
-                    }
-
-                    if (!imageContainer) continue;
-                    const img = imageContainer.querySelector('.block-image');
-                    const fullsizeUrl = imageContainer.getAttribute('data-fullsize-url');
-                    if (fullsizeUrl) {
-                        console.debug('uploadBlockImage: extracting image data from DOM');
-                        currentImage = {
-                            url: fullsizeUrl,
-                            thumbnail_url: img?.src || fullsizeUrl,
-                            filename: img?.alt || 'image',
-                            settings: {
-                                fitMode: imageContainer.getAttribute('data-fit') || 'contain',
-                                position: imageContainer.getAttribute('data-position') || 'center',
-                                background: {
-                                    enabled: imageContainer.getAttribute('data-background') === 'true'
-                                }
-                            }
-                        };
-                        // Сохраняем в локальный state
-                        let saved = false;
-                        for (const candidateId of candidateBlockIds) {
-                            const block = localStateManager.blocks.get(candidateId);
-                            if (block) {
-                                block.data.image = currentImage;
-                                imageOwnerBlockId = candidateId;
-                                saved = true;
-                                break;
-                            }
-                        }
-                        if (!saved) {
-                            imageOwnerBlockId = blockId;
-                        }
-                        break;
-                    }
-                }
-            }
-
-            // Если нашли изображение, но нет settings - задаём дефолты локально,
-            // чтобы всегда открыть popup в режиме редактирования.
-            if (currentImage && !currentImage.settings) {
-                currentImage.settings = {
-                    fitMode: 'contain',
-                    position: 'center',
-                    background: {
-                        enabled: false,
-                        opacity: 60,
-                        blur: 0,
-                        brightness: 100,
-                        contrast: 100,
-                        saturation: 100,
-                        overlayColor: '#000000',
-                        overlayOpacity: 30
-                    }
-                };
-                for (const candidateId of candidateBlockIds) {
-                    const block = localStateManager.blocks.get(candidateId);
-                    if (block?.data?.image) {
-                        block.data.image.settings = currentImage.settings;
-                        imageOwnerBlockId = candidateId;
-                        break;
-                    }
-                }
-            }
-
-            // Запоминаем последний блок, для которого открыт image popup.
-            // Нужен как fallback, когда после закрытия popup blockElement очищается mouseout.
             ctx.lastImagePopupBlockId = imageOwnerBlockId || blockId;
 
             ctx.popup = new ImageUploadPopup({
                 blockId: imageOwnerBlockId,
-                currentImage: currentImage,
+                currentImage,
                 onImageChange(imageData) {
-                    // Обновляем данные блока с информацией об изображении
                     dispatch('UpdateBlockImage', { blockId: imageOwnerBlockId, imageData });
                 },
                 onCancel() {
@@ -668,117 +527,32 @@ export const popupsCommands = [
         defaultHotkey: 'alt+i',
         description: 'Открыть только настройки изображения блока',
         async execute(ctx) {
-            const normalizeBlockId = (value) => {
-                if (!value || typeof value !== 'string') return null;
-                return value.trim().split('*').at(-1) || null;
-            };
-
-            const hasImagePreviewSource = (image) => {
-                if (!image || typeof image !== 'object') return false;
-                return Boolean(
-                    image.thumbnail_url ||
-                    image.thumb_url ||
-                    image.preview_url ||
-                    image.url ||
-                    image.file_url ||
-                    image.image_url ||
-                    image.file ||
-                    image.variants?.thumb?.url ||
-                    image.variants?.original?.url
-                );
-            };
-
-            const rememberedBlockId = normalizeBlockId(ctx.lastImagePopupBlockId);
-            const activeBlockEl = document.querySelector('.block-active');
-            const activeLinkEl = document.querySelector('.block-link-active');
-
-            const candidateBlockIds = [...new Set([
-                normalizeBlockId(resolveBlockId(ctx.blockElement, ctx.blockLinkElement)),
-                normalizeBlockId(ctx.blockId),
-                normalizeBlockId(ctx.blockElement?.id),
-                normalizeBlockId(ctx.blockElement?.getAttribute?.('blockLink')),
-                normalizeBlockId(ctx.blockLinkElement?.id),
-                normalizeBlockId(ctx.blockLinkElement?.getAttribute?.('blockLink')),
-                normalizeBlockId(activeBlockEl?.id),
-                normalizeBlockId(activeLinkEl?.id),
-                normalizeBlockId(activeLinkEl?.getAttribute?.('blockLink')),
-                rememberedBlockId
-            ].filter(Boolean))];
-
+            const candidateBlockIds = getImageCommandCandidateBlockIds(ctx);
             const blockId = candidateBlockIds[0];
+
             if (!blockId) {
-                dispatch('ShowError', { message: 'Выберите блок с изображением' });
+                dispatch('ShowError', {message: 'Выберите блок с изображением'});
                 return;
             }
 
-            let imageOwnerBlockId = blockId;
+            let imageOwnerBlockId = null;
             let currentImage = null;
 
-            // Сначала local state
             for (const candidateId of candidateBlockIds) {
-                const block = localStateManager.blocks.get(candidateId);
-                const localImage = block?.data?.image || null;
-                if (!localImage) continue;
-                if (hasImagePreviewSource(localImage) || localImage?.settings) {
-                    currentImage = localImage;
-                    imageOwnerBlockId = candidateId;
-                    break;
-                }
+                const image = getBlockImageFromLocalState(candidateId);
+                if (!hasImagePreviewSource(image)) continue;
+                currentImage = image;
+                imageOwnerBlockId = candidateId;
+                break;
             }
 
-            // Потом API если локально данных недостаточно
-            if (!hasImagePreviewSource(currentImage) || !currentImage?.settings) {
-                for (const candidateId of candidateBlockIds) {
-                    try {
-                        const apiImage = await api.getBlockImage(candidateId);
-                        if (!apiImage) continue;
-
-                        currentImage = {
-                            ...(currentImage || {}),
-                            ...apiImage,
-                            url: apiImage.url || apiImage.file_url || apiImage.image_url || apiImage.file,
-                            thumbnail_url: apiImage.thumbnail_url || apiImage.thumb_url || apiImage.preview_url,
-                            filename: apiImage.filename || apiImage.name || apiImage.file_name,
-                            size: apiImage.size || apiImage.file_size,
-                            settings: apiImage.settings || currentImage?.settings || null
-                        };
-                        imageOwnerBlockId = candidateId;
-
-                        const block = localStateManager.blocks.get(candidateId);
-                        if (block) {
-                            block.data.image = currentImage;
-                        }
-                        break;
-                    } catch (err) {
-                        console.debug('editBlockImageSettings: getBlockImage error:', candidateId, err);
-                    }
-                }
-            }
-
-            if (!hasImagePreviewSource(currentImage)) {
-                dispatch('ShowError', { message: 'В этом блоке нет загруженной картинки' });
+            if (!currentImage || !imageOwnerBlockId) {
+                dispatch('ShowError', {message: 'В этом блоке нет загруженной картинки'});
                 return;
-            }
-
-            if (!currentImage.settings) {
-                currentImage.settings = {
-                    fitMode: 'contain',
-                    position: 'center',
-                    background: {
-                        enabled: false,
-                        opacity: 60,
-                        blur: 0,
-                        brightness: 100,
-                        contrast: 100,
-                        saturation: 100,
-                        overlayColor: '#000000',
-                        overlayOpacity: 30
-                    }
-                };
             }
 
             ctx.mode = 'uploadBlockImage';
-            dispatch('OpenImageUploadPopup', { blockId: imageOwnerBlockId });
+            dispatch('OpenImageUploadPopup', {blockId: imageOwnerBlockId});
             ctx.closePopups();
             setCmdOpenBlock(ctx);
 
@@ -787,10 +561,10 @@ export const popupsCommands = [
             ctx.popup = new ImageUploadPopup({
                 title: 'Настройки изображения',
                 blockId: imageOwnerBlockId,
-                currentImage: currentImage,
+                currentImage,
                 settingsOnly: true,
                 onImageChange(imageData) {
-                    dispatch('UpdateBlockImage', { blockId: imageOwnerBlockId, imageData });
+                    dispatch('UpdateBlockImage', {blockId: imageOwnerBlockId, imageData});
                 },
                 onCancel() {
                     ctx.mode = 'normal';
