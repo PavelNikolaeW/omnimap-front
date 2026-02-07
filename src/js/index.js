@@ -347,12 +347,27 @@ async function initApp() {
     window.__networkStatusUI = networkStatusUI
 
 
-    const isAuth = await checkAuth()
+    // Не блокируем показ интерфейса ожиданием refreshToken на медленной сети.
+    // Сначала показываем кэш, проверку auth завершаем в фоне.
+    const cachedUser = await localforage.getItem('currentUser');
+    const hasCachedAuthUser = cachedUser && cachedUser !== 'anonim';
+    let showBlocksDispatched = false;
 
-    if (isAuth) {
-        // Показываем кэш мгновенно (если есть)
-        dispatch('ShowBlocks')
+    if (hasCachedAuthUser) {
+        dispatch('ShowBlocks');
+        showBlocksDispatched = true;
     }
+
+    checkAuth()
+        .then((isAuth) => {
+            if (isAuth && !showBlocksDispatched) {
+                dispatch('ShowBlocks');
+                showBlocksDispatched = true;
+            }
+        })
+        .catch((error) => {
+            console.error('Auth check failed:', error);
+        });
 
     // Инициализируем обработчики двойного клика на изображениях в блоках
     // Для background-изображений (pointer-events: none) проверяем координаты клика
