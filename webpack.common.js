@@ -66,7 +66,7 @@ module.exports = {
                 // Runtime config (в проде заменяется через ConfigMap)
                 {
                     from: 'public/config.js',
-                    to: 'config/config.js', // Путь соответствует index.html: /config/config.js
+                    to: 'config/config.js', // Основной endpoint: /config.js (nginx -> try_files /config/config.js)
                     noErrorOnMissing: true,
                 },
                 // Страница принудительного обновления
