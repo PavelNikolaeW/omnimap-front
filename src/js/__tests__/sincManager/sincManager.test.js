@@ -31,7 +31,7 @@ describe('SincManager.requestIncrementalUpdates', () => {
         config.SYNC_V2_ENABLED = initialSyncV2Enabled;
     });
 
-    test('adds 1-second safety margin for ISO updated_at timestamps', async () => {
+    test('sends exact timestamp for ISO updated_at', async () => {
         const updatedAt = '2026-02-06T12:34:56.999Z';
 
         localforage.getItem.mockImplementation(async (key) => {
@@ -46,14 +46,14 @@ describe('SincManager.requestIncrementalUpdates', () => {
         const manager = createManager();
         await manager.requestIncrementalUpdates();
 
-        const expectedTs = Math.floor(new Date(updatedAt).getTime() / 1000) - 1;
+        const expectedTs = Math.floor(new Date(updatedAt).getTime() / 1000);
         expect(mockGetUpdates).toHaveBeenCalledWith([
             { id: 'block-1', updated_at: expectedTs }
         ]);
 
     });
 
-    test('parses numeric seconds string updated_at correctly', async () => {
+    test('parses numeric seconds string updated_at without safety margin', async () => {
         localforage.getItem.mockImplementation(async (key) => {
             if (key === 'currentUser') return 'user2';
             if (key === 'Block_block-2_user2') {
@@ -67,7 +67,7 @@ describe('SincManager.requestIncrementalUpdates', () => {
         await manager.requestIncrementalUpdates();
 
         expect(mockGetUpdates).toHaveBeenCalledWith([
-            { id: 'block-2', updated_at: 1729999999 }
+            { id: 'block-2', updated_at: 1730000000 }
         ]);
 
     });
@@ -124,7 +124,7 @@ describe('SincManager.requestIncrementalUpdates', () => {
         expect(localforage.keys).toHaveBeenCalledTimes(1);
         expect(mockGetUpdates).toHaveBeenCalledTimes(1);
         expect(mockGetUpdates).toHaveBeenCalledWith([
-            { id: 'block-4', updated_at: 1770379199 }
+            { id: 'block-4', updated_at: 1770379200 }
         ]);
     });
 

@@ -2,11 +2,6 @@ import {UpdateServiceWebSocket} from "./webSocket";
 import localforage from "localforage";
 import config from "../config";
 
-/**
- * Запас в секундах для запроса инкрементальных обновлений.
- * Нужен чтобы не пропускать изменения с одинаковым updated_at (точность БД до секунды).
- */
-const INCREMENTAL_TS_SAFETY_MARGIN_SEC = 1;
 const CURSOR_SYNC_MAX_PAGES = 20;
 
 /**
@@ -290,8 +285,9 @@ export class SincManager {
                     }
                     return {
                         id: block.id,
-                        // Safety margin чтобы не пропускать апдейты в ту же секунду
-                        updated_at: Math.max(0, unixSeconds - INCREMENTAL_TS_SAFETY_MARGIN_SEC),
+                        // Отправляем точный timestamp локального блока.
+                        // Это исключает ложные обновления при reconnect.
+                        updated_at: Math.max(0, unixSeconds),
                     };
                 })
                 .filter(Boolean);

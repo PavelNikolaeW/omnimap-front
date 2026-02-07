@@ -19,6 +19,8 @@ import {deduplicateChildOrder} from "../utils/childOrderUtils";
 import {getDefaultImageSettings} from "../utils/imageSettingsDefaults";
 import {getLinkSlugFromSearch} from "../utils/linkView";
 
+const TREE_REPAIR_ENABLED = false;
+
 /**
  * Экранирует специальные символы RegExp в строке
  * @param {string} string - Исходная строка
@@ -2101,6 +2103,16 @@ export class LocalStateManager {
      * @returns {Promise<Object>} результат восстановления с информацией о синхронизации
      */
     async repairTree() {
+        if (!TREE_REPAIR_ENABLED) {
+            console.warn('⚠️ repairTree отключен');
+            return {
+                repaired: false,
+                disabled: true,
+                repairs: { modifiedBlocks: new Set(), details: [] },
+                syncResult: { synced: 0, failed: 0, failedBlockIds: [] }
+            };
+        }
+
         console.group('🔧 Восстановление дерева блоков');
 
         // Удаляем блоки с undefined/null ключами (ошибочные записи)
@@ -2183,6 +2195,10 @@ export class LocalStateManager {
      * Вызывается в фоне, не блокирует UI
      */
     async autoRepairIfNeeded() {
+        if (!TREE_REPAIR_ENABLED) {
+            return;
+        }
+
         const validation = treeValidator.validate(this.blocks);
         if (!validation.valid) {
             console.warn(`⚠ Обнаружены проблемы в дереве блоков (${validation.issues.length}). Запускаем автовосстановление...`);
