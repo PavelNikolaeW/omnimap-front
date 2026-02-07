@@ -8,11 +8,14 @@ jest.mock('localforage', () => ({
 
 const localforage = require('localforage');
 const { SincManager } = require('../../sincManager/sincManager');
+const config = require('../../config').default;
 
 describe('SincManager.requestIncrementalUpdates', () => {
+    const initialSyncV2Enabled = config.SYNC_V2_ENABLED;
+
     function createManager() {
         const manager = Object.create(SincManager.prototype);
-        manager.webSocket = { getUpdates: mockGetUpdates };
+        manager.webSocket = { getUpdates: mockGetUpdates, getUpdatesV2: jest.fn() };
         manager.loadFullTree = jest.fn();
         manager._incrementalSyncPromise = null;
         return manager;
@@ -20,6 +23,11 @@ describe('SincManager.requestIncrementalUpdates', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        config.SYNC_V2_ENABLED = initialSyncV2Enabled;
+    });
+
+    afterAll(() => {
+        config.SYNC_V2_ENABLED = initialSyncV2Enabled;
     });
 
     test('adds 1-second safety margin for ISO updated_at timestamps', async () => {
@@ -117,5 +125,46 @@ describe('SincManager.requestIncrementalUpdates', () => {
         expect(mockGetUpdates).toHaveBeenCalledWith([
             { id: 'block-4', updated_at: 1770379199 }
         ]);
+    });
+
+    test('uses v2 path when SYNC_V2_ENABLED is true', async () => {
+        config.SYNC_V2_ENABLED = true;
+
+        localforage.getItem.mockImplementation(async (key) => {
+            if (key === 'currentUser') return 'user-v2';
+            return null;
+        });
+
+        const manager = createManager();
+        manager._requestIncrementalUpdatesV2 = jest.fn().mockResolvedValue(undefined);
+
+        await manager.requestIncrementalUpdates();
+
+        expect(manager._requestIncrementalUpdatesV2).toHaveBeenCalledWith('user-v2', true);
+        expect(mockGetUpdates).not.toHaveBeenCalled();
+    });
+
+    test('falls back to v1 when v2 path fails', async () => {
+        const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        config.SYNC_V2_ENABLED = true;
+
+        localforage.getItem.mockImplementation(async (key) => {
+            if (key === 'currentUser') return 'user-fallback';
+            if (key === 'Block_block-5_user-fallback') {
+                return { id: 'block-5', updated_at: '2026-02-06T12:00:00Z' };
+            }
+            return null;
+        });
+        localforage.keys.mockResolvedValue(['Block_block-5_user-fallback']);
+
+        const manager = createManager();
+        manager._requestIncrementalUpdatesV2 = jest.fn().mockRejectedValue(new Error('v2 failed'));
+
+        await manager.requestIncrementalUpdates();
+
+        expect(manager._requestIncrementalUpdatesV2).toHaveBeenCalledWith('user-fallback', true);
+        expect(mockGetUpdates).toHaveBeenCalledTimes(1);
+
+        warnSpy.mockRestore();
     });
 });

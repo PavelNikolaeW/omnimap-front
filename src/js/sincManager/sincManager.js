@@ -7,6 +7,7 @@ import config from "../config";
  * Нужен чтобы не пропускать изменения с одинаковым updated_at (точность БД до секунды).
  */
 const INCREMENTAL_TS_SAFETY_MARGIN_SEC = 1;
+const CURSOR_SYNC_MAX_PAGES = 20;
 
 /**
  * Экранирует специальные символы RegExp в строке
@@ -75,7 +76,7 @@ export class SincManager {
             const username = await localforage.getItem('currentUser');
             if (!username) return;
 
-            console.log('🔄 SincManager: incremental updates');
+            console.log(`🔄 SincManager: incremental updates (${config.SYNC_V2_ENABLED ? 'v2' : 'v1'})`);
             await this.requestIncrementalUpdates();
         } catch (err) {
             console.error('SincManager: sync error:', err.stack || err.message || err);
@@ -147,13 +148,123 @@ export class SincManager {
     }
 
     async _requestIncrementalUpdatesInternal(allowFallbackToFull = true) {
+        const username = await localforage.getItem('currentUser');
+        if (!username) return;
+
+        const usernameStr = typeof username === 'string' ? username : String(username);
+
+        // v2 cursor sync (with transparent fallback to v1)
+        if (config.SYNC_V2_ENABLED) {
+            try {
+                await this._requestIncrementalUpdatesV2(usernameStr, allowFallbackToFull);
+                return;
+            } catch (err) {
+                console.warn('SincManager: v2 sync failed, falling back to v1:', err?.message || err);
+            }
+        }
+
+        await this._requestIncrementalUpdatesV1(usernameStr, allowFallbackToFull);
+    }
+
+    _getSyncCursorKey(username) {
+        return `syncCursor:${username}`;
+    }
+
+    _getSyncSubVersionKey(username) {
+        return `syncSubVer:${username}`;
+    }
+
+    async _loadCursorState(username) {
+        const [cursorRaw, subVerRaw] = await Promise.all([
+            localforage.getItem(this._getSyncCursorKey(username)),
+            localforage.getItem(this._getSyncSubVersionKey(username)),
+        ]);
+
+        const cursor = Number.isFinite(Number(cursorRaw)) ? Math.max(0, Number(cursorRaw)) : 0;
+        const subscriptionVersion = Number.isFinite(Number(subVerRaw)) ? Math.max(0, Number(subVerRaw)) : 0;
+        return { cursor, subscriptionVersion };
+    }
+
+    async _saveCursorState(username, cursor, subscriptionVersion) {
+        await Promise.all([
+            localforage.setItem(this._getSyncCursorKey(username), Math.max(0, Number(cursor) || 0)),
+            localforage.setItem(this._getSyncSubVersionKey(username), Math.max(0, Number(subscriptionVersion) || 0)),
+        ]);
+    }
+
+    async _requestIncrementalUpdatesV2(usernameStr, allowFallbackToFull = true) {
+        // Для пустого локального состояния загружаем полное дерево.
+        // Это дешевле и надёжнее, чем строить состояние с нуля только по changelog.
+        const treeIds = await localforage.getItem(`treeIds${usernameStr}`);
+        if ((!Array.isArray(treeIds) || treeIds.length === 0) && allowFallbackToFull) {
+            console.log('🔄 SincManager(v2): no local trees, triggering full tree load');
+            await this.loadFullTree(false);
+            return;
+        }
+
+        const { dispatch } = await import('../utils/utils');
+
+        let { cursor, subscriptionVersion } = await this._loadCursorState(usernameStr);
+        const limit = Math.max(1, Number(config.SYNC_V2_LIMIT) || 2000);
+
+        let page = 0;
+        while (page < CURSOR_SYNC_MAX_PAGES) {
+            const response = await this.webSocket.getUpdatesV2({
+                cursor,
+                subscription_version: subscriptionVersion,
+                limit,
+            });
+
+            if (response?.type !== 'block_updates_v2') {
+                throw new Error('Invalid get_updates_v2 response');
+            }
+
+            const nextCursor = Math.max(0, Number(response.next_cursor) || cursor);
+            const nextSubscriptionVersion = Math.max(0, Number(response.subscription_version) || subscriptionVersion);
+
+            if (response.full_resync_required) {
+                console.warn(`SincManager(v2): full resync required (${response.reason || 'unknown'})`);
+                if (allowFallbackToFull) {
+                    await this.loadFullTree(false);
+                    await this._saveCursorState(usernameStr, nextCursor, nextSubscriptionVersion);
+                }
+                return;
+            }
+
+            const updates = Array.isArray(response.updates) ? response.updates : [];
+            if (updates.length > 0) {
+                dispatch('WebSocUpdateBlock', { blocks: updates, isReconnect: true });
+            }
+
+            const requestSizeBytes = JSON.stringify({
+                action: 'get_updates_v2',
+                cursor,
+                subscription_version: subscriptionVersion,
+                limit,
+            }).length;
+            const responseSizeBytes = JSON.stringify(response).length;
+            console.log(
+                `📊 SincManager(v2): page=${page + 1}, updates=${updates.length}, ` +
+                `requestBytes=${requestSizeBytes}, responseBytes=${responseSizeBytes}, hasMore=${Boolean(response.has_more)}`
+            );
+
+            cursor = nextCursor;
+            subscriptionVersion = nextSubscriptionVersion;
+            await this._saveCursorState(usernameStr, cursor, subscriptionVersion);
+
+            if (!response.has_more) {
+                break;
+            }
+            page += 1;
+        }
+
+        if (page >= CURSOR_SYNC_MAX_PAGES) {
+            console.warn(`SincManager(v2): pagination limit reached (${CURSOR_SYNC_MAX_PAGES} pages)`);
+        }
+    }
+
+    async _requestIncrementalUpdatesV1(usernameStr, allowFallbackToFull = true) {
         try {
-            const username = await localforage.getItem('currentUser');
-            if (!username) return;
-
-            // Убедимся, что username - строка (может быть объектом при некорректных данных)
-            const usernameStr = typeof username === 'string' ? username : String(username);
-
             // Экранируем username для защиты от RegExp injection
             const escapedUsername = escapeRegExp(usernameStr);
             const pattern = new RegExp(`^Block_.*_${escapedUsername}$`);
@@ -184,20 +295,24 @@ export class SincManager {
 
             if (toSend.length > 0) {
                 this.webSocket.getUpdates(toSend);
+                const payloadBytes = JSON.stringify({ action: 'get_updates', blocks: toSend }).length;
                 // Debug: показываем статистику по timestamps
                 const timestamps = toSend.map(b => b.updated_at).sort((a, b) => a - b);
                 const oldest = new Date(timestamps[0] * 1000).toISOString();
                 const newest = new Date(timestamps[timestamps.length - 1] * 1000).toISOString();
-                console.log(`🔄 SincManager: requested updates for ${toSend.length} blocks (oldest: ${oldest}, newest: ${newest})`);
+                console.log(
+                    `🔄 SincManager(v1): requested updates for ${toSend.length} blocks ` +
+                    `(oldest: ${oldest}, newest: ${newest}, payloadBytes=${payloadBytes})`
+                );
             } else if (allowFallbackToFull) {
-                console.log('🔄 SincManager: no local blocks, triggering full tree load');
+                console.log('🔄 SincManager(v1): no local blocks, triggering full tree load');
                 // Если нет локальных блоков - загружаем полное дерево (предотвращаем рекурсию)
                 await this.loadFullTree(false);
             } else {
-                console.log('⏭️ SincManager: no local blocks and fallback disabled, skipping');
+                console.log('⏭️ SincManager(v1): no local blocks and fallback disabled, skipping');
             }
         } catch (err) {
-            console.error('SincManager: failed to request incremental updates:', err);
+            console.error('SincManager: failed to request incremental updates (v1):', err);
         }
     }
 

@@ -328,6 +328,51 @@ describe('UpdateServiceWebSocket', () => {
         });
     });
 
+    describe('get_updates_v2', () => {
+        test('should resolve getUpdatesV2 promise when block_updates_v2 arrives', async () => {
+            ws.connect();
+            ws.ws._simulateOpen();
+
+            const promise = ws.getUpdatesV2({
+                cursor: 10,
+                subscription_version: 2,
+                limit: 500
+            });
+
+            ws.ws._simulateMessage({
+                type: 'block_updates_v2',
+                updates: [{ id: 'b1' }],
+                next_cursor: 11,
+                has_more: false,
+                subscription_version: 2,
+                full_resync_required: false
+            });
+
+            await expect(promise).resolves.toMatchObject({
+                type: 'block_updates_v2',
+                next_cursor: 11
+            });
+        });
+
+        test('should reject getUpdatesV2 promise when server returns error', async () => {
+            ws.connect();
+            ws.ws._simulateOpen();
+
+            const promise = ws.getUpdatesV2({
+                cursor: 10,
+                subscription_version: 2,
+                limit: 500
+            });
+
+            ws.ws._simulateMessage({
+                type: 'error',
+                message: 'get_updates_v2 is disabled.'
+            });
+
+            await expect(promise).rejects.toThrow('get_updates_v2 is disabled.');
+        });
+    });
+
     describe('auth error handling (code 1008)', () => {
         let api;
         let wsInstance;

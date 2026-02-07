@@ -33,6 +33,11 @@ const BLOCK_UPDATE_DEBOUNCE_MS = 50;
  */
 const CONNECTION_CHECK_TIMEOUT = 2000;
 
+/**
+ * Таймаут ожидания ответа get_updates_v2 (мс)
+ */
+const GET_UPDATES_V2_TIMEOUT = 10000;
+
 export class UpdateServiceWebSocket {
     /**
      * Создает экземпляр класса UpdateServiceWebSocket.
@@ -56,6 +61,9 @@ export class UpdateServiceWebSocket {
         // Буфер для накопления block updates (debounce)
         this._pendingBlockUpdates = [];
         this._blockUpdateTimer = null;
+
+        // Pending promise для cursor-based sync запроса get_updates_v2
+        this._pendingGetUpdatesV2 = null;
 
         this._handleLogin = this._handleLogin.bind(this);
         this._handleLogout = this._handleLogout.bind(this);
@@ -395,6 +403,12 @@ export class UpdateServiceWebSocket {
                 if (allBlocks.length > 0) {
                     dispatch('WebSocUpdateBlock', { blocks: allBlocks, isReconnect: true });
                 }
+            } else if (message.type === 'block_updates_v2') {
+                if (this._pendingGetUpdatesV2) {
+                    this._pendingGetUpdatesV2.resolve(message);
+                    clearTimeout(this._pendingGetUpdatesV2.timeoutId);
+                    this._pendingGetUpdatesV2 = null;
+                }
             } else if (message.type === 'block_updates_batch') {
                 // Батч обновлений от сервера: { type: 'block_updates_batch', updates: [{type: 'block_update', data: ...}, ...] }
                 if (Array.isArray(message.updates)) {
@@ -413,6 +427,13 @@ export class UpdateServiceWebSocket {
                 }
             } else if (message.type === 'block_update_access') {
                 dispatch('WebSocUpdateBlockAccess', message);
+            } else if (message.type === 'error') {
+                if (this._pendingGetUpdatesV2) {
+                    const messageText = message.message || 'Unknown WebSocket error';
+                    this._pendingGetUpdatesV2.reject(new Error(messageText));
+                    clearTimeout(this._pendingGetUpdatesV2.timeoutId);
+                    this._pendingGetUpdatesV2 = null;
+                }
             } else if (message.action === 'access_request') {
                 // Обработка событий запросов на доступ
                 console.log('[WebSocket] Access request event:', message);
@@ -503,6 +524,48 @@ export class UpdateServiceWebSocket {
     }
 
     /**
+     * Cursor-based incremental sync request.
+     * Возвращает Promise с ответом block_updates_v2.
+     * @param {Object} payload - {cursor, subscription_version, limit}
+     * @param {Object} options - {timeoutMs}
+     * @returns {Promise<Object>}
+     */
+    getUpdatesV2(payload = {}, options = {}) {
+        if (!this.isConnected || this.ws?.readyState !== WebSocket.OPEN) {
+            return Promise.reject(new Error('WebSocket not connected'));
+        }
+
+        if (this._pendingGetUpdatesV2?.promise) {
+            return this._pendingGetUpdatesV2.promise;
+        }
+
+        const timeoutMs = Math.max(1000, Number(options.timeoutMs) || GET_UPDATES_V2_TIMEOUT);
+        const request = {
+            action: 'get_updates_v2',
+            cursor: Math.max(0, Number(payload.cursor) || 0),
+            subscription_version: Math.max(0, Number(payload.subscription_version) || 0),
+            limit: Math.max(1, Number(payload.limit) || 2000),
+        };
+
+        const promise = new Promise((resolve, reject) => {
+            const timeoutId = setTimeout(() => {
+                if (this._pendingGetUpdatesV2) {
+                    this._pendingGetUpdatesV2 = null;
+                    reject(new Error('get_updates_v2 timeout'));
+                }
+            }, timeoutMs);
+
+            this._pendingGetUpdatesV2 = { promise: null, resolve, reject, timeoutId };
+        });
+
+        // Сохраняем self-reference чтобы дедупликация могла вернуть тот же Promise
+        this._pendingGetUpdatesV2.promise = promise;
+
+        this.sendMessage(request);
+        return promise;
+    }
+
+    /**
      * Отправляет сообщение через WebSocket.
      * @param {Object} message - Объект сообщения.
      */
@@ -539,6 +602,11 @@ export class UpdateServiceWebSocket {
             this._connectionCheckTimer = null;
         }
         this._awaitingConnectionCheck = false;
+        if (this._pendingGetUpdatesV2) {
+            clearTimeout(this._pendingGetUpdatesV2.timeoutId);
+            this._pendingGetUpdatesV2.reject(new Error('WebSocket disconnected'));
+            this._pendingGetUpdatesV2 = null;
+        }
         // Очищаем таймер debounce и буфер обновлений
         if (this._blockUpdateTimer) {
             clearTimeout(this._blockUpdateTimer);
