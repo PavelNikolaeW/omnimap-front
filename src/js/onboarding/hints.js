@@ -34,7 +34,7 @@ export const CONTEXTUAL_HINTS = {
         message: 'Нажмите Backspace чтобы вернуться назад или кликните на тот же блок',
         showOnce: true,
         level: 1,
-        condition: (detail) => detail?.path?.length > 1
+        condition: (detail) => Array.isArray(detail?.parentHsl) && detail.parentHsl.length > 0
     },
 
     /**
@@ -77,7 +77,7 @@ export const CONTEXTUAL_HINTS = {
      */
     firstCopy: {
         trigger: 'CopyBlockId',
-        message: 'ID скопирован! Shift+V — вставить копию, Shift+L — вставить ссылку',
+        message: 'ID скопирован! Shift+V — вставить копию, Shift+G — вставить ссылку',
         showOnce: true,
         level: 2
     },
@@ -108,11 +108,31 @@ export const CONTEXTUAL_HINTS = {
      * Первое использование Undo
      */
     firstUndo: {
-        trigger: 'UndoAction',
+        trigger: 'Undo',
         message: 'Действие отменено! Shift+Ctrl+Z — повторить',
         showOnce: true,
         level: 2,
         duration: 2500
+    },
+
+    /**
+     * Первое открытие импорта блоков
+     */
+    firstImport: {
+        trigger: 'OpenImportPopup',
+        message: 'Импортируйте JSON-структуры в текущий выбранный блок',
+        showOnce: true,
+        level: 2
+    },
+
+    /**
+     * Первая загрузка изображения
+     */
+    firstImageUpload: {
+        trigger: 'OpenImageUploadPopup',
+        message: 'Добавьте обложку блока, чтобы быстрее ориентироваться в структуре',
+        showOnce: true,
+        level: 2
     },
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -198,8 +218,48 @@ export const CONTEXTUAL_HINTS = {
      * Первая подписка на блок
      */
     firstWatch: {
-        trigger: 'WatchBlock',
+        trigger: 'SubscriptionUpdated',
         message: 'Вы будете получать уведомления об изменениях в этом блоке',
+        showOnce: true,
+        level: 4
+    },
+
+    /**
+     * Первое добавление блока в Focus
+     */
+    firstFocusAdd: {
+        trigger: 'OpenFocusContainerPopup',
+        message: 'Выберите контейнер Focus, чтобы добавить задачу как ссылку',
+        showOnce: true,
+        level: 4
+    },
+
+    /**
+     * Первое назначение контейнера Focus
+     */
+    firstFocusContainer: {
+        trigger: 'MarkAsFocusContainer',
+        message: 'Теперь этот блок можно использовать как контейнер в Shift+K',
+        showOnce: true,
+        level: 4
+    },
+
+    /**
+     * Первое открытие настроек уведомлений
+     */
+    firstNotificationSettings: {
+        trigger: 'OpenNotificationSettings',
+        message: 'Настройте, как и когда получать напоминания и обновления',
+        showOnce: true,
+        level: 4
+    },
+
+    /**
+     * Первое открытие менеджера запросов доступа
+     */
+    firstAccessRequests: {
+        trigger: 'OpenAccessRequestsManager',
+        message: 'Здесь можно быстро обработать входящие и отправленные запросы',
         showOnce: true,
         level: 4
     }

@@ -1,4 +1,5 @@
 import { LayoutEditorPanel } from "../layoutEditor/LayoutEditorPanel";
+import { dispatch } from "../../utils/utils";
 
 /**
  * Команды раскладки блоков
@@ -17,9 +18,11 @@ export const layoutCommands = [
         defaultHotkey: 'l+e',
         description: 'Открыть визуальный редактор раскладки с drag-and-drop',
         execute(ctx) {
+            dispatch('OpenLayoutEditor');
             LayoutEditorPanel.show(ctx);
         },
         btnExec(ctx) {
+            dispatch('OpenLayoutEditor');
             LayoutEditorPanel.show(ctx);
         }
     }

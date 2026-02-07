@@ -36,8 +36,10 @@ export const popupsCommands = [
         defaultHotkey: 'f',
         description: 'Поиск блоков',
         execute(ctx) {
+            this.btnExec(ctx);
         },
         btnExec(ctx) {
+            dispatch('OpenSearchPopup');
             ctx.mode = 'findBlock'
             ctx.closePopups()
             setCmdOpenBlock(ctx);
@@ -220,6 +222,7 @@ export const popupsCommands = [
 
             ctx.closePopups()
             ctx.mode = 'editAccessBlock'
+            dispatch('OpenAccessPopup', { blockId: id });
             setCmdOpenBlock(ctx);
             ctx.popup = new AccessPopup({
                 blockId: id,
@@ -368,6 +371,7 @@ export const popupsCommands = [
             ctx.mode = 'importBlocks';
             // Родительский блок - текущий выбранный
             const parentId = ctx.blockElement?.id.split('*').at(-1) || null;
+            dispatch('OpenImportPopup', { parentId });
             ctx.closePopups();
             setCmdOpenBlock(ctx);
 
@@ -409,6 +413,7 @@ export const popupsCommands = [
             };
 
             ctx.mode = 'uploadBlockImage';
+            dispatch('OpenImageUploadPopup', { blockId });
             ctx.closePopups();
             setCmdOpenBlock(ctx);
 
@@ -525,6 +530,7 @@ export const popupsCommands = [
             const blockId = ctx.blockElement?.id.split('*').at(-1);
             if (!blockId) return;
 
+            dispatch('OpenReminderPopup', { blockId });
             ctx.mode = 'setReminder';
             ctx.closePopups();
             setCmdOpenBlock(ctx);
@@ -575,6 +581,7 @@ export const popupsCommands = [
             const blockId = ctx.blockElement?.id.split('*').at(-1);
             if (!blockId) return;
 
+            dispatch('WatchBlock', { blockId });
             ctx.mode = 'watchBlock';
             ctx.closePopups();
             setCmdOpenBlock(ctx);
@@ -646,6 +653,7 @@ export const popupsCommands = [
         defaultHotkey: 'shift+n',
         description: 'Открыть настройки уведомлений',
         execute(ctx) {
+            dispatch('OpenNotificationSettings');
             ctx.mode = 'notificationSettings';
             ctx.closePopups();
             setCmdOpenBlock(ctx);
@@ -711,6 +719,7 @@ export const popupsCommands = [
         defaultHotkey: 'shift+o',
         description: 'Открыть запросы на доступ к блокам',
         execute(ctx) {
+            dispatch('OpenAccessRequestsManager');
             ctx.mode = 'accessRequests';
             ctx.closePopups();
             setCmdOpenBlock(ctx);
@@ -794,6 +803,7 @@ export const popupsCommands = [
             ctx.closePopups();
             const previousMode = ctx.previousMode;  // Сохраняем до сброса
             ctx.mode = MODES.ADD_TO_FOCUS;
+            dispatch('OpenFocusContainerPopup', { blockId });
 
             // Показываем popup выбора контейнера
             ctx.popup = new FocusContainerPopup({
@@ -842,6 +852,7 @@ export const popupsCommands = [
             } else {
                 // Помечаем как контейнер
                 focusManager.markAsFocusContainer(blockId);
+                dispatch('MarkAsFocusContainer', { blockId });
                 dispatch('ShowToast', { message: 'Блок помечен как контейнер фокуса', type: 'success' });
             }
 

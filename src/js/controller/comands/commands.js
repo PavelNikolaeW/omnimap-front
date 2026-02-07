@@ -291,6 +291,7 @@ export const commands = [
         defaultHotkey: 'm',
         description: 'Открыть чаты (личные, группы, AI)',
         execute(ctx) {
+            dispatch('OpenUnifiedChat');
             openUnifiedChat();
         },
         btnExec(ctx) {
@@ -405,6 +406,7 @@ export const commands = [
                 }
 
                 ctx.mode = MODES.TEXT_EDIT
+                dispatch('OpenNoteEditor', { blockId });
                 nodeEditor.openEditor(id, content, ctx)
                 setCmdOpenBlock(ctx)
             })
@@ -701,6 +703,7 @@ export const commands = [
             if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && ctx.blockElement) {
                 ctx.previousMode = ctx.mode  // Сохраняем режим для возврата
                 ctx.mode = MODES.CONNECT_TO_BLOCK
+                dispatch('EnterConnectMode');
                 let sourceEl = ctx.blockElement
                 if (ctx.blockLinkElement) sourceEl = ctx.blockLinkElement
                 ctx.connect_source_id = sourceEl.id
@@ -717,6 +720,7 @@ export const commands = [
             else if ((ctx.mode === MODES.NORMAL || ctx.mode === MODES.DIAGRAM) && !ctx.blockElement) {
                 ctx.previousMode = ctx.mode  // Сохраняем режим для возврата
                 ctx.mode = MODES.CONNECT_SELECT_SOURCE
+                dispatch('EnterConnectMode');
                 ctx.connectionType = undefined  // обычное соединение
                 document.body.style.cursor = 'crosshair'
                 document.body.classList.add('connect-mode')

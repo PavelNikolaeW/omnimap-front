@@ -466,6 +466,7 @@ export class UIManager {
         if (ctx) {
             ctx.mode = MODES.DIAGRAM
         }
+        dispatch('EnterDiagramMode', { blockId })
 
         // Визуальная индикация выбранного блока-диаграммы
         blockElement.classList.add('diagram-target-block')
