@@ -67,6 +67,7 @@ export class ImageUploadPopup extends Popup {
         this.blockId = options.blockId;
         this.currentImage = options.currentImage || null;
         this.onImageChange = options.onImageChange;
+        this.settingsOnly = options.settingsOnly === true;
         this.selectedFile = null;
         this.isUploading = false;
 
@@ -551,6 +552,9 @@ export class ImageUploadPopup extends Popup {
                 <p class="image-upload-hint">JPEG, PNG, GIF, WebP • до 5 MB • макс. 4096x4096</p>
             </div>
         `;
+        if (this.settingsOnly) {
+            this.dropZone.style.display = 'none';
+        }
         container.appendChild(this.dropZone);
 
         // Скрытый input для файла
@@ -587,6 +591,11 @@ export class ImageUploadPopup extends Popup {
     }
 
     setupEventListeners() {
+        if (this.settingsOnly) {
+            this.setupSettingsListeners();
+            return;
+        }
+
         // Click на dropzone
         this.dropZone.addEventListener('click', () => {
             if (!this.isUploading) {
@@ -727,10 +736,15 @@ export class ImageUploadPopup extends Popup {
         // Проверяем наличие изображения (поддержка старого и нового формата)
         const previewUrl = this.getPreviewUrl();
         if (!this.currentImage || !previewUrl) {
-            this.previewSection.style.display = 'none';
+            if (this.settingsOnly) {
+                this.previewSection.style.display = 'block';
+                this.previewSection.innerHTML = '<div class="image-upload-info">В этом блоке нет загруженной картинки</div>';
+            } else {
+                this.previewSection.style.display = 'none';
+            }
             this.settingsSection.style.display = 'none';
-            // Показываем dropzone для загрузки нового изображения
-            this.dropZone.style.display = 'block';
+            // В settingsOnly режиме загрузка недоступна
+            this.dropZone.style.display = this.settingsOnly ? 'none' : 'block';
             return;
         }
 
@@ -759,26 +773,28 @@ export class ImageUploadPopup extends Popup {
         `;
         previewContainer.appendChild(info);
 
-        // Actions
-        const actions = document.createElement('div');
-        actions.className = 'image-upload-actions';
+        if (!this.settingsOnly) {
+            // Actions
+            const actions = document.createElement('div');
+            actions.className = 'image-upload-actions';
 
-        const viewBtn = Popup.createButton('Просмотр', 'secondary', () => this.openFullsize());
-        viewBtn.classList.add('popup-btn--sm');
-        actions.appendChild(viewBtn);
+            const viewBtn = Popup.createButton('Просмотр', 'secondary', () => this.openFullsize());
+            viewBtn.classList.add('popup-btn--sm');
+            actions.appendChild(viewBtn);
 
-        const replaceBtn = Popup.createButton('Заменить', 'secondary', () => {
-            // Показать file input для замены изображения
-            this.fileInput.click();
-        });
-        replaceBtn.classList.add('popup-btn--sm');
-        actions.appendChild(replaceBtn);
+            const replaceBtn = Popup.createButton('Заменить', 'secondary', () => {
+                // Показать file input для замены изображения
+                this.fileInput.click();
+            });
+            replaceBtn.classList.add('popup-btn--sm');
+            actions.appendChild(replaceBtn);
 
-        const deleteBtn = Popup.createButton('Удалить', 'danger', () => this.deleteImage());
-        deleteBtn.classList.add('popup-btn--sm');
-        actions.appendChild(deleteBtn);
+            const deleteBtn = Popup.createButton('Удалить', 'danger', () => this.deleteImage());
+            deleteBtn.classList.add('popup-btn--sm');
+            actions.appendChild(deleteBtn);
 
-        previewContainer.appendChild(actions);
+            previewContainer.appendChild(actions);
+        }
 
         this.previewSection.appendChild(previewContainer);
 

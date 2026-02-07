@@ -658,6 +658,146 @@ export const popupsCommands = [
         }
     },
     {
+        id: "editBlockImageSettings",
+        mode: ['normal'],
+        btn: {
+            containerId: 'control-panel',
+            label: 'Настройки изображения',
+            classes: ['sidebar-button', 'fas', 'fa-sliders-h', 'fas-lg']
+        },
+        description: 'Открыть только настройки изображения блока',
+        async execute(ctx) {
+            const normalizeBlockId = (value) => {
+                if (!value || typeof value !== 'string') return null;
+                return value.trim().split('*').at(-1) || null;
+            };
+
+            const hasImagePreviewSource = (image) => {
+                if (!image || typeof image !== 'object') return false;
+                return Boolean(
+                    image.thumbnail_url ||
+                    image.thumb_url ||
+                    image.preview_url ||
+                    image.url ||
+                    image.file_url ||
+                    image.image_url ||
+                    image.file ||
+                    image.variants?.thumb?.url ||
+                    image.variants?.original?.url
+                );
+            };
+
+            const rememberedBlockId = normalizeBlockId(ctx.lastImagePopupBlockId);
+            const activeBlockEl = document.querySelector('.block-active');
+            const activeLinkEl = document.querySelector('.block-link-active');
+
+            const candidateBlockIds = [...new Set([
+                normalizeBlockId(resolveBlockId(ctx.blockElement, ctx.blockLinkElement)),
+                normalizeBlockId(ctx.blockId),
+                normalizeBlockId(ctx.blockElement?.id),
+                normalizeBlockId(ctx.blockElement?.getAttribute?.('blockLink')),
+                normalizeBlockId(ctx.blockLinkElement?.id),
+                normalizeBlockId(ctx.blockLinkElement?.getAttribute?.('blockLink')),
+                normalizeBlockId(activeBlockEl?.id),
+                normalizeBlockId(activeLinkEl?.id),
+                normalizeBlockId(activeLinkEl?.getAttribute?.('blockLink')),
+                rememberedBlockId
+            ].filter(Boolean))];
+
+            const blockId = candidateBlockIds[0];
+            if (!blockId) {
+                dispatch('ShowError', { message: 'Выберите блок с изображением' });
+                return;
+            }
+
+            let imageOwnerBlockId = blockId;
+            let currentImage = null;
+
+            // Сначала local state
+            for (const candidateId of candidateBlockIds) {
+                const block = localStateManager.blocks.get(candidateId);
+                const localImage = block?.data?.image || null;
+                if (!localImage) continue;
+                if (hasImagePreviewSource(localImage) || localImage?.settings) {
+                    currentImage = localImage;
+                    imageOwnerBlockId = candidateId;
+                    break;
+                }
+            }
+
+            // Потом API если локально данных недостаточно
+            if (!hasImagePreviewSource(currentImage) || !currentImage?.settings) {
+                for (const candidateId of candidateBlockIds) {
+                    try {
+                        const apiImage = await api.getBlockImage(candidateId);
+                        if (!apiImage) continue;
+
+                        currentImage = {
+                            ...(currentImage || {}),
+                            ...apiImage,
+                            url: apiImage.url || apiImage.file_url || apiImage.image_url || apiImage.file,
+                            thumbnail_url: apiImage.thumbnail_url || apiImage.thumb_url || apiImage.preview_url,
+                            filename: apiImage.filename || apiImage.name || apiImage.file_name,
+                            size: apiImage.size || apiImage.file_size,
+                            settings: apiImage.settings || currentImage?.settings || null
+                        };
+                        imageOwnerBlockId = candidateId;
+
+                        const block = localStateManager.blocks.get(candidateId);
+                        if (block) {
+                            block.data.image = currentImage;
+                        }
+                        break;
+                    } catch (err) {
+                        console.debug('editBlockImageSettings: getBlockImage error:', candidateId, err);
+                    }
+                }
+            }
+
+            if (!hasImagePreviewSource(currentImage)) {
+                dispatch('ShowError', { message: 'В этом блоке нет загруженной картинки' });
+                return;
+            }
+
+            if (!currentImage.settings) {
+                currentImage.settings = {
+                    fitMode: 'contain',
+                    position: 'center',
+                    background: {
+                        enabled: false,
+                        opacity: 60,
+                        blur: 0,
+                        brightness: 100,
+                        contrast: 100,
+                        saturation: 100,
+                        overlayColor: '#000000',
+                        overlayOpacity: 30
+                    }
+                };
+            }
+
+            ctx.mode = 'uploadBlockImage';
+            dispatch('OpenImageUploadPopup', { blockId: imageOwnerBlockId });
+            ctx.closePopups();
+            setCmdOpenBlock(ctx);
+
+            ctx.lastImagePopupBlockId = imageOwnerBlockId;
+
+            ctx.popup = new ImageUploadPopup({
+                title: 'Настройки изображения',
+                blockId: imageOwnerBlockId,
+                currentImage: currentImage,
+                settingsOnly: true,
+                onImageChange(imageData) {
+                    dispatch('UpdateBlockImage', { blockId: imageOwnerBlockId, imageData });
+                },
+                onCancel() {
+                    ctx.mode = 'normal';
+                }
+            });
+        }
+    },
+    {
         id: "viewFullsizeImage",
         mode: ['normal'],
         defaultHotkey: 'v',
