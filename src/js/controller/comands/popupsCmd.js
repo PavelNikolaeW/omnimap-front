@@ -393,6 +393,21 @@ export const popupsCommands = [
             const blockId = ctx.blockElement?.id.split('*').at(-1);
             if (!blockId) return;
 
+            const hasImagePreviewSource = (image) => {
+                if (!image || typeof image !== 'object') return false;
+                return Boolean(
+                    image.thumbnail_url ||
+                    image.thumb_url ||
+                    image.preview_url ||
+                    image.url ||
+                    image.file_url ||
+                    image.image_url ||
+                    image.file ||
+                    image.variants?.thumb?.url ||
+                    image.variants?.original?.url
+                );
+            };
+
             ctx.mode = 'uploadBlockImage';
             ctx.closePopups();
             setCmdOpenBlock(ctx);
@@ -403,9 +418,9 @@ export const popupsCommands = [
 
             console.debug('uploadBlockImage: local image data:', currentImage ? 'found' : 'not found', currentImage);
 
-            // Если локально нет данных ИЛИ нет settings - запрашиваем с сервера
-            // (settings могут отсутствовать после refresh, когда block.data пришёл из /load-trees/)
-            if (!currentImage || !currentImage.settings) {
+            // Если локально нет URL картинки или нет settings - запрашиваем с сервера.
+            // Это покрывает кейс, когда в блоке сохранились только settings без ссылок на файл.
+            if (!hasImagePreviewSource(currentImage) || !currentImage?.settings) {
                 try {
                     const apiImage = await api.getBlockImage(blockId);
                     console.debug('uploadBlockImage: fetched from API:', apiImage);
@@ -435,8 +450,8 @@ export const popupsCommands = [
                 }
             }
 
-            // Fallback: если данных всё ещё нет, но в DOM есть изображение - извлекаем из DOM
-            if (!currentImage) {
+            // Fallback: если URL всё ещё не найден, но в DOM есть изображение - извлекаем из DOM
+            if (!hasImagePreviewSource(currentImage)) {
                 const imageContainer = ctx.blockElement?.querySelector('.block-image-container');
                 if (imageContainer) {
                     const img = imageContainer.querySelector('.block-image');
