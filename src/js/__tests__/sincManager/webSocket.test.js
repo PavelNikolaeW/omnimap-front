@@ -30,6 +30,7 @@ class MockWebSocket {
     static OPEN = 1;
     static CLOSING = 2;
     static CLOSED = 3;
+    static instances = [];
 
     constructor(url) {
         this.url = url;
@@ -39,6 +40,7 @@ class MockWebSocket {
         this.onerror = null;
         this.onclose = null;
         this._sentMessages = [];
+        MockWebSocket.instances.push(this);
     }
 
     send(data) {
@@ -82,6 +84,7 @@ describe('UpdateServiceWebSocket', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         jest.useFakeTimers();
+        MockWebSocket.instances = [];
 
         // Сохраняем оригинальное состояние
         originalVisibilityState = document.visibilityState;
@@ -116,6 +119,38 @@ describe('UpdateServiceWebSocket', () => {
     });
 
     describe('connection health check', () => {
+        test('should not create duplicate socket while current is connecting/open', () => {
+            ws.connect();
+            expect(MockWebSocket.instances).toHaveLength(1);
+
+            ws.connect();
+            expect(MockWebSocket.instances).toHaveLength(1);
+
+            ws.ws._simulateOpen();
+            ws.connect();
+            expect(MockWebSocket.instances).toHaveLength(1);
+        });
+
+        test('should ignore close events from stale sockets after reconnect', () => {
+            ws.connect();
+            const oldSocket = ws.ws;
+            oldSocket._simulateOpen();
+
+            ws._handleForceReconnect();
+            expect(MockWebSocket.instances).toHaveLength(2);
+
+            const activeSocket = ws.ws;
+            activeSocket._simulateOpen();
+            ws.reconnectAttempts = 0;
+
+            // Имитируем запоздалое закрытие старого сокета (не должно затронуть активный)
+            oldSocket.onclose?.({ code: 1006, reason: 'stale close' });
+
+            expect(ws.ws).toBe(activeSocket);
+            expect(ws.reconnectAttempts).toBe(0);
+            expect(MockWebSocket.instances).toHaveLength(2);
+        });
+
         test('should reset missedPongs counter when checking connection', () => {
             // Устанавливаем соединение
             ws.ws = new MockWebSocket('ws://test');
@@ -370,6 +405,27 @@ describe('UpdateServiceWebSocket', () => {
             });
 
             await expect(promise).rejects.toThrow('get_updates_v2 is disabled.');
+        });
+    });
+
+    describe('block_updates resync handling', () => {
+        test('should dispatch SyncFullResyncRequired when server requests full resync', () => {
+            ws.connect();
+            ws.ws._simulateOpen();
+            mockDispatch.mockClear();
+
+            ws.ws._simulateMessage({
+                type: 'block_updates',
+                updates: [],
+                new_blocks: [],
+                full_resync_required: true,
+                reason: 'no_subscriptions',
+            });
+
+            expect(mockDispatch).toHaveBeenCalledWith('SyncFullResyncRequired', {
+                reason: 'no_subscriptions',
+                source: 'v1',
+            });
         });
     });
 

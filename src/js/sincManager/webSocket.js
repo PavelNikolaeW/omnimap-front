@@ -57,6 +57,7 @@ export class UpdateServiceWebSocket {
         this.shouldReconnect = true;
         this.heartbeatTimer = null;
         this.missedPongs = 0;
+        this._reconnectTimer = null;
 
         // Буфер для накопления block updates (debounce)
         this._pendingBlockUpdates = [];
@@ -122,8 +123,11 @@ export class UpdateServiceWebSocket {
         this.shouldReconnect = true;
         this.reconnectAttempts = 0;
         this._stopHeartbeat();
+        this._clearReconnectTimer();
         if (this.ws) {
-            this.ws.close();
+            const previousSocket = this.ws;
+            this.ws = null;
+            previousSocket.close();
         }
         this.connect();
     }
@@ -196,8 +200,11 @@ export class UpdateServiceWebSocket {
         this.reconnectAttempts = 0;
         this.shouldReconnect = true;
         this._stopHeartbeat();
+        this._clearReconnectTimer();
         if (this.ws) {
-            this.ws.close();
+            const previousSocket = this.ws;
+            this.ws = null;
+            previousSocket.close();
         }
         this.connect();
     }
@@ -259,6 +266,24 @@ export class UpdateServiceWebSocket {
         return Math.min(interval, MAX_RECONNECT_INTERVAL);
     }
 
+    _clearReconnectTimer() {
+        if (this._reconnectTimer) {
+            clearTimeout(this._reconnectTimer);
+            this._reconnectTimer = null;
+        }
+    }
+
+    _scheduleReconnect(interval) {
+        if (!this.shouldReconnect) {
+            return;
+        }
+        this._clearReconnectTimer();
+        this._reconnectTimer = setTimeout(() => {
+            this._reconnectTimer = null;
+            this.connect();
+        }, interval);
+    }
+
     /**
      * Пробует обновить токен и переподключиться
      * Если refresh не удался - вызывает logout
@@ -269,9 +294,7 @@ export class UpdateServiceWebSocket {
             const refreshed = await api.refreshToken();
             if (refreshed) {
                 console.log(`WebSocket: token refreshed, reconnecting in ${interval}ms (attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
-                setTimeout(() => {
-                    this.connect();
-                }, interval);
+                this._scheduleReconnect(interval);
             } else {
                 // Refresh не удался - токены недействительны, сессия истекла
                 console.error('WebSocket: token refresh failed, session expired');
@@ -347,11 +370,22 @@ export class UpdateServiceWebSocket {
             return;
         }
 
+        // Защита от гонок: не открываем второй сокет, пока текущий не закрыт полностью.
+        if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
+            return;
+        }
+
+        this._clearReconnectTimer();
+
         // Токен передаётся в query string (стандарт для WebSocket)
         // TODO: рассмотреть передачу через первое сообщение после подключения
-        this.ws = new WebSocket(`${this.url}?token=${encodeURIComponent(jwtToken)}`);
+        const socket = new WebSocket(`${this.url}?token=${encodeURIComponent(jwtToken)}`);
+        this.ws = socket;
 
-        this.ws.onopen = () => {
+        socket.onopen = () => {
+            if (this.ws !== socket) {
+                return;
+            }
             console.log('WebSocket подключен');
             this.isConnected = true;
             this.reconnectAttempts = 0;
@@ -364,7 +398,10 @@ export class UpdateServiceWebSocket {
             this.eventListeners.open.forEach(callback => callback());
         };
 
-        this.ws.onmessage = (event) => {
+        socket.onmessage = (event) => {
+            if (this.ws !== socket) {
+                return;
+            }
             const message = this._safeJsonParse(event.data);
             if (!message) return;
 
@@ -389,6 +426,11 @@ export class UpdateServiceWebSocket {
                 // Ответ на get_updates запрос: { type: 'block_updates', updates: [...], new_blocks: [...] }
                 const updates = Array.isArray(message.updates) ? message.updates : [];
                 const newBlocks = Array.isArray(message.new_blocks) ? message.new_blocks : [];
+                if (message.full_resync_required) {
+                    const reason = message.reason || 'unknown';
+                    console.warn(`WebSocket: full resync required (${reason})`);
+                    dispatch('SyncFullResyncRequired', { reason, source: 'v1' });
+                }
                 const totalReceived = updates.length + newBlocks.length;
                 if (totalReceived > 100) {
                     console.warn(`⚠️ WebSocket: received ${totalReceived} blocks after reconnect - possible backend issue with incremental sync`);
@@ -460,13 +502,20 @@ export class UpdateServiceWebSocket {
             }
         };
 
-        this.ws.onerror = (error) => {
+        socket.onerror = (error) => {
+            if (this.ws !== socket) {
+                return;
+            }
             console.error('WebSocket ошибка:', error);
             this.eventListeners.error.forEach(callback => callback(error));
         };
 
-        this.ws.onclose = (event) => {
+        socket.onclose = (event) => {
+            if (this.ws !== socket) {
+                return;
+            }
             console.warn(`WebSocket отключен: код=${event.code}, причина=${event.reason}`);
+            this.ws = null;
             this.isConnected = false;
             this._stopHeartbeat();
             this.eventListeners.close.forEach(callback => callback(event));
@@ -492,9 +541,7 @@ export class UpdateServiceWebSocket {
                 } else {
                     console.log(`WebSocket: reconnecting in ${interval}ms (attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
                     dispatch('WebSocketReconnecting', { attempt: this.reconnectAttempts });
-                    setTimeout(() => {
-                        this.connect();
-                    }, interval);
+                    this._scheduleReconnect(interval);
                 }
             }
         };
@@ -596,6 +643,7 @@ export class UpdateServiceWebSocket {
     disconnect() {
         this.shouldReconnect = false;
         this._stopHeartbeat();
+        this._clearReconnectTimer();
         // Очищаем таймер проверки соединения
         if (this._connectionCheckTimer) {
             clearTimeout(this._connectionCheckTimer);

@@ -58,10 +58,13 @@ export class SincManager {
 
         // Дедупликация параллельных запросов incremental sync
         this._incrementalSyncPromise = null;
+        this._fullResyncPromise = null;
+        this._handleSyncFullResyncRequired = this._handleSyncFullResyncRequired.bind(this);
 
         this.webSocket = new UpdateServiceWebSocket(wsUrl);
         this.webSocket.eventListeners.open.push(this.online.bind(this));
         this.webSocket.connect();
+        window.addEventListener('SyncFullResyncRequired', this._handleSyncFullResyncRequired);
     }
 
     /**
@@ -316,10 +319,30 @@ export class SincManager {
         }
     }
 
+    async _handleSyncFullResyncRequired(event) {
+        const reason = event?.detail?.reason || 'unknown';
+        if (this._fullResyncPromise) {
+            console.log(`⏭️ SincManager: full resync already in progress (${reason})`);
+            return this._fullResyncPromise;
+        }
+
+        console.warn(`🔄 SincManager: full resync requested by sync service (${reason})`);
+        this._fullResyncPromise = this.loadFullTree(false)
+            .catch((err) => {
+                console.error('SincManager: full resync failed:', err);
+            })
+            .finally(() => {
+                this._fullResyncPromise = null;
+            });
+
+        return this._fullResyncPromise;
+    }
+
     /**
      * Очистка ресурсов
      */
     destroy() {
+        window.removeEventListener('SyncFullResyncRequired', this._handleSyncFullResyncRequired);
         if (this.webSocket) {
             this.webSocket.destroy();
             this.webSocket = null;

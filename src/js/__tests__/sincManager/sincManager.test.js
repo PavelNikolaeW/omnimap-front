@@ -18,6 +18,7 @@ describe('SincManager.requestIncrementalUpdates', () => {
         manager.webSocket = { getUpdates: mockGetUpdates, getUpdatesV2: jest.fn() };
         manager.loadFullTree = jest.fn();
         manager._incrementalSyncPromise = null;
+        manager._fullResyncPromise = null;
         return manager;
     }
 
@@ -166,5 +167,31 @@ describe('SincManager.requestIncrementalUpdates', () => {
         expect(mockGetUpdates).toHaveBeenCalledTimes(1);
 
         warnSpy.mockRestore();
+    });
+
+    test('handles full resync request from sync service', async () => {
+        const manager = createManager();
+        manager.loadFullTree = jest.fn().mockResolvedValue(undefined);
+
+        await manager._handleSyncFullResyncRequired({
+            detail: { reason: 'no_subscriptions' },
+        });
+
+        expect(manager.loadFullTree).toHaveBeenCalledWith(false);
+    });
+
+    test('deduplicates parallel full resync requests', async () => {
+        const manager = createManager();
+        let resolveResync;
+        manager.loadFullTree = jest.fn().mockImplementation(() => new Promise((resolve) => {
+            resolveResync = resolve;
+        }));
+
+        const p1 = manager._handleSyncFullResyncRequired({ detail: { reason: 'no_subscriptions' } });
+        const p2 = manager._handleSyncFullResyncRequired({ detail: { reason: 'no_subscriptions' } });
+
+        expect(manager.loadFullTree).toHaveBeenCalledTimes(1);
+        resolveResync();
+        await Promise.all([p1, p2]);
     });
 });
