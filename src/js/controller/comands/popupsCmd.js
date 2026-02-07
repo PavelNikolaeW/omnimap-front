@@ -665,6 +665,7 @@ export const popupsCommands = [
             label: 'Настройки изображения',
             classes: ['sidebar-button', 'fas', 'fa-sliders-h', 'fas-lg']
         },
+        defaultHotkey: 'alt+i',
         description: 'Открыть только настройки изображения блока',
         async execute(ctx) {
             const normalizeBlockId = (value) => {
