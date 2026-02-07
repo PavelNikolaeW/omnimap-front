@@ -79,6 +79,13 @@ export class ImageUploadPopup extends Popup {
 
         // Debounced версия applySettings для слайдеров
         this.debouncedApplySettings = this._debounce(() => this.applySettings(), 100);
+
+        // Popup базового класса вызывает createPopup() внутри super(),
+        // поэтому initial render мог выполниться до присвоения currentImage.
+        // Повторно рендерим уже с корректными данными.
+        if (this.previewSection) {
+            this.renderCurrentImage();
+        }
     }
 
     /**
