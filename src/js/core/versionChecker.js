@@ -6,7 +6,12 @@
 const CHECK_INTERVAL = 5 * 60 * 1000; // Проверять каждые 5 минут
 const VERSION_STORAGE_KEY = 'omnimap_app_version';
 const LAST_CHECK_KEY = 'omnimap_last_version_check';
+const FORCE_UPDATE_TIMESTAMP_KEY = 'forceUpdateTimestamp';
+const FORCE_UPDATE_SETTLE_WINDOW_MS = 2 * 60 * 1000;
+const FORCE_UPDATE_WATCHDOG_TIMEOUT_MS = 15 * 1000;
 const SW_ACTIVATION_TIMEOUT = 4000;
+const OFFLINE_QUEUE_IMPORT_TIMEOUT_MS = 4000;
+const PENDING_COUNT_TIMEOUT_MS = 4000;
 const DYNAMIC_IMPORT_FAILURE_PATTERNS = [
     'loading chunk',
     'failed to fetch dynamically imported module',
@@ -16,7 +21,10 @@ const DYNAMIC_IMPORT_FAILURE_PATTERNS = [
 
 class VersionChecker {
     constructor() {
-        this.currentVersion = APP_VERSION || 'unknown';
+        const metaVersion = document
+            .querySelector('meta[name="app-version"]')
+            ?.getAttribute('content');
+        this.currentVersion = metaVersion || APP_VERSION || 'unknown';
         this.checkTimer = null;
         this.isChecking = false;
         this._isUpdating = false; // Защита от concurrent вызовов forceUpdate()
@@ -102,6 +110,36 @@ class VersionChecker {
             clearTimeout(this._syncCompletedTimeout);
             this._syncCompletedTimeout = null;
         }
+    }
+
+    /**
+     * Обёртка для async операций с таймаутом
+     * @template T
+     * @param {Promise<T>} promise
+     * @param {number} timeoutMs
+     * @param {string} timeoutMessage
+     * @returns {Promise<T>}
+     */
+    withTimeout(promise, timeoutMs, timeoutMessage) {
+        let timeoutId;
+        const timeoutPromise = new Promise((_, reject) => {
+            timeoutId = setTimeout(() => {
+                reject(new Error(timeoutMessage));
+            }, timeoutMs);
+        });
+
+        return Promise.race([promise, timeoutPromise]).finally(() => {
+            clearTimeout(timeoutId);
+        });
+    }
+
+    /**
+     * Проверяет, была ли недавно попытка принудительного обновления
+     * @returns {boolean}
+     */
+    hasRecentForceUpdateAttempt() {
+        const lastAttempt = parseInt(localStorage.getItem(FORCE_UPDATE_TIMESTAMP_KEY) || '0', 10);
+        return lastAttempt > 0 && (Date.now() - lastAttempt) < FORCE_UPDATE_SETTLE_WINDOW_MS;
     }
 
     /**
@@ -197,16 +235,17 @@ class VersionChecker {
         if (hasForceUpdate) {
             // Сохраняем текущую версию
             this.saveCurrentVersion();
+            localStorage.setItem(FORCE_UPDATE_TIMESTAMP_KEY, Date.now().toString());
             return true;
         }
 
         // Успешная загрузка без forceUpdate параметра - сбрасываем счетчик
-        const lastUpdateTimestamp = parseInt(localStorage.getItem('forceUpdateTimestamp') || '0');
+        const lastUpdateTimestamp = parseInt(localStorage.getItem(FORCE_UPDATE_TIMESTAMP_KEY) || '0', 10);
         const now = Date.now();
-        // Сбрасываем только если прошло достаточно времени (30 сек) после последнего обновления
-        if (now - lastUpdateTimestamp > 30 * 1000) {
+        // Сбрасываем только после settle-window, чтобы не спровоцировать цикл уведомлений.
+        if (now - lastUpdateTimestamp > FORCE_UPDATE_SETTLE_WINDOW_MS) {
             localStorage.removeItem('forceUpdateAttempts');
-            localStorage.removeItem('forceUpdateTimestamp');
+            localStorage.removeItem(FORCE_UPDATE_TIMESTAMP_KEY);
         }
         return false;
     }
@@ -217,6 +256,12 @@ class VersionChecker {
      */
     async checkForUpdate() {
         try {
+            // После клика "Обновить сейчас" даём странице "устаканиться", чтобы не попасть в цикл.
+            if (this.hasRecentForceUpdateAttempt()) {
+                console.log('[VersionChecker] Skipping version check during post-update settle window');
+                return false;
+            }
+
             // КРИТИЧНО: добавляем timestamp чтобы минуя Service Worker и браузерный кеш
             const cacheBuster = `_v=${Date.now()}`;
 
@@ -271,6 +316,16 @@ class VersionChecker {
      * Показывает уведомление об обновлении
      */
     showUpdateNotification() {
+        if (this._isUpdating) {
+            console.log('[VersionChecker] Update is already in progress, skipping notification');
+            return;
+        }
+
+        if (this.hasRecentForceUpdateAttempt()) {
+            console.log('[VersionChecker] Notification suppressed during post-update settle window');
+            return;
+        }
+
         // Проверяем, не показывали ли мы уже уведомление недавно
         const lastNotification = sessionStorage.getItem('update_notification_shown');
         if (lastNotification) {
@@ -368,6 +423,12 @@ class VersionChecker {
                 return;
             }
 
+            try {
+                localStorage.setItem(FORCE_UPDATE_TIMESTAMP_KEY, Date.now().toString());
+            } catch (e) {
+                console.warn('[VersionChecker] Failed to mark force update attempt:', e);
+            }
+
             // Визуальный фидбек, чтобы клик не выглядел как "ничего не произошло"
             const initialNowLabel = updateNowBtn.textContent;
             updateNowBtn.disabled = true;
@@ -423,11 +484,32 @@ class VersionChecker {
 
         this._isUpdating = true;
         console.log('[VersionChecker] Forcing update...');
+        let watchdogTimer = null;
 
         try {
+            try {
+                localStorage.setItem(FORCE_UPDATE_TIMESTAMP_KEY, Date.now().toString());
+            } catch (e) {
+                console.warn('[VersionChecker] Failed to persist force update timestamp:', e);
+            }
+
+            // Watchdog: если какой-то шаг завис, уходим на dedicated страницу force update.
+            watchdogTimer = setTimeout(() => {
+                if (!this._isUpdating) {
+                    return;
+                }
+
+                console.warn('[VersionChecker] Force update watchdog timeout, redirecting to force-update page');
+                this.redirectToForceUpdatePage();
+            }, FORCE_UPDATE_WATCHDOG_TIMEOUT_MS);
+
             // КРИТИЧНО: Проверяем pending операции перед обновлением
             // Если есть несинхронизированные изменения - предупреждаем пользователя
-            const hasPendingOperations = await this.checkPendingOperations();
+            const hasPendingOperations = await this.withTimeout(
+                this.checkPendingOperations(),
+                OFFLINE_QUEUE_IMPORT_TIMEOUT_MS + PENDING_COUNT_TIMEOUT_MS + 1000,
+                'Pending operations check timeout'
+            );
             if (hasPendingOperations) {
                 console.warn('[VersionChecker] Pending operations detected, waiting for sync...');
 
@@ -466,9 +548,12 @@ class VersionChecker {
             console.error('[VersionChecker] Force update failed:', error);
             // Последний fallback: отдельная страница принудительного обновления
             // (на случай если обновление из текущего контекста не удалось)
-            const timestamp = Date.now();
-            window.location.href = `/force-update.html?_t=${timestamp}`;
+            this.redirectToForceUpdatePage();
         } finally {
+            if (watchdogTimer) {
+                clearTimeout(watchdogTimer);
+                watchdogTimer = null;
+            }
             // Сбрасываем флаг если reload не произошёл (например, при раннем return)
             // Если reload произошёл - страница уже перезагрузилась и этот код не выполнится
             this._isUpdating = false;
@@ -482,8 +567,16 @@ class VersionChecker {
     async checkPendingOperations() {
         try {
             // Динамический импорт offlineQueue чтобы избежать circular dependency
-            const { offlineQueue } = await import('../sincManager/offlineQueue.js');
-            const pendingCount = await offlineQueue.getPendingCount();
+            const { offlineQueue } = await this.withTimeout(
+                import('../sincManager/offlineQueue.js'),
+                OFFLINE_QUEUE_IMPORT_TIMEOUT_MS,
+                'Offline queue import timeout'
+            );
+            const pendingCount = await this.withTimeout(
+                offlineQueue.getPendingCount(),
+                PENDING_COUNT_TIMEOUT_MS,
+                'Pending operations timeout'
+            );
             console.log(`[VersionChecker] Pending operations: ${pendingCount}`);
             return pendingCount > 0;
         } catch (error) {
@@ -636,7 +729,15 @@ class VersionChecker {
         // Сбрасываем служебные ключи версионирования
         localStorage.removeItem(VERSION_STORAGE_KEY);
         localStorage.removeItem(LAST_CHECK_KEY);
-        localStorage.setItem('forceUpdateTimestamp', Date.now().toString());
+        localStorage.setItem(FORCE_UPDATE_TIMESTAMP_KEY, Date.now().toString());
+    }
+
+    /**
+     * Переход на dedicated страницу принудительного обновления
+     */
+    redirectToForceUpdatePage() {
+        const timestamp = Date.now();
+        window.location.href = `/force-update.html?_t=${timestamp}`;
     }
 
     /**
@@ -646,15 +747,16 @@ class VersionChecker {
     redirectToApp(withForceParam = false) {
         const timestamp = Date.now();
         const nextUrl = new URL(window.location.origin + '/');
-        const hashParams = new URLSearchParams();
 
         if (withForceParam) {
-            hashParams.set('forceUpdate', '1');
+            nextUrl.searchParams.set('forceUpdate', '1');
         }
-        hashParams.set('_t', timestamp.toString());
-        hashParams.set('_reload', '1');
-        nextUrl.hash = hashParams.toString();
+        nextUrl.searchParams.set('_t', timestamp.toString());
+        nextUrl.searchParams.set('_reload', '1');
 
+        // КРИТИЧНО: используем query-параметры, а не hash.
+        // Hash-only навигация может не перезагрузить документ (особенно на мобильных браузерах),
+        // из-за чего кнопка "Обновить сейчас" выглядит как неработающая.
         window.location.replace(nextUrl.toString());
     }
 }
