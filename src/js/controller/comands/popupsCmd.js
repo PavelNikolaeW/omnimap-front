@@ -439,13 +439,12 @@ export const popupsCommands = [
                 return extractFromTestId(anyContainer?.getAttribute?.('data-testid'), 'block-image-');
             };
 
-            const activeElement = typeof ctx.getActiveElement === 'function' ? ctx.getActiveElement() : null;
+            const rememberedBlockId = normalizeBlockId(ctx.lastImagePopupBlockId);
             const focusedElement = document.activeElement;
 
             const domSources = [...new Set([
                 ctx.blockElement,
                 ctx.blockLinkElement,
-                activeElement,
                 document.querySelector('.block-active'),
                 document.querySelector('.block-link-active'),
                 focusedElement?.closest?.('[block]'),
@@ -455,6 +454,7 @@ export const popupsCommands = [
             const blockId = normalizeBlockId(resolveBlockId(ctx.blockElement, ctx.blockLinkElement))
                 || normalizeBlockId(ctx.blockId)
                 || domSources.flatMap((el) => getElementCandidateIds(el))[0]
+                || rememberedBlockId
                 || null;
             if (!blockId) return;
 
@@ -465,6 +465,7 @@ export const popupsCommands = [
             const candidateBlockIds = [...new Set([
                 blockId,
                 imageOwnerFromDom,
+                rememberedBlockId,
                 ...domSources.flatMap((el) => getElementCandidateIds(el)),
             ].filter(Boolean))];
 
@@ -638,6 +639,10 @@ export const popupsCommands = [
                     }
                 }
             }
+
+            // Запоминаем последний блок, для которого открыт image popup.
+            // Нужен как fallback, когда после закрытия popup blockElement очищается mouseout.
+            ctx.lastImagePopupBlockId = imageOwnerBlockId || blockId;
 
             ctx.popup = new ImageUploadPopup({
                 blockId: imageOwnerBlockId,
