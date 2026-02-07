@@ -395,15 +395,77 @@ export const popupsCommands = [
         defaultHotkey: 'i',
         description: 'Загрузить изображение в блок',
         async execute(ctx) {
-            const blockId = resolveBlockId(ctx.blockElement, ctx.blockLinkElement)
-                || ctx.blockElement?.id?.split('*').at(-1);
+            const normalizeBlockId = (value) => {
+                if (!value || typeof value !== 'string') return null;
+                return value.trim().split('*').at(-1) || null;
+            };
+
+            const extractFromTestId = (testId, prefix) => {
+                if (typeof testId !== 'string' || !testId.startsWith(prefix)) return null;
+                return normalizeBlockId(testId.slice(prefix.length));
+            };
+
+            const getElementCandidateIds = (el) => {
+                if (!el || typeof el.getAttribute !== 'function') return [];
+                return [
+                    normalizeBlockId(el.id),
+                    normalizeBlockId(el.getAttribute('blockLink')),
+                    extractFromTestId(el.getAttribute('data-testid'), 'block-'),
+                    extractFromTestId(el.getAttribute('data-testid'), 'block-link-'),
+                ].filter(Boolean);
+            };
+
+            const getImageOwnerIdFromDom = (el, preferredIds = []) => {
+                if (!el || typeof el.querySelector !== 'function') return null;
+
+                // Сначала пробуем найти контейнер картинки для ожидаемого блока.
+                for (const preferredId of preferredIds) {
+                    const exact = el.matches?.(`.block-image-container[data-testid="block-image-${preferredId}"]`)
+                        ? el
+                        : el.querySelector(`.block-image-container[data-testid="block-image-${preferredId}"]`);
+                    if (exact) return preferredId;
+                }
+
+                const ownId = normalizeBlockId(el.id);
+                if (ownId) {
+                    const ownContainer = el.querySelector(`.block-image-container[data-testid="block-image-${ownId}"]`);
+                    if (ownContainer) return ownId;
+                }
+
+                const anyContainer = el.matches?.('.block-image-container[data-testid^="block-image-"]')
+                    ? el
+                    : el.querySelector('.block-image-container[data-testid^="block-image-"]');
+
+                return extractFromTestId(anyContainer?.getAttribute?.('data-testid'), 'block-image-');
+            };
+
+            const activeElement = typeof ctx.getActiveElement === 'function' ? ctx.getActiveElement() : null;
+            const focusedElement = document.activeElement;
+
+            const domSources = [...new Set([
+                ctx.blockElement,
+                ctx.blockLinkElement,
+                activeElement,
+                document.querySelector('.block-active'),
+                document.querySelector('.block-link-active'),
+                focusedElement?.closest?.('[block]'),
+                focusedElement?.closest?.('[blockLink]'),
+            ].filter(Boolean))];
+
+            const blockId = normalizeBlockId(resolveBlockId(ctx.blockElement, ctx.blockLinkElement))
+                || normalizeBlockId(ctx.blockId)
+                || domSources.flatMap((el) => getElementCandidateIds(el))[0]
+                || null;
             if (!blockId) return;
+
+            const imageOwnerFromDom = domSources
+                .map((el) => getImageOwnerIdFromDom(el, [blockId, ...getElementCandidateIds(el)]))
+                .find(Boolean);
 
             const candidateBlockIds = [...new Set([
                 blockId,
-                ctx.blockElement?.getAttribute?.('blockLink'),
-                ctx.blockLinkElement?.getAttribute?.('blockLink'),
-                ctx.blockElement?.id?.split('*').at(-1),
+                imageOwnerFromDom,
+                ...domSources.flatMap((el) => getElementCandidateIds(el)),
             ].filter(Boolean))];
 
             const hasImagePreviewSource = (image) => {
@@ -486,9 +548,34 @@ export const popupsCommands = [
 
             // Fallback: если URL всё ещё не найден, но в DOM есть изображение - извлекаем из DOM
             if (!hasImagePreviewSource(currentImage)) {
-                const domSources = [ctx.blockElement, ctx.blockLinkElement].filter(Boolean);
                 for (const sourceEl of domSources) {
-                    const imageContainer = sourceEl.querySelector('.block-image-container');
+                    let imageContainer = null;
+
+                    // Приоритет: ищем контейнеры, соответствующие candidate ID.
+                    for (const candidateId of candidateBlockIds) {
+                        imageContainer = sourceEl.matches?.(`.block-image-container[data-testid="block-image-${candidateId}"]`)
+                            ? sourceEl
+                            : sourceEl.querySelector(`.block-image-container[data-testid="block-image-${candidateId}"]`);
+                        if (imageContainer) {
+                            imageOwnerBlockId = candidateId;
+                            break;
+                        }
+                    }
+
+                    // Последний fallback: любой контейнер картинки в найденном блоке.
+                    if (!imageContainer) {
+                        imageContainer = sourceEl.matches?.('.block-image-container[data-testid^="block-image-"]')
+                            ? sourceEl
+                            : sourceEl.querySelector('.block-image-container[data-testid^="block-image-"]');
+                        const ownerFromContainer = extractFromTestId(
+                            imageContainer?.getAttribute?.('data-testid'),
+                            'block-image-'
+                        );
+                        if (ownerFromContainer) {
+                            imageOwnerBlockId = ownerFromContainer;
+                        }
+                    }
+
                     if (!imageContainer) continue;
                     const img = imageContainer.querySelector('.block-image');
                     const fullsizeUrl = imageContainer.getAttribute('data-fullsize-url');
