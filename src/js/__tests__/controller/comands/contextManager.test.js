@@ -325,6 +325,48 @@ describe('ContextManager', () => {
         });
     });
 
+    describe('touch active reset', () => {
+        beforeEach(() => {
+            jest.useFakeTimers();
+        });
+
+        afterEach(() => {
+            jest.runOnlyPendingTimers();
+            jest.useRealTimers();
+        });
+
+        test('clears active block with delay after touchend', () => {
+            const block = document.createElement('div');
+            block.id = 'block-1';
+            block.setAttribute('block', 'true');
+            block.classList.add('block-active');
+            mockRootContainer.appendChild(block);
+
+            manager.blockElement = block;
+
+            manager.mouseOutBlockHandler({ type: 'touchend', relatedTarget: null });
+
+            expect(manager.blockElement).toBe(block);
+            jest.runOnlyPendingTimers();
+            expect(manager.blockElement).toBeUndefined();
+            expect(block.classList.contains('block-active')).toBe(false);
+        });
+
+        test('cancels delayed reset on new touchstart', () => {
+            const block = document.createElement('div');
+            block.id = 'block-2';
+            block.setAttribute('block', 'true');
+            mockRootContainer.appendChild(block);
+
+            manager.blockElement = block;
+            manager.mouseOutBlockHandler({ type: 'touchend', relatedTarget: null });
+            manager.mouseOverBlockHandler({ type: 'touchstart', target: block });
+
+            jest.runOnlyPendingTimers();
+            expect(manager.blockElement).toBe(block);
+        });
+    });
+
     describe('multi-selection', () => {
         test('initializes with empty selectedBlocks and selectedElements', () => {
             expect(manager.selectedBlocks.size).toBe(0);

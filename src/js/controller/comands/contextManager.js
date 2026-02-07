@@ -3,6 +3,8 @@ import {extractBlockId, extractParentId, completeCutBlock} from "../../actions/s
 import {isMobileOrTablet} from "../../utils/functions";
 import {dispatch} from "../../utils/utils";
 
+const TOUCH_ACTIVE_RESET_DELAY_MS = 350;
+
 export class ContextManager {
     constructor(rootContainer, breadcrumb, treeNavigation) {
         this.mode = 'normal'
@@ -32,6 +34,7 @@ export class ContextManager {
 
         // Защита от двойной обработки touch/mouse событий на мобильных
         this.lastTouchTime = 0
+        this.touchActiveResetTimer = null
 
         this.rootContainer = rootContainer
         this.breadcrumb = breadcrumb
@@ -62,16 +65,19 @@ export class ContextManager {
         this.rootContainer.addEventListener('touchstart', this.mouseOverBlockHandlerBound);
         this.rootContainer.addEventListener('mouseout', this.mouseOutBlockHandlerBound);
         this.rootContainer.addEventListener('touchend', this.mouseOutBlockHandlerBound);
+        this.rootContainer.addEventListener('touchcancel', this.mouseOutBlockHandlerBound);
 
         this.treeNavigation.addEventListener('mouseover', this.mouseOverTreeHandlerBound)
         this.treeNavigation.addEventListener('touchstart', this.mouseOverTreeHandlerBound)
         this.treeNavigation.addEventListener('mouseout', this.mouseOutTreeHandlerBound)
         this.treeNavigation.addEventListener('touchend', this.mouseOutTreeHandlerBound)
+        this.treeNavigation.addEventListener('touchcancel', this.mouseOutTreeHandlerBound)
 
         this.breadcrumb.addEventListener('mouseover', this.mouseOverBreadcrumbHandlerBound);
         this.breadcrumb.addEventListener('touchstart', this.mouseOverBreadcrumbHandlerBound);
         this.breadcrumb.addEventListener('mouseout', this.mouseOutBreadcrumbHandlerBound);
         this.breadcrumb.addEventListener('touchend', this.mouseOutBreadcrumbHandlerBound);
+        this.breadcrumb.addEventListener('touchcancel', this.mouseOutBreadcrumbHandlerBound);
 
         window.addEventListener('keydown', this.keydownHandler.bind(this));
         window.addEventListener('keyup', this.keyupHandler.bind(this));
@@ -183,9 +189,11 @@ export class ContextManager {
     }
 
     mouseOverBlockHandler(event) {
+        this.cancelTouchActiveReset()
+
         // Защита от двойной обработки: игнорировать mouse события после touch
         const now = Date.now();
-        if (event.type === 'touchstart' || event.type === 'touchend') {
+        if (event.type === 'touchstart' || event.type === 'touchend' || event.type === 'touchcancel') {
             this.lastTouchTime = now;
         } else if (event.type.startsWith('mouse')) {
             // Игнорировать mouse событие если недавно был touch (в течение 500ms)
@@ -232,7 +240,7 @@ export class ContextManager {
     mouseOutBlockHandler(event) {
         // Защита от двойной обработки: игнорировать mouse события после touch
         const now = Date.now();
-        if (event.type === 'touchstart' || event.type === 'touchend') {
+        if (event.type === 'touchstart' || event.type === 'touchend' || event.type === 'touchcancel') {
             this.lastTouchTime = now;
         } else if (event.type.startsWith('mouse')) {
             // Игнорировать mouse событие если недавно был touch (в течение 500ms)
@@ -241,15 +249,33 @@ export class ContextManager {
             }
         }
 
-        // На мобильных: touchend НЕ должен сбрасывать blockElement,
-        // потому что click событие придёт после touchend и ему нужен blockElement
-        if (event.type === 'touchend') {
+        // На мобильных touchend/touchcancel сбрасываем выделение с задержкой:
+        // click приходит после touchend и должен успеть использовать blockElement.
+        if (event.type === 'touchend' || event.type === 'touchcancel') {
+            this.scheduleTouchActiveReset()
             return;
         }
 
         const relatedTarget = event.relatedTarget
         if (!this.shiftLock) {
             this.setDisActiveBlock(relatedTarget)
+        }
+    }
+
+    scheduleTouchActiveReset() {
+        this.cancelTouchActiveReset()
+        this.touchActiveResetTimer = setTimeout(() => {
+            this.touchActiveResetTimer = null
+            if (!this.shiftLock) {
+                this.setDisActiveBlock(null)
+            }
+        }, TOUCH_ACTIVE_RESET_DELAY_MS)
+    }
+
+    cancelTouchActiveReset() {
+        if (this.touchActiveResetTimer) {
+            clearTimeout(this.touchActiveResetTimer)
+            this.touchActiveResetTimer = null
         }
     }
 
@@ -285,7 +311,7 @@ export class ContextManager {
     mouseOverTreeHandler(event) {
         // Защита от двойной обработки touch/mouse
         const now = Date.now();
-        if (event.type === 'touchstart' || event.type === 'touchend') {
+        if (event.type === 'touchstart' || event.type === 'touchend' || event.type === 'touchcancel') {
             this.lastTouchTime = now;
         } else if (event.type.startsWith('mouse') && now - this.lastTouchTime < 500) {
             return;
@@ -303,7 +329,7 @@ export class ContextManager {
     mouseOutTreeHandler(event) {
         // Защита от двойной обработки touch/mouse
         const now = Date.now();
-        if (event.type === 'touchstart' || event.type === 'touchend') {
+        if (event.type === 'touchstart' || event.type === 'touchend' || event.type === 'touchcancel') {
             this.lastTouchTime = now;
         } else if (event.type.startsWith('mouse') && now - this.lastTouchTime < 500) {
             return;
@@ -324,7 +350,7 @@ export class ContextManager {
     mouseOverBreadcrumbHandler(event) {
         // Защита от двойной обработки touch/mouse
         const now = Date.now();
-        if (event.type === 'touchstart' || event.type === 'touchend') {
+        if (event.type === 'touchstart' || event.type === 'touchend' || event.type === 'touchcancel') {
             this.lastTouchTime = now;
         } else if (event.type.startsWith('mouse') && now - this.lastTouchTime < 500) {
             return;
@@ -341,7 +367,7 @@ export class ContextManager {
     mouseOutBreadcrumbHandler(event) {
         // Защита от двойной обработки touch/mouse
         const now = Date.now();
-        if (event.type === 'touchstart' || event.type === 'touchend') {
+        if (event.type === 'touchstart' || event.type === 'touchend' || event.type === 'touchcancel') {
             this.lastTouchTime = now;
         } else if (event.type.startsWith('mouse') && now - this.lastTouchTime < 500) {
             return;
