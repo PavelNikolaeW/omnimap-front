@@ -14,6 +14,8 @@ export class ContextManager {
         this.activeBtnIndicator = document.getElementById('active-button-info')
         this.blockId = undefined
         this.blockLinkId = undefined
+        this.lastActiveBlockId = undefined
+        this.lastActiveLinkSourceId = undefined
         this.popup = undefined
         this.cut = undefined
         this.cutIsMultiple = false
@@ -82,11 +84,13 @@ export class ContextManager {
         // Обновить контекст
         this.blockId = blockId;
         this.blockElement = element;
+        this.lastActiveBlockId = blockId;
 
         // Проверить, является ли это blocklink
         if (element.hasAttribute('blocklink')) {
             this.blockLinkElement = element;
             this.blockLinkId = element.getAttribute('blocklink');
+            this.lastActiveLinkSourceId = this.blockLinkId;
         } else {
             this.blockLinkElement = undefined;
             this.blockLinkId = undefined;
@@ -210,6 +214,8 @@ export class ContextManager {
         this.blockElement = element
         this.blockLinkElement = link
         this.blockLinkId = link && link.id
+        this.lastActiveBlockId = element?.id?.split('*').at(-1) || this.lastActiveBlockId
+        this.lastActiveLinkSourceId = link?.getAttribute?.('blocklink') || link?.getAttribute?.('blockLink') || this.lastActiveLinkSourceId
         this.blockId = undefined
         this.addActiveClass()
         if (this.mode === 'cutBlock' && !this.cutIsMultiple && this.cut) {

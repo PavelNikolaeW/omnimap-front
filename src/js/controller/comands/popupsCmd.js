@@ -123,6 +123,8 @@ const getImageCommandCandidateBlockIds = (ctx) => {
         getBlockLinkValue(ctx.blockElement),
         normalizePopupBlockId(ctx.blockLinkElement?.id),
         getBlockLinkValue(ctx.blockLinkElement),
+        normalizePopupBlockId(ctx.lastActiveBlockId),
+        normalizePopupBlockId(ctx.lastActiveLinkSourceId),
         normalizePopupBlockId(activeBlockEl?.id),
         normalizePopupBlockId(activeLinkEl?.id),
         getBlockLinkValue(activeLinkEl),
