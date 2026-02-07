@@ -63,7 +63,7 @@ module.exports = merge(common, {
             clientsClaim: true,
             skipWaiting: true,
             cleanupOutdatedCaches: true,
-            exclude: [/\.map$/, /\.txt$/, /service-worker\.js$/, /sw-custom\.js$/, /config\/config\.js$/, /force-update\.html$/],
+            exclude: [/\.map$/, /\.txt$/, /service-worker\.js$/, /sw-custom\.js$/, /config\/config\.js$/, /config\.js$/, /force-update\.html$/],
             maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
             // Precaching: index.html будет доступен offline
             navigateFallback: '/index.html',
@@ -73,10 +73,11 @@ module.exports = merge(common, {
             // Подключаем кастомный код для Background Sync
             importScripts: ['sw-custom.js'],
             runtimeCaching: [
-                // Config.js - критично для оффлайна, используем NetworkFirst с быстрым таймаутом
-                // При офлайне сразу отдаём из кэша
+                // Runtime config - всегда пробуем сеть первой.
+                // Поддерживаем оба URL: /config.js и /config/config.js.
+                // Это предотвращает зависание на устаревшем конфиге в SW cache.
                 {
-                    urlPattern: /\/config\/config\.js$/,
+                    urlPattern: /\/config(?:\/config)?\.js$/,
                     handler: 'NetworkFirst',
                     options: {
                         cacheName: 'config-cache',
@@ -148,7 +149,10 @@ module.exports = merge(common, {
                 // JS и CSS с contenthash — используем CacheFirst
                 // (хеш в имени гарантирует что файл уникален, перекачивать не нужно)
                 {
-                    urlPattern: ({request}) => request.destination === 'script' || request.destination === 'style',
+                    urlPattern: ({request, url}) =>
+                        (request.destination === 'script' || request.destination === 'style') &&
+                        url.pathname !== '/config.js' &&
+                        url.pathname !== '/config/config.js',
                     handler: 'CacheFirst',
                     options: {
                         cacheName: 'static-resources',
