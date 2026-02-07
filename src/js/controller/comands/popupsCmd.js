@@ -514,6 +514,7 @@ export const popupsCommands = [
         async execute(ctx) {
             const candidateBlockIds = getImageCommandCandidateBlockIds(ctx);
             const blockId = candidateBlockIds[0];
+            console.debug('[uploadBlockImage] candidateBlockIds:', candidateBlockIds, 'selected blockId:', blockId);
             if (!blockId) return;
 
             ctx.mode = 'uploadBlockImage';
@@ -526,14 +527,33 @@ export const popupsCommands = [
 
             // Источник истины: block.data.image в local state.
             for (const candidateId of candidateBlockIds) {
+                const block = localStateManager.blocks.get(candidateId);
+                console.debug('[uploadBlockImage] checking candidate block:', candidateId, {
+                    found: Boolean(block),
+                    data: block?.data || null
+                });
+
                 const image = getBlockImageFromLocalState(candidateId);
                 if (!image) continue;
                 currentImage = image;
                 imageOwnerBlockId = candidateId;
+                console.debug('[uploadBlockImage] image owner found:', imageOwnerBlockId, {
+                    image: currentImage,
+                    blockData: block?.data || null
+                });
                 break;
             }
 
+            if (!currentImage) {
+                console.debug('[uploadBlockImage] no image found in candidate blocks');
+            }
+
             ctx.lastImagePopupBlockId = imageOwnerBlockId || blockId;
+
+            console.debug('[uploadBlockImage] opening popup with:', {
+                popupBlockId: imageOwnerBlockId,
+                hasCurrentImage: Boolean(currentImage)
+            });
 
             ctx.popup = new ImageUploadPopup({
                 blockId: imageOwnerBlockId,
