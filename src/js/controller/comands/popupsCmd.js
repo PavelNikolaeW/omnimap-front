@@ -22,6 +22,7 @@ import {AccessRequestsPopup} from "../popups/accessRequestsPopup";
 import {FocusContainerPopup} from "../popups/focusContainerPopup";
 import {focusManager} from "../../services/focusManager";
 import {MODES} from "../../actions/selectionActions";
+import {resolveBlockId} from "../../actions/navigationActions";
 
 
 export const popupsCommands = [
@@ -394,8 +395,16 @@ export const popupsCommands = [
         defaultHotkey: 'i',
         description: 'Загрузить изображение в блок',
         async execute(ctx) {
-            const blockId = ctx.blockElement?.id.split('*').at(-1);
+            const blockId = resolveBlockId(ctx.blockElement, ctx.blockLinkElement)
+                || ctx.blockElement?.id?.split('*').at(-1);
             if (!blockId) return;
+
+            const candidateBlockIds = [...new Set([
+                blockId,
+                ctx.blockElement?.getAttribute?.('blockLink'),
+                ctx.blockLinkElement?.getAttribute?.('blockLink'),
+                ctx.blockElement?.id?.split('*').at(-1),
+            ].filter(Boolean))];
 
             const hasImagePreviewSource = (image) => {
                 if (!image || typeof image !== 'object') return false;
@@ -417,48 +426,70 @@ export const popupsCommands = [
             ctx.closePopups();
             setCmdOpenBlock(ctx);
 
-            // Сначала проверяем локальный state (для недавно загруженных картинок)
-            const block = localStateManager.blocks.get(blockId);
-            let currentImage = block?.data?.image || null;
+            let imageOwnerBlockId = blockId;
+            let currentImage = null;
 
-            console.debug('uploadBlockImage: local image data:', currentImage ? 'found' : 'not found', currentImage);
+            // Сначала проверяем локальный state (включая link-контексты)
+            for (const candidateId of candidateBlockIds) {
+                const block = localStateManager.blocks.get(candidateId);
+                const localImage = block?.data?.image || null;
+                if (!localImage) continue;
+                if (hasImagePreviewSource(localImage) || localImage?.settings) {
+                    currentImage = localImage;
+                    imageOwnerBlockId = candidateId;
+                    break;
+                }
+                if (!currentImage) {
+                    currentImage = localImage;
+                    imageOwnerBlockId = candidateId;
+                }
+            }
+
+            console.debug('uploadBlockImage: local image data:', currentImage ? 'found' : 'not found', currentImage, 'candidates:', candidateBlockIds);
 
             // Если локально нет URL картинки или нет settings - запрашиваем с сервера.
             // Это покрывает кейс, когда в блоке сохранились только settings без ссылок на файл.
             if (!hasImagePreviewSource(currentImage) || !currentImage?.settings) {
-                try {
-                    const apiImage = await api.getBlockImage(blockId);
-                    console.debug('uploadBlockImage: fetched from API:', apiImage);
-                    // Нормализуем данные от API (разные поля под одни и те же названия)
-                    if (apiImage) {
-                        // Мержим с локальными данными, API имеет приоритет для settings
-                        currentImage = {
-                            ...(currentImage || {}), // Локальные данные как база
-                            ...apiImage,             // API данные поверх
-                            // Нормализуем URL поля - бек может возвращать разные названия
-                            url: apiImage.url || apiImage.file_url || apiImage.image_url || apiImage.file,
-                            thumbnail_url: apiImage.thumbnail_url || apiImage.thumb_url || apiImage.preview_url,
-                            filename: apiImage.filename || apiImage.name || apiImage.file_name,
-                            size: apiImage.size || apiImage.file_size,
-                            // Settings из API имеют приоритет
-                            settings: apiImage.settings || currentImage?.settings || null
-                        };
-                        // Сохраняем в локальный state для следующих открытий
-                        if (block) {
-                            block.data.image = currentImage;
+                for (const candidateId of candidateBlockIds) {
+                    try {
+                        const apiImage = await api.getBlockImage(candidateId);
+                        console.debug('uploadBlockImage: fetched from API:', candidateId, apiImage);
+                        // Нормализуем данные от API (разные поля под одни и те же названия)
+                        if (apiImage) {
+                            // Мержим с локальными данными, API имеет приоритет для settings
+                            currentImage = {
+                                ...(currentImage || {}), // Локальные данные как база
+                                ...apiImage,             // API данные поверх
+                                // Нормализуем URL поля - бек может возвращать разные названия
+                                url: apiImage.url || apiImage.file_url || apiImage.image_url || apiImage.file,
+                                thumbnail_url: apiImage.thumbnail_url || apiImage.thumb_url || apiImage.preview_url,
+                                filename: apiImage.filename || apiImage.name || apiImage.file_name,
+                                size: apiImage.size || apiImage.file_size,
+                                // Settings из API имеют приоритет
+                                settings: apiImage.settings || currentImage?.settings || null
+                            };
+                            imageOwnerBlockId = candidateId;
+
+                            // Сохраняем в локальный state для следующих открытий
+                            const block = localStateManager.blocks.get(candidateId);
+                            if (block) {
+                                block.data.image = currentImage;
+                            }
+                            break;
                         }
+                    } catch (err) {
+                        // Игнорируем ошибки - просто попробуем другие варианты ID
+                        console.debug('getBlockImage error:', candidateId, err);
                     }
-                } catch (err) {
-                    // Игнорируем ошибки - просто откроем попап с тем что есть локально
-                    console.debug('getBlockImage error:', err);
-                    // Не сбрасываем currentImage в null если он уже есть
                 }
             }
 
             // Fallback: если URL всё ещё не найден, но в DOM есть изображение - извлекаем из DOM
             if (!hasImagePreviewSource(currentImage)) {
-                const imageContainer = ctx.blockElement?.querySelector('.block-image-container');
-                if (imageContainer) {
+                const domSources = [ctx.blockElement, ctx.blockLinkElement].filter(Boolean);
+                for (const sourceEl of domSources) {
+                    const imageContainer = sourceEl.querySelector('.block-image-container');
+                    if (!imageContainer) continue;
                     const img = imageContainer.querySelector('.block-image');
                     const fullsizeUrl = imageContainer.getAttribute('data-fullsize-url');
                     if (fullsizeUrl) {
@@ -476,19 +507,57 @@ export const popupsCommands = [
                             }
                         };
                         // Сохраняем в локальный state
-                        if (block) {
-                            block.data.image = currentImage;
+                        let saved = false;
+                        for (const candidateId of candidateBlockIds) {
+                            const block = localStateManager.blocks.get(candidateId);
+                            if (block) {
+                                block.data.image = currentImage;
+                                imageOwnerBlockId = candidateId;
+                                saved = true;
+                                break;
+                            }
                         }
+                        if (!saved) {
+                            imageOwnerBlockId = blockId;
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // Если нашли изображение, но нет settings - задаём дефолты локально,
+            // чтобы всегда открыть popup в режиме редактирования.
+            if (currentImage && !currentImage.settings) {
+                currentImage.settings = {
+                    fitMode: 'contain',
+                    position: 'center',
+                    background: {
+                        enabled: false,
+                        opacity: 60,
+                        blur: 0,
+                        brightness: 100,
+                        contrast: 100,
+                        saturation: 100,
+                        overlayColor: '#000000',
+                        overlayOpacity: 30
+                    }
+                };
+                for (const candidateId of candidateBlockIds) {
+                    const block = localStateManager.blocks.get(candidateId);
+                    if (block?.data?.image) {
+                        block.data.image.settings = currentImage.settings;
+                        imageOwnerBlockId = candidateId;
+                        break;
                     }
                 }
             }
 
             ctx.popup = new ImageUploadPopup({
-                blockId: blockId,
+                blockId: imageOwnerBlockId,
                 currentImage: currentImage,
                 onImageChange(imageData) {
                     // Обновляем данные блока с информацией об изображении
-                    dispatch('UpdateBlockImage', { blockId, imageData });
+                    dispatch('UpdateBlockImage', { blockId: imageOwnerBlockId, imageData });
                 },
                 onCancel() {
                     ctx.mode = 'normal';
