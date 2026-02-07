@@ -32,7 +32,6 @@ export const submenuConfig = {
         icon: 'fa-bars',
         items: [
             'createUrl',            // Создать URL (shift+u)
-            'uploadBlockImage',     // Загрузка/замена изображения (i)
             'editBlock',            // Редактировать блок (shift+e)
             'editAccessBlock',      // Права на блок (shift+p)
             'repairTree',           // Восстановить дерево (shift+f)
@@ -83,7 +82,6 @@ const hiddenInSubmenu = new Set([
     'connectBlock', 'deleteConnectBlock', 'connectDashed', 'connectDouble',
     'connectCurved', 'connectStraight', 'connectOrthogonal', 'connectSelfLoop',
     // Extra команды (расширенный список)
-    'uploadBlockImage',     // Загрузка изображения в подменю "Дополнительно"
     'createUrl', 'editBlock', 'editAccessBlock',
     'notificationSettings', 'setReminder', 'watchBlock',
     'repairTree',           // Восстановить дерево

@@ -30,8 +30,32 @@ const normalizePopupBlockId = (value) => {
     return value.trim().split('*').at(-1) || null;
 };
 
+const parseImageOwnerFromTestId = (value) => {
+    if (!value || typeof value !== 'string') return null;
+    if (!value.startsWith('block-image-')) return null;
+    return normalizePopupBlockId(value.slice('block-image-'.length));
+};
+
 const getBlockLinkValue = (el) =>
     normalizePopupBlockId(el?.getAttribute?.('blockLink') || el?.getAttribute?.('blocklink'));
+
+const getImageOwnerIdsFromElement = (el) => {
+    if (!el || typeof el.querySelectorAll !== 'function') return [];
+    const owners = new Set();
+
+    if (typeof el.getAttribute === 'function') {
+        const ownId = parseImageOwnerFromTestId(el.getAttribute('data-testid'));
+        if (ownId) owners.add(ownId);
+    }
+
+    const containers = el.querySelectorAll('.block-image-container[data-testid^="block-image-"]');
+    containers.forEach((container) => {
+        const ownerId = parseImageOwnerFromTestId(container.getAttribute('data-testid'));
+        if (ownerId) owners.add(ownerId);
+    });
+
+    return Array.from(owners);
+};
 
 const hasImagePreviewSource = (image) => {
     if (!image || typeof image !== 'object') return false;
@@ -87,6 +111,10 @@ const getImageCommandCandidateBlockIds = (ctx) => {
     const focusedBlockEl = focusedElement?.closest?.('[block]');
     const focusedLinkEl = focusedElement?.closest?.('[blocklink]') || focusedElement?.closest?.('[blockLink]');
     const rememberedBlockId = normalizePopupBlockId(ctx.lastImagePopupBlockId);
+    const domContexts = [ctx.blockElement, ctx.blockLinkElement, activeBlockEl, activeLinkEl, focusedBlockEl, focusedLinkEl]
+        .filter(Boolean);
+
+    const domImageOwnerIds = domContexts.flatMap((el) => getImageOwnerIdsFromElement(el));
 
     return [...new Set([
         normalizePopupBlockId(resolveBlockId(ctx.blockElement, ctx.blockLinkElement)),
@@ -101,6 +129,7 @@ const getImageCommandCandidateBlockIds = (ctx) => {
         normalizePopupBlockId(focusedBlockEl?.id),
         normalizePopupBlockId(focusedLinkEl?.id),
         getBlockLinkValue(focusedLinkEl),
+        ...domImageOwnerIds,
         rememberedBlockId
     ].filter(Boolean))];
 };
@@ -509,62 +538,6 @@ export const popupsCommands = [
                 currentImage,
                 onImageChange(imageData) {
                     dispatch('UpdateBlockImage', { blockId: imageOwnerBlockId, imageData });
-                },
-                onCancel() {
-                    ctx.mode = 'normal';
-                }
-            });
-        }
-    },
-    {
-        id: "editBlockImageSettings",
-        mode: ['normal'],
-        btn: {
-            containerId: 'control-panel',
-            label: 'Настройки изображения',
-            classes: ['sidebar-button', 'fas', 'fa-sliders-h', 'fas-lg']
-        },
-        defaultHotkey: 'alt+i',
-        description: 'Открыть только настройки изображения блока',
-        async execute(ctx) {
-            const candidateBlockIds = getImageCommandCandidateBlockIds(ctx);
-            const blockId = candidateBlockIds[0];
-
-            if (!blockId) {
-                dispatch('ShowError', {message: 'Выберите блок с изображением'});
-                return;
-            }
-
-            let imageOwnerBlockId = null;
-            let currentImage = null;
-
-            for (const candidateId of candidateBlockIds) {
-                const image = getBlockImageFromLocalState(candidateId);
-                if (!hasImagePreviewSource(image)) continue;
-                currentImage = image;
-                imageOwnerBlockId = candidateId;
-                break;
-            }
-
-            if (!currentImage || !imageOwnerBlockId) {
-                dispatch('ShowError', {message: 'В этом блоке нет загруженной картинки'});
-                return;
-            }
-
-            ctx.mode = 'uploadBlockImage';
-            dispatch('OpenImageUploadPopup', {blockId: imageOwnerBlockId});
-            ctx.closePopups();
-            setCmdOpenBlock(ctx);
-
-            ctx.lastImagePopupBlockId = imageOwnerBlockId;
-
-            ctx.popup = new ImageUploadPopup({
-                title: 'Настройки изображения',
-                blockId: imageOwnerBlockId,
-                currentImage,
-                settingsOnly: true,
-                onImageChange(imageData) {
-                    dispatch('UpdateBlockImage', {blockId: imageOwnerBlockId, imageData});
                 },
                 onCancel() {
                     ctx.mode = 'normal';
