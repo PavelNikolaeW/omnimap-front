@@ -4,6 +4,7 @@ import config from "../config";
 import {parseUpdatedAtToUnixSeconds} from "../utils/functions";
 
 const CURSOR_SYNC_MAX_PAGES = 20;
+const SAVE_BATCH_SIZE = 50;
 
 /**
  * Экранирует специальные символы RegExp в строке
@@ -75,9 +76,8 @@ export class SincManager {
 
             // Сохраняем все блоки (батчами для производительности)
             const allBlocks = [...treeBlocks.blocks.values()];
-            const BATCH_SIZE = 50;
-            for (let i = 0; i < allBlocks.length; i += BATCH_SIZE) {
-                const batch = allBlocks.slice(i, i + BATCH_SIZE);
+            for (let i = 0; i < allBlocks.length; i += SAVE_BATCH_SIZE) {
+                const batch = allBlocks.slice(i, i + SAVE_BATCH_SIZE);
                 await Promise.all(batch.map(block => localStateManager.saveBlock(block)));
             }
 
@@ -207,10 +207,16 @@ export class SincManager {
                         if (freshResponse?.type === 'block_updates_v2') {
                             const freshCursor = Math.max(0, Number(freshResponse.next_cursor) || nextCursor);
                             const freshSubVer = Math.max(0, Number(freshResponse.subscription_version) || nextSubscriptionVersion);
-                            // Применяем оставшиеся обновления если есть
-                            const freshUpdates = Array.isArray(freshResponse.updates) ? freshResponse.updates : [];
-                            if (freshUpdates.length > 0) {
-                                dispatch('WebSocUpdateBlock', { blocks: freshUpdates, isReconnect: true });
+                            if (freshResponse.full_resync_required) {
+                                // Сервер снова требует resync — сохраняем cursor как есть,
+                                // данные уже актуальны после loadFullTree
+                                console.warn('SincManager(v2): fresh response still requires resync, saving cursor as-is');
+                            } else {
+                                // Применяем оставшиеся обновления если есть
+                                const freshUpdates = Array.isArray(freshResponse.updates) ? freshResponse.updates : [];
+                                if (freshUpdates.length > 0) {
+                                    dispatch('WebSocUpdateBlock', { blocks: freshUpdates, isReconnect: true });
+                                }
                             }
                             await this._saveCursorState(usernameStr, freshCursor, freshSubVer);
                         } else {

@@ -278,7 +278,12 @@ export function parseUpdatedAtToUnixSeconds(updatedAt) {
  */
 export function normalizeUpdatedAt(updatedAt) {
     const seconds = parseUpdatedAtToUnixSeconds(updatedAt);
-    if (seconds === null || seconds <= 0) return updatedAt;
+    if (seconds === null || seconds <= 0) {
+        if (updatedAt !== undefined && updatedAt !== null) {
+            console.warn('normalizeUpdatedAt: unparseable value, returning as-is:', updatedAt);
+        }
+        return updatedAt;
+    }
     return new Date(seconds * 1000).toISOString();
 }
 

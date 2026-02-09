@@ -20,6 +20,7 @@ import {getDefaultImageSettings} from "../utils/imageSettingsDefaults";
 import {getLinkSlugFromSearch} from "../utils/linkView";
 
 const TREE_REPAIR_ENABLED = false;
+const SAVE_BATCH_SIZE = 50;
 
 /**
  * Экранирует специальные символы RegExp в строке
@@ -176,9 +177,8 @@ export class LocalStateManager {
 
             // Сохраняем все блоки (батчами для производительности)
             const allBlocks = [...treeBlocks.blocks.values()];
-            const BATCH_SIZE = 50;
-            for (let i = 0; i < allBlocks.length; i += BATCH_SIZE) {
-                const batch = allBlocks.slice(i, i + BATCH_SIZE);
+            for (let i = 0; i < allBlocks.length; i += SAVE_BATCH_SIZE) {
+                const batch = allBlocks.slice(i, i + SAVE_BATCH_SIZE);
                 await Promise.all(batch.map(block => this.saveBlock(block)));
             }
 
@@ -1960,9 +1960,8 @@ export class LocalStateManager {
                     fetchedIds.push(blockId);
                 }
             }
-            const FETCH_BATCH = 50;
-            for (let i = 0; i < missingBlocks.length; i += FETCH_BATCH) {
-                const batch = missingBlocks.slice(i, i + FETCH_BATCH);
+            for (let i = 0; i < missingBlocks.length; i += SAVE_BATCH_SIZE) {
+                const batch = missingBlocks.slice(i, i + SAVE_BATCH_SIZE);
                 await Promise.all(batch.map(b => this.saveBlock(b)));
             }
             fetchedCount = missingBlocks.length;
@@ -2748,9 +2747,8 @@ export class LocalStateManager {
 
         // Сохраняем блоки батчами для производительности
         const allBlocks = [...blocks.values()];
-        const INIT_BATCH = 50;
-        for (let i = 0; i < allBlocks.length; i += INIT_BATCH) {
-            const batch = allBlocks.slice(i, i + INIT_BATCH);
+        for (let i = 0; i < allBlocks.length; i += SAVE_BATCH_SIZE) {
+            const batch = allBlocks.slice(i, i + SAVE_BATCH_SIZE);
             await Promise.all(batch.map(block => this.saveBlock(block)));
         }
 
@@ -2807,9 +2805,8 @@ export class LocalStateManager {
                     {screenName: truncate(block.title, 10), color: color, blockId: block.id}
                 ])
 
-                const LINK_BATCH = 50;
-                for (let i = 0; i < blocks.length; i += LINK_BATCH) {
-                    const batch = blocks.slice(i, i + LINK_BATCH);
+                for (let i = 0; i < blocks.length; i += SAVE_BATCH_SIZE) {
+                    const batch = blocks.slice(i, i + SAVE_BATCH_SIZE);
                     await Promise.all(batch.map(b => this.saveBlock(b)));
                 }
                 return block.id
