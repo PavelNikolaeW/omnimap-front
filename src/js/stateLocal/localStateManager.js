@@ -3,7 +3,7 @@ import {dispatch} from "../utils/utils";
 import {Painter} from "../painter/painter";
 import api from "../api/api";
 
-import {isExcludedElement, truncate, normalizeParentId} from '../utils/functions'
+import {isExcludedElement, truncate, normalizeParentId, normalizeUpdatedAt} from '../utils/functions'
 import {parseGridSize} from '../utils/gridUtils'
 import {jsPlumbInstance} from "../controller/arrowManager";
 import {customConfirm} from "../utils/custom-dialog";
@@ -174,9 +174,12 @@ export class LocalStateManager {
                 await localforage.setItem(`treeIds${this.currentUser}`, treeBlocks.treeIds);
             }
 
-            // Сохраняем все блоки
-            for (const block of treeBlocks.blocks.values()) {
-                await this.saveBlock(block);
+            // Сохраняем все блоки (батчами для производительности)
+            const allBlocks = [...treeBlocks.blocks.values()];
+            const BATCH_SIZE = 50;
+            for (let i = 0; i < allBlocks.length; i += BATCH_SIZE) {
+                const batch = allBlocks.slice(i, i + BATCH_SIZE);
+                await Promise.all(batch.map(block => this.saveBlock(block)));
             }
 
             // Явно обновляем навигацию после загрузки деревьев
@@ -1289,7 +1292,7 @@ export class LocalStateManager {
 
                 const forbiddenBlock = {
                     id: block.id,
-                    updated_at: new Date(block.updated_at * 1000).toISOString(),
+                    updated_at: normalizeUpdatedAt(block.updated_at),
                     title: block.title, // "block 403 forbidden"
                     data,
                     children,
@@ -1376,7 +1379,7 @@ export class LocalStateManager {
 
             const newBlock = {
                 id: block.id,
-                updated_at: new Date(block.updated_at * 1000).toISOString(),
+                updated_at: normalizeUpdatedAt(block.updated_at),
                 title: block.title,
                 data,
                 children,
@@ -1582,7 +1585,7 @@ export class LocalStateManager {
 
                             await this.saveBlock({
                                 id: block.id,
-                                updated_at: new Date(block.updated_at * 1000).toISOString(),
+                                updated_at: normalizeUpdatedAt(block.updated_at),
                                 title: block.title,
                                 data: serverData,
                                 children: serverChildren,
@@ -1783,7 +1786,7 @@ export class LocalStateManager {
 
                     await this.saveBlock({
                         id: block.id,
-                        updated_at: new Date(block.updated_at * 1000).toISOString(),
+                        updated_at: normalizeUpdatedAt(block.updated_at),
                         title: block.title,
                         data: mergedData,
                         children: syncedChildren,
@@ -1949,13 +1952,20 @@ export class LocalStateManager {
             let fetchedCount = 0;
             const fetchedIds = [];
 
+            // Собираем missing блоки и сохраняем батчами
+            const missingBlocks = [];
             for (const [blockId, serverBlock] of serverBlocks) {
                 if (!this.blocks.has(blockId)) {
-                    await this.saveBlock(serverBlock);
-                    fetchedCount++;
+                    missingBlocks.push(serverBlock);
                     fetchedIds.push(blockId);
                 }
             }
+            const FETCH_BATCH = 50;
+            for (let i = 0; i < missingBlocks.length; i += FETCH_BATCH) {
+                const batch = missingBlocks.slice(i, i + FETCH_BATCH);
+                await Promise.all(batch.map(b => this.saveBlock(b)));
+            }
+            fetchedCount = missingBlocks.length;
 
             // Проверяем, были ли найдены нужные missing children
             const stillMissing = [...missingChildIds].filter(id => !serverBlocks.has(id));
@@ -2736,9 +2746,12 @@ export class LocalStateManager {
             await Promise.all(keysToDelete.map(key => localforage.removeItem(key)));
         }
 
-        // Сохраняем блоки с await для гарантии записи в IndexedDB
-        for (const block of blocks.values()) {
-            await this.saveBlock(block);
+        // Сохраняем блоки батчами для производительности
+        const allBlocks = [...blocks.values()];
+        const INIT_BATCH = 50;
+        for (let i = 0; i < allBlocks.length; i += INIT_BATCH) {
+            const batch = allBlocks.slice(i, i + INIT_BATCH);
+            await Promise.all(batch.map(block => this.saveBlock(block)));
         }
 
         // Initialize path with the root block
@@ -2794,9 +2807,10 @@ export class LocalStateManager {
                     {screenName: truncate(block.title, 10), color: color, blockId: block.id}
                 ])
 
-                for (let i = 0; i < blocks.length; i++) {
-                    const block = blocks[i]
-                    await this.saveBlock(block)
+                const LINK_BATCH = 50;
+                for (let i = 0; i < blocks.length; i += LINK_BATCH) {
+                    const batch = blocks.slice(i, i + LINK_BATCH);
+                    await Promise.all(batch.map(b => this.saveBlock(b)));
                 }
                 return block.id
             }
@@ -2818,7 +2832,9 @@ export class LocalStateManager {
 
         try {
             this.currentUser = await localforage.getItem('currentUser') || 'anonim';
-            this.blockRepository = new BlockRepository(this.currentUser);
+            if (!this.blockRepository || this.blockRepository.currentUser !== this.currentUser) {
+                this.blockRepository = new BlockRepository(this.currentUser);
+            }
 
         const linkSlug = getLinkSlugFromSearch(window.location.search);
         const isLinkView = Boolean(linkSlug);
@@ -2827,9 +2843,11 @@ export class LocalStateManager {
             // Просмотр по ссылке
             this.currentTree = await this.initShowLink(linkSlug, this.currentUser)
         } else {
-            // Обычный режим — загружаем деревья пользователя
-            const treeIds = await localforage.getItem(`treeIds${this.currentUser}`);
-            const savedTree = await localforage.getItem('currentTree');
+            // Обычный режим — параллельно загружаем деревья и сохранённое дерево
+            const [treeIds, savedTree] = await Promise.all([
+                localforage.getItem(`treeIds${this.currentUser}`),
+                localforage.getItem('currentTree'),
+            ]);
 
             // Проверяем, что сохранённое дерево принадлежит пользователю
             if (savedTree && treeIds && treeIds.includes(savedTree)) {

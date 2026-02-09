@@ -1,6 +1,7 @@
 import {UpdateServiceWebSocket} from "./webSocket";
 import localforage from "localforage";
 import config from "../config";
+import {parseUpdatedAtToUnixSeconds} from "../utils/functions";
 
 const CURSOR_SYNC_MAX_PAGES = 20;
 
@@ -11,40 +12,6 @@ const CURSOR_SYNC_MAX_PAGES = 20;
  */
 function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * Преобразует updated_at в unix timestamp (секунды).
- * Поддерживает ISO строки, миллисекунды и секунды (числом/строкой).
- * @param {string|number|Date} updatedAt
- * @returns {number|null}
- */
-function parseUpdatedAtToUnixSeconds(updatedAt) {
-    if (updatedAt === null || updatedAt === undefined) return null;
-
-    // Числовой формат: секунды или миллисекунды
-    if (typeof updatedAt === 'number' && Number.isFinite(updatedAt)) {
-        const millis = updatedAt > 1e12 ? updatedAt : updatedAt * 1000;
-        return Math.floor(millis / 1000);
-    }
-
-    // Строковый числовой формат: "1730000000" или "1730000000000"
-    if (typeof updatedAt === 'string') {
-        const trimmed = updatedAt.trim();
-        if (/^\d+(\.\d+)?$/.test(trimmed)) {
-            const num = Number(trimmed);
-            if (Number.isFinite(num)) {
-                const millis = num > 1e12 ? num : num * 1000;
-                return Math.floor(millis / 1000);
-            }
-        }
-    }
-
-    // ISO дата и прочие форматы Date.parse
-    const timestamp = new Date(updatedAt).getTime();
-    if (isNaN(timestamp)) return null;
-
-    return Math.floor(timestamp / 1000);
 }
 
 export class SincManager {
@@ -106,9 +73,12 @@ export class SincManager {
                 await localforage.setItem(`treeIds${localStateManager.currentUser}`, treeBlocks.treeIds);
             }
 
-            // Сохраняем все блоки
-            for (const block of treeBlocks.blocks.values()) {
-                await localStateManager.saveBlock(block);
+            // Сохраняем все блоки (батчами для производительности)
+            const allBlocks = [...treeBlocks.blocks.values()];
+            const BATCH_SIZE = 50;
+            for (let i = 0; i < allBlocks.length; i += BATCH_SIZE) {
+                const batch = allBlocks.slice(i, i + BATCH_SIZE);
+                await Promise.all(batch.map(block => localStateManager.saveBlock(block)));
             }
 
             // Обновляем UI
@@ -224,7 +194,32 @@ export class SincManager {
                 console.warn(`SincManager(v2): full resync required (${response.reason || 'unknown'})`);
                 if (allowFallbackToFull) {
                     await this.loadFullTree(false);
-                    await this._saveCursorState(usernameStr, nextCursor, nextSubscriptionVersion);
+                    // После loadFullTree subscription_version на сервере мог измениться
+                    // (subscribe bumps version). Делаем повторный запрос чтобы получить
+                    // актуальные cursor и subscription_version, иначе при следующем
+                    // reconnect снова получим full_resync_required (бесконечный цикл).
+                    try {
+                        const freshResponse = await this.webSocket.getUpdatesV2({
+                            cursor: nextCursor,
+                            subscription_version: nextSubscriptionVersion,
+                            limit,
+                        });
+                        if (freshResponse?.type === 'block_updates_v2') {
+                            const freshCursor = Math.max(0, Number(freshResponse.next_cursor) || nextCursor);
+                            const freshSubVer = Math.max(0, Number(freshResponse.subscription_version) || nextSubscriptionVersion);
+                            // Применяем оставшиеся обновления если есть
+                            const freshUpdates = Array.isArray(freshResponse.updates) ? freshResponse.updates : [];
+                            if (freshUpdates.length > 0) {
+                                dispatch('WebSocUpdateBlock', { blocks: freshUpdates, isReconnect: true });
+                            }
+                            await this._saveCursorState(usernameStr, freshCursor, freshSubVer);
+                        } else {
+                            await this._saveCursorState(usernameStr, nextCursor, nextSubscriptionVersion);
+                        }
+                    } catch (e) {
+                        console.warn('SincManager(v2): failed to refresh cursor after full resync:', e?.message || e);
+                        await this._saveCursorState(usernameStr, nextCursor, nextSubscriptionVersion);
+                    }
                 }
                 return;
             }
