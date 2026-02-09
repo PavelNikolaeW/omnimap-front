@@ -470,11 +470,14 @@ export class UpdateServiceWebSocket {
             } else if (message.type === 'block_update_access') {
                 dispatch('WebSocUpdateBlockAccess', message);
             } else if (message.type === 'error') {
-                if (this._pendingGetUpdatesV2) {
-                    const messageText = message.message || 'Unknown WebSocket error';
+                const messageText = message.message || 'Unknown WebSocket error';
+                // Reject pending V2 only if error explicitly mentions get_updates_v2
+                if (this._pendingGetUpdatesV2 && messageText.includes('get_updates_v2')) {
                     this._pendingGetUpdatesV2.reject(new Error(messageText));
                     clearTimeout(this._pendingGetUpdatesV2.timeoutId);
                     this._pendingGetUpdatesV2 = null;
+                } else {
+                    console.warn('WebSocket: server error:', messageText);
                 }
             } else if (message.action === 'access_request') {
                 // Обработка событий запросов на доступ
