@@ -7,7 +7,9 @@ import {
     isValidUUID,
     hexToHSL,
     throttle,
-    isExcludedElement
+    isExcludedElement,
+    parseUpdatedAtToUnixSeconds,
+    normalizeUpdatedAt
 } from '../../utils/functions';
 
 describe('functions.js', () => {
@@ -174,6 +176,95 @@ describe('functions.js', () => {
             throttled();
 
             expect(fn).toHaveBeenCalledTimes(2);
+        });
+    });
+
+    describe('parseUpdatedAtToUnixSeconds', () => {
+        test('parses unix seconds (number)', () => {
+            expect(parseUpdatedAtToUnixSeconds(1730000000)).toBe(1730000000);
+        });
+
+        test('parses unix milliseconds (number)', () => {
+            expect(parseUpdatedAtToUnixSeconds(1730000000000)).toBe(1730000000);
+        });
+
+        test('parses float seconds (number)', () => {
+            expect(parseUpdatedAtToUnixSeconds(1730000000.123)).toBe(1730000000);
+        });
+
+        test('parses string unix seconds', () => {
+            expect(parseUpdatedAtToUnixSeconds('1730000000')).toBe(1730000000);
+        });
+
+        test('parses string unix milliseconds', () => {
+            expect(parseUpdatedAtToUnixSeconds('1730000000000')).toBe(1730000000);
+        });
+
+        test('parses string float seconds', () => {
+            expect(parseUpdatedAtToUnixSeconds('1730000000.5')).toBe(1730000000);
+        });
+
+        test('parses ISO string', () => {
+            expect(parseUpdatedAtToUnixSeconds('2024-10-27T03:33:20.000Z')).toBe(1730000000);
+        });
+
+        test('returns null for null', () => {
+            expect(parseUpdatedAtToUnixSeconds(null)).toBeNull();
+        });
+
+        test('returns null for undefined', () => {
+            expect(parseUpdatedAtToUnixSeconds(undefined)).toBeNull();
+        });
+
+        test('returns null for garbage string', () => {
+            expect(parseUpdatedAtToUnixSeconds('garbage')).toBeNull();
+        });
+
+        test('returns null for empty string', () => {
+            expect(parseUpdatedAtToUnixSeconds('')).toBeNull();
+        });
+
+        test('returns null for NaN', () => {
+            expect(parseUpdatedAtToUnixSeconds(NaN)).toBeNull();
+        });
+
+        test('handles zero', () => {
+            expect(parseUpdatedAtToUnixSeconds(0)).toBe(0);
+        });
+    });
+
+    describe('normalizeUpdatedAt', () => {
+        test('converts unix seconds to ISO string', () => {
+            expect(normalizeUpdatedAt(1730000000)).toBe('2024-10-27T03:33:20.000Z');
+        });
+
+        test('converts unix milliseconds to ISO string', () => {
+            expect(normalizeUpdatedAt(1730000000000)).toBe('2024-10-27T03:33:20.000Z');
+        });
+
+        test('converts string seconds to ISO string', () => {
+            expect(normalizeUpdatedAt('1730000000')).toBe('2024-10-27T03:33:20.000Z');
+        });
+
+        test('passes through ISO string unchanged', () => {
+            const iso = '2024-10-27T03:33:20.000Z';
+            expect(normalizeUpdatedAt(iso)).toBe(iso);
+        });
+
+        test('returns original value for unparseable input', () => {
+            expect(normalizeUpdatedAt('garbage')).toBe('garbage');
+        });
+
+        test('returns null for null input', () => {
+            expect(normalizeUpdatedAt(null)).toBeNull();
+        });
+
+        test('returns undefined for undefined input', () => {
+            expect(normalizeUpdatedAt(undefined)).toBeUndefined();
+        });
+
+        test('handles float string', () => {
+            expect(normalizeUpdatedAt('1730000000.5')).toBe('2024-10-27T03:33:20.000Z');
         });
     });
 

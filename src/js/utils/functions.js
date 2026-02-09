@@ -239,6 +239,54 @@ export function normalizeParentId(parentId) {
     return parentId || null;
 }
 
+/**
+ * Преобразует updated_at в unix timestamp (секунды).
+ * Поддерживает ISO строки, миллисекунды и секунды (числом/строкой).
+ * @param {string|number|Date} updatedAt
+ * @returns {number|null}
+ */
+export function parseUpdatedAtToUnixSeconds(updatedAt) {
+    if (updatedAt === null || updatedAt === undefined) return null;
+
+    if (typeof updatedAt === 'number' && Number.isFinite(updatedAt)) {
+        const millis = updatedAt > 1e12 ? updatedAt : updatedAt * 1000;
+        return Math.floor(millis / 1000);
+    }
+
+    if (typeof updatedAt === 'string') {
+        const trimmed = updatedAt.trim();
+        if (/^\d+(\.\d+)?$/.test(trimmed)) {
+            const num = Number(trimmed);
+            if (Number.isFinite(num)) {
+                const millis = num > 1e12 ? num : num * 1000;
+                return Math.floor(millis / 1000);
+            }
+        }
+    }
+
+    const timestamp = new Date(updatedAt).getTime();
+    if (isNaN(timestamp)) return null;
+
+    return Math.floor(timestamp / 1000);
+}
+
+/**
+ * Нормализует updated_at в ISO строку.
+ * Безопасно обрабатывает unix секунды, миллисекунды и ISO строки.
+ * @param {string|number} updatedAt
+ * @returns {string} ISO строка или исходное значение при ошибке парсинга
+ */
+export function normalizeUpdatedAt(updatedAt) {
+    const seconds = parseUpdatedAtToUnixSeconds(updatedAt);
+    if (seconds === null || seconds <= 0) {
+        if (updatedAt !== undefined && updatedAt !== null) {
+            console.warn('normalizeUpdatedAt: unparseable value, returning as-is:', updatedAt);
+        }
+        return updatedAt;
+    }
+    return new Date(seconds * 1000).toISOString();
+}
+
 export default {
     findLCM,
     findNearestRoots,
@@ -252,7 +300,9 @@ export default {
     throttle,
     isMobileOrTablet,
     isExcludedElement,
-    normalizeParentId
+    normalizeParentId,
+    parseUpdatedAtToUnixSeconds,
+    normalizeUpdatedAt
 }
 
 
