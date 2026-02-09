@@ -67,7 +67,8 @@ jest.mock('../../../utils/utils', () => ({
 
 jest.mock('../../../utils/functions', () => ({
     isExcludedElement: jest.fn().mockReturnValue(false),
-    throttle: jest.fn((fn) => fn)
+    throttle: jest.fn((fn) => fn),
+    isMobileOrTablet: jest.fn().mockReturnValue(false)
 }));
 
 import { CommandManager } from '../../../controller/comands/comandManager';
@@ -75,7 +76,7 @@ import { ContextManager } from '../../../controller/comands/contextManager';
 import { uiManager } from '../../../controller/comands/uiManager';
 import { commands } from '../../../controller/comands/commands.js';
 import { dispatch } from '../../../utils/utils';
-import { isExcludedElement } from '../../../utils/functions';
+import { isExcludedElement, isMobileOrTablet } from '../../../utils/functions';
 
 describe('CommandManager', () => {
     let manager;
@@ -450,6 +451,30 @@ describe('CommandManager', () => {
             expect(execute).not.toHaveBeenCalled();
         });
 
+        test('defers block command on click when on mobile', () => {
+            isMobileOrTablet.mockReturnValue(true);
+            manager.ctxManager.setCmd = jest.fn();
+            manager.ctxManager.setDisActiveBlock = jest.fn();
+
+            const execute = jest.fn();
+            const button = document.createElement('button');
+            button.id = 'cutBlock';
+            mockControlPanel.appendChild(button);
+            manager.commandsById.cutBlock = {
+                id: 'cutBlock',
+                mode: ['normal'],
+                execute
+            };
+
+            const event = { target: button, type: 'click' };
+            manager.clickOnControlPanel(event);
+
+            expect(manager.ctxManager.setDisActiveBlock).toHaveBeenCalledWith(null);
+            expect(manager.ctxManager.setCmd).toHaveBeenCalledWith('cutBlock');
+            expect(execute).not.toHaveBeenCalled();
+            isMobileOrTablet.mockReturnValue(false);
+        });
+
         test('ignores non-button clicks', () => {
             manager.ctxManager.setCmd = jest.fn();
 
@@ -477,6 +502,53 @@ describe('CommandManager', () => {
             manager.clickOnTopNavigation(event);
 
             expect(manager.ctxManager.setCmd).toHaveBeenCalled();
+        });
+    });
+
+    describe('shouldDeferTouchCommand', () => {
+        test('defers deferred command on touchend', () => {
+            const result = manager.shouldDeferTouchCommand(
+                { id: 'cutBlock' },
+                { type: 'touchend' }
+            );
+            expect(result).toBe(true);
+        });
+
+        test('defers deferred command on click when on mobile', () => {
+            isMobileOrTablet.mockReturnValue(true);
+            const result = manager.shouldDeferTouchCommand(
+                { id: 'cutBlock' },
+                { type: 'click' }
+            );
+            expect(result).toBe(true);
+            isMobileOrTablet.mockReturnValue(false);
+        });
+
+        test('does NOT defer deferred command on click when on desktop', () => {
+            isMobileOrTablet.mockReturnValue(false);
+            const result = manager.shouldDeferTouchCommand(
+                { id: 'cutBlock' },
+                { type: 'click' }
+            );
+            expect(result).toBe(false);
+        });
+
+        test('does NOT defer non-deferred command on touchend', () => {
+            const result = manager.shouldDeferTouchCommand(
+                { id: 'openBlock' },
+                { type: 'touchend' }
+            );
+            expect(result).toBe(false);
+        });
+
+        test('does NOT defer non-deferred command on click when on mobile', () => {
+            isMobileOrTablet.mockReturnValue(true);
+            const result = manager.shouldDeferTouchCommand(
+                { id: 'openBlock' },
+                { type: 'click' }
+            );
+            expect(result).toBe(false);
+            isMobileOrTablet.mockReturnValue(false);
         });
     });
 });

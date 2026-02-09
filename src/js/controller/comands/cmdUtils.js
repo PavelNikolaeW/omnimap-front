@@ -7,6 +7,19 @@ import {
     resolveBlockId
 } from "../../actions/navigationActions";
 import { localStateManager } from "../../stateLocal/localStateManager";
+import { isMobileOrTablet } from "../../utils/functions";
+
+/**
+ * На мобильных сбрасываем blockElement перед навигацией,
+ * чтобы команда не сработала на устаревший блок после OpenBlock
+ */
+function clearMobileBlockContext(ctx) {
+    if (!isMobileOrTablet()) return
+    ctx.cancelTouchActiveReset()
+    ctx.removeActiveClass()
+    ctx.blockElement = undefined
+    ctx.blockLinkElement = undefined
+}
 
 /**
  * Открыть выбранный блок (используется для Enter и клика)
@@ -21,11 +34,14 @@ export function commandOpenBlock(ctx) {
     const blockId = resolveBlockId(blockElement, ctx.blockLinkElement)
     const hsl = extractParentHsl(blockElement.parentElement)
     const links = extractLinkChain(blockElement)
+    const isIframe = blockElement.hasAttribute('blockIframe')
+
+    clearMobileBlockContext(ctx)
 
     dispatch('OpenBlock', {
         id: blockId,
         parentHsl: hsl,
-        isIframe: blockElement.hasAttribute('blockIframe'),
+        isIframe: isIframe,
         links: links
     });
 }
@@ -39,11 +55,14 @@ export function openBlock(blockEl, ctx) {
     const blockId = resolveBlockId(blockEl, ctx.blockLinkElement)
     const hsl = extractParentHsl(blockEl.parentElement)
     const links = extractLinkChain(blockEl)
+    const isIframe = blockEl.hasAttribute('blockIframe')
+
+    clearMobileBlockContext(ctx)
 
     dispatch('OpenBlock', {
         id: blockId,
         parentHsl: hsl,
-        isIframe: blockEl.hasAttribute('blockIframe'),
+        isIframe: isIframe,
         links: links
     });
 }
