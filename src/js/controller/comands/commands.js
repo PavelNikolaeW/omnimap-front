@@ -293,6 +293,7 @@ export const commands = [
         execute(ctx) {
             dispatch('OpenUnifiedChat');
             openUnifiedChat();
+            setCmdOpenBlock(ctx)
         },
         btnExec(ctx) {
             this.execute(ctx)
