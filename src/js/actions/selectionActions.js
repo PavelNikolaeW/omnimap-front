@@ -27,7 +27,7 @@ export const MODES = {
  */
 export function copyBlockId(blockId) {
     if (!blockId) {
-        return { success: false, error: new Error('blockId is required') };
+        return { success: false, error: new Error('Не указан blockId') };
     }
 
     const cleanId = blockId.split('*').at(-1);
@@ -43,7 +43,7 @@ export function copyBlockId(blockId) {
  */
 export function copyMultipleBlockIds(blockIds) {
     if (!blockIds || blockIds.length === 0) {
-        return { success: false, error: new Error('blockIds array is required') };
+        return { success: false, error: new Error('Не указан массив blockIds') };
     }
 
     const cleanIds = blockIds.map(id => id.split('*').at(-1));
@@ -61,11 +61,11 @@ export async function getBlockIdFromClipboard() {
         const text = await getClipboardText();
 
         if (!text) {
-            return { success: false, error: new Error('Clipboard is empty') };
+            return { success: false, error: new Error('Буфер обмена пуст') };
         }
 
         if (!isValidUUID(text)) {
-            return { success: false, error: new Error('Clipboard does not contain valid UUID') };
+            return { success: false, error: new Error('Буфер обмена не содержит корректный UUID') };
         }
 
         return { success: true, blockId: text };
@@ -84,7 +84,7 @@ export async function getBlockIdsFromClipboard() {
         const text = await getClipboardText();
 
         if (!text) {
-            return { success: false, error: new Error('Clipboard is empty') };
+            return { success: false, error: new Error('Буфер обмена пуст') };
         }
 
         // Попытка распарсить JSON-массив
@@ -102,7 +102,7 @@ export async function getBlockIdsFromClipboard() {
             return { success: true, blockIds: [text] };
         }
 
-        return { success: false, error: new Error('Clipboard does not contain valid block IDs') };
+        return { success: false, error: new Error('Буфер обмена не содержит корректные ID блоков') };
     } catch (error) {
         return { success: false, error };
     }
@@ -116,11 +116,11 @@ export async function getBlockIdsFromClipboard() {
  */
 export function startCutBlock(blockId, parentId) {
     if (!blockId) {
-        return { success: false, error: new Error('blockId is required') };
+        return { success: false, error: new Error('Не указан blockId') };
     }
 
     if (!parentId || parentId === 'rootContainer') {
-        return { success: false, error: new Error('Cannot cut root block') };
+        return { success: false, error: new Error('Нельзя вырезать корневой блок') };
     }
 
     const cleanBlockId = blockId.split('*').at(-1);
@@ -144,11 +144,11 @@ export function startCutBlock(blockId, parentId) {
  */
 export function completeCutBlock(cutData, newParentId, beforeId = null) {
     if (!cutData || !cutData.block_id) {
-        return { success: false, error: new Error('No block is being cut') };
+        return { success: false, error: new Error('Блок не вырезан') };
     }
 
     if (!newParentId) {
-        return { success: false, error: new Error('newParentId is required') };
+        return { success: false, error: new Error('Не указан newParentId') };
     }
 
     const cleanNewParentId = newParentId.split('*').at(-1);
@@ -172,7 +172,7 @@ export function completeCutBlock(cutData, newParentId, beforeId = null) {
  */
 export function startConnectBlocks(sourceId) {
     if (!sourceId) {
-        return { success: false, error: new Error('sourceId is required') };
+        return { success: false, error: new Error('Не указан sourceId') };
     }
 
     return { success: true, sourceId };
@@ -186,11 +186,11 @@ export function startConnectBlocks(sourceId) {
  */
 export function completeConnectBlocks(sourceId, targetId) {
     if (!sourceId || !targetId) {
-        return { success: false, error: new Error('sourceId and targetId are required') };
+        return { success: false, error: new Error('Не указаны sourceId и targetId') };
     }
 
     if (sourceId === targetId) {
-        return { success: false, error: new Error('Cannot connect block to itself') };
+        return { success: false, error: new Error('Нельзя соединить блок с самим собой') };
     }
 
     return {

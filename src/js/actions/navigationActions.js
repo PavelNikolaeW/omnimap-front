@@ -79,7 +79,7 @@ export async function removeTreeId(treeId) {
         return {
             success: false,
             treeIds,
-            error: new Error('Cannot remove last tree')
+            error: new Error('Нельзя удалить последнее дерево')
         };
     }
 
@@ -172,7 +172,7 @@ export async function navigateInto(blockId, parentHsl = [], links = []) {
         return {
             success: false,
             path,
-            error: new Error(`Block ${blockId} not found`)
+            error: new Error(`Блок ${blockId} не найден`)
         };
     }
 
@@ -197,7 +197,7 @@ export async function navigateBack() {
     const path = await getPath();
 
     if (path.length <= 1) {
-        return { success: false, path, error: new Error('Already at root') };
+        return { success: false, path, error: new Error('Уже в корне') };
     }
 
     const removedItem = path.pop();
@@ -219,7 +219,7 @@ export async function navigateToLevel(level) {
     const path = await getPath();
 
     if (level < 0 || level >= path.length) {
-        return { success: false, path, error: new Error('Invalid level') };
+        return { success: false, path, error: new Error('Некорректный уровень') };
     }
 
     const newPath = path.slice(0, level + 1);
@@ -237,7 +237,7 @@ export async function switchTree(treeId) {
     const treeIds = await getTreeIds();
 
     if (!treeIds.includes(treeId)) {
-        return { success: false, error: new Error('Tree not found') };
+        return { success: false, error: new Error('Дерево не найдено') };
     }
 
     await setCurrentTree(treeId);
@@ -253,7 +253,7 @@ export async function switchTreeByIndex(index) {
     const treeIds = await getTreeIds();
 
     if (treeIds.length === 0) {
-        return { success: false, error: new Error('No trees available') };
+        return { success: false, error: new Error('Нет доступных деревьев') };
     }
 
     let treeId;
@@ -262,7 +262,7 @@ export async function switchTreeByIndex(index) {
     } else if (index > 0 && index <= treeIds.length) {
         treeId = treeIds[index - 1];
     } else {
-        return { success: false, error: new Error('Tree index out of range') };
+        return { success: false, error: new Error('Индекс дерева вне диапазона') };
     }
 
     await setCurrentTree(treeId);

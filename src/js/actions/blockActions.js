@@ -19,7 +19,7 @@ import { validURL, isValidUUID } from '../utils/functions';
  */
 export async function createBlock(parentId, title, data = null) {
     if (!parentId) {
-        return { success: false, error: new Error('parentId is required') };
+        return { success: false, error: new Error('Не указан parentId') };
     }
 
     try {
@@ -27,7 +27,7 @@ export async function createBlock(parentId, title, data = null) {
         if (response.status === 201) {
             return { success: true, blocks: response.data };
         }
-        return { success: false, error: new Error(`Unexpected status: ${response.status}`) };
+        return { success: false, error: new Error(`Неожиданный статус: ${response.status}`) };
     } catch (error) {
         return { success: false, error };
     }
@@ -41,7 +41,7 @@ export async function createBlock(parentId, title, data = null) {
  */
 export async function createIframeBlock(parentId, src) {
     if (!parentId || !src) {
-        return { success: false, error: new Error('parentId and src are required') };
+        return { success: false, error: new Error('Не указаны parentId и src') };
     }
 
     const data = {
@@ -57,7 +57,7 @@ export async function createIframeBlock(parentId, src) {
         if (response.status === 201) {
             return { success: true, blocks: response.data };
         }
-        return { success: false, error: new Error(`Unexpected status: ${response.status}`) };
+        return { success: false, error: new Error(`Неожиданный статус: ${response.status}`) };
     } catch (error) {
         return { success: false, error };
     }
@@ -86,7 +86,7 @@ export async function createBlockSmart(parentId, input) {
  */
 export async function updateBlockTitle(blockId, title) {
     if (!blockId) {
-        return { success: false, error: new Error('blockId is required') };
+        return { success: false, error: new Error('Не указан blockId') };
     }
 
     try {
@@ -94,7 +94,7 @@ export async function updateBlockTitle(blockId, title) {
         if (response.status === 200) {
             return { success: true, block: response.data };
         }
-        return { success: false, error: new Error(`Unexpected status: ${response.status}`) };
+        return { success: false, error: new Error(`Неожиданный статус: ${response.status}`) };
     } catch (error) {
         return { success: false, error };
     }
@@ -108,7 +108,7 @@ export async function updateBlockTitle(blockId, title) {
  */
 export async function updateBlockText(blockId, text) {
     if (!blockId) {
-        return { success: false, error: new Error('blockId is required') };
+        return { success: false, error: new Error('Не указан blockId') };
     }
 
     try {
@@ -116,7 +116,7 @@ export async function updateBlockText(blockId, text) {
         if (response.status === 200) {
             return { success: true, block: response.data };
         }
-        return { success: false, error: new Error(`Unexpected status: ${response.status}`) };
+        return { success: false, error: new Error(`Неожиданный статус: ${response.status}`) };
     } catch (error) {
         return { success: false, error };
     }
@@ -130,7 +130,7 @@ export async function updateBlockText(blockId, text) {
  */
 export async function updateBlockColor(blockId, hue) {
     if (!blockId) {
-        return { success: false, error: new Error('blockId is required') };
+        return { success: false, error: new Error('Не указан blockId') };
     }
 
     try {
@@ -138,7 +138,7 @@ export async function updateBlockColor(blockId, hue) {
         if (response.status === 200) {
             return { success: true, block: response.data };
         }
-        return { success: false, error: new Error(`Unexpected status: ${response.status}`) };
+        return { success: false, error: new Error(`Неожиданный статус: ${response.status}`) };
     } catch (error) {
         return { success: false, error };
     }
@@ -152,7 +152,7 @@ export async function updateBlockColor(blockId, hue) {
  */
 export async function updateBlockData(blockId, data) {
     if (!blockId) {
-        return { success: false, error: new Error('blockId is required') };
+        return { success: false, error: new Error('Не указан blockId') };
     }
 
     try {
@@ -160,7 +160,7 @@ export async function updateBlockData(blockId, data) {
         if (response.status === 200) {
             return { success: true, block: response.data };
         }
-        return { success: false, error: new Error(`Unexpected status: ${response.status}`) };
+        return { success: false, error: new Error(`Неожиданный статус: ${response.status}`) };
     } catch (error) {
         return { success: false, error };
     }
@@ -174,7 +174,7 @@ export async function updateBlockData(blockId, data) {
  */
 export async function setBlockIframe(blockId, src) {
     if (!blockId || !src) {
-        return { success: false, error: new Error('blockId and src are required') };
+        return { success: false, error: new Error('Не указаны blockId и src') };
     }
 
     const data = {
@@ -191,7 +191,7 @@ export async function setBlockIframe(blockId, src) {
         if (response.status === 200) {
             return { success: true, block: response.data };
         }
-        return { success: false, error: new Error(`Unexpected status: ${response.status}`) };
+        return { success: false, error: new Error(`Неожиданный статус: ${response.status}`) };
     } catch (error) {
         return { success: false, error };
     }
@@ -204,7 +204,7 @@ export async function setBlockIframe(blockId, src) {
  */
 export async function deleteBlock(blockId) {
     if (!blockId) {
-        return { success: false, error: new Error('blockId is required') };
+        return { success: false, error: new Error('Не указан blockId') };
     }
 
     try {
@@ -212,7 +212,7 @@ export async function deleteBlock(blockId) {
         if (response.status === 200) {
             return { success: true, parent: response.data.parent };
         }
-        return { success: false, error: new Error(`Unexpected status: ${response.status}`) };
+        return { success: false, error: new Error(`Неожиданный статус: ${response.status}`) };
     } catch (error) {
         return { success: false, error };
     }
@@ -229,11 +229,11 @@ export async function deleteBlock(blockId) {
  */
 export async function moveBlock(blockId, oldParentId, newParentId, childOrder, before = null) {
     if (!blockId || !newParentId) {
-        return { success: false, error: new Error('blockId and newParentId are required') };
+        return { success: false, error: new Error('Не указаны blockId и newParentId') };
     }
 
     if (blockId === newParentId) {
-        return { success: false, error: new Error('Cannot move block into itself') };
+        return { success: false, error: new Error('Нельзя переместить блок в самого себя') };
     }
 
     try {
@@ -246,7 +246,7 @@ export async function moveBlock(blockId, oldParentId, newParentId, childOrder, b
         if (response.status === 200) {
             return { success: true, blocks: response.data };
         }
-        return { success: false, error: new Error(`Unexpected status: ${response.status}`) };
+        return { success: false, error: new Error(`Неожиданный статус: ${response.status}`) };
     } catch (error) {
         return { success: false, error };
     }
@@ -260,13 +260,13 @@ export async function moveBlock(blockId, oldParentId, newParentId, childOrder, b
  */
 export async function copyBlocks(destId, srcIds) {
     if (!destId || !srcIds || srcIds.length === 0) {
-        return { success: false, error: new Error('destId and srcIds are required') };
+        return { success: false, error: new Error('Не указаны destId и srcIds') };
     }
 
     // Валидация UUID
     const validIds = srcIds.filter(id => isValidUUID(id));
     if (validIds.length === 0) {
-        return { success: false, error: new Error('No valid UUIDs provided') };
+        return { success: false, error: new Error('Не предоставлены корректные UUID') };
     }
 
     try {
@@ -274,7 +274,7 @@ export async function copyBlocks(destId, srcIds) {
         if (response.status === 200) {
             return { success: true, blocks: response.data };
         }
-        return { success: false, error: new Error(`Unexpected status: ${response.status}`) };
+        return { success: false, error: new Error(`Неожиданный статус: ${response.status}`) };
     } catch (error) {
         return { success: false, error };
     }
@@ -288,17 +288,17 @@ export async function copyBlocks(destId, srcIds) {
  */
 export async function linkBlocks(destId, srcIds) {
     if (!destId || !srcIds || srcIds.length === 0) {
-        return { success: false, error: new Error('destId and srcIds are required') };
+        return { success: false, error: new Error('Не указаны destId и srcIds') };
     }
 
     // Нельзя создать ссылку на самого себя
     if (srcIds.includes(destId)) {
-        return { success: false, error: new Error('Cannot link block to itself') };
+        return { success: false, error: new Error('Нельзя связать блок с самим собой') };
     }
 
     const validIds = srcIds.filter(id => isValidUUID(id));
     if (validIds.length === 0) {
-        return { success: false, error: new Error('No valid UUIDs provided') };
+        return { success: false, error: new Error('Не предоставлены корректные UUID') };
     }
 
     try {
@@ -306,7 +306,7 @@ export async function linkBlocks(destId, srcIds) {
         if (response.status === 201) {
             return { success: true, blocks: response.data };
         }
-        return { success: false, error: new Error(`Unexpected status: ${response.status}`) };
+        return { success: false, error: new Error(`Неожиданный статус: ${response.status}`) };
     } catch (error) {
         return { success: false, error };
     }
@@ -319,7 +319,7 @@ export async function linkBlocks(destId, srcIds) {
  */
 export async function createTree(title) {
     if (!title) {
-        return { success: false, error: new Error('title is required') };
+        return { success: false, error: new Error('Не указан заголовок') };
     }
 
     try {
@@ -327,7 +327,7 @@ export async function createTree(title) {
         if (response.status === 201) {
             return { success: true, block: response.data };
         }
-        return { success: false, error: new Error(`Unexpected status: ${response.status}`) };
+        return { success: false, error: new Error(`Неожиданный статус: ${response.status}`) };
     } catch (error) {
         return { success: false, error };
     }
@@ -340,7 +340,7 @@ export async function createTree(title) {
  */
 export async function createPublicLink(blockId) {
     if (!blockId) {
-        return { success: false, error: new Error('blockId is required') };
+        return { success: false, error: new Error('Не указан blockId') };
     }
 
     try {
@@ -348,7 +348,7 @@ export async function createPublicLink(blockId) {
         if (response.status === 200) {
             return { success: true, block: response.data };
         }
-        return { success: false, error: new Error(`Unexpected status: ${response.status}`) };
+        return { success: false, error: new Error(`Неожиданный статус: ${response.status}`) };
     } catch (error) {
         return { success: false, error };
     }
@@ -362,7 +362,7 @@ export async function createPublicLink(blockId) {
  */
 export async function updateBlockGrid(blockId, customGrid) {
     if (!blockId) {
-        return { success: false, error: new Error('blockId is required') };
+        return { success: false, error: new Error('Не указан blockId') };
     }
 
     try {
@@ -370,7 +370,7 @@ export async function updateBlockGrid(blockId, customGrid) {
         if (response.status === 200) {
             return { success: true, block: response.data };
         }
-        return { success: false, error: new Error(`Unexpected status: ${response.status}`) };
+        return { success: false, error: new Error(`Неожиданный статус: ${response.status}`) };
     } catch (error) {
         return { success: false, error };
     }
@@ -386,7 +386,7 @@ export async function updateBlockGrid(blockId, customGrid) {
  */
 export async function addConnection(sourceId, targetId, connectionData, currentData = {}) {
     if (!sourceId || !targetId) {
-        return { success: false, error: new Error('sourceId and targetId are required') };
+        return { success: false, error: new Error('Не указаны sourceId и targetId') };
     }
 
     const connections = currentData.connections || [];
@@ -413,7 +413,7 @@ export async function addConnection(sourceId, targetId, connectionData, currentD
         if (response.status === 200) {
             return { success: true, block: response.data };
         }
-        return { success: false, error: new Error(`Unexpected status: ${response.status}`) };
+        return { success: false, error: new Error(`Неожиданный статус: ${response.status}`) };
     } catch (error) {
         return { success: false, error };
     }
@@ -428,7 +428,7 @@ export async function addConnection(sourceId, targetId, connectionData, currentD
  */
 export async function removeConnection(sourceId, targetId, currentData = {}) {
     if (!sourceId || !targetId) {
-        return { success: false, error: new Error('sourceId and targetId are required') };
+        return { success: false, error: new Error('Не указаны sourceId и targetId') };
     }
 
     const connections = (currentData.connections || []).filter(
@@ -442,7 +442,7 @@ export async function removeConnection(sourceId, targetId, currentData = {}) {
         if (response.status === 200) {
             return { success: true, block: response.data };
         }
-        return { success: false, error: new Error(`Unexpected status: ${response.status}`) };
+        return { success: false, error: new Error(`Неожиданный статус: ${response.status}`) };
     } catch (error) {
         return { success: false, error };
     }
