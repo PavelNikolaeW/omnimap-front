@@ -68,17 +68,18 @@ export class SincManager {
 
             // Сохраняем блоки через localStateManager
             const { localStateManager } = await import('../stateLocal/localStateManager');
+            const lsm = localStateManager.getInstance();
 
             // Обновляем treeIds
-            if (localStateManager.currentUser) {
-                await localforage.setItem(`treeIds${localStateManager.currentUser}`, treeBlocks.treeIds);
+            if (lsm.currentUser) {
+                await localforage.setItem(`treeIds${lsm.currentUser}`, treeBlocks.treeIds);
             }
 
             // Сохраняем все блоки (батчами для производительности)
             const allBlocks = [...treeBlocks.blocks.values()];
             for (let i = 0; i < allBlocks.length; i += SAVE_BATCH_SIZE) {
                 const batch = allBlocks.slice(i, i + SAVE_BATCH_SIZE);
-                await Promise.all(batch.map(block => localStateManager.saveBlock(block)));
+                await Promise.all(batch.map(block => lsm.saveBlock(block)));
             }
 
             // Обновляем UI
