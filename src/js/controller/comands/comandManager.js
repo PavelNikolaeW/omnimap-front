@@ -12,6 +12,34 @@ import {isLinkViewSearch} from "../../utils/linkView";
 
 const TOUCH_TAP_THRESHOLD_PX = 10;
 const TOUCH_CLICK_DEDUP_MS = 450;
+const TOUCH_DEFERRED_COMMAND_IDS = new Set([
+    'newBlock',
+    'editBlockTitle',
+    'editBlockText',
+    'cutBlock',
+    'copyBlock',
+    'pasteBlock',
+    'pasteBlockLink',
+    'removeTreeBlock',
+    'connectBlock',
+    'connectDashed',
+    'connectDouble',
+    'connectCurved',
+    'connectStraight',
+    'connectOrthogonal',
+    'connectSelfLoop',
+    'openLayoutEditor',
+    'editBlock',
+    'createUrl',
+    'editAccessBlock',
+    'importBlocks',
+    'uploadBlockImage',
+    'viewFullsizeImage',
+    'setReminder',
+    'watchBlock',
+    'addToFocus',
+    'markAsFocusContainer'
+]);
 
 hotkeys.filter = function (event) {
     const target = event.target || event.srcElement;
@@ -308,6 +336,15 @@ export class CommandManager {
 
         const cmd = this.commandsById[targetId]
         if (!cmd) return
+
+        if (this.shouldDeferTouchCommand(cmd, event)) {
+            this.ctxManager.isTree = false
+            this.ctxManager.setDisActiveBlock(null)
+            this.ctxManager.blockId = undefined
+            this.ctxManager.setCmd(cmd.id)
+            return
+        }
+
         this.ctxManager.isTree = false
         this.ctxManager.setCmd(cmd)
         // Если есть btnExec, используем его, иначе вызываем execute напрямую
@@ -316,6 +353,10 @@ export class CommandManager {
         } else if (cmd.mode.includes(this.ctxManager.mode) || cmd.mode.includes('*')) {
             cmd.execute(this.ctxManager)
         }
+    }
+
+    shouldDeferTouchCommand(cmd, event) {
+        return event.type === 'touchend' && TOUCH_DEFERRED_COMMAND_IDS.has(cmd.id)
     }
 
     clickOnTopNavigation(event) {

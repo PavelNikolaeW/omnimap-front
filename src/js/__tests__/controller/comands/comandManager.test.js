@@ -44,8 +44,10 @@ jest.mock('../../../controller/comands/contextManager', () => ({
     ContextManager: jest.fn().mockImplementation(() => ({
         mode: 'normal',
         blockElement: null,
+        blockId: undefined,
         setEvent: jest.fn(),
         setCmd: jest.fn(),
+        setDisActiveBlock: jest.fn(),
         getCmd: jest.fn().mockReturnValue('testCommand1')
     })),
     setContextManager: jest.fn()
@@ -424,6 +426,28 @@ describe('CommandManager', () => {
             manager.clickOnControlPanel(event);
 
             expect(manager.ctxManager.setCmd).toHaveBeenCalled();
+        });
+
+        test('defers block command execution on touchend', () => {
+            manager.ctxManager.setCmd = jest.fn();
+            manager.ctxManager.setDisActiveBlock = jest.fn();
+
+            const execute = jest.fn();
+            const button = document.createElement('button');
+            button.id = 'cutBlock';
+            mockControlPanel.appendChild(button);
+            manager.commandsById.cutBlock = {
+                id: 'cutBlock',
+                mode: ['normal'],
+                execute
+            };
+
+            const event = { target: button, type: 'touchend' };
+            manager.clickOnControlPanel(event);
+
+            expect(manager.ctxManager.setDisActiveBlock).toHaveBeenCalledWith(null);
+            expect(manager.ctxManager.setCmd).toHaveBeenCalledWith('cutBlock');
+            expect(execute).not.toHaveBeenCalled();
         });
 
         test('ignores non-button clicks', () => {

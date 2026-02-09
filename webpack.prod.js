@@ -69,7 +69,7 @@ module.exports = merge(common, {
             navigateFallback: '/index.html',
             // Regex должен матчить и /admin и /admin/ (с и без trailing slash)
             // force-update.html не должен редиректиться на index.html
-            navigateFallbackDenylist: [/^\/api(\/|$)/, /^\/admin(\/|$)/, /^\/static(\/|$)/, /^\/media(\/|$)/, /^\/force-update\.html/],
+            navigateFallbackDenylist: [/^\/api(\/|$)/, /^\/admin(\/|$)/, /^\/agents(\/|$)/, /^\/static(\/|$)/, /^\/media(\/|$)/, /^\/force-update\.html/],
             // Подключаем кастомный код для Background Sync
             importScripts: ['sw-custom.js'],
             runtimeCaching: [
