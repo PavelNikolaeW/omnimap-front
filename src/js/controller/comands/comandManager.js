@@ -2,7 +2,7 @@ import {commands} from './commands.js';
 import hotkeys from 'hotkeys-js';
 import {ContextManager, setContextManager} from "./contextManager";
 import {uiManager} from "./uiManager";
-import {isExcludedElement, throttle} from "../../utils/functions";
+import {isExcludedElement, throttle, isMobileOrTablet} from "../../utils/functions";
 import {dispatch} from "../../utils/utils";
 import {diagramEditor} from "../diagramEditor";
 import {connectionAnchorManager} from "../connectionAnchorManager";
@@ -356,7 +356,11 @@ export class CommandManager {
     }
 
     shouldDeferTouchCommand(cmd, event) {
-        return event.type === 'touchend' && TOUCH_DEFERRED_COMMAND_IDS.has(cmd.id)
+        if (!TOUCH_DEFERRED_COMMAND_IDS.has(cmd.id)) return false
+        if (event.type === 'touchend') return true
+        // На мобильных click может сработать когда touchend пропущен (палец сдвинулся >10px)
+        if (event.type === 'click' && isMobileOrTablet()) return true
+        return false
     }
 
     clickOnTopNavigation(event) {
