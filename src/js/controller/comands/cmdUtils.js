@@ -10,6 +10,18 @@ import { localStateManager } from "../../stateLocal/localStateManager";
 import { isMobileOrTablet } from "../../utils/functions";
 
 /**
+ * На мобильных сбрасываем blockElement перед навигацией,
+ * чтобы команда не сработала на устаревший блок после OpenBlock
+ */
+function clearMobileBlockContext(ctx) {
+    if (!isMobileOrTablet()) return
+    ctx.cancelTouchActiveReset()
+    ctx.removeActiveClass()
+    ctx.blockElement = undefined
+    ctx.blockLinkElement = undefined
+}
+
+/**
  * Открыть выбранный блок (используется для Enter и клика)
  */
 export function commandOpenBlock(ctx) {
@@ -24,14 +36,7 @@ export function commandOpenBlock(ctx) {
     const links = extractLinkChain(blockElement)
     const isIframe = blockElement.hasAttribute('blockIframe')
 
-    // На мобильных сбрасываем blockElement перед навигацией,
-    // чтобы команда не сработала на устаревший блок после OpenBlock
-    if (isMobileOrTablet()) {
-        ctx.cancelTouchActiveReset()
-        ctx.removeActiveClass()
-        ctx.blockElement = undefined
-        ctx.blockLinkElement = undefined
-    }
+    clearMobileBlockContext(ctx)
 
     dispatch('OpenBlock', {
         id: blockId,
@@ -52,14 +57,7 @@ export function openBlock(blockEl, ctx) {
     const links = extractLinkChain(blockEl)
     const isIframe = blockEl.hasAttribute('blockIframe')
 
-    // На мобильных сбрасываем blockElement перед навигацией,
-    // чтобы команда не сработала на устаревший блок после OpenBlock
-    if (isMobileOrTablet()) {
-        ctx.cancelTouchActiveReset()
-        ctx.removeActiveClass()
-        ctx.blockElement = undefined
-        ctx.blockLinkElement = undefined
-    }
+    clearMobileBlockContext(ctx)
 
     dispatch('OpenBlock', {
         id: blockId,
