@@ -91,6 +91,12 @@
     color: #9ca3af;
 }
 
+/* Предзаполненное поле (invite из URL) */
+.auth-input--prefilled {
+    background-color: #f0f9ff;
+    border-color: #93c5fd;
+}
+
 /* ux5: Поле с ошибкой */
 .auth-input.error {
     border-color: #dc2626;

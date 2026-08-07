@@ -283,6 +283,7 @@ export function parseDjangoErrors(errors) {
 
     // Маппинг полей Django → наши поля
     const fieldMap = {
+        'invite_code': 'invite_code',
         'username': 'username',
         'email': 'email',
         'password': 'password',
@@ -302,7 +303,11 @@ export function parseDjangoErrors(errors) {
         'This field may not be blank.': 'Обязательное поле',
         'This field is required.': 'Обязательное поле',
         'Unable to log in with provided credentials.': 'Неверное имя пользователя или пароль',
-        'No active account found with the given credentials': 'Неверное имя пользователя или пароль'
+        'No active account found with the given credentials': 'Неверное имя пользователя или пароль',
+        'Invalid invite code.': 'Недействительный код приглашения',
+        'Invite code is required.': 'Код приглашения обязателен',
+        'This invite code has expired.': 'Код приглашения истёк',
+        'This invite code has reached its usage limit.': 'Код приглашения исчерпан'
     };
 
     for (const [field, messages] of Object.entries(errors)) {

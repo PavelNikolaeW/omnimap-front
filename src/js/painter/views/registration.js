@@ -39,6 +39,33 @@ export function registration(block, parent) {
     title.textContent = 'Регистрация';
     title.classList.add('auth-title');
 
+    // Проверяем invite-код из URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const inviteFromUrl = urlParams.get('invite');
+
+    // Очищаем invite из URL чтобы не светился в адресной строке
+    if (inviteFromUrl) {
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('invite');
+        history.replaceState(null, '', cleanUrl.toString());
+    }
+
+    // Поле инвайт-кода
+    const inviteCodeGroup = createInputGroup({
+        id: 'invite-code',
+        label: 'Код приглашения',
+        type: 'text',
+        autocomplete: 'off',
+        required: true
+    });
+
+    // Если код из URL — предзаполняем и блокируем редактирование
+    if (inviteFromUrl) {
+        inviteCodeGroup.input.value = inviteFromUrl;
+        inviteCodeGroup.input.readOnly = true;
+        inviteCodeGroup.input.classList.add('auth-input--prefilled');
+    }
+
     // Поля формы
     const usernameGroup = createInputGroup({
         id: 'reg-username',
@@ -87,8 +114,9 @@ export function registration(block, parent) {
     errorMessage.setAttribute('aria-live', 'polite');
     errorMessage.setAttribute('aria-atomic', 'true');
 
-    // Сборка формы
+    // Сборка формы — invite-code первым (перед username)
     form.appendChild(title);
+    form.appendChild(inviteCodeGroup.wrapper);
     form.appendChild(usernameGroup.wrapper);
     form.appendChild(emailGroup.wrapper);
     form.appendChild(passwordGroup.wrapper);
@@ -101,8 +129,8 @@ export function registration(block, parent) {
     // AbortController для cleanup event listeners
     const abortController = new AbortController();
 
-    // Скрываем ошибку при вводе
-    const allInputs = [usernameGroup.input, emailGroup.input, passwordGroup.input, confirmPasswordGroup.input];
+    // Скрываем ошибку при вводе (invite-code добавлен в массив)
+    const allInputs = [inviteCodeGroup.input, usernameGroup.input, emailGroup.input, passwordGroup.input, confirmPasswordGroup.input];
     allInputs.forEach(input => {
         input.addEventListener('input', () => {
             hideError(errorMessage);
@@ -131,6 +159,7 @@ export function registration(block, parent) {
         event.preventDefault();
         event.stopPropagation();
 
+        const inviteCode = inviteCodeGroup.input.value.trim();
         const username = usernameGroup.input.value.trim();
         const email = emailGroup.input.value.trim();
         const password = passwordGroup.input.value;
@@ -142,6 +171,11 @@ export function registration(block, parent) {
 
         // Валидация
         let hasError = false;
+
+        if (!inviteCode) {
+            showFieldError(inviteCodeGroup.input, 'Обязательное поле');
+            hasError = true;
+        }
 
         if (!username) {
             showFieldError(usernameGroup.input, 'Обязательное поле');
@@ -182,7 +216,7 @@ export function registration(block, parent) {
         setButtonLoading(submitButton, true, 'Регистрация...');
 
         try {
-            const result = await api.register({ username, email, password });
+            const result = await api.register({ username, email, password, invite_code: inviteCode });
 
             if (result?.success) {
                 // После успешной регистрации страница перерисуется через событие Login
@@ -192,6 +226,7 @@ export function registration(block, parent) {
 
                 // Показываем ошибки на полях
                 const fieldInputMap = {
+                    'invite_code': inviteCodeGroup.input,
                     'username': usernameGroup.input,
                     'email': emailGroup.input,
                     'password': passwordGroup.input,
@@ -228,10 +263,14 @@ export function registration(block, parent) {
         }
     }, { signal: abortController.signal });
 
-    // Фокус на первое поле после рендера (если нет другого активного элемента в auth-block)
+    // Фокус: если код из URL → на username, иначе → на invite-code
     requestAnimationFrame(() => {
         if (document.activeElement?.closest('.auth-block')) return;
-        usernameGroup.input.focus();
+        if (inviteFromUrl) {
+            usernameGroup.input.focus();
+        } else {
+            inviteCodeGroup.input.focus();
+        }
     });
 
     // Cleanup при удалении из DOM
